@@ -53,7 +53,7 @@ struct Header: View {
     @Environment(AppModel.self) private var model
     var body: some View {
         HStack(spacing: 14) {
-            LogotypePapai().frame(height: 30 * CGFloat(model.textScale))
+            LogotypePapai().frame(height: 36 * CGFloat(model.textScale))
             Spacer()
             // Rien quand tout va bien : la personne aidée n'a pas à se soucier de la connexion.
             if !model.connected {

@@ -9,7 +9,9 @@ struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
     @State private var writing = false
-    private var raccourcis: HomeShortcuts { .shared }
+    @State private var favoris = HomeShortcuts()
+    @State private var ajoutVisible = false
+    private var raccourcis: MicPresence { .shared }
 
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
@@ -23,8 +25,11 @@ struct HomeView: View {
             }
             .frame(width: 400)
         }
-        .onAppear { ouvrirDemande() }
+        .onAppear { ouvrirDemande(); favoris.actualiser() }
         .onChange(of: raccourcis.demande) { _, _ in ouvrirDemande() }
+        .sheet(isPresented: $ajoutVisible, onDismiss: { favoris.actualiser() }) {
+            AjouterRaccourci(favoris: favoris)
+        }
     }
 
     private var helpCard: some View {
@@ -192,29 +197,56 @@ struct HomeView: View {
         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
     }
 
-    /// Les plus utilisées et les plus demandées en aide (voir `AppUsage`).
-    private var usage: AppUsage { AppUsage.shared }
-
     private var apps: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Mes applications").font(rounded(24, .semibold))
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 14) {
-                ForEach(usage.top) { app in
-                    let name = app.name, bundle = app.bundle
-                    Button { openApp(bundle) } label: {
-                        VStack(spacing: 8) {
-                            Circle().fill(T.card).frame(width: 88, height: 88)
-                                .overlay(Image(nsImage: icon(bundle)).resizable().frame(width: 52, height: 52))
-                            Text(name).font(rounded(15, .medium))
-                        }
-                        .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Mes raccourcis").font(rounded(21, .semibold))
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 12) {
+                ForEach(favoris.tuiles) { tuile in
+                    Button { favoris.ouvrir(tuile, notice: model.showNotice) } label: {
+                        VStack(spacing: 6) {
+                            Circle().fill(T.card).frame(width: 68, height: 68)
+                                .overlay {
+                                    if case .application(let bundle) = tuile.cible,
+                                       ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil {
+                                        Image(nsImage: icon(bundle)).resizable().frame(width: 42, height: 42)
+                                    } else {
+                                        Image(systemName: symbole(tuile)).font(rounded(28))
+                                            .foregroundStyle(T.accent)
+                                    }
+                                }
+                            Text(tuile.titre).font(rounded(15)).multilineTextAlignment(.center)
+                                .lineLimit(2).frame(height: 38, alignment: .top)
+                        }.frame(maxWidth: .infinity)
                     }
                     .buttonStyle(PressStyle())
-                    .accessibilityLabel("Ouvrir \(name)")
+                    .accessibilityLabel("Ouvrir \(tuile.titre)")
+                    .contextMenu {
+                        if tuile.ajoutee { Button("Retirer") { favoris.retirer(tuile) } }
+                    }
                 }
+                Button { ajoutVisible = true } label: {
+                    VStack(spacing: 6) {
+                        Circle().fill(T.card).frame(width: 68, height: 68)
+                            .overlay(Image(systemName: "plus").font(rounded(28)).foregroundStyle(T.muted))
+                        Text("Ajouter").font(rounded(15)).frame(height: 38, alignment: .top)
+                    }.frame(maxWidth: .infinity)
+                }
+                    .buttonStyle(PressStyle())
             }
         }
         .foregroundStyle(T.ink)
+    }
+
+    private func symbole(_ tuile: HomeShortcuts.Tuile) -> String {
+        if case .application(let bundle) = tuile.cible {
+            switch bundle {
+            case "com.apple.mail": return "envelope"
+            case "com.apple.Photos": return "photo.on.rectangle"
+            case "com.apple.Safari": return "safari"
+            default: return "app"
+            }
+        }
+        return tuile.symbole
     }
 
     private func icon(_ bundle: String) -> NSImage {
@@ -224,12 +256,50 @@ struct HomeView: View {
         return NSImage(systemSymbolName: "app", accessibilityDescription: nil) ?? NSImage()
     }
 
-    private func openApp(_ bundle: String) {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else {
-            model.showNotice("Cette application n'est pas disponible sur cet ordinateur.")
-            return
+}
+
+private struct AjouterRaccourci: View {
+    @Environment(\.dismiss) private var fermer
+    let favoris: HomeShortcuts
+    @State private var albumVisible = false
+    @State private var nom = ""
+    @State private var erreur: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Ajouter un raccourci").font(rounded(26, .semibold))
+            Button {
+                let panneau = NSOpenPanel()
+                panneau.canChooseDirectories = true
+                panneau.canChooseFiles = false
+                panneau.allowsMultipleSelection = false
+                panneau.treatsFilePackagesAsDirectories = false
+                panneau.prompt = "Ajouter"
+                if panneau.runModal() == .OK, let url = panneau.url {
+                    if favoris.ajouterDossier(url) { fermer() }
+                    else { erreur = "Choisissez un dossier ordinaire, pas une application ni un paquet." }
+                }
+            } label: { Label("Un dossier", systemImage: "folder") }
+                .buttonStyle(PillStyle(filled: false, height: 50))
+            Button { albumVisible = true; erreur = nil } label: {
+                Label("Un album Photos", systemImage: "rectangle.stack")
+            }.buttonStyle(PillStyle(filled: false, height: 50))
+            if albumVisible {
+                Text("Le nom de l'album dans Photos").font(rounded(17))
+                TextField("Par exemple : Petits-enfants", text: $nom)
+                    .textFieldStyle(.roundedBorder).font(rounded(18)).onSubmit(ajouterAlbum)
+                Button("Ajouter cet album", action: ajouterAlbum)
+                    .buttonStyle(PillStyle(height: 50))
+            }
+            if let erreur { Text(erreur).font(rounded(16)).foregroundStyle(T.danger) }
+            Button("Fermer") { fermer() }.buttonStyle(.plain).font(rounded(17))
         }
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        .foregroundStyle(T.ink).padding(32).frame(width: 520).background(T.mint)
+    }
+
+    private func ajouterAlbum() {
+        if favoris.ajouterAlbum(nom) { fermer() }
+        else { erreur = "Écrivez le nom de l'album à ajouter." }
     }
 }
 

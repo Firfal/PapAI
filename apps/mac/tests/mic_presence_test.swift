@@ -2,9 +2,9 @@ import AVFoundation
 import Foundation
 
 @main
-struct HomeShortcutsTest {
+struct MicPresenceTest {
     @MainActor static func main() {
-        let raccourcis = HomeShortcuts.shared
+        let raccourcis = MicPresence.shared
         let attendu: Bool
         switch CommandLine.arguments.last {
         case "absent": attendu = false

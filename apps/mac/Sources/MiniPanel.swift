@@ -104,12 +104,12 @@ private struct MiniView: View {
                 }
             } else {
                 Button {
-                    HomeShortcuts.shared.demande = true
+                    MicPresence.shared.demande = true
                     model.backHome()
                     model.expandWindow()
                 } label: {
-                    Label(HomeShortcuts.shared.microPresent ? "Parler à PapAI" : "Écrire à PapAI",
-                          systemImage: HomeShortcuts.shared.microPresent ? "mic.fill" : "pencil")
+                    Label(MicPresence.shared.microPresent ? "Parler à PapAI" : "Écrire à PapAI",
+                          systemImage: MicPresence.shared.microPresent ? "mic.fill" : "pencil")
                         .font(rounded(16, .semibold)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).frame(height: 40)
                         .background(Capsule().fill(T.ink))
