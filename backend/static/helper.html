@@ -403,6 +403,7 @@ let ws = null, reconnectIn = 1000, connected = false;
 let frameId = null, frameAt = 0, frameSrc = '', state = null, task = '';
 let armed = false, target = null, sending = false;
 let planBusy = false, refusedByMe = false, home = false, requestAt = 0;
+let sawStatus = false;
 let lessonBusy = false, savedTitle = null, hasDraft = false;
 
 /* ------------------------------------------------------------- l'aidant */
@@ -426,6 +427,13 @@ function connect() {
     setTimeout(connect, reconnectIn);
     reconnectIn = Math.min(reconnectIn * 2, 8000);
   };
+}
+
+function dropSession() {
+  if (!state || ['done', 'stopped'].includes(state)) return;
+  state = null; planBusy = false;
+  if (armed) setArmed(false);
+  render();
 }
 
 function isOpen() { return ws && ws.readyState === WebSocket.OPEN; }
@@ -602,6 +610,7 @@ function onMessage(ev) {
   const m = JSON.parse(ev.data);
 
   if (m.type === 'status') {
+    sawStatus = true;
     const prev = state;
     state = m.state;
     if (m.task !== undefined && m.task !== task) { task = m.task || ''; requestAt = Date.now(); }
@@ -665,6 +674,10 @@ function onMessage(ev) {
     if (!m.bridge) $('idleSub').textContent = "L'ordinateur de votre proche n'est pas connecté pour le moment.";
     else $('idleSub').textContent = "Vous serez prévenu dès que votre proche demande de l'aide.";
     loadLessons();
+    // Le serveur envoie l'état juste après « hello » s'il a une demande en cours.
+    // Sans état (serveur redémarré), on ne garde pas un plan fantôme à l'écran.
+    sawStatus = false;
+    setTimeout(() => { if (!sawStatus && isOpen()) dropSession(); }, 1500);
     render();
   }
 
@@ -685,6 +698,7 @@ function onMessage(ev) {
   else if (m.type === 'refused') {
     toast(m.reason);
     sending = false; planBusy = false;
+    if (m.reason === 'Aucune demande en cours.') dropSession();
     render();
   }
 
