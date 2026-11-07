@@ -83,7 +83,7 @@ Tags éventuels : `computer use`, `accessibilité`, `seniors`, `aidants`, `sécu
 ### Gladia (dictée)
 
 ```
-Une personne de 81 ans tape lentement et fait des fautes. Dans PapAI, elle touche le micro et dit sa demande avec ses mots : « Je veux voir mes photos de Noël ». L'app Mac enregistre au plus 30 secondes, le serveur envoie l'audio à Gladia (API v2, français) et renvoie le texte à l'écran, où elle peut le relire avant d'envoyer. La clé Gladia reste sur le serveur, rien n'est écrit sur le disque. Si Gladia ne répond pas, le Mac transcrit lui-même avec la reconnaissance vocale d'Apple. La dictée est le premier geste de la démo.
+Une personne de 81 ans tape lentement et fait des fautes. Dans PapAI, elle touche le micro et dit sa demande avec ses mots : « Je veux voir mes photos de Noël ». L'app Mac enregistre au plus 30 secondes, le serveur envoie l'audio à Gladia (API v2, français) et renvoie le texte à l'écran, où elle peut le relire avant d'envoyer. La clé Gladia reste sur le serveur, qui n'écrit rien sur le disque. Si Gladia ne répond pas, le Mac transcrit lui-même avec la reconnaissance vocale d'Apple. La dictée est le premier geste de la démo.
 ```
 
 Sources : `backend/voice.py`, `apps/mac/Sources/Dictation.swift`, `PROTOCOL.md` (« Dictée de la demande »).
