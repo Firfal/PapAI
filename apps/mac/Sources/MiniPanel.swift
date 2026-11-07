@@ -108,7 +108,8 @@ private struct MiniView: View {
                     model.backHome()
                     model.expandWindow()
                 } label: {
-                    Text(HomeShortcuts.shared.microPresent ? "Parler à PapAI" : "Écrire à PapAI")
+                    Label(HomeShortcuts.shared.microPresent ? "Parler à PapAI" : "Écrire à PapAI",
+                          systemImage: HomeShortcuts.shared.microPresent ? "mic.fill" : "pencil")
                         .font(rounded(16, .semibold)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).frame(height: 40)
                         .background(Capsule().fill(T.ink))

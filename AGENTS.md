@@ -16,12 +16,13 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | devin/1794084386-accueil-mac-voix | Accueil Mac : voix d'abord, raccourcis, logotype | apps/mac/Sources/HomeView.swift, MiniPanel.swift, AppUsage.swift, Theme.swift (Header), nouveau HomeShortcuts.swift, Model.swift (mode démo et textScale seulement) | 7 nov. soir |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 7 nov. soir | Devin | `devin/1794084386-accueil-mac-voix` | Accueil Mac voix d'abord, présence micro (simulation `PAPAI_DEMO_MIC=1` uniquement en démo, `PAPAI_NOMIC=1` prioritaire), écriture discrète, tutoriels masqués si vides, logotype vectoriel, raccourci de l'encart et taille du texte. Builds Xcode et CLI, tests présence micro et silence, captures dans `~/captures`. Pas de micro physique sur cette machine : dictée réelle non essayée. Fichiers libérés. |
 | 7 nov. | Claude | `parcours-onboarding` | Lancement sur Mac sans Xcode : `run_backend_mac.sh`, `apps/mac/scripts/build-mac-cli.sh` (swiftc + bundle + signature ad hoc). |
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 1-2 : accueil en 5 écrans (bienvenue, prénom, taille du texte, autorisations, proches), ajout d'un proche par QR ou code à 6 chiffres (`backend/family.py`, `/p/{code}`, `pair.html`), session proposée par le proche à accepter sur le Mac (`remote_request`). |
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 3 à 8 : écran de consentement, actions expliquées en phrases simples avec historique, question du proche, écran de fin avec retour auto à l'accueil, « Mes tutoriels » rafraîchi quand le proche valide une fiche (`lessons_changed`). |
