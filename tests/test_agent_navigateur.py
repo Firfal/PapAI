@@ -292,6 +292,18 @@ class PauseEtArret(Base):
         self.assertTrue(self.api.a_appele("DELETE", "/sessions/h1"))
         self.assertEqual(s.status()["stopped_by"], "senior")
 
+    async def test_navigateur_perdu_arrete_et_annule_h(self):
+        s, task = await self.demarrer()
+        with patch.object(app, "agent_task", task):
+            await app.handle_web_agent_change(self.link, None)
+        self.assertEqual(s.status()["stopped_by"], "navigateur")
+        self.assertTrue(await attendre(lambda: self.api.a_appele("DELETE", "/sessions/h1")))
+        self.assertTrue(any(
+            m.get("type") == "status" and m.get("doing") ==
+            "Le navigateur PapAI s'est fermé : l'aide est arrêtée."
+            for m in self.envoyes
+        ))
+
     async def test_alerte_du_gardien_annule(self):
         s, _ = await self.demarrer()
         s.stop(by="gardien")

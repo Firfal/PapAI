@@ -153,6 +153,8 @@ class BridgeLink:
         # de la personne aidée, s'il tourne (PROTOCOL.md, agent navigateur).
         self.web_agent: str | None = None
         self._web_agent_waiter: asyncio.Future[str] | None = None
+        self.active_web_session: Session | None = None
+        self.active_web_browser_session: str | None = None
 
     async def close(self, code: int = 1000) -> None:
         try:
@@ -273,6 +275,20 @@ async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
             dead.append(ws)
     for ws in dead:
         helper_sockets.discard(ws)
+
+
+async def handle_web_agent_change(link: BridgeLink, value) -> None:
+    browser = link.receive_web_agent(value)
+    session = link.active_web_session
+    if (session is None or not session.is_open or session.where != "web"
+            or link.active_web_browser_session is None
+            or browser == link.active_web_browser_session):
+        return
+    session.stop(by="navigateur")
+    session.doing = "Le navigateur PapAI s'est fermé : l'aide est arrêtée."
+    if agent_task and not agent_task.done():
+        agent_task.cancel()
+    await broadcast_helper(session.status())
 
 
 # ------------------------------------------------------------------ pont
@@ -409,7 +425,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
 
             if kind == "web_agent":
                 # Chrome PapAI et `holo local browser` viennent de démarrer ou de s'arrêter.
-                link.web_agent = valid_browser_session(msg.get("session_id"))
+                await handle_web_agent_change(link, msg.get("session_id"))
                 print(f"[pont] navigateur : {'oui' if link.web_agent else 'non'}")
                 continue
 
@@ -508,7 +524,14 @@ async def run_session(session, link: "BridgeLink") -> None:
         session.where = "web" if browser else "desktop"
         session.log("mode", where=session.where)
         if browser:
-            await WebAgentRunner(session, browser, broadcast_helper, notes).run()
+            link.active_web_session = session
+            link.active_web_browser_session = browser
+            try:
+                await WebAgentRunner(session, browser, broadcast_helper, notes).run()
+            finally:
+                if link.active_web_session is session:
+                    link.active_web_session = None
+                    link.active_web_browser_session = None
         else:
             await AgentRunner(session, link, broadcast_helper, notes).run()
     except asyncio.CancelledError:

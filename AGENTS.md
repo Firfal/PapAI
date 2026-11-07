@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794089468-agent-navigateur` | Correctifs revue : démarrage après validation, arrêt de lancement, navigateur perdu, rafraîchissement web | `AGENTS.md`, `PROTOCOL.md`, `apps/mac/Sources/Bridge.swift`, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/WebAgent.swift`, `backend/app.py`, `backend/web_agent.py`, `tests/test_agent_navigateur.py` | 8 nov. |
+| Devin | `devin/1794089468-agent-navigateur` | Correctifs revue : démarrage, arrêt et mode navigateur web | `AGENTS.md`, `PROTOCOL.md`, `requirements-backend.txt`, `papai_tools.py`, `apps/mac/Sources/Bridge.swift`, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/WebAgent.swift`, `apps/mac/Sources/SessionView.swift`, `apps/mac/Sources/MiniPanel.swift`, `backend/app.py`, `backend/web_agent.py`, `backend/static/helper.html`, `apps/ios/Sources/LiveViews.swift`, `apps/ios/Sources/HelperModel.swift`, `apps/android/app/src/main/java/com/quentin/papai/aidant/Helper.kt`, `apps/android/app/src/main/java/com/quentin/papai/aidant/Live.kt`, `tests/faux_agents_api.py`, `tests/test_agent_navigateur.py` | 8 nov. |
 
 ## Journal
 
