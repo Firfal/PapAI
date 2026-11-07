@@ -3,320 +3,547 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#11151c">
-<title>CarePilot — aider un proche</title>
+<meta name="theme-color" content="#EEF0EE">
+<title>PapAI · aider un proche</title>
 <style>
+  /* Direction « Soin », identique aux apps Swift (apps/ios/Sources/Theme.swift,
+     apps/mac/Sources/Theme.swift) : mêmes couleurs, mêmes rayons, mêmes écrans. */
   :root {
-    --bg: #11151c; --panel: #1a2029; --sunken: #0c1016; --line: #2b3440;
-    --text: #e9eef5; --muted: #93a1b3; --faint: #6b7a8d;
-    --accent: #4da3ff; --ink: #04121f; --warn: #ffb020; --stop: #ff5c5c; --ok: #35c08a;
-    --r: 12px;
+    --bg: #EEF0EE; --card: #FFFFFF; --ink: #111312; --muted: #7A807C;
+    --accent: #2E9E5B; --mint: #E2F2E7;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  html { background: var(--bg); }
   body {
-    margin: 0 auto; background: var(--bg); color: var(--text);
-    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-    max-width: 760px;
-    /* viewport-fit=cover découpe sous l'encoche et la barre de geste :
-       sans ces marges, le dernier bouton est à moitié inatteignable. */
-    padding:
-      env(safe-area-inset-top) calc(16px + env(safe-area-inset-right))
-      calc(32px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    margin: 0 auto; max-width: 560px; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font: 17px/1.4 ui-rounded, "SF Pro Rounded", -apple-system, system-ui, "Segoe UI", sans-serif;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
   }
+  main { padding: 0 20px calc(140px + env(safe-area-inset-bottom)); }
+  h1, h2, h3, p { margin: 0; }
+  .muted { color: var(--muted); }
+  .card { background: var(--card); border-radius: 22px; }
+  .mint { background: var(--mint); border-radius: 28px; }
+  .stack > * + * { margin-top: 16px; }
 
-  header { display: flex; align-items: baseline; gap: 10px; padding: 18px 0 10px; }
-  h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
-  .task { color: var(--muted); font-size: 14px; min-width: 0; flex: 1;
-          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* ------------------------------------------------------------- en-tête */
 
-  /* ------------------------------------------------------------- bandeau */
+  header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; }
+  .avatar { width: 48px; height: 48px; border-radius: 50%; flex: none; display: flex;
+            align-items: center; justify-content: center; font-size: 20px; font-weight: 700;
+            color: var(--accent); background: var(--mint); }
+  .hello small { display: block; font-size: 14px; color: var(--muted); }
+  .hello strong { font-size: 20px; font-weight: 600; }
+  header .spacer { flex: 1; }
+  .round { width: 48px; height: 48px; border-radius: 50%; background: var(--card); flex: none;
+           display: flex; align-items: center; justify-content: center; }
+  svg.i { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2;
+          stroke-linecap: round; stroke-linejoin: round; }
 
-  #banner {
-    display: flex; align-items: center; gap: 10px;
-    padding: 11px 14px; border-radius: var(--r); font-size: 14px; font-weight: 600;
-    background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px;
+  #lost { margin: 0 20px 10px; padding: 10px 16px; border-radius: 999px; background: var(--ink);
+          color: #fff; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
+  #lost span:last-child { margin-left: auto; font-weight: 400; font-size: 13px; opacity: .7; }
+
+  /* ------------------------------------------------------------- boutons */
+
+  button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .capsule { width: 100%; min-height: 56px; border-radius: 999px; background: var(--ink); color: #fff;
+             font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+             gap: 10px; padding: 0 22px; transition: transform .15s; }
+  .capsule.light { background: var(--card); color: var(--ink); }
+  .capsule:active:not(:disabled) { transform: scale(.98); opacity: .85; }
+  .roundbtn { width: 58px; height: 58px; border-radius: 50%; background: var(--card); color: var(--ink);
+              flex: none; display: flex; align-items: center; justify-content: center; }
+  .roundbtn:active:not(:disabled) { transform: scale(.95); opacity: .7; }
+  .pill { padding: 11px 16px; border-radius: 999px; background: var(--card); font-size: 15px; font-weight: 600; }
+  .spinner { width: 20px; height: 20px; border-radius: 50%; flex: none;
+             border: 2.5px solid rgba(46,158,91,.25); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  .capsule .spinner { border-color: rgba(255,255,255,.3); border-top-color: #fff; }
+  @keyframes spin { to { transform: rotate(360deg) } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s } }
+
+  input[type=text], textarea {
+    width: 100%; font: inherit; font-size: 17px; color: var(--ink); background: var(--card);
+    border: 0; border-radius: 18px; padding: 16px; outline: none; resize: none;
   }
-  #banner .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex: none; }
-  #banner.active   { border-color: var(--ok);   color: var(--ok); }
-  #banner.active .dot { animation: pulse 1.6s ease-in-out infinite; }
-  #banner.waiting  { border-color: var(--warn); color: var(--warn); }
-  #banner.closed   { border-color: var(--stop); color: var(--stop); }
-  @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
-  @media (prefers-reduced-motion: reduce) { #banner.active .dot { animation: none } }
+  input:focus, textarea:focus { box-shadow: 0 0 0 2px var(--accent); }
 
-  /* -------------------------------------------------------- la capture */
+  /* Barre du bas, comme les apps : l'action principale reste sous le pouce. */
+  .bottombar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--bg);
+               padding: 12px 20px calc(8px + env(safe-area-inset-bottom)); }
+  .bottombar > div { max-width: 520px; margin: 0 auto; }
+  .bottombar .row { display: flex; gap: 10px; }
+  .bottombar p { text-align: center; font-size: 13px; color: var(--muted); margin-top: 14px; }
 
-  .shot { position: relative; border: 1px solid var(--line); border-radius: var(--r);
-          overflow: hidden; background: #000; }
+  /* ------------------------------------------------------------- écrans */
+
+  .idle-hero { padding: 22px; }
+  .idle-hero h1 { font-size: 28px; font-weight: 700; line-height: 1.15; }
+  .idle-hero p { font-size: 16px; color: var(--muted); margin-top: 8px; }
+  .section-title { font-size: 17px; font-weight: 600; }
+  .alertcard { padding: 18px; }
+  .alertcard h3 { font-size: 16px; font-weight: 600; }
+  .alertcard p { font-size: 14px; color: var(--muted); margin-top: 4px; }
+  .alertcard .capsule { margin-top: 14px; min-height: 44px; font-size: 15px; }
+  .lesson { display: flex; align-items: center; gap: 12px; padding: 16px; }
+  .check { width: 32px; height: 32px; border-radius: 50%; background: var(--mint); color: var(--accent);
+           flex: none; display: flex; align-items: center; justify-content: center; }
+  .check svg { width: 14px; height: 14px; stroke-width: 3; }
+  .lesson strong { display: block; font-size: 16px; font-weight: 600; }
+  .lesson small { font-size: 13px; color: var(--muted); }
+  .remote { padding: 18px; }
+  .remote p { font-size: 14px; color: var(--muted); margin: 4px 0 12px; }
+  .remote input { background: var(--bg); }
+  .remote .capsule { margin-top: 10px; }
+
+  .request { padding: 18px; }
+  .request .who { display: flex; align-items: center; gap: 12px; }
+  .request .who .avatar { background: var(--card); }
+  .request .who small { display: block; font-size: 13px; color: var(--muted); }
+  .request .who strong { font-size: 20px; font-weight: 700; }
+  .request .quote { font-size: 21px; font-weight: 600; line-height: 1.3; margin-top: 14px; }
+  .thumb { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px;
+           padding: 6px 12px 6px 6px; border-radius: 999px; background: var(--card);
+           font-size: 13px; font-weight: 500; }
+  .thumb img { width: 38px; height: 26px; object-fit: cover; border-radius: 6px; }
+
+  .waiting { display: flex; align-items: center; justify-content: center; gap: 10px;
+             padding-top: 20px; font-size: 16px; font-weight: 500; color: var(--muted); }
+
+  .planhead { display: flex; align-items: center; justify-content: space-between; padding: 0 2px; }
+  .planhead .count { font-size: 13px; color: var(--muted); background: var(--card);
+                     padding: 6px 12px; border-radius: 999px; }
+  .steps { list-style: none; margin: 12px 0 0; padding: 0; }
+  .steps li { display: flex; align-items: center; gap: 14px; padding: 14px 16px; margin-bottom: 12px;
+              background: var(--card); border-radius: 22px; }
+  .steps .n { width: 38px; height: 38px; border-radius: 50%; background: var(--bg); flex: none;
+              display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; }
+  .steps strong { display: block; font-size: 17px; font-weight: 600; }
+  .steps small { display: block; font-size: 14px; color: var(--muted); }
+
+  .shot { position: relative; border-radius: 22px; overflow: hidden; background: var(--card); }
   .shot img { display: block; width: 100%; height: auto; }
-  .shot.armed { border-color: var(--accent); cursor: crosshair; touch-action: none; }
-  #empty { padding: 48px 16px; text-align: center; color: var(--muted); font-size: 14px; }
-
-  #pin { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px;
-         border: 2px solid var(--accent); border-radius: 50%; display: none;
-         pointer-events: none; box-shadow: 0 0 0 2px rgba(4,18,31,.55); }
-  #pin::before, #pin::after {
-    content: ""; position: absolute; background: var(--accent);
-  }
+  .shot.armed { box-shadow: 0 0 0 2px var(--accent); cursor: crosshair; touch-action: none; }
+  #empty { min-height: 180px; display: flex; align-items: center; justify-content: center;
+           font-size: 15px; color: var(--muted); padding: 16px; text-align: center; }
+  #pin { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px; display: none;
+         border: 2px solid var(--accent); border-radius: 50%; pointer-events: none;
+         filter: drop-shadow(0 0 1px rgba(0,0,0,.4)); }
+  #pin::before, #pin::after { content: ""; position: absolute; background: var(--accent); }
   #pin::before { left: 50%; top: -9px; bottom: -9px; width: 2px; margin-left: -1px; }
   #pin::after  { top: 50%; left: -9px; right: -9px; height: 2px; margin-top: -1px; }
 
-  /* La loupe : sur un téléphone, l'écran du proche tient dans 340 px de large
-     et un doigt en couvre le tiers. Sans agrandissement, viser une icône est
-     un pari. Elle est posée au-dessus de l'image et pas sous le doigt — une
-     loupe qui suit le doigt cache précisément ce qu'on essaie de viser. */
-  #loupe {
-    display: none; position: relative; height: 124px; margin-bottom: 8px;
-    border-radius: var(--r); border: 1px solid var(--accent);
-    background-repeat: no-repeat; background-color: #000; overflow: hidden;
-  }
-  #loupe::before, #loupe::after { content: ""; position: absolute; background: rgba(77,163,255,.9); }
+  /* La loupe ×3 : posée au-dessus de l'image et pas sous le doigt, qui
+     cacherait précisément ce qu'on essaie de viser. */
+  #loupe { display: none; position: relative; height: 124px; border-radius: 22px; overflow: hidden;
+           background-color: #000; background-repeat: no-repeat; box-shadow: 0 0 0 2px var(--accent); }
+  #loupe::before, #loupe::after { content: ""; position: absolute; background: rgba(46,158,91,.9); }
   #loupe::before { left: 50%; top: 0; bottom: 0; width: 1px; }
   #loupe::after  { top: 50%; left: 0; right: 0; height: 1px; }
 
-  #aimbar {
-    display: none; margin-top: 10px; padding: 12px 14px; border-radius: var(--r);
-    background: var(--panel); border: 1px solid var(--accent);
-  }
-  #aimbar p { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
-  #aimbar.ready p { color: var(--text); }
+  .working { display: flex; align-items: center; gap: 12px; padding: 16px; }
+  .working strong { display: block; font-size: 16px; font-weight: 600; }
+  .working small { font-size: 14px; color: var(--muted); }
 
-  #freshness { margin-top: 8px; font-size: 13px; color: var(--faint);
-               display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  #freshness.stale { color: var(--warn); }
-  #freshness button { padding: 6px 10px; font-size: 13px; }
+  .question { padding: 18px; }
+  .question small { font-size: 13px; color: var(--muted); }
+  .question h2 { font-size: 20px; font-weight: 600; margin-top: 6px; }
+  .options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .reply { display: flex; gap: 8px; margin-top: 14px; }
+  .reply input { border-radius: 999px; height: 48px; padding: 0 16px; font-size: 16px; }
+  .reply .send { width: 48px; height: 48px; border-radius: 50%; background: var(--ink); color: #fff;
+                 flex: none; display: flex; align-items: center; justify-content: center; }
+  .hand p { text-align: center; font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .aim { padding: 16px; }
+  .aim strong { display: block; font-size: 15px; font-weight: 600; }
+  .aim small { display: block; font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .aim small.stale { color: var(--ink); }
+  .aim .link { color: var(--accent); font-size: 14px; font-weight: 600; margin-top: 6px; padding: 0; }
+  .aimrow { display: flex; gap: 10px; margin-top: 12px; }
+  .aimrow .light { flex: 0 0 130px; }
 
-  /* -------------------------------------------------------- la question */
+  .donecard { padding: 20px; }
+  .donecard .tag { display: inline-flex; align-items: center; gap: 6px; font-size: 13px;
+                   font-weight: 600; color: var(--accent); }
+  .donecard .tag svg { width: 14px; height: 14px; stroke-width: 3; }
+  .donecard .task { font-size: 14px; color: var(--muted); margin-top: 10px; }
+  .donecard h2 { font-size: 20px; font-weight: 600; margin-top: 10px; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .saved { display: flex; align-items: center; gap: 12px; padding: 16px; font-size: 16px; font-weight: 600; }
+  .saved .check { width: 34px; height: 34px; background: var(--accent); color: #fff; }
+  .draft h3 { font-size: 17px; font-weight: 600; }
+  #lessonTitle { font-size: 18px; font-weight: 600; margin-top: 14px; }
+  .dstep { padding: 16px; margin-top: 14px; }
+  .dstep .lbl { font-size: 13px; font-weight: 600; color: var(--accent); }
+  .dstep textarea { padding: 6px 0 0; border-radius: 0; font-size: 16px; }
+  .dstep textarea:focus { box-shadow: none; }
+  .dstep .cp { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .dstep img { width: 100%; border-radius: 12px; margin-top: 10px; display: block; }
+  .draft .capsule { margin-top: 16px; }
 
-  #question { margin-top: 14px; padding: 14px; border-radius: var(--r);
-              background: var(--panel); border: 1px solid var(--warn); display: none; }
-  #question p { margin: 0 0 12px; font-weight: 600; }
-  .options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .stopped { min-height: 60vh; display: flex; flex-direction: column; align-items: center;
+             justify-content: center; text-align: center; gap: 10px; }
+  .stopped .round { width: 64px; height: 64px; }
+  .stopped h2 { font-size: 22px; font-weight: 700; }
+  .stopped p { font-size: 15px; color: var(--muted); }
+  .back { margin-top: 18px; color: var(--accent); font-weight: 600; font-size: 15px; }
 
-  /* ----------------------------------------------------------- le plan */
+  /* ------------------------------------------------------ feuilles, toast */
 
-  #plan { margin-top: 14px; padding: 14px; border-radius: var(--r);
-          background: var(--panel); border: 1px solid var(--warn); display: none; }
-  #plan p { margin: 0 0 10px; font-weight: 600; }
-  #planSteps { margin: 0 0 12px; padding-left: 22px; }
-  #planSteps li { margin-bottom: 6px; }
+  .scrim { position: fixed; inset: 0; background: rgba(17,19,18,.35); display: flex;
+           align-items: flex-end; justify-content: center; z-index: 10; }
+  .sheet { width: 100%; max-width: 560px; background: var(--bg); border-radius: 28px 28px 0 0;
+           padding: 24px 24px calc(24px + env(safe-area-inset-bottom)); }
+  .sheet h2 { font-size: 24px; font-weight: 700; }
+  .sheet p { font-size: 15px; color: var(--muted); margin: 8px 0 14px; }
+  .sheet .capsule { margin-top: 14px; }
+  #zoom { position: fixed; inset: 0; background: var(--ink); z-index: 11; display: flex;
+          align-items: center; justify-content: center; }
+  #zoom img { max-width: 100%; max-height: 100%; }
+  #zoom .roundbtn { position: absolute; top: calc(20px + env(safe-area-inset-top)); right: 20px; width: 44px; height: 44px; }
 
-  /* ------------------------------------------------------- les contrôles */
-
-  .row { display: flex; gap: 8px; margin-top: 12px; }
-  .row > * { flex: 1; min-width: 0; }
-  input[type=text] {
-    padding: 13px; border-radius: 10px; border: 1px solid var(--line);
-    background: var(--sunken); color: var(--text); font-size: 16px;
-  }
-  button {
-    min-height: 46px; padding: 12px 16px; border-radius: 10px;
-    border: 1px solid var(--line); background: var(--panel); color: var(--text);
-    font-size: 15px; font-weight: 600; cursor: pointer;
-  }
-  button.primary { background: var(--accent); border-color: var(--accent); color: var(--ink); }
-  button.danger  { background: var(--stop);   border-color: var(--stop);   color: #fff; }
-  button.ghost   { background: transparent; }
-  button:disabled { opacity: .38; cursor: not-allowed; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-  .note { color: var(--faint); font-size: 13px; margin: 10px 2px 0; }
-
-  /* ------------------------------------------------------- CareMemory */
-
-  #memory { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: none; }
-  #memory h2 { font-size: 16px; margin: 0 0 4px; }
-  .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
-  #draft, #saved { display: none; margin-top: 14px; }
-  #lessonTitle { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
-                 background: var(--sunken); color: var(--text); font-size: 16px; font-weight: 600; }
-  #steps { margin: 14px 0; padding: 0; list-style: none; counter-reset: step; }
-  #steps li { margin-bottom: 18px; }
-  #steps li::before {
-    counter-increment: step; content: "Étape " counter(step);
-    display: block; font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 6px;
-  }
-  #steps textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--line);
-                    background: var(--sunken); color: var(--text); font: inherit; font-size: 15px;
-                    resize: vertical; }
-  #steps .check { color: var(--muted); font-size: 13px; margin-top: 6px; }
-  #steps img { width: 100%; border-radius: 8px; border: 1px solid var(--line); margin-top: 8px; }
-  #saved { padding: 14px; border-radius: 10px; border: 1px solid var(--ok);
-           color: var(--ok); font-weight: 600; }
-
-  #toast {
-    position: fixed; left: 50%; transform: translateX(-50%);
-    bottom: calc(20px + env(safe-area-inset-bottom));
-    background: var(--stop); color: #fff; padding: 11px 16px; border-radius: 10px;
-    font-size: 14px; font-weight: 600; display: none; max-width: 92vw; text-align: center;
-    box-shadow: 0 10px 30px rgba(0,0,0,.45);
-  }
+  #toast { position: fixed; left: 50%; transform: translateX(-50%); z-index: 12;
+           bottom: calc(110px + env(safe-area-inset-bottom)); max-width: calc(100vw - 40px);
+           background: var(--ink); color: #fff; padding: 12px 18px; border-radius: 999px;
+           font-size: 15px; font-weight: 600; text-align: center; display: none; }
 </style>
 </head>
 <body>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M13.5 6.5l4 4"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></symbol>
+</svg>
+
 <header>
-  <h1>CarePilot</h1>
-  <div class="task" id="task">Connexion…</div>
+  <div class="avatar" id="me">A</div>
+  <div class="hello"><small>Bonjour</small><strong id="meName">Aidant</strong></div>
+  <div class="spacer"></div>
+  <div class="round" aria-hidden="true"><svg class="i"><use href="#i-bell"/></svg></div>
 </header>
 
-<div id="banner" role="status" aria-live="polite"><span class="dot"></span><span id="bannerText">Connexion au serveur…</span></div>
+<div id="lost" hidden role="status"><div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:#fff;width:16px;height:16px"></div><span>Connexion perdue</span><span>reconnexion…</span></div>
 
-<div id="remote" hidden>
-  <p class="note" style="margin:0 0 8px">Pas de demande en cours. Vous pouvez proposer une session : votre proche devra l'accepter sur son ordinateur.</p>
-  <div class="row">
-    <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Pourquoi cette session">
-    <button class="primary" id="remoteSend" type="button" style="flex:0 0 auto">Proposer</button>
-  </div>
-</div>
+<main>
 
-<div id="question">
-  <p id="qtext"></p>
-  <div class="options" id="options"></div>
-  <div class="row">
-    <input type="text" id="reply" placeholder="Votre réponse…" autocomplete="off" aria-label="Votre réponse">
-    <button class="primary" id="send" type="button" style="flex:0 0 auto">Envoyer</button>
-  </div>
-</div>
-
-<div id="plan">
-  <p>Holo propose ce plan. Rien ne bouge sur l'ordinateur avant votre accord.</p>
-  <ol id="planSteps"></ol>
-  <div class="row">
-    <button class="primary" id="planApprove" type="button">Valider</button>
-    <button class="danger" id="planRefuse" type="button">Refuser</button>
-  </div>
-  <div class="row">
-    <input type="text" id="planNote" placeholder="Préciser, par exemple : c'est dans Images › Noël 2025" autocomplete="off" aria-label="Précision pour Holo">
-    <button id="planRefine" type="button" style="flex:0 0 auto">Préciser</button>
-  </div>
-</div>
-
-<div id="loupe"></div>
-
-<div class="shot" id="shot">
-  <div id="empty">En attente de la première capture d'écran…</div>
-  <img id="frame" alt="Écran de votre proche" style="display:none">
-  <div id="pin"></div>
-</div>
-
-<div id="freshness" hidden>
-  <span id="freshText"></span>
-  <button class="ghost" id="refresh" type="button">Rafraîchir</button>
-</div>
-
-<div id="aimbar" aria-live="polite">
-  <p id="aimText">Touchez l'écran de votre proche à l'endroit où il faut cliquer.</p>
-  <div class="row">
-    <button class="primary" id="confirm" type="button" disabled>Cliquer ici</button>
-    <button class="ghost" id="cancelAim" type="button">Annuler</button>
-  </div>
-</div>
-
-<div class="row" id="controls">
-  <button class="ghost" id="pause" type="button">Mettre en pause</button>
-  <button class="ghost" id="arm" type="button" disabled>Prendre la main</button>
-</div>
-<p class="note" id="armNote">Vous pourrez cliquer vous-même quand l'assistance sera en pause.</p>
-
-<div id="memory">
-  <h2>Fiche d'apprentissage</h2>
-  <p class="hint">Transformez cette session en fiche que votre proche pourra suivre seul la prochaine fois.</p>
-  <button class="primary" id="makeLesson" type="button">Créer la fiche</button>
-
-  <div id="draft">
-    <input type="text" id="lessonTitle" placeholder="Titre de la fiche" aria-label="Titre de la fiche">
-    <ol id="steps"></ol>
-    <div class="row">
-      <button class="primary" id="approve" type="button">Valider et enregistrer</button>
-      <button class="ghost" id="redo" type="button">Refaire</button>
+  <div class="card alertcard" style="margin-bottom:16px" id="alert" hidden role="alert">
+      <h3 id="alertTitle"></h3>
+      <p id="alertDetail"></p>
+      <button class="capsule light" style="background:var(--bg)" id="alertOk" type="button">J'ai compris</button>
     </div>
+
+  <!-- Rien en cours -->
+  <section id="v-idle" class="stack">
+    <div class="mint idle-hero">
+      <h1>Tout va bien</h1>
+      <p id="idleSub">Vous serez prévenu dès que votre proche demande de l'aide.</p>
+    </div>
+    <div class="card remote" id="remote">
+      <h3 class="section-title">Proposer une session</h3>
+      <p>Votre proche devra l'accepter sur son ordinateur.</p>
+      <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Pourquoi cette session">
+      <button class="capsule" id="remoteSend" type="button">Proposer</button>
+    </div>
+    <h3 class="section-title">Derniers automatismes</h3>
+    <div id="lessons" class="stack"><p class="muted" style="font-size:15px">Aucun automatisme pour l'instant.</p></div>
+  </section>
+
+  <!-- Carte de la demande, commune à l'attente, au plan et à la validation -->
+  <section id="v-request" class="stack" hidden>
+    <div class="mint request">
+      <div class="who">
+        <div class="avatar" id="procheInitial">P</div>
+        <div><small id="since">Demande · à l'instant</small><strong>Votre proche</strong></div>
+      </div>
+      <p class="quote" id="task"></p>
+      <button class="thumb" id="thumb" type="button" hidden aria-label="Agrandir la dernière capture">
+        <img id="thumbImg" alt=""><span>Son écran</span>
+      </button>
+    </div>
+    <div class="waiting" id="waiting"><div class="spinner"></div><span id="waitingText">Holo regarde l'écran…</span></div>
+    <div id="plan" hidden>
+      <div class="planhead"><h3 class="section-title">Plan proposé par Holo</h3><span class="count" id="planCount"></span></div>
+      <ol class="steps" id="planSteps"></ol>
+    </div>
+  </section>
+
+  <!-- Holo agit, ou l'aidant a la main -->
+  <section id="v-live" class="stack" hidden>
+    <div class="mint question" id="question" hidden>
+      <small>Votre proche a besoin de vous</small>
+      <h2 id="qtext"></h2>
+      <div class="options" id="options"></div>
+      <div class="reply">
+        <input type="text" id="reply" placeholder="Votre réponse…" autocomplete="off" aria-label="Votre réponse">
+        <button class="send" id="send" type="button" aria-label="Envoyer"><svg class="i"><use href="#i-up"/></svg></button>
+      </div>
+    </div>
+    <div id="loupe"></div>
+    <div class="shot" id="shot">
+      <div id="empty">En attente de la première capture d'écran…</div>
+      <img id="frame" alt="Écran de votre proche" style="display:none">
+      <div id="pin"></div>
+    </div>
+    <div class="card working" id="working">
+      <div class="spinner"></div>
+      <div><strong>Holo travaille sur l'ordinateur de votre proche</strong><small id="workingTask"></small></div>
+    </div>
+    <div class="hand" id="hand" hidden>
+      <button class="capsule" id="arm" type="button">Prendre la main</button>
+      <p>Vous pouvez cliquer vous-même sur l'écran de votre proche.</p>
+    </div>
+    <div id="aimbar" hidden aria-live="polite">
+      <div class="card aim">
+        <strong id="aimText">Touchez l'écran de votre proche à l'endroit où il faut cliquer.</strong>
+        <small id="freshText"></small>
+        <button class="link" id="refresh" type="button" hidden>Rafraîchir</button>
+      </div>
+      <div class="aimrow">
+        <button class="capsule" id="confirm" type="button" disabled>Cliquer ici</button>
+        <button class="capsule light" id="cancelAim" type="button">Annuler</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Terminé -->
+  <section id="v-done" class="stack" hidden>
+    <div class="mint donecard">
+      <span class="tag"><svg class="i"><use href="#i-check"/></svg>Terminé</span>
+      <p class="task" id="doneTask"></p>
+      <h2 id="doneAnswer">Holo a terminé.</h2>
+    </div>
+    <div id="makeWrap">
+      <button class="capsule" id="makeLesson" type="button">Garder comme automatisme</button>
+      <p class="hint">Holo transforme cette session en pas à pas que votre proche pourra relancer seul.</p>
+    </div>
+    <div class="draft" id="draft" hidden>
+      <h3>Brouillon de l'automatisme</h3>
+      <input type="text" id="lessonTitle" placeholder="Titre" aria-label="Titre de l'automatisme">
+      <div id="steps"></div>
+      <button class="capsule" id="approve" type="button">Valider</button>
+    </div>
+    <div class="card saved" id="saved" hidden role="status">
+      <span class="check"><svg class="i"><use href="#i-check"/></svg></span><span id="savedText"></span>
+    </div>
+    <div style="text-align:center"><button class="back" data-home type="button">Retour à l'accueil</button></div>
+  </section>
+
+  <!-- Arrêté ou refusé -->
+  <section id="v-stopped" class="stopped" hidden>
+    <div class="round" style="width:64px;height:64px"><svg class="i" style="width:24px;height:24px"><use id="stoppedIcon" href="#i-pause"/></svg></div>
+    <h2 id="stoppedTitle">Votre proche a arrêté l'assistance</h2>
+    <p>Rien n'a été fait sur son ordinateur.</p>
+    <button class="back" data-home type="button">Retour à l'accueil</button>
+  </section>
+
+</main>
+
+<!-- Barres du bas -->
+<div class="bottombar" id="b-approval" hidden>
+  <div>
+    <div class="row">
+      <button class="capsule" id="planApprove" type="button"><span id="approveIcon"><svg class="i" style="width:16px;height:16px;stroke-width:3"><use href="#i-check"/></svg></span>Valider le plan</button>
+      <button class="roundbtn" id="planRefine" type="button" aria-label="Préciser"><svg class="i"><use href="#i-pencil"/></svg></button>
+      <button class="roundbtn" id="planRefuse" type="button" aria-label="Refuser"><svg class="i"><use href="#i-x"/></svg></button>
+    </div>
+    <p>Rien ne se fait sans votre accord.</p>
   </div>
-  <div id="saved" role="status"></div>
+</div>
+<div class="bottombar" id="b-active" hidden>
+  <div><button class="capsule light" id="pause" type="button">Mettre en pause</button></div>
+</div>
+
+<!-- Préciser -->
+<div class="scrim" id="refineSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="refineTitle">
+    <h2 id="refineTitle">Préciser le plan</h2>
+    <p>Dites à Holo ce qu'il doit changer. Il proposera un nouveau plan.</p>
+    <textarea id="refineText" rows="3" placeholder="Par exemple : les photos sont dans Images > Noël 2025" aria-label="Votre précision"></textarea>
+    <button class="capsule" id="refineSend" type="button" disabled>Envoyer à Holo</button>
+    <button class="capsule light" id="refineCancel" type="button">Annuler</button>
+  </div>
+</div>
+
+<!-- Refuser -->
+<div class="scrim" id="refuseSheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="refuseTitle">
+    <h2 id="refuseTitle">Refuser ce plan ?</h2>
+    <p>Votre proche sera prévenu que rien ne sera fait.</p>
+    <button class="capsule" id="refuseYes" type="button">Refuser le plan</button>
+    <button class="capsule light" id="refuseNo" type="button">Annuler</button>
+  </div>
+</div>
+
+<div id="zoom" hidden>
+  <img id="zoomImg" alt="Dernière capture de l'écran de votre proche">
+  <button class="roundbtn" id="zoomClose" type="button" aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button>
 </div>
 
 <div id="toast" role="alert"></div>
 
 <script>
-const token = location.pathname.split('/').pop();
+const token = location.pathname.split('/').filter(Boolean).pop();
 const $ = id => document.getElementById(id);
 
 // Doit rester aligné sur FRAME_TTL_S (backend/sessions.py) : au-delà, le
 // serveur refuse le clic. Mieux vaut le dire avant de viser qu'après.
 const FRAME_TTL_S = 30;
 
-let ws = null, reconnectIn = 1000, closedForGood = false;
-let frameId = null, frameAt = 0, state = null;
-let iRefusedPlan = false;
+// /a/{clé} : le lien permanent de l'aidant, qui suit toutes les demandes.
+const permanent = /\/a\/[^/]+\/?$/.test(location.pathname);
+
+let ws = null, reconnectIn = 1000, connected = false;
+let frameId = null, frameAt = 0, frameSrc = '', state = null, task = '';
 let armed = false, target = null, sending = false;
+let planBusy = false, refusedByMe = false, home = false, requestAt = 0;
+let sawStatus = false, sessionId = null;
+let lessonBusy = false, savedTitle = null, hasDraft = false;
+
+/* ------------------------------------------------------------- l'aidant */
+
+let myName = '';
+try { myName = localStorage.getItem('papai_name') || ''; } catch (e) {}
+if (myName) { $('meName').textContent = myName; $('me').textContent = myName[0].toUpperCase(); }
 
 /* ------------------------------------------------------------- connexion */
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  // /a/{clé} : le lien permanent de l'aidant, qui suit toutes les demandes.
-  const permanent = /\/a\/[^/]+\/?$/.test(location.pathname);
   ws = new WebSocket(`${proto}://${location.host}/ws/${permanent ? 'aidant' : 'helper'}/${token}`);
-
-  ws.onopen = () => { reconnectIn = 1000; };
+  ws.onopen = () => { reconnectIn = 1000; connected = true; $('lost').hidden = true; };
   ws.onmessage = onMessage;
-
   // Un téléphone passe en veille, change de réseau, perd la 4G dans un couloir.
-  // Sans reprise automatique, la page meurt silencieusement et le proche ne
-  // voit plus rien arriver sans comprendre pourquoi.
+  // Sans reprise automatique, la page meurt silencieusement.
   ws.onclose = () => {
-    if (closedForGood) return;
-    setBanner('Connexion perdue — reconnexion…', 'closed');
+    connected = false;
+    $('lost').hidden = false;
     setTimeout(connect, reconnectIn);
     reconnectIn = Math.min(reconnectIn * 2, 8000);
   };
 }
 
-function send(o) {
-  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(o));
-  else toast('Pas de connexion au serveur.');
+function dropSession() {
+  if (!state || ['done', 'stopped'].includes(state)) return;
+  state = null; planBusy = false;
+  if (armed) setArmed(false);
+  render();
 }
 
-/* ------------------------------------------------------------- affichage */
-
-function setBanner(text, cls) {
-  $('bannerText').textContent = text;
-  $('banner').className = cls || '';
+function isOpen() { return ws && ws.readyState === WebSocket.OPEN; }
+function send(o) {
+  if (isOpen()) { ws.send(JSON.stringify(o)); return true; }
+  toast('Pas de connexion au serveur.');
+  return false;
 }
 
 function toast(msg) {
   $('toast').textContent = msg;
   $('toast').style.display = 'block';
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => $('toast').style.display = 'none', 4200);
+  toast._t = setTimeout(() => $('toast').style.display = 'none', 4000);
 }
 
-const LABELS = {
-  planning:          ['Holo regarde l’écran et prépare un plan', 'waiting'],
-  awaiting_approval: ['Un plan attend votre accord', 'waiting'],
-  waiting_consent: ["En attente de l'autorisation de votre proche", 'waiting'],
-  active:          ["L'assistance travaille sur le PC", 'active'],
-  awaiting_helper: ['Votre proche a besoin de vous', 'waiting'],
-  done:            ['Session terminée', 'closed'],
-  stopped:         ['Session arrêtée depuis le PC', 'closed'],
-};
+/* --------------------------------------------------------------- écrans */
+
+function screen() {
+  if (home || !state) return 'idle';
+  return ({ waiting_consent: 'waiting', planning: 'planning', awaiting_approval: 'approval',
+            active: 'active', awaiting_helper: 'helper', done: 'done', stopped: 'stopped' })[state] || 'idle';
+}
+
+function render() {
+  const s = screen();
+  $('v-idle').hidden = s !== 'idle';
+  $('v-request').hidden = !['waiting', 'planning', 'approval'].includes(s);
+  $('v-live').hidden = !['active', 'helper'].includes(s);
+  $('v-done').hidden = s !== 'done';
+  $('v-stopped').hidden = s !== 'stopped';
+  $('b-approval').hidden = s !== 'approval';
+  $('b-active').hidden = s !== 'active';
+
+  $('task').textContent = task ? `« ${task} »` : '';
+  $('waiting').hidden = s === 'approval';
+  $('waitingText').textContent = s === 'waiting' ? "En attente de l'autorisation de votre proche" : "Holo regarde l'écran…";
+  $('plan').hidden = s !== 'approval';
+  $('thumb').hidden = !(s === 'approval' && frameSrc);
+  tickSince();
+
+  ['planApprove', 'planRefine', 'planRefuse'].forEach(id => $(id).disabled = planBusy);
+  $('approveIcon').innerHTML = planBusy ? '<div class="spinner"></div>'
+    : '<svg class="i" style="width:16px;height:16px;stroke-width:3"><use href="#i-check"/></svg>';
+
+  $('working').hidden = s !== 'active';
+  $('workingTask').textContent = task ? `« ${task} »` : '';
+  $('question').hidden = s !== 'helper' || armed || !$('qtext').textContent;
+  $('hand').hidden = s !== 'helper' || armed;
+  $('aimbar').hidden = !armed;
+
+  $('doneTask').textContent = task ? `« ${task} »` : '';
+  $('makeWrap').hidden = !!savedTitle || hasDraft;
+  $('draft').hidden = !hasDraft || !!savedTitle;
+  $('saved').hidden = !savedTitle;
+  if (savedTitle) $('savedText').textContent = `Automatisme « ${savedTitle} » enregistré.`;
+  $('makeLesson').disabled = lessonBusy;
+  $('makeLesson').innerHTML = lessonBusy ? '<div class="spinner"></div>Rédaction en cours…' : 'Garder comme automatisme';
+
+  $('stoppedTitle').textContent = refusedByMe ? 'Vous avez refusé le plan' : "Votre proche a arrêté l'assistance";
+  $('stoppedIcon').setAttribute('href', refusedByMe ? '#i-x' : '#i-pause');
+  $('remote').hidden = !!state && !['done', 'stopped'].includes(state);
+  tickFreshness();
+}
+
+function tickSince() {
+  if (!requestAt) return;
+  const m = Math.floor((Date.now() - requestAt) / 60000);
+  $('since').textContent = 'Demande · ' + (m < 1 ? "à l'instant" : `il y a ${m} min`);
+}
+setInterval(tickSince, 20000);
+
+/* ----------------------------------------------------- les automatismes */
+
+async function loadLessons() {
+  if (!permanent) return;
+  try {
+    const r = await fetch(`/k/${encodeURIComponent(token)}/lessons`);
+    if (!r.ok) return;
+    const list = await r.json();
+    const items = Array.isArray(list) ? list : (list.lessons || []);
+    if (!items.length) return;
+    $('lessons').innerHTML = '';
+    items.slice(0, 5).forEach(l => {
+      const d = document.createElement('div');
+      d.className = 'card lesson';
+      d.innerHTML = '<span class="check"><svg class="i"><use href="#i-check"/></svg></span><div><strong></strong><small></small></div>';
+      d.querySelector('strong').textContent = l.title || 'Automatisme';
+      const n = (l.steps || []).length;
+      d.querySelector('small').textContent = `${n} étape${n > 1 ? 's' : ''}`;
+      $('lessons').appendChild(d);
+    });
+  } catch (e) {}
+}
 
 /* ------------------------------------------- fraîcheur de la capture */
 
 function frameAge() { return frameAt ? (Date.now() - frameAt) / 1000 : Infinity; }
 
 function tickFreshness() {
-  const show = armed && frameAt > 0;
-  $('freshness').hidden = !show;
-  if (!show) return;
-
+  if (!armed) return;
   const age = Math.floor(frameAge());
   const stale = age >= FRAME_TTL_S;
-  $('freshness').classList.toggle('stale', stale);
-  $('freshText').textContent = stale
+  $('freshText').classList.toggle('stale', stale);
+  $('freshText').textContent = !frameAt ? '' : stale
     ? "Cette capture est trop ancienne : l'écran a pu changer."
-    : `Capture d'il y a ${age} s — valable ${FRAME_TTL_S - age} s encore.`;
+    : `Capture d'il y a ${age} s, valable ${FRAME_TTL_S - age} s encore.`;
+  $('refresh').hidden = !stale;
   $('confirm').disabled = !target || stale || sending;
+  $('confirm').textContent = sending ? 'Envoi…' : 'Cliquer ici';
 }
 setInterval(tickFreshness, 1000);
 
@@ -325,33 +552,23 @@ setInterval(tickFreshness, 1000);
 function setArmed(on) {
   armed = on && state === 'awaiting_helper';
   $('shot').classList.toggle('armed', armed);
-  $('aimbar').style.display = armed ? 'block' : 'none';
-  // Pendant la visée, l'écran ne propose plus qu'une chose : viser, ou
-  // renoncer. Deux boutons « Annuler » côte à côte n'aident personne.
-  $('controls').style.display = armed ? 'none' : 'flex';
-  $('armNote').style.display = armed ? 'none' : 'block';
   if (!armed) clearAim();
-  // On redemande une capture au moment où le proche va viser : sans ça, la
-  // dernière image date du dernier pas de l'agent et a déjà vieilli.
+  // On redemande une capture au moment où l'aidant va viser : la dernière
+  // image date du dernier pas de l'agent et a déjà vieilli.
   if (armed) requestRefresh();
-  tickFreshness();
+  render();
 }
 
 function clearAim() {
   target = null;
   $('pin').style.display = 'none';
   $('loupe').style.display = 'none';
-  $('confirm').disabled = true;
-  $('aimbar').classList.remove('ready');
   $('aimText').textContent = "Touchez l'écran de votre proche à l'endroit où il faut cliquer.";
 }
 
 function requestRefresh() {
   if (!['active', 'awaiting_helper'].includes(state)) return;
-  $('refresh').disabled = true;
-  $('refresh').textContent = 'Demande…';
   send({ type: 'refresh' });
-  setTimeout(() => { $('refresh').disabled = false; $('refresh').textContent = 'Rafraîchir'; }, 2500);
 }
 
 // Viser, puis confirmer. Un clic part sur l'ordinateur de quelqu'un d'autre :
@@ -359,28 +576,21 @@ function requestRefresh() {
 function aimAt(clientX, clientY) {
   const img = $('frame');
   if (!armed || img.style.display === 'none') return;
-
   const r = img.getBoundingClientRect();
   const px = Math.min(Math.max(clientX - r.left, 0), r.width);
   const py = Math.min(Math.max(clientY - r.top, 0), r.height);
   target = { x: px / r.width, y: py / r.height };
 
   const shotR = $('shot').getBoundingClientRect();
-  const ox = r.left - shotR.left, oy = r.top - shotR.top;
-
-  $('pin').style.left = (ox + px) + 'px';
-  $('pin').style.top = (oy + py) + 'px';
+  $('pin').style.left = (r.left - shotR.left + px) + 'px';
+  $('pin').style.top = (r.top - shotR.top + py) + 'px';
   $('pin').style.display = 'block';
 
-  const Z = 3;
-  const loupe = $('loupe');
+  const Z = 3, loupe = $('loupe');
   loupe.style.display = 'block';
   loupe.style.backgroundImage = `url("${img.src}")`;
   loupe.style.backgroundSize = `${r.width * Z}px ${r.height * Z}px`;
-  loupe.style.backgroundPosition =
-    `${loupe.clientWidth / 2 - px * Z}px ${loupe.clientHeight / 2 - py * Z}px`;
-
-  $('aimbar').classList.add('ready');
+  loupe.style.backgroundPosition = `${loupe.clientWidth / 2 - px * Z}px ${loupe.clientHeight / 2 - py * Z}px`;
   $('aimText').textContent = 'Ajustez en gardant le doigt appuyé, puis confirmez.';
   tickFreshness();
 }
@@ -392,11 +602,7 @@ shot.addEventListener('pointerdown', e => {
   shot.setPointerCapture(e.pointerId);
   aimAt(e.clientX, e.clientY);
 });
-shot.addEventListener('pointermove', e => {
-  if (armed && e.buttons !== 0) aimAt(e.clientX, e.clientY);
-});
-// La loupe reste après le doigt levé : c'est le seul moyen de vérifier ce
-// qu'on a visé avant de confirmer un clic sur l'ordinateur de quelqu'un.
+shot.addEventListener('pointermove', e => { if (armed && e.buttons !== 0) aimAt(e.clientX, e.clientY); });
 
 /* --------------------------------------------------------- les messages */
 
@@ -404,96 +610,101 @@ function onMessage(ev) {
   const m = JSON.parse(ev.data);
 
   if (m.type === 'status') {
+    sawStatus = true;
+    const prev = state;
     state = m.state;
-    if (m.state === 'planning') iRefusedPlan = false;
-    const [label, cls] = m.state === 'stopped' && iRefusedPlan
-      ? ["Vous avez refusé le plan. Rien n'a été fait sur l'ordinateur.", 'closed']
-      : LABELS[m.state] || [m.state, ''];
-    setBanner(label, cls);
-    if (m.task) $('task').textContent = '« ' + m.task + ' »';
-
-    const open = ['waiting_consent', 'planning', 'awaiting_approval', 'active', 'awaiting_helper'].includes(m.state);
-    $('remote').hidden = ['planning', 'awaiting_approval', 'active', 'awaiting_helper'].includes(m.state);
-    $('pause').disabled = !open || m.state !== 'active';
-    $('arm').disabled = m.state !== 'awaiting_helper';
-    $('armNote').textContent = m.state === 'awaiting_helper'
-      ? 'Vous pouvez cliquer vous-même sur l’écran de votre proche.'
-      : "Vous pourrez cliquer vous-même quand l'assistance sera en pause.";
-    if (m.state !== 'awaiting_helper') { setArmed(false); $('question').style.display = 'none'; }
-    if (m.state === 'active') { $('pause').textContent = 'Mettre en pause'; }
-
-    // Le plan de Holo : Valider, Préciser ou Refuser, comme dans l'app iPhone.
-    const planOpen = m.state === 'awaiting_approval';
-    $('plan').style.display = planOpen ? 'block' : 'none';
-    if (planOpen) {
+    if (m.task !== undefined) task = m.task || '';
+    if (m.session !== sessionId) { sessionId = m.session; requestAt = Date.now(); }
+    if (!requestAt) requestAt = Date.now();
+    if (['waiting_consent', 'planning'].includes(state) && prev !== state) {
+      home = false;
+      if (prev === null || ['done', 'stopped'].includes(prev)) {
+        refusedByMe = false; savedTitle = null; hasDraft = false; lessonBusy = false;
+        $('qtext').textContent = '';
+        $('doneAnswer').textContent = 'Holo a terminé.';
+        frameId = null; frameAt = 0; frameSrc = '';
+        $('frame').removeAttribute('src'); $('frame').style.display = 'none';
+        $('empty').style.display = '';
+      }
+    }
+    if (state !== 'stopped' && state !== 'awaiting_approval') planBusy = false;
+    if (state === 'awaiting_approval' && prev !== 'awaiting_approval') planBusy = false;
+    if (state === 'awaiting_approval') {
       $('planSteps').innerHTML = '';
-      (m.plan || []).forEach(t => {
+      const plan = m.plan || [];
+      $('planCount').textContent = `${plan.length} étape${plan.length > 1 ? 's' : ''}`;
+      plan.forEach((raw, i) => {
+        // Même découpage que l'app iPhone : « titre — détail ».
+        let title = String(raw), detail = '';
+        for (const sep of [' — ', ' : ', ': ']) {
+          const k = title.indexOf(sep);
+          if (k > 0) { detail = title.slice(k + sep.length); title = title.slice(0, k); break; }
+        }
         const li = document.createElement('li');
-        li.textContent = t;
+        li.innerHTML = '<span class="n"></span><div><strong></strong><small></small></div>';
+        li.querySelector('.n').textContent = i + 1;
+        li.querySelector('strong').textContent = title;
+        li.querySelector('small').textContent = detail;
+        if (!detail) li.querySelector('small').remove();
         $('planSteps').appendChild(li);
       });
     }
-    ['planApprove', 'planRefuse', 'planRefine'].forEach(id => $(id).disabled = !planOpen);
-
-    // La fiche se rédige une fois la manipulation terminée.
-    $('memory').style.display = open || iRefusedPlan ? 'none' : 'block';
-    tickFreshness();
+    if (state !== 'awaiting_helper') { if (armed) setArmed(false); $('qtext').textContent = ''; }
+    else if (m.question && m.question.question) showQuestion(m.question);
+    if (state === 'active') { $('pause').disabled = false; $('pause').textContent = 'Mettre en pause'; }
+    if (state === 'done' && prev !== 'done') loadLessons();
+    render();
   }
 
   else if (m.type === 'frame') {
     frameId = m.frame_id;
     frameAt = Date.now();
-    $('frame').src = 'data:image/png;base64,' + m.png_b64;
+    frameSrc = 'data:image/png;base64,' + m.png_b64;
+    $('frame').src = frameSrc;
+    $('thumbImg').src = frameSrc;
+    $('zoomImg').src = frameSrc;
     $('frame').style.display = 'block';
     $('empty').style.display = 'none';
     clearAim();
-    tickFreshness();
+    render();
   }
 
-  else if (m.type === 'question') {
-    $('qtext').textContent = m.question;
-    $('options').innerHTML = '';
-    (m.options || []).forEach(o => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = o;
-      b.onclick = () => send({ type: 'answer', text: o });
-      $('options').appendChild(b);
-    });
-    $('question').style.display = 'block';
-  }
+  else if (m.type === 'question') { showQuestion(m); render(); }
 
   else if (m.type === 'hello') {
-    // Canal permanent : pas encore de demande, on peut en proposer une.
-    if (!state) { $('remote').hidden = false; setBanner(m.bridge ? 'Ordinateur connecté' : "L'ordinateur n'est pas connecté", m.bridge ? 'active' : 'closed'); }
+    if (!m.bridge) $('idleSub').textContent = "L'ordinateur de votre proche n'est pas connecté pour le moment.";
+    else $('idleSub').textContent = "Vous serez prévenu dès que votre proche demande de l'aide.";
+    loadLessons();
+    // Le serveur envoie l'état juste après « hello » s'il a une demande en cours.
+    // Sans état (serveur redémarré), on ne garde pas un plan fantôme à l'écran.
+    sawStatus = false;
+    setTimeout(() => { if (!sawStatus && isOpen()) dropSession(); }, 1500);
+    render();
   }
 
-  else if (m.type === 'ack' && m.what === 'remote_request') {
-    toast('Proposition envoyée. Votre proche doit l’accepter sur son ordinateur.');
+  else if (m.type === 'alert') {
+    $('alertTitle').textContent = m.title || 'Attention';
+    $('alertDetail').textContent = m.detail || '';
+    $('alert').hidden = false;
+    $('alert').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast(m.title || 'Alerte');
   }
 
-  else if (m.type === 'remote_refused') {
-    toast('Votre proche a refusé la session pour le moment.');
-  }
+  else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. Votre proche doit l’accepter sur son ordinateur.');
+  else if (m.type === 'remote_refused') toast('Votre proche a refusé la session pour le moment.');
+  else if (m.type === 'remote_accepted') toast('Votre proche a accepté. Holo prépare un plan.');
 
-  else if (m.type === 'remote_accepted') {
-    toast('Votre proche a accepté. Holo prépare un plan.');
-  }
-
-  else if (m.type === 'answer') {
-    setBanner(m.content, 'active');
-  }
+  else if (m.type === 'answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
 
   else if (m.type === 'refused') {
     toast(m.reason);
-    sending = false;
-    $('confirm').textContent = 'Cliquer ici';
-    tickFreshness();
+    sending = false; planBusy = false; lessonBusy = false;
+    if (m.reason === 'Aucune demande en cours.') dropSession();
+    render();
   }
 
   else if (m.type === 'ack' && m.what === 'click') {
     sending = false;
-    $('confirm').textContent = 'Cliquer ici';
     toast('Clic transmis à l’ordinateur de votre proche.');
     setArmed(false);
   }
@@ -503,107 +714,131 @@ function onMessage(ev) {
     $('pause').textContent = 'Pause demandée…';
   }
 
-  else if (m.type === 'lesson_pending') {
-    $('makeLesson').disabled = true;
-    $('makeLesson').textContent = 'Rédaction en cours…';
-  }
+  else if (m.type === 'lesson_pending') { lessonBusy = true; render(); }
 
   else if (m.type === 'lesson_draft') {
-    $('makeLesson').style.display = 'none';
+    lessonBusy = false; hasDraft = true;
     $('lessonTitle').value = m.lesson.title || '';
     $('steps').innerHTML = '';
-    (m.lesson.steps || []).forEach(s => {
-      const li = document.createElement('li');
-      const ta = document.createElement('textarea');
-      ta.rows = 2; ta.value = s.instruction || '';
-      ta.setAttribute('aria-label', 'Instruction de l’étape');
-      li.appendChild(ta);
+    (m.lesson.steps || []).forEach((s, i) => {
+      const d = document.createElement('div');
+      d.className = 'card dstep';
+      d.innerHTML = '<div class="lbl"></div><textarea rows="2" aria-label="Instruction de l’étape"></textarea>';
+      d.querySelector('.lbl').textContent = `Étape ${i + 1}`;
+      d.querySelector('textarea').value = s.instruction || '';
       if (s.checkpoint) {
         const c = document.createElement('div');
-        c.className = 'check';
-        c.textContent = 'Vous devez voir : ' + s.checkpoint;
-        li.appendChild(c);
+        c.className = 'cp';
+        c.textContent = 'Votre proche doit voir : ' + s.checkpoint;
+        d.appendChild(c);
       }
       const b64 = m.preview && m.preview[s.frame];
       if (b64) {
         const img = document.createElement('img');
         img.src = 'data:image/png;base64,' + b64;
         img.alt = '';
-        li.appendChild(img);
+        d.appendChild(img);
       }
-      $('steps').appendChild(li);
+      $('steps').appendChild(d);
     });
-    $('draft').style.display = 'block';
+    render();
   }
 
   else if (m.type === 'lesson_saved') {
-    $('draft').style.display = 'none';
-    $('saved').textContent = '✓ Fiche « ' + m.lesson.title + ' » enregistrée.';
-    $('saved').style.display = 'block';
+    savedTitle = (m.lesson && m.lesson.title) || 'Automatisme';
+    hasDraft = false;
+    loadLessons();
+    render();
   }
 }
+
+function showQuestion(q) {
+  $('qtext').textContent = q.question || '';
+  $('options').innerHTML = '';
+  (q.options || []).forEach(o => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pill';
+    b.textContent = o;
+    b.onclick = () => send({ type: 'answer', text: o });
+    $('options').appendChild(b);
+  });
+}
+
+/* -------------------------------------------------------------- le plan */
+
+// Valider, préciser ou refuser : le serveur revérifie l'état, la page ne fait
+// que proposer. Sans connexion, rien n'est verrouillé.
+function decide(o) {
+  if (!isOpen()) { toast('Pas de connexion au serveur.'); return false; }
+  planBusy = true;
+  render();
+  return send(o);
+}
+
+$('planApprove').onclick = () => decide({ type: 'approve_plan' });
+$('planRefine').onclick = () => { $('refineSheet').hidden = false; $('refineText').focus(); };
+$('planRefuse').onclick = () => { $('refuseSheet').hidden = false; };
+$('refineText').addEventListener('input', () => $('refineSend').disabled = !$('refineText').value.trim());
+$('refineCancel').onclick = () => { $('refineSheet').hidden = true; };
+$('refineSend').onclick = () => {
+  const t = $('refineText').value.trim();
+  if (!t) return;
+  if (decide({ type: 'refine_plan', text: t }) !== false) {
+    $('refineText').value = ''; $('refineSend').disabled = true; $('refineSheet').hidden = true;
+  }
+};
+$('refuseNo').onclick = () => { $('refuseSheet').hidden = true; };
+$('refuseYes').onclick = () => {
+  $('refuseSheet').hidden = true;
+  if (decide({ type: 'refuse_plan' }) !== false) refusedByMe = true;
+};
+['refineSheet', 'refuseSheet'].forEach(id => $(id).addEventListener('click', e => { if (e.target.id === id) $(id).hidden = true; }));
+
+$('thumb').onclick = () => { $('zoom').hidden = false; };
+$('zoom').onclick = () => { $('zoom').hidden = true; };
+$('alertOk').onclick = () => { $('alert').hidden = true; };
+document.querySelectorAll('[data-home]').forEach(b => b.onclick = () => { home = true; render(); window.scrollTo(0, 0); });
 
 /* ----------------------------------------------------------- les actions */
 
 $('send').onclick = () => {
   const t = $('reply').value.trim();
-  if (t) { send({ type: 'answer', text: t }); $('reply').value = ''; }
+  if (t && send({ type: 'answer', text: t })) $('reply').value = '';
 };
 $('reply').addEventListener('keydown', e => { if (e.key === 'Enter') $('send').click(); });
 
 $('pause').onclick = () => {
-  send({ type: 'pause' });
+  if (!send({ type: 'pause' })) return;
   $('pause').disabled = true;
   $('pause').textContent = 'Pause demandée…';
-  toast("Pause demandée : l'action en cours se termine.");
 };
 
-$('arm').onclick = () => setArmed(!armed);
+$('arm').onclick = () => setArmed(true);
 $('cancelAim').onclick = () => setArmed(false);
 $('refresh').onclick = requestRefresh;
 
 // Le clic part en coordonnées normalisées relatives à l'image affichée, jamais
-// en pixels : le pont Windows les reprojette sur l'écran réel.
+// en pixels : l'app de la personne aidée les reprojette sur l'écran réel.
 $('confirm').onclick = () => {
   if (!target || sending) return;
+  if (!send({ type: 'click', frame_id: frameId, x: target.x, y: target.y })) return;
   sending = true;
-  $('confirm').disabled = true;
-  $('confirm').textContent = 'Envoi…';
-  send({ type: 'click', frame_id: frameId, x: target.x, y: target.y });
+  tickFreshness();
 };
 
-// CareMemory : proposée seulement quand la session est finie — on ne rédige pas
-// une fiche sur une manipulation encore en cours.
-$('makeLesson').onclick = () => send({ type: 'draft_lesson' });
-$('redo').onclick = () => {
-  $('draft').style.display = 'none';
-  $('makeLesson').style.display = '';
-  $('makeLesson').disabled = false;
-  $('makeLesson').textContent = 'Créer la fiche';
-  send({ type: 'draft_lesson' });
-};
+// L'automatisme se rédige une fois la session terminée, jamais pendant.
+$('makeLesson').onclick = () => { if (send({ type: 'draft_lesson' })) { lessonBusy = true; render(); } };
 $('approve').onclick = () => {
-  const steps = [...$('steps').querySelectorAll('textarea')]
-    .map(t => ({ instruction: t.value.trim() }));
+  const steps = [...$('steps').querySelectorAll('textarea')].map(t => ({ instruction: t.value.trim() }));
   send({ type: 'approve_lesson', lesson: { title: $('lessonTitle').value.trim(), steps } });
 };
 
-$('planApprove').onclick = () => send({ type: 'approve_plan' });
-$('planRefuse').onclick = () => { iRefusedPlan = true; send({ type: 'refuse_plan' }); };
-$('planRefine').onclick = () => {
-  const text = $('planNote').value.trim();
-  if (!text) { toast('Écrivez la précision à donner à Holo.'); $('planNote').focus(); return; }
-  send({ type: 'refine_plan', text });
-  $('planNote').value = '';
-};
-
 $('remoteSend').onclick = () => {
-  let from = '';
-  try { from = localStorage.getItem('papai_name') || ''; } catch (e) {}
-  send({ type: 'remote_request', text: $('remoteText').value.trim(), from });
-  $('remoteText').value = '';
+  if (send({ type: 'remote_request', text: $('remoteText').value.trim(), from: myName })) $('remoteText').value = '';
 };
 
+render();
 connect();
 </script>
 </body>

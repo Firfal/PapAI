@@ -230,6 +230,15 @@ TOOLS = [
     },
 ]
 
+# Holo annonce l'étape du plan validé qu'il exécute : le serveur la retire des
+# arguments avant l'envoi à l'app et la publie dans `status.plan_step`.
+for _tool in TOOLS:
+    if _tool["function"]["name"] != "answer":
+        _tool["function"]["parameters"].setdefault("properties", {})["plan_step"] = {
+            "type": "integer",
+            "description": "Numéro de l'étape du plan validé que sert cette action (1 pour la première)",
+        }
+
 # Actions qui pilotent réellement la souris ou le clavier du PC de la personne
 # aidée. Toute action hors de cette liste est traitée par le backend et ne
 # descend jamais au pont.
