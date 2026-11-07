@@ -192,6 +192,9 @@ test('question de Holo à la personne : réponse proposée ou écrite, une seule
   h.click('seniorOption', 'Clé USB');
   assert.deepEqual(h.calls.at(-1), ['answer_senior', 'Clé USB']);
   assert.match(html(h), /Merci, c'est noté\./);
+  h.update({ state: 'active', questionForMe: false, question: null });
+  h.update({ state: 'awaiting_helper', questionForMe: true, question: 'Ordinateur ou clé USB ?' });
+  assert.match(html(h), /data-act="seniorOption"/);
   h.update({ question: 'Et le dossier ?', questionOptions: [] });
   h.listeners.input({ target: { id: 'seniorReply', value: 'Noël 2025' } });
   h.listeners.keydown({ key: 'Enter', target: { id: 'seniorReply' }, preventDefault() {} });

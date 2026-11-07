@@ -650,6 +650,8 @@
       if (m && S.dictation.phase === 'idle') ui.dictating = false;
       ui.lastDictMsg = m || null;
       if (S.onboarded) ui.name = null;
+      // Holo peut reposer la même question plus tard : la réponse vaut pour une seule question.
+      if (!(S.questionForMe && S.question && S.state === 'awaiting_helper')) ui.seniorSent = null;
       if (was && was !== S.screen && S.screen === 'home') {
         ui.warning = null; ui.submitting = false; ui.dictating = false;
       }
