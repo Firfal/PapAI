@@ -149,8 +149,10 @@ async def integration(base, cle):
             check("arnaque HTTP", statut == 200 and avis["verdict"] == "arnaque" and avis["proche"])
             alerte = await recevoir(pont, "alert")
             check("texte aidé danger", alerte["level"] == "danger" and "Ne donnez rien" in alerte["detail"])
+            check("titre aidé", alerte["title"] == "Ce site peut être une arnaque")
             alerte = await recevoir(aidant, "alert")
             check("texte aidant distinct", "Jeanne" in alerte["detail"] and "Ameli" in alerte["detail"] and "Ne donnez rien" not in alerte["detail"])
+            check("titre aidant danger", alerte["title"] == "Jeanne est sur un site d'arnaque probable")
             await asyncio.to_thread(http, base, "/ext/site", page, jeton)
             for canal, nom in ((pont, "pont"), (aidant, "aidant")):
                 try:
@@ -164,6 +166,7 @@ async def integration(base, cle):
             check("Holo pour un signal faible", statut == 200 and avis["verdict"] == "douteux")
             alerte = await recevoir(aidant, "alert")
             check("doute aidant attention", alerte["level"] == "attention")
+            check("titre aidant douteux", alerte["title"] == "Jeanne visite un site douteux")
             try:
                 await recevoir(pont, "alert", .3)
                 check("doute absent du pont", False)

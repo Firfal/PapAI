@@ -285,14 +285,18 @@ async def ext_site(request: Request):
     cle = (domaine, avis.verdict)
     if avis.verdict != "sur" and cle not in _sites_vus:
         _sites_vus[cle] = maintenant
+        senior = family.senior or "La personne que vous aidez"
+        titre_aide = "Ce site peut être une arnaque"
+        titre_aidant = (f"{senior} est sur un site d'arnaque probable" if avis.verdict == "arnaque"
+                        else f"{senior} visite un site douteux")
         charge = {"type": "alert", "source": "environment", "level": "danger" if avis.verdict == "arnaque" else "attention",
-                  "title": "Site à vérifier", "detail": aidant}
+                  "title": titre_aidant, "detail": aidant}
         if avis.verdict == "arnaque" and "publish_guard" in globals():
-            alerte = guard.Alerte("danger", "Site à vérifier", aide, "site:" + domaine, False)
+            alerte = guard.Alerte("danger", titre_aide, aide, "site:" + domaine, False)
             await globals()["publish_guard"](alerte, source="environment", senior_detail=aide, helper_detail=aidant)
         else:
             if avis.verdict == "arnaque" and bridge is not None:
-                await bridge.send({**charge, "detail": aide})
+                await bridge.send({**charge, "title": titre_aide, "detail": aide})
             for ws in list(helper_sockets):
                 try:
                     await ws.send_json(charge)
