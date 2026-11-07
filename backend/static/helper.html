@@ -36,6 +36,18 @@
   .hello small { display: block; font-size: 14px; color: var(--muted); }
   .hello strong { font-size: 20px; font-weight: 600; }
   header .spacer { flex: 1; }
+  .people { display: flex; gap: 8px; overflow-x: auto; padding: 0 20px 12px; scrollbar-width: none; }
+  .people::-webkit-scrollbar { display: none; }
+  .person { flex: none; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px 6px 6px;
+            border-radius: 999px; background: var(--card); color: var(--ink); font: inherit; font-size: 15px;
+            font-weight: 600; border: 0; cursor: pointer; text-decoration: none; }
+  .person .avatar { width: 32px; height: 32px; font-size: 15px; }
+  .person.here { background: var(--ink); color: #fff; }
+  .person.asking { box-shadow: 0 0 0 2px #D9453B inset; }
+  .person small { font-weight: 400; font-size: 12px; opacity: .7; }
+  .person .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .person .dot.on { background: var(--accent); }
+  .person.add { padding: 6px 16px; color: var(--accent); }
   .round { width: 48px; height: 48px; border-radius: 50%; background: var(--card); flex: none;
            display: flex; align-items: center; justify-content: center; }
   svg.i { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2;
@@ -231,6 +243,8 @@
   <div class="round" aria-hidden="true"><svg class="i"><use href="#i-bell"/></svg></div>
 </header>
 
+<nav class="people" id="people" aria-label="Mes personnes aidées" hidden></nav>
+
 <div id="lost" hidden role="status"><div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:#fff;width:16px;height:16px"></div><span>Connexion perdue</span><span>reconnexion…</span></div>
 
 <main>
@@ -425,6 +439,120 @@ let lessonBusy = false, savedTitle = null, hasDraft = false;
 let myName = '';
 try { myName = localStorage.getItem('papai_name') || ''; } catch (e) {}
 if (myName) { $('meName').textContent = myName; $('me').textContent = myName[0].toUpperCase(); }
+
+/* ------------------------------------------------- mes personnes aidées */
+
+// Un support suit plusieurs personnes : chaque lien /a/<clé> déjà ouvert est
+// gardé dans ce navigateur, et un canal discret par personne dit qui demande
+// une assistance, sans quitter la page en cours.
+const PEOPLE_KEY = 'papai_people';
+const herePath = location.pathname.replace(/\/+$/, '');
+const ASKING = ['waiting_consent', 'planning', 'awaiting_approval', 'awaiting_helper'];
+let people = [];
+try {
+  people = JSON.parse(localStorage.getItem(PEOPLE_KEY) || '[]')
+    .filter(p => p && typeof p.path === 'string' && /^\/a\/[A-Za-z0-9_-]+$/.test(p.path));
+} catch (e) { people = []; }
+const watchers = {};
+
+function savePeople() {
+  try { localStorage.setItem(PEOPLE_KEY, JSON.stringify(people.slice(0, 50))); } catch (e) {}
+}
+
+function rememberHere() {
+  if (!permanent || !/^\/a\/[A-Za-z0-9_-]+$/.test(herePath)) return;
+  const i = people.findIndex(p => p.path === herePath);
+  const name = seniorName || (i >= 0 ? people[i].name : '');
+  if (i >= 0) people[i].name = name; else people.push({ path: herePath, name });
+  savePeople();
+  watchPeople();
+}
+
+function forgetPerson(path) {
+  people = people.filter(p => p.path !== path);
+  savePeople();
+  const w = watchers[path];
+  if (w) { w.closed = true; if (w.ws) w.ws.close(); delete watchers[path]; }
+  renderPeople();
+}
+
+function watchPeople() {
+  for (const p of people) {
+    if (p.path === herePath || watchers[p.path]) continue;
+    const w = watchers[p.path] = { online: false, asking: false, closed: false, ws: null, wait: 2000 };
+    const open = () => {
+      if (w.closed) return;
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = w.ws = new WebSocket(`${proto}://${location.host}/ws/aidant/${p.path.split('/').pop()}`);
+      ws.onopen = () => { w.wait = 2000; };
+      ws.onmessage = ev => {
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (m.type === 'refused') { w.closed = true; ws.close(); }
+        else if (m.type === 'hello') {
+          w.online = !!m.bridge; w.asking = false;
+          if (m.senior && m.senior !== p.name) { p.name = m.senior; savePeople(); }
+        }
+        else if (m.type === 'senior' && m.name) { p.name = m.name; savePeople(); }
+        else if (m.type === 'status') {
+          const was = w.asking;
+          w.asking = ASKING.includes(m.state);
+          if (w.asking && !was) {
+            toast(`${p.name || 'Une personne aidée'} demande une assistance.`);
+            if (navigator.vibrate) navigator.vibrate(200);
+          }
+        }
+        else if (m.type === 'alert') { w.asking = true; toast(`${p.name || 'Une personne aidée'} : ${m.title || 'alerte'}`); }
+        renderPeople();
+      };
+      ws.onclose = () => {
+        w.online = false; renderPeople();
+        if (!w.closed) { setTimeout(open, w.wait); w.wait = Math.min(w.wait * 2, 30000); }
+      };
+    };
+    open();
+  }
+  renderPeople();
+}
+
+function renderPeople() {
+  const nav = $('people');
+  nav.hidden = !permanent;
+  if (!permanent) return;
+  nav.replaceChildren();
+  const others = people.filter(p => p.path !== herePath);
+  const asking = others.filter(p => watchers[p.path] && watchers[p.path].asking).length;
+  document.title = (asking ? `(${asking}) ` : '') + 'PapAI · Support';
+  for (const p of people) {
+    const here = p.path === herePath;
+    const w = watchers[p.path];
+    const el = document.createElement(here ? 'span' : 'a');
+    el.className = 'person' + (here ? ' here' : '') + (w && w.asking ? ' asking' : '');
+    if (!here) el.href = p.path;
+    const name = p.name || 'Personne aidée';
+    const av = document.createElement('span');
+    av.className = 'avatar'; av.textContent = name[0].toUpperCase();
+    const label = document.createElement('span');
+    label.textContent = name;
+    el.append(av, label);
+    if (!here) {
+      const dot = document.createElement('span');
+      dot.className = 'dot' + (w && w.online ? ' on' : '');
+      dot.title = w && w.online ? 'Ordinateur connecté' : 'Ordinateur hors ligne';
+      el.append(dot);
+      if (w && w.asking) {
+        const s = document.createElement('small'); s.textContent = 'demande une assistance'; el.append(s);
+      }
+      el.oncontextmenu = e => {
+        e.preventDefault();
+        if (confirm(`Retirer ${name} de vos personnes aidées dans ce navigateur ?`)) forgetPerson(p.path);
+      };
+    }
+    nav.append(el);
+  }
+  const add = document.createElement('a');
+  add.className = 'person add'; add.href = '/p'; add.textContent = '+ Ajouter une personne';
+  nav.append(add);
+}
 
 /* ------------------------------------------------------------- connexion */
 
@@ -761,6 +889,7 @@ function onMessage(ev) {
 
   else if (m.type === 'hello') {
     seniorName = m.senior || '';
+    rememberHere();
     if (!m.bridge) $('idleSub').textContent = "L'ordinateur de la personne aidée n'est pas connecté pour le moment.";
     else $('idleSub').textContent = "Vous serez prévenu dès que la personne aidée demande de l'aide.";
     loadLessons();
@@ -809,7 +938,7 @@ function onMessage(ev) {
     render();
   }
 
-  else if (m.type === 'senior') { seniorName = m.name || ''; render(); }
+  else if (m.type === 'senior') { seniorName = m.name || ''; rememberHere(); render(); }
 
   else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. La personne aidée doit l’accepter sur son ordinateur.');
   else if (m.type === 'remote_refused') toast('La personne aidée a refusé la session pour le moment.');
@@ -965,6 +1094,8 @@ $('remoteSend').onclick = () => {
 };
 
 render();
+renderPeople();
+watchPeople();
 connect();
 </script>
 </body>
