@@ -98,7 +98,7 @@ struct GuardAlertView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxHeight: 260)
-                Text("Un message est parti à \(model.helperName).")
+                Text("Ne faites rien d'autre et appelez \(model.helperName).")
                     .font(rounded(18)).foregroundStyle(T.muted)
                 if model.sessionOpen {
                     Button { model.stop(); model.guardAlert = nil } label: {
