@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/windows-soin` | App Windows de la personne aidée, design macOS « Soin » | `apps/windows/`, `AGENTS.md`, `TODO.md`, `README.md` (ligne Windows) | 7 nov. |
 
 ## Journal
 
