@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794090939-ux-personnalite` | UX : plus de personnalité (Mac puis iPhone), mascotte Papaye, ton plus chaleureux | Mac : `Theme.swift`, `HomeView.swift`, `OnboardingView.swift` (hors `HelpersPanel`), `SessionView.swift`, `PapAIApp.swift` (RootView), nouveau `Mascotte.swift`. iPhone : `Theme.swift`, `RootView.swift` (hors `SettingsView`), `DoneView.swift`, `LiveViews.swift`, nouveau `Mascotte.swift`. `brand/` | 7 nov. soir |
+| Devin | `devin/1794090939-ux-personnalite` | UX : plus de personnalité (Mac puis iPhone), mascotte Papaye, ton plus chaleureux | Mac : `Theme.swift`, `HomeView.swift`, `OnboardingView.swift` (hors `HelpersPanel`), `SessionView.swift`, `MiniPanel.swift` (en-tête de l'encart), `PapAIApp.swift` (RootView, capture de dev), nouveau `Mascotte.swift`. iPhone : `Theme.swift`, `RootView.swift` (hors `SettingsView`), `DoneView.swift`, `LiveViews.swift`, nouveau `Mascotte.swift`. `brand/` | 7 nov. soir |
 
 ## Journal
 
