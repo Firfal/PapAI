@@ -1,0 +1,665 @@
+package com.quentin.papai.aidant
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.os.Handler
+import android.os.Looper
+import android.util.Base64
+import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.IOException
+import java.net.UnknownHostException
+import java.util.concurrent.TimeUnit
+
+private const val TAG = "PapAI"
+
+data class Question(val text: String, val options: List<String>)
+data class AlertInfo(val title: String, val detail: String)
+data class Lesson(val title: String, val steps: Int)
+
+class DraftStep(instruction: String, val checkpoint: String?, val preview: ImageBitmap?) {
+    var instruction by mutableStateOf(instruction)
+}
+
+enum class Screen { IDLE, WAITING, PLANNING, APPROVAL, ACTIVE, HELPER, DONE, STOPPED }
+
+sealed interface AppSheet {
+    data object Settings : AppSheet
+    data class Pair(val link: PairLink) : AppSheet
+}
+
+/** Étape du plan : « Ouvrir le Finder — dans le Dock » → titre + détail. */
+fun splitStep(raw: String): Pair<String, String?> {
+    for (sep in listOf(" — ", " : ", ": ")) {
+        val i = raw.indexOf(sep)
+        if (i >= 0) return raw.substring(0, i) to raw.substring(i + sep.length)
+    }
+    return raw to null
+}
+
+/**
+ * Tout l'état de l'app de l'aidant, comme `HelperModel` sur l'iPhone.
+ * Les champs sont des états Compose ; on ne les modifie que sur le fil principal.
+ */
+@SuppressLint("StaticFieldLeak")
+object Helper {
+    private lateinit var ctx: Context
+    private lateinit var prefs: SharedPreferences
+    private val main = Handler(Looper.getMainLooper())
+    private val http = OkHttpClient.Builder()
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.SECONDS)
+        // Ping toutes les 15 s : garde la liaison à travers les proxys et coupe une liaison morte.
+        .pingInterval(15, TimeUnit.SECONDS)
+        .build()
+    private val rest = http.newBuilder().readTimeout(20, TimeUnit.SECONDS).build()
+
+    // Réglages mémorisés
+    var serverURL by mutableStateOf("")
+    var helperKey by mutableStateOf("")
+    var helperName by mutableStateOf<String?>(null)
+    private var helperId = ""
+    private var helperRelation = ""
+    var seniorName by mutableStateOf("")
+
+    // Connexion
+    var connected by mutableStateOf(false)
+    var linkError by mutableStateOf<String?>(null)
+    var retryAt by mutableStateOf<Long?>(null)
+    var keyRefused by mutableStateOf(false)
+
+    // Feuilles et appairage
+    var sheet by mutableStateOf<AppSheet?>(null)
+    var pairBusy by mutableStateOf(false)
+    var pairError by mutableStateOf<String?>(null)
+    var pairDone by mutableStateOf(false)
+    var pairingRefused by mutableStateOf(false)
+
+    // Session
+    var state by mutableStateOf<String?>(null)
+    var task by mutableStateOf("")
+    var plan by mutableStateOf<List<String>>(emptyList())
+    var planStep by mutableStateOf<Int?>(null)
+    var doing by mutableStateOf<String?>(null)
+    var question by mutableStateOf<Question?>(null)
+    var questionToSenior by mutableStateOf(false)
+    var liveDictation by mutableStateOf<String?>(null)
+    var seniorPaused by mutableStateOf(false)
+    private var sessionId = ""
+    var requestStart by mutableStateOf(System.currentTimeMillis())
+    var iRefusedPlan by mutableStateOf(false)
+    var doneFresh by mutableStateOf(false)
+    var doneAnswer by mutableStateOf<String?>(null)
+    var pausing by mutableStateOf(false)
+    var planBusy by mutableStateOf(false)
+
+    // Capture
+    var frame by mutableStateOf<ImageBitmap?>(null)
+    private var frameId: String? = null
+    private var lastNotified = ""
+    private var hasProposedPlan = false
+    var frameAt by mutableStateOf<Long?>(null)
+
+    // Prise de main
+    var aiming by mutableStateOf(false)
+    /** Point visé, en coordonnées 0…1 de la capture. */
+    var target by mutableStateOf<Offset?>(null)
+    var sending by mutableStateOf(false)
+
+    // Fiche (automatisme)
+    var lessonBusy by mutableStateOf(false)
+    var draftTitle by mutableStateOf("")
+    val draftSteps = mutableStateListOf<DraftStep>()
+    var draftTarget by mutableStateOf<String?>(null)
+    var hasDraft by mutableStateOf(false)
+    var savedTitle by mutableStateOf<String?>(null)
+    var lessons by mutableStateOf<List<Lesson>>(emptyList())
+
+    var toast by mutableStateOf<String?>(null)
+    var lastAlert by mutableStateOf<AlertInfo?>(null)
+
+    /** L'app est au premier plan : pas besoin de notification, l'écran change déjà. */
+    var foreground = false
+
+    private var socket: WebSocket? = null
+    /** Numéro de la connexion en cours : un rappel d'une ancienne connexion est ignoré. */
+    private var generation = 0
+    private var delay = 1L
+    private var retry: Runnable? = null
+    private var toastHide: Runnable? = null
+    private var dictationClear: Runnable? = null
+    const val FRAME_TTL_S = 30
+
+    fun init(c: Context) {
+        ctx = c.applicationContext
+        prefs = ctx.getSharedPreferences("papai", Context.MODE_PRIVATE)
+        serverURL = prefs.getString("serverURL", "") ?: ""
+        helperKey = prefs.getString("helperKey", "") ?: ""
+        helperName = cleanText(prefs.getString("helperName", null)).ifEmpty { null }
+        helperId = prefs.getString("helperId", "") ?: ""
+        helperRelation = prefs.getString("helperRelation", "") ?: ""
+        seniorName = cleanText(prefs.getString("seniorName", ""))
+        prefs.edit().putString("seniorName", seniorName).putString("helperName", helperName).apply()
+    }
+
+    val isConfigured get() = serverURL.isNotBlank() && helperKey.isNotBlank()
+
+    /** Dans une phrase : « Tout va bien chez Sophie », sinon « chez votre proche ». */
+    val senior get() = seniorName.ifEmpty { "votre proche" }
+    /** En début de phrase : « Sophie a besoin de vous ». */
+    val seniorTitle get() = seniorName.ifEmpty { "Votre proche" }
+
+    val screen: Screen
+        get() = when (state) {
+            "waiting_consent" -> Screen.WAITING
+            "planning" -> Screen.PLANNING
+            "awaiting_approval" -> Screen.APPROVAL
+            "active" -> Screen.ACTIVE
+            "awaiting_helper" -> Screen.HELPER
+            "done" -> if (doneFresh) Screen.DONE else Screen.IDLE
+            "stopped" -> Screen.STOPPED
+            else -> Screen.IDLE
+        }
+
+    // MARK: Réglages et connexion
+
+    private val baseHTTP: String
+        get() {
+            var s = serverURL.trim().trimEnd('/')
+            if (!s.contains("://")) s = "http://$s"
+            return s
+        }
+
+    private val wsURL: String
+        get() = baseHTTP.replaceFirst("https://", "wss://").replaceFirst("http://", "ws://") +
+            "/ws/aidant/" + helperKey.trim()
+
+    /** Hôte affiché dans les messages (sans la clé famille du chemin). */
+    val displayHost: String
+        get() {
+            val u = android.net.Uri.parse(baseHTTP)
+            val h = u.host ?: return serverURL
+            return if (u.port > 0) "$h:${u.port}" else h
+        }
+
+    val lastGood: Pair<String, String>?
+        get() {
+            val s = prefs.getString("lastGoodServerURL", null) ?: return null
+            val k = prefs.getString("lastGoodHelperKey", null) ?: return null
+            return s to k
+        }
+
+    /** Jamais de valeur vide : une configuration qui marche n'est pas effacée par un champ blanc. */
+    fun applySettings(server: String, key: String) {
+        val s = server.trim()
+        val k = key.trim()
+        if (s.isEmpty() || k.isEmpty()) return
+        serverURL = s; helperKey = k
+        prefs.edit().putString("serverURL", s).putString("helperKey", k).apply()
+        reconnect()
+        LinkService.start(ctx)
+    }
+
+    fun start() {
+        if (!isConfigured || socket != null || retry != null) return
+        connect()
+        loadLessons()
+    }
+
+    fun reconnect() {
+        generation++
+        socket?.cancel(); socket = null
+        retry?.let { main.removeCallbacks(it) }; retry = null
+        connected = false; keyRefused = false; linkError = null; retryAt = null; delay = 1
+        start()
+    }
+
+    /** Retour au premier plan : on n'attend pas la fin du délai d'attente. */
+    fun wakeUp() {
+        if (!isConfigured) return
+        if (!connected && (retry != null || keyRefused)) { reconnect(); return }
+        if (connected) loadLessons()
+        start()
+    }
+
+    private fun connect() {
+        val gen = ++generation
+        val host = displayHost
+        val req = try {
+            Request.Builder().url(wsURL).build()
+        } catch (e: IllegalArgumentException) {
+            linkError = "Adresse du serveur invalide."; return
+        }
+        Log.i(TAG, "ouverture vers $host")
+        socket = http.newWebSocket(req, object : WebSocketListener() {
+            var hello = false
+
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                val msg = try { JSONObject(text) } catch (_: Exception) { return }
+                // Les captures se décodent hors du fil principal.
+                val img = if (msg.text("type") == "frame") decode(msg.text("png_b64")) else null
+                main.post {
+                    if (gen != generation) return@post
+                    if (!hello) {
+                        if (msg.text("type") == "refused") {
+                            keyRefused = true
+                            val reason = msg.text("reason").takeIf { it.isNotEmpty() }
+                            linkError = "Clé refusée par $host" + (reason?.let { " ($it)" } ?: "") + "."
+                            webSocket.close(1000, null)
+                            return@post
+                        }
+                        hello = true; connected = true; linkError = null; retryAt = null; delay = 1
+                        prefs.edit().putString("lastGoodServerURL", serverURL)
+                            .putString("lastGoodHelperKey", helperKey).apply()
+                        Log.i(TAG, "connecté à $host")
+                    }
+                    handle(msg, img)
+                }
+            }
+
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                webSocket.close(1000, null)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                main.post { lost(gen, if (hello) "Connexion coupée" else "Le serveur ne répond pas à $host") }
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                val http = response?.code ?: 0
+                Log.w(TAG, "fermée : http $http ${t.javaClass.simpleName} ${t.message}")
+                main.post {
+                    if (gen != generation) return@post
+                    val e = when {
+                        http == 401 || http == 403 -> { keyRefused = true; "Clé refusée par $host." }
+                        http == 404 -> "Adresse introuvable sur $host : vérifiez l'adresse du serveur."
+                        http >= 400 -> "Le serveur $host répond une erreur $http."
+                        hello -> "Connexion coupée"
+                        t is UnknownHostException && !online() -> "Ce téléphone n'a pas de connexion internet."
+                        else -> "Le serveur ne répond pas à $host"
+                    }
+                    lost(gen, e)
+                }
+            }
+        })
+    }
+
+    private fun lost(gen: Int, error: String) {
+        if (gen != generation) return
+        socket = null; connected = false
+        if (linkError == null || !keyRefused) linkError = error
+        if (keyRefused) { retryAt = null; return }   // on attend « Vérifier les réglages » ou le premier plan
+        val d = delay
+        retryAt = System.currentTimeMillis() + d * 1000
+        retry = Runnable { retry = null; retryAt = null; if (gen == generation) connect() }.also { main.postDelayed(it, d * 1000) }
+        delay = minOf(d * 2, 8)   // backoff jusqu'à 8 s
+    }
+
+    private fun online(): Boolean {
+        val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java) ?: return true
+        return cm.activeNetwork != null
+    }
+
+    private fun decode(b64: String): ImageBitmap? = try {
+        val bytes = Base64.decode(b64, Base64.DEFAULT)
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    } catch (_: Exception) { null }
+
+    // MARK: Personne aidée
+
+    fun setSenior(name: String?) {
+        val n = cleanText(name)
+        if (n.isEmpty() || n == seniorName) return
+        seniorName = n
+        prefs.edit().putString("seniorName", n).apply()
+        LinkService.refresh(ctx)
+    }
+
+    /** Lien `papai://pair?u=…&n=…` ouvert depuis un QR, un SMS ou la page web. */
+    fun open(uri: String) {
+        val u = android.net.Uri.parse(uri)
+        if (u.host == "open") return
+        if (PairingPolicy.invitationError(uri, BuildConfig.DEBUG) != null) {
+            pairingRefused = true; return
+        }
+        val link = PairLink.parse(uri) ?: run { pairingRefused = true; return }
+        openPair(link)
+    }
+
+    fun openPair(link: PairLink) {
+        if (pairBusy) return
+        PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairingRefused = true; return }
+        pairingRefused = false
+        pairDone = false; pairError = null; pairBusy = false
+        sheet = AppSheet.Pair(link)
+    }
+
+    /** Saisie du code à la main : il faut déjà connaître le serveur. */
+    fun manualPairLink(): PairLink? = if (serverURL.isBlank()) null else PairLink(baseHTTP, null)
+
+    /** POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur. */
+    fun submitPair(link: PairLink, code: String?, name: String, relation: String, confirmed: Boolean = false) {
+        if (pairBusy) return
+        PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairError = it; return }
+        if (PairingPolicy.needsConfirmation(lastGood != null, confirmed)) {
+            pairError = "Confirmez le remplacement de votre liaison avant de rejoindre."
+            return
+        }
+        val c = (link.code ?: code ?: "").filter { it.isDigit() }
+        val n = cleanText(name)
+        if (c.length != 6) { pairError = "Le code fait 6 chiffres."; return }
+        if (n.isEmpty()) { pairError = "Indiquez votre prénom."; return }
+        val body = JSONObject().put("name", n).put("relation", relation).toString()
+            .toRequestBody("application/json".toMediaType())
+        val req = try {
+            Request.Builder().url(link.base + "/p/" + c).post(body).build()
+        } catch (_: IllegalArgumentException) { pairError = "Adresse invalide."; return }
+        pairBusy = true; pairError = null
+        rest.newBuilder().followRedirects(false).followSslRedirects(false).build().newCall(req).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                main.post { pairBusy = false; pairError = "Le serveur ne répond pas à ${link.host}." }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val r = try { JSONObject(response.body?.string() ?: "{}") } catch (_: Exception) { JSONObject() }
+                main.post {
+                    pairBusy = false
+                    if (!r.optBoolean("ok")) {
+                        pairError = r.text("error").ifEmpty { "Le serveur a refusé l'appairage." }
+                        return@post
+                    }
+                    val key = r.text("key")
+                    if (key.isEmpty()) {
+                        pairError = "Le serveur n'a pas renvoyé de clé : réglez la connexion à la main."
+                        return@post
+                    }
+                    val server = PairingPolicy.responseOrigin(link, r.text("server"))
+                    seniorName = r.text("senior").ifBlank { cleanText(link.senior) }
+                    prefs.edit().putString("seniorName", seniorName).apply()
+                    LinkService.refresh(ctx)
+                    helperName = r.text("name").ifEmpty { n }
+                    r.text("id").takeIf { it.isNotEmpty() }?.let { helperId = it }
+                    helperRelation = relation
+                    prefs.edit().putString("helperName", helperName).putString("helperId", helperId)
+                        .putString("helperRelation", relation).apply()
+                    pairDone = true
+                    applySettings("$server/k/$key", key)
+                }
+            }
+        })
+    }
+
+    fun send(o: JSONObject) {
+        val s = socket
+        if (s == null || !connected) {
+            planBusy = false; sending = false
+            showToast("Pas de connexion au serveur."); return
+        }
+        s.send(o.toString())
+    }
+
+    private fun send(vararg kv: Pair<String, Any?>) = send(JSONObject().apply { kv.forEach { (k, v) -> put(k, v) } })
+
+    fun loadLessons() {
+        if (!isConfigured) return
+        val req = try { Request.Builder().url("$baseHTTP/lessons").build() } catch (_: Exception) { return }
+        rest.newCall(req).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {}
+            override fun onResponse(call: Call, response: Response) {
+                val arr = try { JSONArray(response.body?.string() ?: "[]") } catch (_: Exception) { return }
+                val list = (0 until arr.length()).mapNotNull { i ->
+                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                    Lesson(o.text("title"), o.optJSONArray("steps")?.length() ?: 0)
+                }
+                main.post { lessons = list }
+            }
+        })
+    }
+
+    fun showToast(s: String) {
+        toast = s
+        toastHide?.let { main.removeCallbacks(it) }
+        toastHide = Runnable { toast = null }.also { main.postDelayed(it, 4000) }
+    }
+
+    // MARK: Messages
+
+    private fun strings(a: JSONArray?): List<String> =
+        if (a == null) emptyList() else (0 until a.length()).map { a.text(it) }
+
+    private fun handle(m: JSONObject, img: ImageBitmap?) {
+        when (m.text("type")) {
+            "hello" -> {
+                setSenior(m.text("senior"))
+                // Le serveur renvoie status et capture juste après s'il y a une session :
+                // sans session (serveur redémarré), il ne reste rien de l'ancienne demande.
+                state = null; frame = null; frameId = null; frameAt = null
+                // On se présente : l'ordinateur doit voir ce proche dans sa liste.
+                send("type" to "helper_hello", "id" to helperId, "name" to (helperName ?: "Votre proche"),
+                    "relation" to helperRelation)
+            }
+
+            "helper_id" -> m.text("id").takeIf { it.isNotEmpty() }?.let {
+                helperId = it; prefs.edit().putString("helperId", it).apply()
+            }
+
+            "dictation" -> {
+                val t = m.text("text")
+                liveDictation = t.ifEmpty { null }
+                dictationClear?.let { main.removeCallbacks(it) }
+                // Sans nouvelle demande dans la minute, on efface le texte affiché.
+                dictationClear = Runnable { liveDictation = null }.also { main.postDelayed(it, 60_000) }
+            }
+
+            "senior" -> setSenior(m.text("name"))
+
+            "status" -> {
+                val newState = m.text("state").ifEmpty { null }
+                val sid = m.text("session")
+                if (sid != sessionId) {
+                    liveDictation = null
+                    sessionId = sid; requestStart = System.currentTimeMillis(); iRefusedPlan = false
+                    hasProposedPlan = false
+                    doneAnswer = null; hasDraft = false; savedTitle = null; lessonBusy = false
+                    pausing = false; doneFresh = false
+                    frame = null; frameId = null; frameAt = null
+                }
+                val q = m.optJSONObject("question")
+                val toSenior = q?.text("to") == "senior"
+                if (newState != state) {
+                    // Une reconnexion renvoie le même état : on ne sonne pas deux fois pour la même attente.
+                    val key = "$sid:$newState"
+                    val waits = newState == "awaiting_approval" || (newState == "awaiting_helper" && !toSenior)
+                    if (!waits) lastNotified = ""
+                    if (waits && key != lastNotified) {
+                        lastNotified = key
+                        notifyHelp(newState, q?.text("question"), m.text("task"))
+                    }
+                    if (newState == "done") { doneFresh = true; loadLessons() }
+                    if (newState == "active") { pausing = false; planBusy = false }
+                    if (newState != "awaiting_helper") { aiming = false; target = null; sending = false }
+                    if (newState == "awaiting_approval") planBusy = false
+                    if (newState != "awaiting_approval" && newState != "awaiting_helper") clearHelpNotification()
+                }
+                state = newState
+                if (newState == "awaiting_approval") hasProposedPlan = true
+                task = m.text("task").ifEmpty { task }
+                plan = strings(m.optJSONArray("plan"))
+                planStep = if (m.has("plan_step") && !m.isNull("plan_step")) m.optInt("plan_step") else null
+                doing = m.text("doing").ifEmpty { null }
+                seniorPaused = m.optBoolean("paused", false)
+                if (q != null && q.text("question").isNotEmpty()) {
+                    question = Question(q.text("question"), strings(q.optJSONArray("options")))
+                    questionToSenior = toSenior
+                } else if (newState != "awaiting_helper") question = null
+            }
+
+            "frame" -> if (img != null) {
+                frame = img; frameId = m.text("frame_id").ifEmpty { null }
+                frameAt = System.currentTimeMillis(); target = null
+            }
+
+            "question" -> m.text("question").takeIf { it.isNotEmpty() }?.let {
+                question = Question(it, strings(m.optJSONArray("options")))
+            }
+
+            "answer" -> doneAnswer = m.text("content").ifEmpty { null }
+
+            "alert" -> {
+                val t = m.text("title").ifEmpty { "Alerte" }
+                val d = m.text("detail")
+                lastAlert = AlertInfo(t, d)
+                notifyLocal(t, d, ALERT_ID)
+                showToast(t)
+            }
+
+            "refused" -> {
+                showToast(m.text("reason").ifEmpty { "Refusé" })
+                sending = false; planBusy = false; lessonBusy = false
+            }
+
+            "ack" -> when (m.text("what")) {
+                "click" -> {
+                    sending = false; aiming = false; target = null
+                    showToast("Clic transmis à l'ordinateur de $senior.")
+                }
+                "pause" -> pausing = true
+            }
+
+            "lesson_pending" -> lessonBusy = true
+
+            "lesson_draft" -> {
+                lessonBusy = false
+                val l = m.optJSONObject("lesson") ?: return
+                draftTitle = l.text("title")
+                draftTarget = shortcutLabel(l.optJSONObject("shortcut"))
+                val previews = m.optJSONObject("preview")
+                draftSteps.clear()
+                val steps = l.optJSONArray("steps") ?: JSONArray()
+                for (i in 0 until steps.length()) {
+                    val s = steps.optJSONObject(i)
+                    if (s == null) { draftSteps.add(DraftStep(steps.text(i), null, null)); continue }
+                    val f = s.text("frame")
+                    val preview = previews?.text(f)?.takeIf { f.isNotEmpty() && it.isNotEmpty() }?.let { decode(it) }
+                    draftSteps.add(DraftStep(s.text("instruction"), s.text("checkpoint").ifEmpty { null }, preview))
+                }
+                hasDraft = true
+            }
+
+            "lesson_saved" -> {
+                hasDraft = false; lessonBusy = false
+                savedTitle = m.optJSONObject("lesson")?.text("title")?.ifEmpty { null } ?: draftTitle
+                loadLessons()
+            }
+        }
+    }
+
+    private fun shortcutLabel(s: JSONObject?): String? {
+        val folder = s?.text("folder")?.ifEmpty { null } ?: return null
+        val names = mapOf("downloads" to "Téléchargements", "pictures" to "Images", "documents" to "Documents",
+            "desktop" to "Bureau", "videos" to "Vidéos", "music" to "Musique")
+        val sub = s.text("subfolder")
+        val root = names[folder.lowercase()] ?: folder
+        return if (sub.isEmpty()) root else "$root › $sub"
+    }
+
+    // MARK: Notifications
+
+    private const val HELP_ID = 10
+    private const val ALERT_ID = 11
+
+    private fun notifyHelp(state: String, question: String?, task: String) {
+        val who = seniorTitle
+        if (state == "awaiting_approval") {
+            notifyLocal(if (hasProposedPlan) "Nouveau plan proposé" else "$who demande de l'aide",
+                if (task.isEmpty()) "Un plan attend votre accord." else "« $task » : un plan attend votre accord.", HELP_ID)
+        } else {
+            notifyLocal("$who a besoin de vous", question?.ifEmpty { null } ?: "Holo attend votre aide.", HELP_ID)
+        }
+    }
+
+    private fun clearHelpNotification() = NotificationManagerCompat.from(ctx).cancel(HELP_ID)
+
+    private fun notifyLocal(title: String, body: String, id: Int) {
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+            android.os.Build.VERSION.SDK_INT >= 33) return
+        val intent = Intent(ctx, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val pi = PendingIntent.getActivity(ctx, id, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = NotificationCompat.Builder(ctx, PapAIApp.CHANNEL_HELP)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(NotificationCompat.Builder(ctx, PapAIApp.CHANNEL_HELP)
+                .setSmallIcon(R.drawable.ic_notif)
+                .setContentTitle("PapAI : votre proche a besoin de vous")
+                .setContentIntent(pi)
+                .build())
+            .setSmallIcon(R.drawable.ic_notif)
+            .setColor(0xFF2E9E5B.toInt())
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setAutoCancel(true)
+            .setContentIntent(pi)
+            .apply { if (!foreground) setFullScreenIntent(pi, true) }
+            .build()
+        try { NotificationManagerCompat.from(ctx).notify(id, n) } catch (_: SecurityException) {}
+    }
+
+    // MARK: Actions
+
+    fun approvePlan() { planBusy = true; send("type" to "approve_plan") }
+    fun refinePlan(text: String) { planBusy = true; send("type" to "refine_plan", "text" to text) }
+    fun refusePlan() { iRefusedPlan = true; send("type" to "refuse_plan") }
+    fun answer(t: String) = send("type" to "answer", "text" to t)
+    fun pause() { pausing = true; send("type" to "pause"); showToast("Pause demandée : l'action en cours se termine.") }
+    fun refresh() = send("type" to "refresh")
+
+    fun setAimingOn(on: Boolean) {
+        aiming = on && state == "awaiting_helper"
+        target = null
+        if (aiming) refresh()   // la dernière image date du dernier pas de Holo
+    }
+
+    fun confirmClick() {
+        val t = target ?: return
+        val id = frameId ?: return
+        if (sending) return
+        sending = true
+        send("type" to "click", "frame_id" to id, "x" to t.x.toDouble(), "y" to t.y.toDouble())
+    }
+
+    fun requestLesson() { lessonBusy = true; send("type" to "draft_lesson") }
+
+    fun approveLesson() {
+        val steps = JSONArray()
+        draftSteps.forEach { steps.put(JSONObject().put("instruction", it.instruction.trim())) }
+        send("type" to "approve_lesson", "lesson" to JSONObject().put("title", draftTitle.trim()).put("steps", steps))
+    }
+}
