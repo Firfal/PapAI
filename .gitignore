@@ -15,3 +15,5 @@ __pycache__/
 # fiches CareMemory : contiennent des captures de l ecran de la personne aidee
 lessons/
 .venv-mac/
+logs/
+.papai-cloud
