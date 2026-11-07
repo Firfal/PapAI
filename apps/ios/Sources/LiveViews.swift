@@ -148,6 +148,7 @@ struct Loupe: View {
 struct HelperView: View {
     @Bindable var model: HelperModel
     @State private var reply = ""
+    @State private var dictation = Dictation()
 
     var body: some View {
         ScrollView {
@@ -165,6 +166,7 @@ struct HelperView: View {
             .padding(.horizontal, 20).padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+        .onDisappear { dictation.cancel() }
     }
 
     private func questionCard(_ q: (text: String, options: [String])) -> some View {
@@ -183,14 +185,26 @@ struct HelperView: View {
                     }
                 }
             }
-            HStack(spacing: 8) {
-                TextField("Votre réponse…", text: $reply).font(.system(size: 16))
-                    .padding(.horizontal, 16).frame(height: 48).background(Soin.card, in: Capsule())
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Votre réponse…", text: $reply, axis: .vertical).font(.system(size: 16))
+                    .lineLimit(1...4)
+                    .padding(.horizontal, 16).padding(.vertical, 13).frame(minHeight: 48)
+                    .background(Soin.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                     .submitLabel(.send).onSubmit(sendReply)
+                    .disabled(dictation.phase == .transcribing)
                 Button(action: sendReply) {
                     Image(systemName: "arrow.up").font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
                         .frame(width: 48, height: 48).background(Soin.ink, in: Circle())
-                }.accessibilityLabel("Envoyer")
+                }
+                .accessibilityLabel("Envoyer")
+                .disabled(dictation.phase != .idle)
+            }
+            BigMicButton(dictation: dictation, size: 72) {
+                let t = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+                let prefix = t.isEmpty ? "" : t + " "
+                dictation.toggle(endpoint: model.transcribeURL,
+                                 onLive: { reply = prefix + $0 },
+                                 onText: { reply = prefix + $0 })
             }
         }
         .padding(18).frame(maxWidth: .infinity, alignment: .leading).soinCard(Soin.accentSoft, radius: 28)
@@ -198,6 +212,7 @@ struct HelperView: View {
 
     private func sendReply() {
         let t = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+        dictation.cancel()
         if !t.isEmpty { model.answer(t); reply = "" }
     }
 

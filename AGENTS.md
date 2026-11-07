@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794084327-ios-modifier-dictee` | iPhone : glisser une étape pour la modifier, dictée vocale (Gladia + SFSpeech) | `apps/ios/Sources/ApprovalView.swift`, `apps/ios/Sources/Dictation.swift` (nouveau, remplace `VoiceInput.swift`), carte de question de `apps/ios/Sources/LiveViews.swift`, `apps/ios/Sources/DebugDriver.swift`, `apps/ios/project.yml` | 7 nov. soir |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -56,3 +56,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 - 2026-11-07 Claude : dictée pour préciser le plan (iPhone), captures des automatismes agrandies (Mac, iPhone), « Mes proches » compte les aidants connectés, applications de l'accueil selon l'usage et les demandes, « <aidant> s'en occupe », une seule phrase « ce que fait Holo » côté aidant.
 - 2026-11-07 Claude : les proches survivent aux redéploiements Cloud Run (le Mac garde la liste et la renvoie dans `profile.known_helpers`).
 - 2026-11-07 Claude : icône Mac = logotype papai au pépin sur le i, fond vert profond (Dock rafraîchi par install-mac.sh) ; « Bonsoir » après 19 h (Mac, iPhone, Windows) ; champ serveur retiré des Réglages Mac ; 6 propositions d'accueil dans Figma (page « Accueil Mac — propositions »).
+- 2026-11-07 Devin (`devin/1794084327-ios-modifier-dictee`) : iPhone, glisser une étape vers la gauche → « Modifier », feuille préremplie (clavier ou voix), consigne « Étape N : remplacer « … » par « … » » envoyée par `refine_plan` (pas de nouveau message). Dictée (`Dictation.swift`, remplace `VoiceInput.swift`) dans Préciser, Modifier et la réponse à Holo : WAV 16 kHz envoyé à `/k/<clé>/transcribe` (Gladia), SFSpeech en direct et en secours, texte modifiable avant envoi. `faux_holo.py` applique ces consignes. Essayé sur simulateur avec un fichier audio et un Gladia simulé. HelperModel, alertes et notifications non touchés. Fichiers libérés.
