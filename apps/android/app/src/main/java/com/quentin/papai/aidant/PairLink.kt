@@ -40,6 +40,25 @@ data class PairLink(
 }
 
 object PairingPolicy {
+    const val refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR depuis le Mac de votre proche (Réglages > Proches)."
+    const val officialHost = "papai-450417131702.europe-west1.run.app"
+
+    fun isOfficial(base: String): Boolean = runCatching {
+        val uri = URI(origin(base))
+        uri.scheme == "https" && uri.host == officialHost && uri.port in listOf(-1, 443)
+    }.getOrDefault(false)
+
+    fun invitationError(text: String, debug: Boolean): String? {
+        val link = PairLink.parse(text) ?: return refusal
+        return error(link.base, debug)
+    }
+
+    fun presentation(link: PairLink) = PairingPresentation(
+        server = if (isOfficial(link.base)) "Serveur PapAI officiel"
+            else "Serveur inconnu : ne continuez que si votre proche vous a donné ce lien en personne",
+        domain = link.host,
+    )
+
     fun origin(value: String): String {
         val uri = URI(value)
         require(uri.scheme.lowercase() in setOf("http", "https") && !uri.host.isNullOrEmpty() && uri.rawUserInfo == null)
@@ -51,8 +70,8 @@ object PairingPolicy {
     fun error(base: String, debug: Boolean): String? = runCatching {
         val uri = URI(origin(base))
         if (uri.scheme == "https" || (debug && isLocal(uri.host))) null
-        else "Adresse refusée : utilisez HTTPS. HTTP est réservé aux serveurs locaux en version debug."
-    }.getOrElse { "Adresse du serveur invalide." }
+        else refusal
+    }.getOrElse { refusal }
 
     private fun isLocal(host: String): Boolean {
         if (host == "localhost" || host.endsWith(".local")) return true
@@ -68,3 +87,11 @@ object PairingPolicy {
 
     fun responseOrigin(link: PairLink, responseServer: String?): String = origin(link.base)
 }
+
+data class PairingPresentation(
+    val title: String = "Relier ce téléphone",
+    val description: String = "Vous serez prévenu quand elle demande de l’aide sur son ordinateur. Rien ne bouge sans votre accord.",
+    val relationLabel: String = "Votre lien avec votre proche",
+    val server: String,
+    val domain: String,
+)

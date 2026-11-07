@@ -5,6 +5,48 @@ import org.junit.Test
 import java.net.URLEncoder
 
 class PairingPolicyTest {
+    @Test fun officialServerRequiresExactHttpsOrigin() {
+        val host = PairingPolicy.officialHost
+        assertTrue(PairingPolicy.isOfficial("https://$host"))
+        assertTrue(PairingPolicy.isOfficial("https://$host:443"))
+        for (base in listOf("http://$host", "https://sub.$host", "https://$host.evil.com", "https://$host:8443", "https://papai-450417131703.europe-west1.run.app", "not a url")) {
+            assertFalse(base, PairingPolicy.isOfficial(base))
+        }
+    }
+
+    @Test fun presentationNeverUsesInvitationName() {
+        for (base in listOf("https://${PairingPolicy.officialHost}", "http://10.0.2.2:8000")) {
+            val link = PairLink(base, "123456", "Pirate")
+            val copy = PairingPolicy.presentation(link)
+            assertEquals(PairingPolicy.presentation(link.copy(senior = null)), copy)
+            assertFalse(copy.toString().contains("Pirate"))
+            assertEquals("Relier ce téléphone", copy.title)
+            assertEquals("Votre lien avec votre proche", copy.relationLabel)
+        }
+    }
+
+    @Test fun serverLabelsMatchSafetyCopy() {
+        assertEquals("Serveur PapAI officiel", PairingPolicy.presentation(PairLink("https://${PairingPolicy.officialHost}", null)).server)
+        assertEquals("Serveur inconnu : ne continuez que si votre proche vous a donné ce lien en personne",
+            PairingPolicy.presentation(PairLink("http://10.0.2.2:8000", null)).server)
+    }
+
+    @Test fun refusalsAreExactAndActionable() {
+        val expected = "Ce lien n'est pas sûr. Demandez un nouveau QR depuis le Mac de votre proche (Réglages > Proches)."
+        for (debug in listOf(false, true)) {
+            for (text in listOf("http://example.com/p/123456", "papai://pair?u=http%3A%2F%2Fexample.com%2Fp%2F123456", "illisible", "", "https://foreign.example/qr")) {
+                assertEquals(expected, PairingPolicy.invitationError(text, debug))
+            }
+            assertEquals(expected, PairingPolicy.error("http://example.com", debug))
+        }
+    }
+
+    @Test fun validInvitationHasNoRefusal() {
+        assertNull(PairingPolicy.invitationError("https://${PairingPolicy.officialHost}/p/123456", false))
+        assertNull(PairingPolicy.invitationError("http://10.0.2.2:8000/p/123456", true))
+        assertEquals(PairingPolicy.refusal, PairingPolicy.invitationError("http://10.0.2.2:8000/p/123456", false))
+    }
+
     @Test fun publicHttpIsAlwaysRejected() {
         for (debug in listOf(false, true)) {
             for (host in listOf("example.com", "8.8.8.8", "172.15.0.1", "172.32.0.1", "192.169.0.1", "localhost.example.com", "010.0.0.1")) {
