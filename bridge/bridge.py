@@ -218,6 +218,8 @@ class SelfWindow:
             return self._rect
 
 
+PAIRING_URL = ""
+
 gate = StopGate()
 self_window = SelfWindow()
 to_ui: queue.Queue = queue.Queue()
@@ -1031,17 +1033,26 @@ class App:
 def main() -> None:
     args = sys.argv[1:]
     if args and args[0] == "--auto":
-        # Essai sans interface : utile pour vérifier la chaîne complète en
-        # pilotant le vrai écran, sans dépendre d'un clic humain.
+        # Essai sans interface : vérifie la chaîne complète en pilotant le vrai
+        # écran, sans dépendre d'un clic humain.
         task = " ".join(args[1:]) or "Ouvre l'Explorateur de fichiers"
         print(f"[pont] mode essai — tâche : {task}", flush=True)
         asyncio.run(network(task))
         return
 
     start_network()
-    root = tk.Tk()
-    App(root)
-    root.mainloop()
+
+    if "--tk" in args:
+        # Secours : si WebView2 manquait sur une machine, l'ancienne fenêtre
+        # reste utilisable. Elle n'est plus l'interface du produit.
+        root = tk.Tk()
+        App(root)
+        root.mainloop()
+        return
+
+    from . import window as ui
+
+    ui.run(sys.modules[__name__])
 
 
 if __name__ == "__main__":

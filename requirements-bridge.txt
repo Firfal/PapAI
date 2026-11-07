@@ -1,9 +1,9 @@
-# Application Windows de la personne aidee (pont + fenetre).
 mss>=9.0
 pyautogui>=0.9.54
 Pillow>=10.0
 websockets>=13.0
 python-dotenv>=1.0
 qrcode[pil]>=7.4
+pywebview>=5.0
 # necessaire au harnais de visee holo_agent.py
 openai>=1.40

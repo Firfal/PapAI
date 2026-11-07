@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>CarePilot</title>
+<style>
+  :root {
+    --bg: #11151c; --panel: #1a2029; --sunken: #0c1016; --line: #2b3440;
+    --hover: #222b36;
+    --text: #e9eef5; --muted: #93a1b3; --faint: #7d8b9e;
+    --accent: #4da3ff; --ink: #04121f; --warn: #ffb020; --stop: #ff5c5c; --ok: #35c08a;
+    --r: 14px;
+    --ease: cubic-bezier(.16, 1, .3, 1);
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; -webkit-user-select: none; user-select: none; }
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; }
+
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    /* Tout est surdimensionné : ces écrans s'adressent à quelqu'un qui lit
+       lentement, parfois de loin, parfois avec des lunettes mal adaptées. */
+    font: 17px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    padding: 26px 24px 20px; min-height: 100vh;
+  }
+  .screen { display: none; animation: in .28s var(--ease); }
+  .screen.on { display: block; }
+  @keyframes in { from { opacity: 0; transform: translateY(6px); } }
+
+  h1 { font-size: 25px; line-height: 1.25; margin: 0 0 6px; font-weight: 650; }
+  h2 { font-size: 15px; font-weight: 600; color: var(--faint); margin: 26px 0 10px;
+       text-transform: uppercase; letter-spacing: .06em; }
+  p.sub { color: var(--muted); margin: 0 0 18px; }
+
+  textarea, input[type=text] {
+    width: 100%; padding: 15px; border-radius: var(--r);
+    border: 1px solid var(--line); background: var(--sunken); color: var(--text);
+    font: inherit; resize: none; transition: border-color .18s var(--ease);
+  }
+  textarea:focus, input:focus { outline: none; border-color: var(--accent); }
+  textarea::placeholder { color: var(--faint); }
+
+  .check {
+    display: flex; gap: 12px; align-items: flex-start; cursor: pointer;
+    padding: 14px; margin-top: 12px; border-radius: var(--r);
+    border: 1px solid var(--line); background: var(--panel);
+    transition: border-color .18s var(--ease);
+  }
+  .check:hover { border-color: var(--hover); }
+  .check.ok { border-color: var(--ok); }
+  .check input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; margin: 1px 0 0; }
+  .check span { font-size: 15px; color: var(--muted); }
+  .check.ok span { color: var(--text); }
+
+  button {
+    width: 100%; padding: 17px; border: 1px solid transparent; border-radius: var(--r);
+    background: var(--panel); color: var(--text); font: inherit; font-weight: 600;
+    cursor: pointer; transition: background .16s var(--ease), transform .16s var(--ease);
+  }
+  button:hover { background: var(--hover); }
+  button:active { transform: scale(.985); }
+  button.primary { background: var(--accent); color: var(--ink); font-size: 19px; padding: 19px; }
+  button.primary:hover { background: #6fb6ff; }
+  button.danger { background: var(--stop); color: #fff; font-size: 22px; padding: 24px; }
+  button.danger:hover { background: #ff7b7b; }
+  button.quiet { background: transparent; border-color: var(--line); color: var(--muted); }
+  button.quiet:hover { background: var(--panel); color: var(--text); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .stack > * + * { margin-top: 10px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .grid button { padding: 20px 14px; font-size: 16px; }
+
+  .note { color: var(--faint); font-size: 14px; text-align: center; margin: 14px 0 0; }
+  .msg { margin-top: 12px; padding: 12px 14px; border-radius: var(--r);
+         font-size: 15px; font-weight: 600; display: none; }
+  .msg.on { display: block; }
+  .msg.good { background: rgba(53,192,138,.12); color: var(--ok); }
+  .msg.bad  { background: rgba(255,176,32,.12); color: var(--warn); }
+
+  /* Session en cours : le bandeau doit être le premier élément vu. */
+  .live-banner {
+    display: flex; align-items: center; gap: 10px; justify-content: center;
+    background: var(--stop); color: #fff; font-weight: 700; font-size: 17px;
+    padding: 14px; border-radius: var(--r); margin-bottom: 18px;
+  }
+  .live-banner .dot {
+    width: 10px; height: 10px; border-radius: 50%; background: #fff;
+    animation: pulse 1.6s infinite;
+  }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .live-banner.off { background: var(--line); }
+  #doing { font-size: 19px; text-align: center; margin: 22px 0; min-height: 54px; }
+
+  .step-head { color: var(--accent); font-weight: 700; margin-bottom: 8px; }
+  #stepText { font-size: 21px; line-height: 1.4; margin-bottom: 16px; }
+  #stepImg { width: 100%; border-radius: var(--r); border: 1px solid var(--line); }
+  #stepCheck { color: var(--ok); font-size: 15px; margin-top: 12px; }
+  .row { display: flex; gap: 10px; }
+  .row button { width: auto; flex: 1; }
+
+  #qr { display: block; margin: 0 auto; border-radius: var(--r); }
+  .link { color: var(--accent); font-size: 13px; word-break: break-all;
+          text-align: center; margin-top: 12px; }
+  .foot { color: var(--faint); font-size: 12px; text-align: center; margin-top: 22px; }
+  .foot .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+               background: var(--stop); margin-right: 5px; vertical-align: 1px; }
+  .foot .dot.on { background: var(--ok); }
+</style>
+</head>
+<body>
+
+<!-- ------------------------------------------------------------ accueil -->
+<section id="home" class="screen on">
+  <h1>Besoin d'aide sur votre ordinateur ?</h1>
+  <p class="sub">Expliquez en une phrase ce que vous cherchez.</p>
+
+  <textarea id="task" rows="2" placeholder="Par exemple : je ne retrouve pas mes photos"></textarea>
+
+  <label class="check" id="consentBox">
+    <input type="checkbox" id="consent">
+    <span>J'autorise le partage de mon écran pendant cette demande</span>
+  </label>
+  <div class="msg bad" id="homeMsg"></div>
+
+  <div class="stack" style="margin-top:16px">
+    <button class="primary" id="ask">Demander de l'aide</button>
+  </div>
+
+  <h2>Ouvrir directement</h2>
+  <div class="grid" id="quick"></div>
+  <div class="msg" id="quickMsg"></div>
+
+  <div class="stack" style="margin-top:22px">
+    <button class="quiet" id="toLessons">Refaire quelque chose</button>
+    <button class="quiet" id="toPair" disabled>Inviter un proche</button>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------- session vivante -->
+<section id="live" class="screen">
+  <div class="live-banner" id="liveBanner"><span class="dot"></span><span id="liveLabel">Écran partagé</span></div>
+  <p class="sub" id="liveTask" style="text-align:center"></p>
+  <div id="doing">Connexion à votre proche…</div>
+  <img id="liveQr" alt="" style="display:none;margin:0 auto 10px;border-radius:var(--r)">
+  <div class="link" id="liveLink"></div>
+  <button class="danger" id="stop" style="margin-top:18px">ARRÊTER</button>
+  <p class="note">Vous pouvez arrêter à tout moment.<br>Rien ne continuera.</p>
+</section>
+
+<!-- --------------------------------------------------------- invitation -->
+<section id="invite" class="screen">
+  <h1>Votre proche propose de vous aider</h1>
+  <p class="sub" id="inviteText" style="text-align:center;font-size:19px;color:var(--text)"></p>
+  <p class="note">S'il vous aide, il verra votre écran jusqu'à ce que vous arrêtiez.</p>
+  <div class="stack" style="margin-top:24px">
+    <button class="primary" id="accept">Accepter</button>
+    <button class="quiet" id="decline">Non merci</button>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------- fiches -->
+<section id="lessons" class="screen">
+  <h1>Refaire quelque chose</h1>
+  <p class="sub">Ce que CarePilot a déjà trouvé pour vous.</p>
+  <div class="stack" id="lessonList"></div>
+  <button class="quiet" id="lessonsBack" style="margin-top:22px">Retour</button>
+</section>
+
+<!-- ----------------------------------------------------------- une fiche -->
+<section id="lesson" class="screen">
+  <h1 id="lessonTitle"></h1>
+  <div class="msg" id="lessonMsg"></div>
+  <div class="stack" style="margin-top:18px">
+    <button class="primary" id="doIt">Faites-le pour moi</button>
+    <button class="quiet" id="showMe">Ou montrez-moi comment faire</button>
+    <button class="quiet" id="lessonBack">Retour</button>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------------- étapes -->
+<section id="step" class="screen">
+  <div class="step-head" id="stepNum"></div>
+  <div id="stepText"></div>
+  <img id="stepImg" alt="">
+  <div id="stepCheck"></div>
+  <div class="row" style="margin-top:18px">
+    <button class="quiet" id="prev">Précédent</button>
+    <button class="primary" id="next">Suivant</button>
+  </div>
+  <p class="note">C'est vous qui faites la manipulation.<br>L'ordinateur ne fait que vous montrer.</p>
+</section>
+
+<!-- ---------------------------------------------------------- appairage -->
+<section id="pair" class="screen">
+  <h1>Inviter un proche</h1>
+  <p class="sub">Montrez-lui ce code une fois. Il pourra ensuite vous proposer son aide, que vous resterez libre d'accepter ou non.</p>
+  <img id="qr" alt="">
+  <div class="link" id="pairLink"></div>
+  <button class="quiet" id="pairBack" style="margin-top:20px">Retour</button>
+</section>
+
+<div class="foot"><span class="dot" id="netDot"></span><span id="netText">Connexion…</span></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const api = () => window.pywebview.api;
+let lesson = null, stepI = 0;
+
+function show(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === name));
+}
+function msg(el, text, good) {
+  el.textContent = text;
+  el.className = 'msg on ' + (good ? 'good' : 'bad');
+  if (text) setTimeout(() => { el.className = 'msg'; }, 5000);
+}
+
+/* ------------------------------------------------------------- accueil */
+$('consent').addEventListener('change', e => {
+  $('consentBox').classList.toggle('ok', e.target.checked);
+  $('homeMsg').className = 'msg';
+});
+
+$('ask').onclick = async () => {
+  const t = $('task').value.trim();
+  if (!t) { $('task').focus(); return; }
+  if (!$('consent').checked) {
+    msg($('homeMsg'), "Cochez l'autorisation de partage pour continuer.");
+    $('consentBox').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  await api().ask_help(t);
+};
+
+async function fillQuick() {
+  const items = await api().quick_items();
+  $('quick').innerHTML = '';
+  items.forEach(it => {
+    const b = document.createElement('button');
+    b.textContent = it.label;
+    b.onclick = async () => {
+      const r = await api().open_quick(it);
+      msg($('quickMsg'), r.ok ? it.label + ' est ouvert.' : r.detail, r.ok);
+      if (r.ok) fillQuick();
+    };
+    $('quick').appendChild(b);
+  });
+}
+
+/* -------------------------------------------------------------- session */
+$('stop').onclick = async () => { await api().stop(); };
+
+/* ----------------------------------------------------------- invitation */
+$('accept').onclick = async () => { await api().answer_invite(true); };
+$('decline').onclick = async () => { await api().answer_invite(false); };
+
+/* --------------------------------------------------------------- fiches */
+$('toLessons').onclick = async () => {
+  const list = await api().lessons();
+  $('lessonList').innerHTML = '';
+  if (!list.length) {
+    $('lessonList').innerHTML =
+      '<p class="note">Rien pour l\'instant.<br>Demandez de l\'aide une première fois, et vous retrouverez le chemin ici.</p>';
+  }
+  list.forEach(l => {
+    const b = document.createElement('button');
+    b.textContent = l.title;
+    b.onclick = () => openLesson(l);
+    $('lessonList').appendChild(b);
+  });
+  show('lessons');
+};
+$('lessonsBack').onclick = () => show('home');
+$('lessonBack').onclick = () => show('lessons');
+
+function openLesson(l) {
+  lesson = l;
+  $('lessonTitle').textContent = l.title;
+  const sc = l.shortcut || {};
+  $('doIt').style.display = sc.folder ? '' : 'none';
+  $('lessonMsg').className = 'msg';
+  show('lesson');
+}
+$('doIt').onclick = async () => {
+  const r = await api().run_shortcut(lesson.id);
+  msg($('lessonMsg'), r.ok ? "C'est ouvert." : r.detail + "\nSuivez plutôt les étapes.", r.ok);
+};
+$('showMe').onclick = () => goStep(0);
+
+function goStep(i) {
+  const steps = (lesson && lesson.steps) || [];
+  if (i < 0 || i >= steps.length) { show('lesson'); return; }
+  stepI = i;
+  const s = steps[i];
+  $('stepNum').textContent = `Étape ${i + 1} sur ${steps.length} — ${lesson.title}`;
+  $('stepText').textContent = s.instruction || '';
+  $('stepCheck').textContent = s.checkpoint ? 'Vous devez voir : ' + s.checkpoint : '';
+  $('stepImg').style.display = s.image_data ? '' : 'none';
+  if (s.image_data) $('stepImg').src = 'data:image/png;base64,' + s.image_data;
+  $('next').textContent = i === steps.length - 1 ? 'Terminé' : 'Suivant';
+  show('step');
+}
+$('prev').onclick = () => goStep(stepI - 1);
+$('next').onclick = () => goStep(stepI + 1);
+
+/* ------------------------------------------------------------ appairage */
+$('toPair').onclick = async () => {
+  const d = await api().pairing();
+  $('qr').src = 'data:image/png;base64,' + d.qr;
+  $('pairLink').textContent = d.url;
+  show('pair');
+};
+$('pairBack').onclick = () => show('home');
+
+/* ------------------------------ appelé depuis Python, jamais l'inverse */
+window.carepilot = {
+  net(connected, label) {
+    $('netDot').classList.toggle('on', connected);
+    $('netText').textContent = label;
+    $('toPair').disabled = !connected;
+  },
+  live(task) {
+    $('liveTask').textContent = task ? '« ' + task + ' »' : '';
+    $('liveBanner').classList.remove('off');
+    $('liveLabel').textContent = 'Écran partagé';
+    $('doing').textContent = 'Votre proche a été prévenu…';
+    $('liveQr').style.display = 'none';
+    $('liveLink').textContent = '';
+    show('live');
+  },
+  doing(text) { $('doing').textContent = text; },
+  session(url, qr) {
+    $('liveQr').src = 'data:image/png;base64,' + qr;
+    $('liveQr').style.display = '';
+    $('liveLink').textContent = url;
+  },
+  stopped() {
+    $('liveBanner').classList.add('off');
+    $('liveLabel').textContent = 'Arrêté';
+    $('doing').textContent = "L'assistance est arrêtée.\nVotre écran n'est plus partagé.";
+    $('liveQr').style.display = 'none';
+    $('liveLink').textContent = '';
+    setTimeout(() => { show('home'); fillQuick(); }, 2600);
+  },
+  invitation(text) { $('inviteText').textContent = text ? '« ' + text + ' »' : ''; show('invite'); },
+  home() { show('home'); fillQuick(); },
+};
+
+/* `window.pywebview.api` n'existe pas encore au moment où ce script tourne :
+   la vue est chargée avant que le pont ne soit injecté. Appeler l'API tout de
+   suite laissait la grille vide, sans aucune erreur visible. */
+if (window.pywebview && window.pywebview.api) fillQuick();
+else window.addEventListener('pywebviewready', fillQuick);
+</script>
+</body>
+</html>
