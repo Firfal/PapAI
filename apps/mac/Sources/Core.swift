@@ -87,20 +87,29 @@ enum Shortcuts {
 // MARK: - Description des actions
 
 func describeAction(_ name: String, _ args: [String: Any]) -> String {
+    // Une phrase simple, à la première personne : la personne aidée lit ce
+    // que fait Holo pendant qu'il le fait.
     let cible = (args["element"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
     switch name {
-    case "click", "double_click":
-        let verbe = name == "double_click" ? "Double-clic" : "Clic"
-        return cible.isEmpty ? "\(verbe) sur l'écran" : "\(verbe) sur \(cible)"
+    case "click":
+        return cible.isEmpty ? "Je clique sur l'écran" : "Je clique sur \(cible)"
+    case "double_click":
+        return cible.isEmpty ? "J'ouvre l'élément" : "J'ouvre \(cible)"
     case "type_text":
         let t = (args["text"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
-        return t.isEmpty ? "Saisie au clavier" : "Saisie de « \(t) »"
+        return t.isEmpty ? "J'écris au clavier" : "J'écris « \(t) »"
     case "press_key":
-        let k = (args["keys"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
-        return k.isEmpty ? "Appui sur une touche" : "Touche \(k)"
-    case "scroll": return "Défilement de la page"
-    case "wait": return "Un instant…"
-    default: return "Recherche en cours…"
+        let k = (args["keys"] as? String)?.lowercased().trimmingCharacters(in: .whitespaces) ?? ""
+        switch k {
+        case "enter", "return": return "Je valide avec la touche Entrée"
+        case "esc", "escape": return "Je ferme avec la touche Échap"
+        case "cmd+space": return "J'ouvre la recherche du Mac"
+        case "": return "J'appuie sur une touche"
+        default: return "J'appuie sur \(k)"
+        }
+    case "scroll": return "Je fais défiler la page"
+    case "wait": return "J'attends que l'ordinateur réponde…"
+    default: return "Je regarde l'écran…"
     }
 }
 

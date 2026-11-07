@@ -15,6 +15,8 @@ Hackathon H Company × 42 AI, 7-8 novembre 2026. Agent : **Holo** (H Company).
 4. **Exécuter** : Holo agit, la personne regarde, et peut tout arrêter à tout moment.
 5. **Garder** : la tâche devient un automatisme, une tuile que la personne relance seule.
 
+> Ce qui reste à faire, par priorité : [`TODO.md`](TODO.md). Agents de l’équipe : lisez-le avant de coder.
+
 ## Aperçu
 
 | Personne aidée (Mac) | Aidant (iPhone) |

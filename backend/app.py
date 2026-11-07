@@ -17,11 +17,12 @@ import secrets
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 
-from . import guard
+from . import guard, voice
 from .agent import AgentRunner, propose_plan
+from .family import Family, PairingError
 from .caremamory import LESSONS_DIR, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
 
@@ -53,6 +54,7 @@ PUBLIC_URL = os.environ.get("CAREPILOT_PUBLIC_URL") or f"http://{_lan_ip()}:{os.
 
 app = FastAPI(title="PapAI")
 registry = Registry()
+family = Family()
 
 # Clé du lien permanent de l'aidant (app iPhone ou page /a/{clé}). Stable d'un
 # lancement à l'autre si on la fixe dans .env, sinon tirée au démarrage.
@@ -178,11 +180,35 @@ async def _ws_bridge(ws: WebSocket) -> None:
             if kind == "hello":
                 bridge.os = str(msg.get("os", "windows")).lower()
                 print(f"[pont] système : {bridge.os}")
+                await ws.send_json({"type": "helpers", "helpers": family.public()})
+                continue
+
+            if kind == "pair_start":
+                # Ajout d'un proche : un code à 6 chiffres et son lien (QR).
+                code = family.new_code()
+                await ws.send_json({"type": "pair_code", "code": code, "url": pairing_url(code),
+                                    "expires_in": 600})
+                continue
+
+            if kind == "remove_helper":
+                family.remove(str(msg.get("id", "")))
+                await ws.send_json({"type": "helpers", "helpers": family.public()})
+                continue
+
+            if kind == "remote_answer":
+                # Réponse de la personne aidée à une session proposée par un proche.
+                if not msg.get("accepted"):
+                    await broadcast_helper({"type": "remote_refused"})
+                    print("[pont] session à distance refusée")
                 continue
 
             if kind == "help_request":
                 session = registry.create(msg.get("task", "").strip())
                 session.grant_consent()  # le consentement est donné dans la même fenêtre
+                if msg.get("requested_by"):
+                    # Lancée par un proche, acceptée à l'instant sur le Mac.
+                    session.log("remote_accepted", by=str(msg["requested_by"])[:40])
+                    await broadcast_helper({"type": "remote_accepted"})
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
                 await ws.send_json({"type": "session", "id": session.id, "helper_url": url})
                 print(f"[session {session.id}] {session.task}")
@@ -344,7 +370,11 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
 
         elif kind == "draft_lesson":
             await ws.send_json({"type": "lesson_pending"})
-            lesson = await draft_lesson(session)
+            try:
+                lesson = await draft_lesson(session)
+            except Exception as e:  # noqa: BLE001 — l'aidant ne doit pas rester sans réponse
+                session.log("lesson_failed", error=f"{type(e).__name__}: {e}")
+                raise Refused("Holo n'a pas pu rédiger la fiche. Réessayez.") from e
             session.lesson = lesson
             # Aperçu : les captures voyagent avec le brouillon, mais
             # ne sont écrites nulle part tant que rien n'est validé.
@@ -371,6 +401,9 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             ).strip()
             saved = approve_and_save(session.lesson, session)
             await ws.send_json({"type": "lesson_saved", "lesson": saved})
+            if bridge is not None:
+                # La personne aidée le retrouve aussitôt dans « Mes tutoriels ».
+                await bridge.send({"type": "lessons_changed", "title": saved.get("title", "")})
 
         else:
             await ws.send_json({"type": "refused", "reason": "Message inconnu."})
@@ -434,6 +467,99 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
     await broadcast_helper(session.status())
 
 
+# ------------------------------------------------------------------ proches
+
+
+def pairing_url(code: str) -> str:
+    base = f"{PUBLIC_URL}/k/{AIDANT_KEY}" if PUBLIC_MODE else PUBLIC_URL
+    return f"{base}/p/{code}"
+
+
+def aidant_url() -> str:
+    return f"{PUBLIC_URL}/a/{AIDANT_KEY}"
+
+
+async def _pair_page(code: str):
+    return FileResponse(STATIC / "pair.html")
+
+
+async def _pair_submit(code: str, request: Request):
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    try:
+        helper = family.pair(code, str(body.get("name", "")), str(body.get("relation", "")))
+    except PairingError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+    print(f"[proches] ajouté : {helper['name']} ({helper['relation']})")
+    if bridge is not None:
+        await bridge.send({"type": "helpers", "helpers": family.public(), "added": helper["name"]})
+    return {"ok": True, "name": helper["name"], "aidant_url": aidant_url(),
+            "server": PUBLIC_URL, "key": AIDANT_KEY}
+
+
+@app.get("/p")
+async def pair_page_manual():
+    if PUBLIC_MODE:
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _pair_page("")
+
+
+@app.get("/k/{fam}/p")
+async def pair_page_manual_keyed(fam: str):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _pair_page("")
+
+
+@app.get("/p/{code}")
+async def pair_page(code: str):
+    if PUBLIC_MODE:
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _pair_page(code)
+
+
+@app.post("/p/{code}")
+async def pair_submit(code: str, request: Request):
+    if PUBLIC_MODE:
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _pair_submit(code, request)
+
+
+@app.get("/k/{fam}/p/{code}")
+async def pair_page_keyed(fam: str, code: str):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _pair_page(code)
+
+
+@app.post("/k/{fam}/p/{code}")
+async def pair_submit_keyed(fam: str, code: str, request: Request):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _pair_submit(code, request)
+
+
+async def handle_remote_request(msg: dict, ws: WebSocket) -> None:
+    """Le proche propose une session. Rien ne démarre sans l'accord du Mac."""
+    if bridge is None:
+        await ws.send_json({"type": "refused", "reason": "L'ordinateur n'est pas connecté."})
+        return
+    s = current_session()
+    if s is not None and s.is_open:
+        await ws.send_json({"type": "refused", "reason": "Une demande est déjà en cours."})
+        return
+    names = [h["name"] for h in family.helpers]
+    who = str(msg.get("from", "")).strip()
+    if who not in names:
+        who = names[0] if len(names) == 1 else "Votre proche"
+    task = str(msg.get("text", "")).strip()[:300]
+    await bridge.send({"type": "remote_request", "from": who, "task": task})
+    await ws.send_json({"type": "ack", "what": "remote_request"})
+    print(f"[proches] {who} propose une session : {task}")
+
+
 # ------------------------------------------------------------------ aidant permanent
 
 
@@ -482,6 +608,9 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     try:
         while True:
             msg = await ws.receive_json()
+            if msg.get("type") == "remote_request":
+                await handle_remote_request(msg, ws)
+                continue
             s = current_session()
             if s is None:
                 await ws.send_json({"type": "refused", "reason": "Aucune demande en cours."})
@@ -584,6 +713,24 @@ async def lesson_file_keyed(fam: str, lesson_id: str, filename: str):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return _serve_lesson_file(lesson_id, filename)
+
+
+@app.post("/k/{fam}/transcribe")
+async def transcribe_keyed(fam: str, request: Request):
+    """Dictée de la demande : audio brut en entrée, {"text": "..."} en sortie."""
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    if not voice.configured():
+        return JSONResponse({"error": "gladia_absent"}, status_code=503)
+    audio = await request.body()
+    if len(audio) > 5_000_000:
+        return JSONResponse({"error": "trop_long"}, status_code=413)
+    ctype = request.headers.get("content-type", "audio/wav").split(";")[0].strip()
+    ext = "m4a" if "m4a" in ctype or "mp4" in ctype else "wav"
+    ok, text = await asyncio.to_thread(voice.transcribe, audio, f"demande.{ext}", ctype)
+    if not ok:
+        return JSONResponse({"error": text}, status_code=502)
+    return {"text": text}
 
 
 @app.get("/lessons")

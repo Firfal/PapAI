@@ -17,6 +17,18 @@ aîné : stop (à tout moment) ────────────────�
 États (`status.state`) : `planning`, `awaiting_approval`, `active`,
 `awaiting_helper`, `done`, `stopped`.
 
+## Étape du plan en cours (`status.plan_step`)
+
+`plan_step` est le numéro (à partir de 1) de l'étape du plan validé que Holo
+exécute. Il vaut un entier entre 1 et `len(plan)` seulement si `plan_approved`
+est vrai et que l'état est `active` ou `awaiting_helper` ; sinon `null`.
+Il passe à 1 dès la validation, puis Holo l'annonce à chaque action (argument
+`plan_step` de ses outils, retiré avant l'envoi à l'app). Il ne recule jamais
+et ne sort jamais du plan. Le même `status` part vers le Mac et vers l'aidant.
+
+**Champ optionnel** : une app qui ne le connaît pas l'ignore, et une app qui le
+connaît doit accepter qu'il manque (ancien serveur) ou soit `null`.
+
 ## App de la personne aidée (Mac, puis Windows) : `ws://SERVEUR/ws/bridge`
 
 Envoie :
@@ -26,6 +38,9 @@ Envoie :
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
 - `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt ou action interdite.
 - `{"type":"automation_failed","title":"…","detail":"…"}` quand un automatisme ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
+- `{"type":"pair_start"}` pour ajouter un proche : le serveur répond `pair_code`.
+- `{"type":"remove_helper","id":"…"}` retire un proche.
+- `{"type":"remote_answer","accepted":false}` refus d'une session proposée par un proche. En cas d'accord, l'app envoie directement `help_request` avec `"requested_by":"Claire"`.
 
 Reçoit :
 - `{"type":"capture","req":R}`
@@ -33,6 +48,10 @@ Reçoit :
   `click`, `double_click` (`x`,`y`,`element`), `type_text` (`text`),
   `press_key` (`keys`, ex. `cmd+space`, `enter`, `esc`), `scroll` (`x`,`y`,`direction`).
 - `{"type":"session","id":…,"helper_url":…}`
+- `{"type":"helpers","helpers":[{"id","name","relation"}],"added":"Claire"?}` à chaque `hello` et après chaque ajout ou retrait.
+- `{"type":"pair_code","code":"482913","url":"http://…/p/482913","expires_in":600}` code à afficher et à mettre en QR.
+- `{"type":"lessons_changed","title":"…"}` le proche vient de valider un tutoriel : l'app relit `/lessons`.
+- `{"type":"remote_request","from":"Claire","task":"…"}` un proche propose une session : rien ne démarre sans l'accord de la personne aidée.
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
 
 ## App de l'aidant (iPhone) : `ws://SERVEUR/ws/aidant/CLÉ`
@@ -42,7 +61,7 @@ La clé est affichée au démarrage du serveur (`PAPAI_AIDANT_KEY` dans `.env` p
 
 Reçoit :
 - `{"type":"hello","bridge":true,"os":"macos"}`
-- `{"type":"status","session":id,"state":…,"task":"…","plan":["…"]|null,"plan_approved":bool,"question":{"question":"…","options":["…"]}|null,"usage":{…}}`
+- `{"type":"status","session":id,"state":…,"task":"…","plan":["…"]|null,"plan_approved":bool,"plan_step":2|null,"question":{"question":"…","options":["…"]}|null,"usage":{…}}`
 - `{"type":"frame","frame_id":"…","png_b64":"…"}` capture de l'écran de l'aîné
 - `{"type":"question","question":"…","options":["…"]}`
 - `{"type":"answer","content":"…"}` fin de tâche
@@ -54,7 +73,18 @@ Envoie :
 - `{"type":"approve_plan"}` · `{"type":"refine_plan","text":"précision"}` · `{"type":"refuse_plan"}`
 - `{"type":"answer","text":"…"}` réponse à une question
 - `{"type":"pause"}` · `{"type":"refresh"}` · `{"type":"click","frame_id":"…","x":0..1,"y":0..1}` (seulement en `awaiting_helper`)
+- `{"type":"remote_request","text":"…","from":"Claire"}` proposer une session (seulement s'il n'y en a pas d'ouverte). Réponses : `ack` `remote_request`, puis `remote_refused` ou `remote_accepted`.
 - `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automatisme »
+  Si Holo n'a pas pu rédiger la fiche, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
+
+## Dictée de la demande
+
+`POST /k/{clé}/transcribe` : corps = audio brut (`Content-Type: audio/wav` ou
+`audio/m4a`, 5 Mo max), rien n'est écrit sur le disque. Réponse `{"text":"…"}`.
+Gladia (français) transcrit côté serveur ; la clé `GLADIA_API_KEY` ne quitte
+jamais le serveur. Erreurs : 404 mauvaise clé, 503 `{"error":"gladia_absent"}`
+(pas de clé Gladia : l'app Mac bascule sur la reconnaissance du Mac),
+502 `{"error":"phrase lisible"}`, 413 trop long.
 
 ## Gardien anti-arnaque
 
@@ -98,3 +128,10 @@ Consulter sa banque seule ne déclenche rien.
 que l'app rejoue **localement, sans modèle** : elle ouvre le dossier connu du système.
 Si le dossier n'existe plus, elle n'invente rien : `automation_failed`.
 `GET /lessons/{id}/{image}` sert les captures des étapes.
+
+## Proches
+
+La personne aidée affiche un code à 6 chiffres et son QR (`pair_code`). Le proche ouvre
+`/p/{code}` (ou `/p` pour taper le code), donne son prénom et son lien, et reçoit le lien
+de l'espace aidant. Le code sert une fois, expire en 10 minutes et tombe après 5 essais ratés.
+En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gardés dans `family.json`.

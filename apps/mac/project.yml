@@ -22,7 +22,9 @@ targets:
         CFBundleName: PapAI
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: "15.0"
-        NSScreenCaptureUsageDescription: "PapAI partage votre écran avec Quentin et Holo uniquement quand vous demandez de l'aide."
+        NSScreenCaptureUsageDescription: "PapAI partage votre écran avec vos proches et Holo uniquement quand vous demandez de l'aide."
+        NSMicrophoneUsageDescription: "PapAI écoute votre voix uniquement quand vous touchez le micro, pour écrire votre demande à votre place."
+        NSSpeechRecognitionUsageDescription: "PapAI transforme votre voix en texte pour écrire votre demande à votre place."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
     settings:

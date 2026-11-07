@@ -2,7 +2,18 @@ import AppKit
 import Observation
 import SwiftUI
 
-enum AppScreen { case home, session, lesson }
+enum AppScreen { case home, consent, session, lesson }
+
+struct Helper: Identifiable, Equatable {
+    var id: String
+    var name: String
+    var relation: String
+}
+
+struct RemoteRequest: Equatable {
+    var from: String
+    var task: String
+}
 
 enum SessionState: String {
     case planning, awaiting_approval, active, awaiting_helper, done, stopped
@@ -17,6 +28,8 @@ final class AppModel {
     var state: SessionState?
     var task = ""
     var plan: [String] = []
+    /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
+    var planStep: Int?
     var question: String?
     var answer: String?
     var currentAction: String?
@@ -28,6 +41,19 @@ final class AppModel {
     var permissionsDismissed = false
     var showSettings = false
     var captureError: String?
+    var onboarded = UserDefaults.standard.bool(forKey: "onboarded")
+    /// Dans le modèle et non dans la vue : changer la taille du texte recrée
+    /// toute la fenêtre (`.id(textScale)`), l'accueil doit garder son étape.
+    var onboardingStep = 0
+    var textScale = TextScale.current
+    var helpers: [Helper] = []
+    var pairCode: String?
+    var pairURL: String?
+    var pairAdded: String?
+    var remoteRequest: RemoteRequest?
+    var showHelpers = false
+    var pendingTask = ""
+    var actions: [String] = []
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored let client = BridgeClient()
@@ -35,6 +61,7 @@ final class AppModel {
     @ObservationIgnored private var started = false
     @ObservationIgnored private var autoSent = false
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
+    @ObservationIgnored private var homeTimer: Task<Void, Never>?
 
     var sessionOpen: Bool { state?.isOpen ?? false }
     var serverURL: String {
@@ -53,6 +80,65 @@ final class AppModel {
     var firstName: String {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
         return n.isEmpty ? "Jeanne" : n
+    }
+
+    /// Qui aide : toujours au singulier pour accorder le verbe qui suit.
+    var helperName: String {
+        switch helpers.count {
+        case 0: "votre proche"
+        case 1: helpers[0].name
+        case 2: "\(helpers[0].name) ou \(helpers[1].name)"
+        default: "l'un de vos proches"
+        }
+    }
+    var HelperName: String {
+        let n = helperName
+        return n.prefix(1).uppercased() + n.dropFirst()
+    }
+
+    // MARK: Accueil et proches
+
+    func setFirstName(_ name: String) {
+        UserDefaults.standard.set(name.trimmingCharacters(in: .whitespaces), forKey: "firstName")
+    }
+
+    func setTextScale(_ v: Double) {
+        TextScale.current = v
+        textScale = v
+    }
+
+    func finishOnboarding() {
+        UserDefaults.standard.set(true, forKey: "onboarded")
+        onboarded = true
+        permissionsDismissed = true
+        stopPairing()
+    }
+
+    func startPairing() {
+        pairAdded = nil
+        client.send(["type": "pair_start"])
+    }
+
+    func stopPairing() {
+        pairCode = nil
+        pairURL = nil
+    }
+
+    func removeHelper(_ h: Helper) {
+        client.send(["type": "remove_helper", "id": h.id])
+    }
+
+    /// Le proche propose une session : rien ne démarre sans ce clic.
+    func acceptRemote() {
+        guard let r = remoteRequest else { return }
+        remoteRequest = nil
+        let task = r.task.isEmpty ? "\(r.from) propose de m'aider sur l'ordinateur" : r.task
+        askHelp(task: task, requestedBy: r.from)
+    }
+
+    func refuseRemote() {
+        remoteRequest = nil
+        client.send(["type": "remote_answer", "accepted": false])
     }
 
     // MARK: Démarrage
@@ -83,14 +169,25 @@ final class AppModel {
         if let demo = ProcessInfo.processInfo.environment["PAPAI_DEMO"] {
             permissionsDismissed = true
             connected = true
+            if demo.hasPrefix("onboarding") { onboarded = false; return }
+            onboarded = true
+            helpers = [Helper(id: "1", name: "Claire", relation: "sa fille")]
+            if demo == "remote" {
+                remoteRequest = RemoteRequest(from: "Claire", task: "Mettre à jour votre ordinateur")
+                return
+            }
             let json = #"[{"id":"a","title":"Mes photos de Noël","shortcut":{"folder":"pictures"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes documents","shortcut":{"folder":"documents"}}]"#
             lessons = (try? JSONDecoder().decode([Lesson].self, from: Data(json.utf8))) ?? []
             if demo == "home" { return }
+            if demo == "consent" { pendingTask = "Je ne retrouve plus mes photos de Noël"; screen = .consent; return }
             guard let s = SessionState(rawValue: demo) else { return }
             task = "Je ne retrouve plus mes photos de Noël"
             plan = ["Ouvrir le Finder", "Aller dans le dossier Images", "Ouvrir le dossier « Noël 2025 »"]
+            planStep = 2
             answer = "Vos photos de Noël sont ouvertes dans le dossier Images."
-            currentAction = "Clic sur l'icône du Finder"
+            currentAction = "Je clique sur l'icône du Finder"
+            actions = ["J'ouvre la recherche du Mac", "J'écris « Finder »", "Je clique sur l'icône du Finder"]
+            question = "Je vois deux dossiers « Noël ». Lequel faut-il ouvrir ?"
             state = s
             screen = .session
         }
@@ -129,14 +226,29 @@ final class AppModel {
 
     // MARK: Demande d'aide
 
-    func askHelp(task: String) {
+    /// Étape 4 : avant tout partage, un écran qui dit ce qui va se passer.
+    func requestConsent(task: String) {
+        pendingTask = task
+        screen = .consent
+    }
+
+    func cancelConsent() {
+        pendingTask = ""
+        screen = .home
+    }
+
+    func askHelp(task: String, requestedBy: String? = nil) {
         gate.reset()
+        homeTimer?.cancel()
         self.task = task
-        plan = []; question = nil; answer = nil; currentAction = nil
+        pendingTask = ""
+        plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
         state = .planning
         screen = .session
         applyLevel()
-        client.send(["type": "help_request", "task": task])
+        var msg: [String: Any] = ["type": "help_request", "task": task]
+        if let requestedBy { msg["requested_by"] = requestedBy }
+        client.send(msg)
     }
 
     /// Le verrou local passe d'abord, puis le serveur est prévenu.
@@ -149,6 +261,7 @@ final class AppModel {
     }
 
     func backHome() {
+        homeTimer?.cancel()
         screen = .home
         state = nil
         applyLevel()
@@ -168,6 +281,30 @@ final class AppModel {
             applyStatus(m)
         case "answer":
             answer = m["content"] as? String
+        case "helpers":
+            let list = (m["helpers"] as? [[String: Any]]) ?? []
+            helpers = list.compactMap { d in
+                guard let id = d["id"] as? String, let n = d["name"] as? String else { return nil }
+                return Helper(id: id, name: n, relation: d["relation"] as? String ?? "")
+            }
+            if let added = m["added"] as? String {
+                pairAdded = added
+                stopPairing()
+            }
+        case "lessons_changed":
+            Task {
+                await refreshLessons()
+                if let t = m["title"] as? String { showNotice("Nouveau tutoriel : « \(t) »") }
+            }
+        case "pair_code":
+            pairCode = m["code"] as? String
+            pairURL = m["url"] as? String
+        case "remote_request":
+            guard !sessionOpen else { return }
+            remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre proche",
+                                          task: m["task"] as? String ?? "")
+            NSApp.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
         default:
             break
         }
@@ -176,12 +313,25 @@ final class AppModel {
     private func applyStatus(_ m: [String: Any]) {
         guard screen == .session else { return }
         if gate.isStopped { state = .stopped; applyLevel(); return }
+        let before = state
         if let s = (m["state"] as? String).flatMap(SessionState.init(rawValue:)) { state = s }
+        if state == .done, before != .done { scheduleHome() }
         if let t = m["task"] as? String, !t.isEmpty { task = t }
         plan = (m["plan"] as? [String]) ?? []
+        planStep = m["plan_step"] as? Int
         question = (m["question"] as? [String: Any])?["question"] as? String
         if state != .active { currentAction = nil }
         applyLevel()
+    }
+
+    /// Étape 7 : le partage est déjà coupé ; l'écran de fin reste un moment
+    /// puis l'accueil revient tout seul.
+    private func scheduleHome() {
+        homeTimer?.cancel()
+        homeTimer = Task {
+            try? await Task.sleep(nanoseconds: 90_000_000_000)
+            if !Task.isCancelled, screen == .session, state == .done { backHome() }
+        }
     }
 
     private func doCapture(_ req: String) async {
@@ -205,7 +355,9 @@ final class AppModel {
             client.send(["type": "result", "req": req, "result": text, "refused": refused])
         }
         if gate.isStopped { reply("Arrêt demandé par la personne aidée.", refused: true); return }
-        currentAction = describeAction(name, args)
+        let said = describeAction(name, args)
+        currentAction = said
+        if actions.last != said { actions.append(said) }
         do {
             let r = try await Actuator.run(name: name, args: args, gate: gate, protected: protectedRect())
             reply(r, refused: false)
@@ -231,7 +383,7 @@ final class AppModel {
         if r.ok {
             showNotice("C'est ouvert.")
         } else {
-            showNotice("Je ne retrouve pas ce dossier. Quentin est prévenu, il va s'en occuper.")
+            showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
             client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
         }
     }

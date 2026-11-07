@@ -3,9 +3,11 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var request = ""
-    @State private var consent = false
     @State private var warning: String?
     @FocusState private var focused: Bool
+    @State private var dictation = Dictation()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
@@ -22,7 +24,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Bonjour \(model.firstName)")
                 .font(rounded(52, .semibold)).tracking(-0.8)
-            Text("Un souci sur l'ordinateur ? Dites-le simplement, Quentin est prévenu.")
+            Text("Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à \(model.helperName).")
                 .font(rounded(21)).foregroundStyle(T.muted)
                 .fixedSize(horizontal: false, vertical: true)
             TextField("Par exemple : je ne retrouve pas mes photos", text: $request, axis: .vertical)
@@ -31,16 +33,6 @@ struct HomeView: View {
                 .padding(.horizontal, 24).padding(.vertical, 22)
                 .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 .padding(.top, 8)
-            Button { consent.toggle(); warning = nil } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: consent ? "checkmark.square.fill" : "square")
-                        .font(.system(size: 28)).foregroundStyle(consent ? T.accent : T.ink)
-                    Text("J'autorise le partage de mon écran pendant cette demande")
-                        .font(rounded(18)).multilineTextAlignment(.leading)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(.isToggle)
             if let warning {
                 Label(warning, systemImage: "exclamationmark.circle")
                     .font(rounded(17, .semibold))
@@ -48,20 +40,16 @@ struct HomeView: View {
                     .background(Capsule().fill(T.card))
             }
             Spacer(minLength: 0)
-            Button(action: submit) {
-                HStack(spacing: 18) {
-                    ZStack {
-                        Circle().fill(.white).frame(width: 46, height: 46)
-                        Image(systemName: "mic.fill").foregroundStyle(T.ink).font(.system(size: 20))
-                    }
+            HStack(spacing: 14) {
+                micButton
+                Button(action: submit) {
                     Text("J'ai besoin d'aide").font(rounded(26, .semibold))
-                    Spacer(minLength: 0)
+                        .padding(.horizontal, 28).frame(maxWidth: .infinity).frame(height: 78)
+                        .foregroundStyle(.white)
+                        .background(Capsule().fill(T.ink))
                 }
-                .padding(.horizontal, 16).frame(maxWidth: .infinity).frame(height: 78)
-                .foregroundStyle(.white)
-                .background(Capsule().fill(T.ink))
+                .buttonStyle(PressStyle())
             }
-            .buttonStyle(PressStyle())
         }
         .foregroundStyle(T.ink)
         .padding(40)
@@ -69,28 +57,71 @@ struct HomeView: View {
         .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
     }
 
+    private var micButton: some View {
+        let listening = dictation.phase == .listening
+        return Button {
+            warning = nil
+            dictation.toggle(httpBase: model.httpBase) { text in
+                request = request.isEmpty ? text : request + " " + text
+            }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    if listening {
+                        Circle().fill(T.accent.opacity(0.25))
+                            .frame(width: 78, height: 78)
+                            .scaleEffect(reduceMotion ? 1 : (pulse ? 1.12 : 0.9))
+                    }
+                    Circle().fill(listening ? T.accent : .white).frame(width: 62, height: 62)
+                    if dictation.phase == .transcribing {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: listening ? "stop.fill" : "mic.fill")
+                            .foregroundStyle(listening ? .white : T.ink).font(.system(size: 24))
+                    }
+                }
+                .frame(width: 78, height: 78)
+                if listening {
+                    Text("Je vous écoute…").font(rounded(20, .semibold)).foregroundStyle(T.accent)
+                } else if dictation.phase == .transcribing {
+                    Text("Je note…").font(rounded(20, .semibold)).foregroundStyle(T.muted)
+                }
+            }
+            .padding(.trailing, dictation.phase == .idle ? 0 : 14)
+        }
+        .buttonStyle(PressStyle())
+        .disabled(dictation.phase == .transcribing)
+        .accessibilityLabel(listening ? "Arrêter la dictée" : "Dicter ma demande")
+        .onChange(of: listening) { _, on in
+            if on, !reduceMotion {
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
+            } else { withAnimation(.none) { pulse = false } }
+        }
+        .onChange(of: dictation.message) { _, m in if let m { warning = m; dictation.message = nil } }
+    }
+
     private func submit() {
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { warning = "Dites en quelques mots ce qui ne va pas."; focused = true; return }
-        if !consent { warning = "Cochez la case pour autoriser le partage de votre écran."; return }
-        if !model.connected { warning = "Je ne joins pas Quentin pour le moment. Réessayez dans un instant."; return }
+        if !model.connected { warning = "Je ne joins pas \(model.helperName) pour le moment. Réessayez dans un instant."; return }
         warning = nil
-        model.askHelp(task: text)
-        request = ""; consent = false
+        // Étape 4 : l'écran de consentement passe avant tout partage.
+        model.requestConsent(task: text)
+        request = ""
     }
 
     // MARK: Droite
 
     private var shortcuts: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Mes raccourcis").font(rounded(24, .semibold))
+            Text("Mes tutoriels").font(rounded(24, .semibold))
             if let n = model.notice {
                 Text(n).font(rounded(17, .medium))
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
             }
             if model.lessons.isEmpty {
-                Text("Quentin ajoutera ici vos raccourcis.")
+                Text("\(model.HelperName) pourra ajouter ici ce que vous avez fait ensemble, pour le refaire sans aide.")
                     .font(rounded(17)).foregroundStyle(T.muted)
                     .padding(22).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))

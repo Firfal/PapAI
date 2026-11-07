@@ -18,8 +18,18 @@ enum T {
     static let rBig: CGFloat = 36
 }
 
+/// Taille du texte choisie à l'accueil. Grande par défaut, l'interface est
+/// déjà dessinée en gros caractères ; « Très grande » agrandit tout.
+enum TextScale {
+    static let options: [(label: String, value: Double)] = [("Grande", 1.0), ("Très grande", 1.18)]
+    static var current: Double {
+        get { let v = UserDefaults.standard.double(forKey: "textScale"); return v > 0 ? v : 1.0 }
+        set { UserDefaults.standard.set(newValue, forKey: "textScale") }
+    }
+}
+
 func rounded(_ size: CGFloat, _ weight: Font.Weight = .medium) -> Font {
-    .system(size: size, weight: weight, design: .rounded)
+    .system(size: size * CGFloat(TextScale.current), weight: weight, design: .rounded)
 }
 
 /// Bouton pilule : encre pleine par défaut, blanc en secondaire.
@@ -50,7 +60,7 @@ struct Header: View {
             Spacer()
             HStack(spacing: 10) {
                 Circle().fill(model.connected ? T.accent : T.muted.opacity(0.5)).frame(width: 10, height: 10)
-                Text(model.connected ? "Quentin est disponible" : "Quentin n'est pas joignable")
+                Text(model.connected ? "\(model.HelperName) est joignable" : "\(model.HelperName) n'est pas joignable")
                     .font(rounded(16, .medium))
             }
             .padding(.horizontal, 18).padding(.vertical, 11)
