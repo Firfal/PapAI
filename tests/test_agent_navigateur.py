@@ -18,7 +18,7 @@ sys.path.insert(0, str(RACINE / "tests"))
 os.environ["HAI_API_KEY"] = "stub-key"
 
 from backend import app, web_agent  # noqa: E402
-from backend.sessions import Registry, State  # noqa: E402
+from backend.sessions import Frame, Registry, State  # noqa: E402
 from faux_agents_api import FauxAgentsAPI  # noqa: E402
 from papai_tools import PLAN_PROMPT, WEB_AGENT_INSTRUCTIONS  # noqa: E402
 import test_demandes_suspectes as suspectes  # noqa: E402
@@ -205,6 +205,25 @@ class PlanDabord(Base):
         plan.assert_not_called()
         self.assertEqual(s.status()["stopped_by"], "gardien")
         self.assertEqual(self.api.sessions, {})
+
+
+class FramesWeb(Base):
+    scenario = "wait_frame"
+
+    async def test_refresh_avant_premiere_image_h_ne_renvoie_pas_le_plan(self):
+        s = self.session()
+        s.set_frame(Frame(frame_id="plan", png_b64="plan-frame", width=1, height=1))
+        await self.lancer(s)
+        s.decide_plan("approve", "")
+        self.assertTrue(await attendre(lambda: self.h() is not None))
+        self.assertIsNone(s.last_frame)
+
+        ws = SimpleNamespace(send_json=AsyncMock())
+        await app.handle_helper_refresh(s, ws)
+        ws.send_json.assert_not_awaited()
+
+        self.h().frame_gate.set()
+        self.assertTrue(await attendre(lambda: s.last_frame is not None))
 
 
 class QuestionAuProche(Base):

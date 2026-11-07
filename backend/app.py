@@ -513,6 +513,8 @@ async def run_session(session, link: "BridgeLink") -> None:
                 await broadcast_helper(session.status())
                 return
             notes.append(note)  # refine : on refait un plan avec la précision
+        if session.where == "web":
+            session.last_frame = None
         # Mode web seulement si Holo l'a proposé ET si l'ordinateur sert un navigateur.
         browser = None
         if session.where == "web" and link.web_agent_available:

@@ -42,6 +42,7 @@ class FauxSession:
         self.pending: list[dict] = []
         self.tool_results: list = []
         self.messages: list = []
+        self.frame_gate = threading.Event()
         self.cond = threading.Condition()
         threading.Thread(target=self._jouer, daemon=True).start()
 
@@ -67,6 +68,10 @@ class FauxSession:
 
     def _jouer(self) -> None:
         self.push({"type": "AgentStartedEvent", "timestamp": _now(), "data": {}})
+        if not self._attendre():
+            return
+        if self.scenario == "wait_frame" and not self.frame_gate.wait(10):
+            return
         if not self._attendre():
             return
         self._action(1, "navigate", {"url": "https://meteofrance.com/previsions-meteo-france/paris/75000"})

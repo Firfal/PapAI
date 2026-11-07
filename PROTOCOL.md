@@ -309,14 +309,16 @@ bureau reste le comportement par défaut.
 - Serveur → apps, `status.where` : `"web"`, `"desktop"` ou `null`. Avant la
   validation, c'est l'endroit proposé par Holo avec le plan ; après la
   validation, c'est le mode réellement utilisé (`"desktop"` si le Mac n'a pas
-  annoncé de navigateur). Les apps l'ignorent si absent.
+  annoncé cette capacité ou si le démarrage du navigateur échoue). Les apps
+  l'ignorent si absent.
 - Rien ne change avant `approve_plan` : gardien, capture pour le plan, plan à
   valider. La session H n'est créée qu'après la validation.
 - En mode web, le serveur n'envoie ni `capture` ni `execute` au Mac pendant
   l'exécution : H agit dans Chrome PapAI. `status.doing`, `plan_step`, `frame`
   (aidants seulement), `ask_helper` / `answer`, `pause` / `resume` et `answer`
-  final gardent leur forme. Arrêt, refus, alerte du gardien ou pont déconnecté :
-  le serveur annule la session H.
+  final gardent leur forme. La capture du bureau ayant servi au plan est
+  effacée avant le démarrage web ; seuls les `frame` de H sont ensuite renvoyés.
+  Arrêt, refus, alerte du gardien ou pont déconnecté : le serveur annule la session H.
 - Prise en main du proche : en mode web, `click` est refusé (l'image vient de
   Chrome PapAI, pas du bureau) et `refresh` renvoie la dernière image de H sans
   capturer le bureau. Le proche répond à la question de Holo.

@@ -153,6 +153,7 @@ class WebAgentRunner:
         try:
             if not self.s.is_open:
                 return
+            self.s.last_frame = None
             from hai_agents import tool
 
             ask = tool(name="ask_helper", description=ASK_HELPER_DESCRIPTION)(self._ask_helper_tool)
