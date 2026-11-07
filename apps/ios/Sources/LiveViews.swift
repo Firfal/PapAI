@@ -191,7 +191,7 @@ struct HelperView: View {
                     .padding(.horizontal, 16).padding(.vertical, 13).frame(minHeight: 48)
                     .background(Soin.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                     .submitLabel(.send).onSubmit(sendReply)
-                    .disabled(dictation.phase == .transcribing)
+                    .disabled(dictation.phase != .idle)  // pas de saisie pendant la dictée
                 Button(action: sendReply) {
                     Image(systemName: "arrow.up").font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
                         .frame(width: 48, height: 48).background(Soin.ink, in: Circle())
@@ -205,6 +205,9 @@ struct HelperView: View {
                 dictation.toggle(endpoint: model.transcribeURL,
                                  onLive: { reply = prefix + $0 },
                                  onText: { reply = prefix + $0 })
+            }
+            if !reply.isEmpty || dictation.phase != .idle {
+                CancelButton { dictation.cancel(); reply = "" }
             }
         }
         .padding(18).frame(maxWidth: .infinity, alignment: .leading).soinCard(Soin.accentSoft, radius: 28)

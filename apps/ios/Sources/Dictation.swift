@@ -13,7 +13,8 @@ import SwiftUI
 /// Rien ne part seul : le texte reste dans le champ, modifiable, jusqu'à l'envoi.
 @MainActor @Observable
 final class Dictation {
-    enum Phase: Equatable { case idle, listening, transcribing }
+    /// `starting` : autorisations demandées, le micro n'écoute pas encore.
+    enum Phase: Equatable { case idle, starting, listening, transcribing }
 
     private(set) var phase: Phase = .idle
     private(set) var level: CGFloat = 0
@@ -43,6 +44,9 @@ final class Dictation {
     private var watch: Task<Void, Never>?
     /// Feuille fermée pendant l'écoute : l'enregistrement est effacé sans être envoyé.
     private var discarding = false
+    /// Change à chaque appui et à chaque annulation : un départ dépassé ne démarre pas l'écoute.
+    private var startID = 0
+    private var finishing: Task<Void, Never>?
 
     var listening: Bool { phase == .listening }
 
@@ -64,17 +68,24 @@ final class Dictation {
     /// `onText` le texte final (Gladia, sinon le direct).
     func toggle(endpoint: URL?, onLive: @escaping (String) -> Void, onText: @escaping (String) -> Void) {
         switch phase {
-        case .idle: Task { await start(endpoint: endpoint, onLive: onLive, onText: onText) }
+        case .idle:
+            discarding = false
+            startID += 1
+            let id = startID
+            phase = .starting
+            Task {
+                await start(id: id, endpoint: endpoint, onLive: onLive, onText: onText)
+                if startID == id, phase == .starting { phase = .idle }
+            }
         case .listening: stop()
-        case .transcribing: break
+        case .starting, .transcribing: break
         }
     }
 
     // MARK: Écoute
 
-    private func start(endpoint: URL?, onLive: @escaping (String) -> Void, onText: @escaping (String) -> Void) async {
+    private func start(id: Int, endpoint: URL?, onLive: @escaping (String) -> Void, onText: @escaping (String) -> Void) async {
         message = nil
-        discarding = false
         #if DEBUG
         // Vérification sur simulateur sans micro : `-dictationFile /chemin/audio.wav`
         // ou la variable PAPAI_DICTATION_FILE (`SIMCTL_CHILD_PAPAI_DICTATION_FILE=…`).
@@ -97,9 +108,12 @@ final class Dictation {
                 return
             }
         }
+        guard startID == id else { return }
         let speechOK = await withCheckedContinuation { c in
             SFSpeechRecognizer.requestAuthorization { c.resume(returning: $0 == .authorized) }
         }
+        // Feuille fermée pendant les autorisations : on n'ouvre pas le micro.
+        guard startID == id else { return }
 
         var inFormat: AVAudioFormat
         var engine: AVAudioEngine?
@@ -242,7 +256,7 @@ final class Dictation {
         phase = .transcribing
         // Le son muet qui garde l'app éveillée reprend sa place.
         if hadEngine { KeepAwake.shared.restart() }
-        Task {
+        finishing = Task {
             var text: String?
             if let url = fileURL {
                 if !discarding { text = await viaServeur(url) }
@@ -267,6 +281,9 @@ final class Dictation {
     func cancel() {
         onText = nil; onLive = nil
         discarding = true
+        startID += 1
+        if phase == .starting { phase = .idle }
+        finishing?.cancel()  // un envoi déjà parti est interrompu
         stop()
     }
 
@@ -318,7 +335,7 @@ struct BigMicButton: View {
                         .opacity(dictation.listening ? 1 : 0)
                         .animation(.easeOut(duration: 0.12), value: dictation.level)
                     Circle().fill(dictation.listening ? Soin.accent : Soin.ink).frame(width: size, height: size)
-                    if dictation.phase == .transcribing {
+                    if dictation.phase == .transcribing || dictation.phase == .starting {
                         ProgressView().tint(.white).controlSize(.large)
                     } else {
                         Image(systemName: dictation.listening ? "stop.fill" : "mic.fill")
@@ -329,7 +346,7 @@ struct BigMicButton: View {
                 .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .disabled(dictation.phase == .transcribing)
+            .disabled(dictation.phase == .transcribing || dictation.phase == .starting)
             .accessibilityLabel(dictation.listening ? "Arrêter la dictée" : "Dicter")
             Text(caption).font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(dictation.listening ? Soin.accent : Soin.secondary)
@@ -343,6 +360,7 @@ struct BigMicButton: View {
     private var caption: String {
         switch dictation.phase {
         case .idle: "Appuyez et parlez"
+        case .starting: "Un instant…"
         case .listening: "Je vous écoute… appuyez pour finir"
         case .transcribing: "J’écris ce que vous avez dit…"
         }
