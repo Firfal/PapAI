@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | devin/1794086344-accueil-mac-retouches | Accueil Mac : texte sans micro, boutons et autorisation Photos | apps/mac/Sources/HomeView.swift, apps/mac/Sources/Info.plist, apps/mac/project.yml | 7 nov. soir |
 
 ## Journal
 
