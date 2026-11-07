@@ -121,6 +121,7 @@ object Helper {
     // Capture
     var frame by mutableStateOf<ImageBitmap?>(null)
     private var frameId: String? = null
+    private var lastNotified = ""
     var frameAt by mutableStateOf<Long?>(null)
 
     // Prise de main
@@ -439,6 +440,9 @@ object Helper {
         when (m.optString("type")) {
             "hello" -> {
                 setSenior(m.optString("senior"))
+                // Le serveur renvoie status et capture juste après s'il y a une session :
+                // sans session (serveur redémarré), il ne reste rien de l'ancienne demande.
+                state = null; frame = null; frameId = null; frameAt = null
                 // On se présente : l'ordinateur doit voir ce proche dans sa liste.
                 send("type" to "helper_hello", "id" to helperId, "name" to (helperName ?: "Votre proche"),
                     "relation" to helperRelation)
@@ -466,11 +470,15 @@ object Helper {
                     sessionId = sid; requestStart = System.currentTimeMillis(); iRefusedPlan = false
                     doneAnswer = null; hasDraft = false; savedTitle = null; lessonBusy = false
                     pausing = false; doneFresh = false
+                    frame = null; frameId = null; frameAt = null
                 }
                 val q = m.optJSONObject("question")
                 val toSenior = q?.optString("to") == "senior"
                 if (newState != state) {
-                    if (newState == "awaiting_approval" || (newState == "awaiting_helper" && !toSenior)) {
+                    val key = "$sid:$newState"
+                    if ((newState == "awaiting_approval" || (newState == "awaiting_helper" && !toSenior)) &&
+                        key != lastNotified) {
+                        lastNotified = key
                         notifyHelp(newState, q?.optString("question"), m.optString("task"))
                     }
                     if (newState == "done") { doneFresh = true; loadLessons() }
