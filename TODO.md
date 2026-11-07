@@ -65,7 +65,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).
 - [ ] Version Windows de l'app de la personne aidée (`apps/windows`). En cours, pas fusionnée : `devin/1794070934-windows-vers-main` (app de cyp-cor, éprouvée sur un vrai écran Windows) et `devin/windows-soin` (design « Soin »). Ancien prototype : `archive/windows-7-nov`.
 - [ ] Plusieurs aidants : plusieurs proches s'ajoutent déjà et reçoivent tous la demande. Reste à éprouver « le premier disponible valide » avec deux aidants connectés.
-- [ ] Renommer `carepilot_tools.py` en `papai_tools.py` : en cours, pas fusionné, branche `devin/1794070613-renommer-carepilot`.
+- [x] Renommer `carepilot_tools.py` en `papai_tools.py` (fusionné le 7 novembre au soir).
 
 ## Fait
 
