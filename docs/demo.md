@@ -26,7 +26,7 @@ Rien de ce scénario n'a encore été fait en entier sur le vrai Mac : **faire l
 
 ## Scénario (environ 3 min, ce qu'on doit voir à chaque pas)
 
-1. **Demande** (Mac) : toucher le micro, dire « Je veux voir mes photos de Noël », retoucher le micro. Le texte apparaît (Gladia). « J'ai besoin d'aide ».
+1. **Demande** (Mac) : toucher le micro, dire « Je veux voir mes photos de Noël », retoucher le micro. Le texte apparaît (Gladia). « Demander une assistance ».
 2. **Consentement** (Mac) : « PapAI va regarder votre écran », accepter. L'iPhone reçoit la demande.
 3. **Plan** (iPhone) : le plan de Holo arrive. Le lire à voix haute. Il propose souvent l'app Photos : c'est voulu.
 4. **Précision** (iPhone) : Préciser, écrire « dans le Finder, Images › Noël 2025 ». Un nouveau plan arrive sur l'iPhone et le Mac.

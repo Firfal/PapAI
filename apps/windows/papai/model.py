@@ -118,12 +118,12 @@ class Model:
         """Qui aide : toujours au singulier pour accorder le verbe qui suit."""
         h = self.helpers
         if not h:
-            return "votre proche"
+            return "votre support"
         if len(h) == 1:
             return h[0]["name"]
         if len(h) == 2:
             return f"{h[0]['name']} ou {h[1]['name']}"
-        return "l'un de vos proches"
+        return "votre support"
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -416,7 +416,7 @@ class Model:
         elif kind == "remote_request":
             if self.session_open:
                 return
-            self.remote_request = {"from": m.get("from") or "Votre proche", "task": m.get("task") or ""}
+            self.remote_request = {"from": m.get("from") or "Votre support", "task": m.get("task") or ""}
             self._on_remote()
         else:
             return

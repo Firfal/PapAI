@@ -34,7 +34,7 @@ connaît doit accepter qu'il manque (ancien serveur) ou soit `null`.
 Envoie :
 - `{"type":"hello","os":"macos","name":"Sophie"}` à chaque connexion. `name` : le prénom saisi sur l'ordinateur (absent tant qu'il n'est pas saisi).
 - `{"type":"profile","name":"Sophie"}` quand le prénom change. Le serveur le garde et le transmet aux aidants (`senior`).
-- `{"type":"help_request","task":"…"}` quand elle appuie sur « J'ai besoin d'aide ».
+- `{"type":"help_request","task":"…"}` quand elle appuie sur « Demander une assistance ».
 - `{"type":"stop"}` bouton Arrêter. **Le verrou local passe d'abord** : plus aucune action exécutée, même hors ligne.
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
 - `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt ou action interdite.

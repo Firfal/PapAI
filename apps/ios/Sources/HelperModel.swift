@@ -339,10 +339,10 @@ final class HelperModel {
     /// Prénom saisi sur l'ordinateur de la personne aidée (`hello.senior`, `senior`,
     /// réponse d'appairage, paramètre `n` du lien). Jamais un nom figé.
     var seniorName: String = UserDefaults.standard.string(forKey: "seniorName") ?? ""
-    /// Dans une phrase : « Tout va bien chez Sophie », sinon « chez votre proche ».
-    var senior: String { seniorName.isEmpty ? "votre proche" : seniorName }
-    /// En début de phrase : « Sophie a besoin de vous », sinon « Votre proche… ».
-    var seniorTitle: String { seniorName.isEmpty ? "Votre proche" : seniorName }
+    /// Dans une phrase : « Rien à signaler pour Sophie », sinon « de la personne aidée ».
+    var senior: String { seniorName.isEmpty ? "la personne aidée" : seniorName }
+    /// En début de phrase : « Sophie a besoin de vous », sinon « La personne aidée… ».
+    var seniorTitle: String { seniorName.isEmpty ? "La personne aidée" : seniorName }
 
     func setSenior(_ name: String?) {
         let n = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -458,7 +458,7 @@ final class HelperModel {
         case "hello":
             setSenior(m["senior"] as? String)
             // On se présente : l'ordinateur doit voir ce proche dans sa liste.
-            send(["type": "helper_hello", "id": helperId, "name": helperName ?? "Votre proche",
+            send(["type": "helper_hello", "id": helperId, "name": helperName ?? "La personne aidée",
                   "relation": helperRelation])
 
         case "helper_id":

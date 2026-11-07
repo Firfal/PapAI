@@ -96,9 +96,9 @@ struct OnboardingView: View {
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 22) {
             Text("Bienvenue sur PapAI").font(rounded(52, .semibold)).tracking(-0.8)
-            Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Un proche est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
+            Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
                 .font(rounded(23)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-            promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre proche.")
+            promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre support.")
             promise("stop.circle.fill", "Vous pouvez tout arrêter à tout moment.")
             promise("lock.fill", "Votre écran n'est partagé que quand vous le demandez.")
         }
@@ -135,7 +135,7 @@ struct OnboardingView: View {
                           detail: "Pour que Holo voie ce que vous voyez. Jamais sans votre demande.",
                           action: Permissions.requestScreen)
             PermissionRow(ok: model.axOK, title: "Utiliser la souris et le clavier",
-                          detail: "Pour cliquer à votre place, uniquement après l'accord de votre proche.",
+                          detail: "Pour cliquer à votre place, uniquement après l'accord de votre support.",
                           action: Permissions.requestAccessibility)
         }
     }
@@ -150,12 +150,12 @@ struct HelpersPanel: View {
     var body: some View {
         HStack(alignment: .top, spacing: 28) {
             VStack(alignment: .leading, spacing: 20) {
-                Text(onboarding ? "Qui va vous aider ?" : "Mes proches")
+                Text(onboarding ? "Qui va vous aider ?" : "Mon support")
                     .font(rounded(onboarding ? 44 : 34, .semibold)).tracking(-0.6)
                 Text("Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.")
                     .font(rounded(20)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 if let added = model.pairAdded {
-                    Label("\(added) fait maintenant partie de vos proches.", systemImage: "checkmark.circle.fill")
+                    Label("\(added) fait maintenant partie de votre support.", systemImage: "checkmark.circle.fill")
                         .font(rounded(19, .semibold)).foregroundStyle(T.accent)
                 }
                 ForEach(model.helpers) { h in
@@ -183,7 +183,7 @@ struct HelpersPanel: View {
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 }
                 if model.pairCode == nil {
-                    Button(model.helpers.isEmpty ? "Ajouter un proche" : "Ajouter un autre proche") {
+                    Button(model.helpers.isEmpty ? "Ajouter un support" : "Ajouter un autre support") {
                         model.startPairing()
                     }
                     .buttonStyle(PillStyle(filled: model.helpers.isEmpty, height: 60))
@@ -206,7 +206,7 @@ struct HelpersPanel: View {
             if let qr = QRCode.image(qrText) {
                 Image(nsImage: qr).interpolation(.none).resizable()
                     .frame(width: 170, height: 170)
-                    .accessibilityLabel("QR code à scanner par votre proche")
+                    .accessibilityLabel("QR code à scanner par votre support")
             }
             Text("ou le code").font(rounded(16)).foregroundStyle(T.muted)
             Text(code.prefix(3) + " " + code.suffix(3))

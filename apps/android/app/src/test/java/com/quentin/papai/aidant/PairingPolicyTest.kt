@@ -21,18 +21,18 @@ class PairingPolicyTest {
             assertEquals(PairingPolicy.presentation(link.copy(senior = null)), copy)
             assertFalse(copy.toString().contains("Pirate"))
             assertEquals("Relier ce téléphone", copy.title)
-            assertEquals("Votre lien avec votre proche", copy.relationLabel)
+            assertEquals("Votre lien avec la personne aidée", copy.relationLabel)
         }
     }
 
     @Test fun serverLabelsMatchSafetyCopy() {
         assertEquals("Serveur PapAI officiel", PairingPolicy.presentation(PairLink("https://${PairingPolicy.officialHost}", null)).server)
-        assertEquals("Serveur inconnu : ne continuez que si votre proche vous a donné ce lien en personne",
+        assertEquals("Serveur inconnu : ne continuez que si la personne aidée vous a donné ce lien elle-même",
             PairingPolicy.presentation(PairLink("http://10.0.2.2:8000", null)).server)
     }
 
     @Test fun refusalsAreExactAndActionable() {
-        val expected = "Ce lien n'est pas sûr. Demandez un nouveau QR depuis le Mac de votre proche (Réglages > Proches)."
+        val expected = "Ce lien n'est pas sûr. Demandez un nouveau QR depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
         for (debug in listOf(false, true)) {
             for (text in listOf("http://example.com/p/123456", "papai://pair?u=http%3A%2F%2Fexample.com%2Fp%2F123456", "illisible", "", "https://foreign.example/qr")) {
                 assertEquals(expected, PairingPolicy.invitationError(text, debug))

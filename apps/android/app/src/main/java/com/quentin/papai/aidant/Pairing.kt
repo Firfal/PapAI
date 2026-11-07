@@ -43,8 +43,8 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
 private val relations = listOf(
-    "Fille" to "sa fille", "Fils" to "son fils", "Petite-fille" to "sa petite-fille",
-    "Petit-fils" to "son petit-fils", "Proche" to "un proche", "Voisin, voisine" to "un voisin",
+    "Fille" to "sa fille", "Fils" to "son fils", "Proche" to "un proche",
+    "Collègue" to "un collègue", "Service informatique" to "le service informatique", "Voisin, voisine" to "un voisin",
 )
 
 /** Scanner le QR affiché sur l'ordinateur (ZXing, appareil photo arrière). */
@@ -71,7 +71,7 @@ fun SettingsSheet() {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SheetTitle("Connexion")
-        T("Le plus simple : scannez le QR affiché sur l'ordinateur de ${m.senior} (Proches › Ajouter un proche).",
+        T("Le plus simple : scannez le QR affiché sur l'ordinateur de ${m.senior} (Mon support › Ajouter un support).",
             15.sp, color = Soin.secondary)
         CapsuleButton("Scanner le QR de l'ordinateur", fill = Soin.accent, onClick = scan)
         m.manualPairLink()?.let { l ->
@@ -81,10 +81,10 @@ fun SettingsSheet() {
         val uri = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrect = false, keyboardType = KeyboardType.Uri)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             FieldLabel("Adresse du serveur")
-            SoinField(server, { server = it }, "https://…/k/<clé famille>", keyboard = uri)
+            SoinField(server, { server = it }, "https://…/k/<clé de l'espace>", keyboard = uri)
         }
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            FieldLabel("Clé aidant")
+            FieldLabel("Clé support")
             SoinField(key, { key = it }, "demo", keyboard = uri)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
