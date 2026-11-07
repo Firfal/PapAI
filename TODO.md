@@ -25,6 +25,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] **Bouton Arrêter** cliqué pendant une session active : vérifier qu'aucune action ne passe ensuite.
 - [ ] **Automatisme** : « Garder comme automatisme » sur l'iPhone, puis rejeu depuis la tuile du Mac.
 - [x] Fiche : des étapes renvoyées en simples chaînes ne font plus planter « Garder comme automatisme ». En cas d'échec, l'aidant reçoit `refused` et l'app iPhone libère le bouton. Faux Holo pour tester sans clé : `tests/faux_holo.py`.
+- [x] Fiche : chaque étape est illustrée par une vraie capture d'écran de la session (Holo voit les captures pour rédiger ; si son choix n'est pas valable, le serveur prend la capture correspondante). Aucune illustration faite à la main.
 - [x] Page web aidant (`helper.html`) : sur `refused`, réactiver le bouton « Garder comme automatisme » resté sur « Rédaction en cours… ».
 - [ ] **Moment fort de la démo** : déplacer le dossier, rejouer, et vérifier que l'app s'arrête et que l'aidant reçoit l'alerte (`automation_failed`).
 - [ ] **App iPhone sur l'appareil** : gestes réels (valider, préciser, refuser, prendre la main avec la loupe), notifications acceptées.
