@@ -63,7 +63,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Rangement guidé des dossiers : plan de rangement validé par l'aidant, rien supprimé, tout annulable.
 - [ ] Notification push quand l'app iPhone est fermée (APNs).
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).
-- [ ] Version Windows de l'app de la personne aidée (`apps/windows`). En cours, pas fusionnée : `devin/1794070934-windows-vers-main` (app de cyp-cor, éprouvée sur un vrai écran Windows) et `devin/windows-soin` (design « Soin »). Ancien prototype : `archive/windows-7-nov`.
+- [x] Version Windows de l'app de la personne aidée, design « Soin » de l'app Mac (`apps/windows`). Reste : l'essayer sur un vrai Windows (capture, clics, accents, exclusion de la fenêtre, dictée).
 - [ ] Plusieurs aidants : plusieurs proches s'ajoutent déjà et reçoivent tous la demande. Reste à éprouver « le premier disponible valide » avec deux aidants connectés.
 - [x] Renommer `carepilot_tools.py` en `papai_tools.py` (fusionné le 7 novembre au soir).
 
