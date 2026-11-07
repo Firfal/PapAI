@@ -330,7 +330,6 @@ object Helper {
                             val was = othersAsking[p.key] == true
                             val now = People.isAsking(m.text("state"))
                             othersAsking[p.key] = now
-                            othersOnline[p.key] = true
                             if (now && !was) {
                                 showToast("$who demande une assistance.")
                                 notifyLocal("$who demande une assistance",

@@ -326,7 +326,7 @@ final class HelperModel {
         case "status":
             let was = othersAsking[key] ?? false
             let now = People.isAsking(m["state"] as? String)
-            othersAsking[key] = now; othersOnline[key] = true
+            othersAsking[key] = now
             if now && !was {
                 showToast("\(who) demande une assistance.")
                 let t = (m["task"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
