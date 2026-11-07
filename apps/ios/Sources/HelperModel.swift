@@ -99,6 +99,8 @@ final class HelperModel {
     var lessonBusy = false
     var draftTitle = ""
     var draftSteps: [DraftStep] = []
+    /// Ce que la tuile ouvrira chez Jeanne (« Images › Noël 2025 »), à voir avant de valider.
+    var draftTarget: String?
     var hasDraft = false
     var savedTitle: String?
     var lessons: [Lesson] = []
@@ -198,7 +200,11 @@ final class HelperModel {
     /// Retour au premier plan : on n'attend pas la fin du délai d'attente.
     func wakeUp() {
         guard isConfigured else { return }
-        if !connected { log.info("premier plan : reconnexion immédiate"); reconnect(); return }
+        if !connected {
+            // Connexion déjà en cours d'ouverture (lancement de l'app) : on la laisse finir.
+            if runTask != nil, socket != nil, retryAt == nil, !keyRefused { return }
+            log.info("premier plan : reconnexion immédiate"); reconnect(); return
+        }
         Task { await loadLessons() }
         guard let t = socket else { return }
         let sent = Date()
@@ -259,8 +265,10 @@ final class HelperModel {
                 if !Task.isCancelled { linkError = describe(error, http: http, hello: hello, host: host) }
             }
             pinger.cancel()
-            connected = false; socket = nil
+            // Une tâche annulée par `reconnect()` finit après le départ de la suivante :
+            // elle ne doit pas effacer l'état de la nouvelle connexion.
             if Task.isCancelled { return }
+            connected = false; socket = nil
             if keyRefused { retryAt = nil; return }   // on attend « Vérifier les réglages » ou le premier plan
             retryAt = Date().addingTimeInterval(delay)
             try? await Task.sleep(for: .seconds(delay))
@@ -357,7 +365,10 @@ final class HelperModel {
 
     func send(_ o: [String: Any]) {
         guard let socket, connected, let d = try? JSONSerialization.data(withJSONObject: o),
-              let s = String(data: d, encoding: .utf8) else { showToast("Pas de connexion au serveur."); return }
+              let s = String(data: d, encoding: .utf8) else {
+            planBusy = false; sending = false
+            showToast("Pas de connexion au serveur."); return
+        }
         socket.send(.string(s)) { _ in }
     }
 
@@ -444,6 +455,7 @@ final class HelperModel {
             lessonBusy = false
             if let l = m["lesson"] as? [String: Any] {
                 draftTitle = l["title"] as? String ?? ""
+                draftTarget = Self.shortcutLabel(l["shortcut"] as? [String: Any])
                 let previews = m["preview"] as? [String: String] ?? [:]
                 draftSteps = (l["steps"] as? [[String: Any]] ?? []).map { s in
                     var img: UIImage?
@@ -503,6 +515,15 @@ final class HelperModel {
     }
 
     func requestLesson() { lessonBusy = true; send(["type": "draft_lesson"]) }
+    static func shortcutLabel(_ s: [String: Any]?) -> String? {
+        guard let folder = s?["folder"] as? String else { return nil }
+        let names = ["downloads": "Téléchargements", "pictures": "Images", "documents": "Documents",
+                     "desktop": "Bureau", "videos": "Vidéos", "music": "Musique"]
+        let sub = (s?["subfolder"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+        let root = names[folder.lowercased()] ?? folder
+        return sub.isEmpty ? root : "\(root) › \(sub)"
+    }
+
     func approveLesson() {
         let steps = draftSteps.map { ["instruction": $0.instruction.trimmingCharacters(in: .whitespacesAndNewlines)] }
         send(["type": "approve_lesson", "lesson": ["title": draftTitle.trimmingCharacters(in: .whitespacesAndNewlines), "steps": steps]])
