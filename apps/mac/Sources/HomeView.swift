@@ -36,21 +36,27 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 16) {
             TimelineView(.everyMinute) { ctx in
                 let hello = Greeting.word(at: ctx.date)
-                Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName)")
-                    .font(rounded(44, .semibold)).tracking(-0.8)
+                Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName) !")
+                    .font(rounded(44, .bold)).tracking(-0.8)
             }
-            Text(raccourcis.microPresent
-                 ? "Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à \(model.helperName)."
-                 : "Un souci sur l'ordinateur ? Écrivez ce dont vous avez besoin, un message part tout de suite à \(model.helperName).")
-                .font(rounded(18)).foregroundStyle(T.muted)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .center, spacing: 26) {
+                Mascotte(humeur: humeur).frame(width: 128 * CGFloat(model.textScale), height: 128 * CGFloat(model.textScale))
+                Bulle {
+                    Text(raccourcis.microPresent
+                         ? "Un souci sur l'ordinateur ? Dites-le-moi simplement, je préviens \(model.helperName) tout de suite."
+                         : "Un souci sur l'ordinateur ? Écrivez-le-moi, je préviens \(model.helperName) tout de suite.")
+                        .font(rounded(19, .medium))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
             Spacer(minLength: 0)
             if raccourcis.microPresent {
                 VStack(spacing: 12) {
                     micButton
                     Text(dictation.phase == .listening ? "Je vous écoute…" :
                          dictation.phase == .transcribing ? "Je note…" : "Parler à PapAI")
-                        .font(rounded(20, .semibold))
+                        .font(rounded(22, .bold))
                     if !request.isEmpty && !writing {
                         Text(request).font(rounded(18)).lineLimit(3)
                     }
@@ -73,7 +79,7 @@ struct HomeView: View {
                 .padding(18).background(RoundedRectangle(cornerRadius: 22).fill(T.card))
             } else if dictation.phase == .idle {
                 Button { writing = true; focused = true } label: {
-                    Text("Écrire").font(rounded(15, .semibold))
+                    Label("Écrire plutôt", systemImage: "pencil").font(rounded(16, .semibold))
                         .padding(.horizontal, 22).padding(.vertical, 10)
                         .frame(minHeight: 44)
                         .background(Capsule().fill(T.card))
@@ -104,6 +110,8 @@ struct HomeView: View {
                             .scaleEffect(reduceMotion ? 1 : (pulse ? 1.08 : 0.94))
                     }
                     Circle().fill(listening ? T.accent : .white).frame(width: 148, height: 148)
+                        .overlay(Circle().strokeBorder(listening ? Color.clear : T.papaya, lineWidth: 6))
+                        .shadow(color: T.papaya.opacity(listening ? 0 : 0.25), radius: 14, y: 6)
                     if dictation.phase == .transcribing {
                         ProgressView()
                     } else {
@@ -121,6 +129,14 @@ struct HomeView: View {
             } else { withAnimation(.none) { pulse = false } }
         }
         .onChange(of: dictation.message) { _, m in if let m { warning = m; dictation.message = nil } }
+    }
+
+    private var humeur: Mascotte.Humeur {
+        switch dictation.phase {
+        case .listening: .ecoute
+        case .transcribing: .reflechit
+        default: .joyeuse
+        }
     }
 
     private func ouvrirDemande() {
@@ -167,13 +183,14 @@ struct HomeView: View {
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
             }
             if !model.lessons.isEmpty {
-                Text("Mes tutoriels").font(rounded(21, .semibold))
+                Text("Mes tutoriels").font(rounded(22, .bold))
             }
             ForEach(model.lessons) { l in tile(l) }
         }
         .foregroundStyle(T.ink)
     }
 
+    // Fiches héritées : la future tâche `.papi` les remplacera, on n'y investit pas.
     private func tile(_ l: Lesson) -> some View {
         HStack(spacing: 10) {
             Button { model.runShortcut(l) } label: {
@@ -192,7 +209,7 @@ struct HomeView: View {
             .accessibilityLabel(l.title)
             if !(l.steps ?? []).isEmpty {
                 Button { model.openLesson(l) } label: {
-                    Text("Montrez-moi").font(rounded(15, .semibold)).foregroundStyle(T.accent)
+                    Text("Montrez-moi").font(rounded(15, .semibold)).foregroundStyle(T.leaf)
                         .lineLimit(1).fixedSize(horizontal: true, vertical: false)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5).frame(minHeight: 44)
@@ -208,24 +225,28 @@ struct HomeView: View {
 
     private var apps: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Mes raccourcis").font(rounded(21, .semibold))
+            Text("Mes raccourcis").font(rounded(22, .bold))
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(favoris.tuiles) { tuile in
                     Button { favoris.ouvrir(tuile, notice: model.showNotice) } label: {
-                        VStack(spacing: 4) {
-                            Circle().fill(T.card).frame(width: 54, height: 54)
-                                .overlay {
-                                    if case .application(let bundle) = tuile.cible,
-                                       let image = icon(bundle) {
-                                        Image(nsImage: image).resizable().frame(width: 36, height: 36)
-                                    } else {
-                                        Image(systemName: symbole(tuile)).font(rounded(24))
-                                            .foregroundStyle(T.accent)
-                                    }
+                        VStack(spacing: 6) {
+                            Group {
+                                if case .application(let bundle) = tuile.cible,
+                                   let image = icon(bundle) {
+                                    Image(nsImage: image).resizable().frame(width: 40, height: 40)
+                                } else {
+                                    Image(systemName: symbole(tuile)).font(rounded(26))
+                                        .foregroundStyle(T.leaf)
                                 }
-                            Text(tuile.titre).font(rounded(15)).multilineTextAlignment(.center)
+                            }
+                            .frame(height: 42)
+                            Text(tuile.titre).font(rounded(15, .medium)).multilineTextAlignment(.center)
                                 .lineLimit(2).frame(minHeight: 24, alignment: .top)
-                        }.frame(maxWidth: .infinity)
+                        }
+                        .padding(.vertical, 12).padding(.horizontal, 4)
+                        .frame(maxWidth: .infinity)
+                        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(T.card))
+                        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     }
                     .buttonStyle(PressStyle())
                     .accessibilityLabel("Ouvrir \(tuile.titre)")
@@ -234,11 +255,15 @@ struct HomeView: View {
                     }
                 }
                 Button { ajoutVisible = true } label: {
-                    VStack(spacing: 4) {
-                        Circle().fill(T.card).frame(width: 54, height: 54)
-                            .overlay(Image(systemName: "plus").font(rounded(24)).foregroundStyle(T.muted))
-                        Text("Ajouter").font(rounded(15)).frame(minHeight: 24, alignment: .top)
-                    }.frame(maxWidth: .infinity)
+                    VStack(spacing: 6) {
+                        Image(systemName: "plus").font(rounded(26)).foregroundStyle(T.muted).frame(height: 42)
+                        Text("Ajouter").font(rounded(15, .medium)).frame(minHeight: 24, alignment: .top)
+                    }
+                    .padding(.vertical, 12).padding(.horizontal, 4)
+                    .frame(maxWidth: .infinity)
+                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(T.muted.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5])))
+                    .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
                     .buttonStyle(PressStyle())
             }

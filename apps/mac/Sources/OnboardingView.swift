@@ -31,7 +31,7 @@ struct OnboardingView: View {
             }
             .foregroundStyle(T.ink).padding(40)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
+            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(step == 0 ? T.peach : T.mint))
 
             HStack(spacing: 14) {
                 if step > 0 {
@@ -95,9 +95,15 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Text("Bienvenue sur PapAI").font(rounded(52, .semibold)).tracking(-0.8)
-            Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Un proche est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
-                .font(rounded(23)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .center, spacing: 28) {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Bienvenue sur PapAI").font(rounded(52, .bold)).tracking(-0.8)
+                    Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Un proche est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
+                        .font(rounded(23)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Mascotte(humeur: .joyeuse).frame(width: 190 * CGFloat(model.textScale), height: 190 * CGFloat(model.textScale))
+            }
             promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre proche.")
             promise("stop.circle.fill", "Vous pouvez tout arrêter à tout moment.")
             promise("lock.fill", "Votre écran n'est partagé que quand vous le demandez.")
@@ -106,16 +112,24 @@ struct OnboardingView: View {
 
     private func promise(_ symbol: String, _ text: String) -> some View {
         HStack(spacing: 16) {
-            Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(T.accent).frame(width: 34)
+            Image(systemName: symbol).font(.system(size: 22)).foregroundStyle(T.leaf).frame(width: 34)
             Text(text).font(rounded(20, .medium)).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 18).padding(.vertical, 12)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(T.card.opacity(0.8)))
     }
 
     private var firstName: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Text("Comment vous appelez-vous ?").font(rounded(44, .semibold)).tracking(-0.6)
-            Text("Votre prénom suffit. C'est ainsi que PapAI vous dira bonjour.")
-                .font(rounded(21)).foregroundStyle(T.muted)
+            HStack(alignment: .center, spacing: 24) {
+                Mascotte(humeur: .ecoute).frame(width: 120 * CGFloat(model.textScale), height: 120 * CGFloat(model.textScale))
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Comment vous appelez-vous ?").font(rounded(44, .bold)).tracking(-0.6)
+                    Text("Votre prénom suffit. C'est ainsi que PapAI vous dira bonjour.")
+                        .font(rounded(21)).foregroundStyle(T.muted)
+                }
+            }
             TextField("Votre prénom", text: $name)
                 .textFieldStyle(.plain).font(rounded(30, .semibold))
                 .focused($nameFocused)
@@ -128,7 +142,7 @@ struct OnboardingView: View {
 
     private var permissions: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Text("Deux autorisations, une seule fois").font(rounded(44, .semibold)).tracking(-0.6)
+            Text("Deux autorisations, une seule fois").font(rounded(44, .bold)).tracking(-0.6)
             Text("macOS doit vous demander votre accord. Cliquez sur chaque bouton, puis cochez PapAI dans la liste qui s'ouvre.")
                 .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
             PermissionRow(ok: model.screenOK, title: "Voir mon écran",
@@ -258,12 +272,19 @@ struct RemoteRequestView: View {
     var body: some View {
         VStack(spacing: 18) {
             VStack(alignment: .leading, spacing: 22) {
-                HStack(spacing: 12) {
-                    Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(T.accent)
-                    Text("Proposition d'aide").font(rounded(20, .semibold)).foregroundStyle(T.accent)
+                HStack(alignment: .center, spacing: 22) {
+                    Text(String(request.from.prefix(1)).uppercased())
+                        .font(rounded(40, .bold)).foregroundStyle(.white)
+                        .frame(width: 88 * CGFloat(model.textScale), height: 88 * CGFloat(model.textScale))
+                        .background(Circle().fill(T.accent))
+                        .overlay(Circle().strokeBorder(.white, lineWidth: 5))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Proposition d'aide").font(rounded(20, .semibold)).foregroundStyle(T.leaf)
+                        Text("\(request.from) propose de vous aider").font(rounded(48, .bold)).tracking(-0.7)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                Text("\(request.from) propose de vous aider").font(rounded(48, .semibold)).tracking(-0.7)
-                    .fixedSize(horizontal: false, vertical: true)
                 if !request.task.isEmpty {
                     Text("« \(request.task) »").font(rounded(26, .medium))
                         .padding(24).frame(maxWidth: .infinity, alignment: .leading)

@@ -7,10 +7,10 @@ struct ConsentView: View {
     var body: some View {
         VStack(spacing: 18) {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Votre demande").font(rounded(18, .semibold)).foregroundStyle(T.accent)
+                Text("Votre demande").font(rounded(18, .semibold)).foregroundStyle(T.leaf)
                 Text("« \(model.pendingTask) »").font(rounded(30, .semibold))
                     .fixedSize(horizontal: false, vertical: true)
-                Text("PapAI va regarder votre écran").font(rounded(44, .semibold)).tracking(-0.6)
+                Text("PapAI va regarder votre écran").font(rounded(44, .bold)).tracking(-0.6)
                     .fixedSize(horizontal: false, vertical: true)
                 promise("eye.fill", "Holo voit votre écran pour comprendre le problème.")
                 promise("hand.raised.fill", "Rien ne bouge avant l'accord de \(model.helperName).")
@@ -38,7 +38,7 @@ struct ConsentView: View {
 
     private func promise(_ symbol: String, _ text: String) -> some View {
         HStack(spacing: 16) {
-            Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(T.accent).frame(width: 34)
+            Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(T.leaf).frame(width: 34)
             Text(text).font(rounded(21, .medium)).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -53,15 +53,27 @@ struct SessionView: View {
     var body: some View {
         VStack(spacing: 18) {
             VStack(alignment: .leading, spacing: 18) {
-                if model.sessionOpen { sharedBanner }
-                Text(title).font(rounded(guardStopped ? 34 : 40, .semibold)).tracking(-0.6)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .center, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 18) {
+                        if model.sessionOpen { sharedBanner }
+                        Text(title).font(rounded(guardStopped ? 34 : 40, .bold)).tracking(-0.6)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Pas de mascotte sur une alerte du gardien : le message doit rester grave.
+                    if !guardStopped {
+                        Mascotte(humeur: humeur).frame(width: 130 * CGFloat(model.textScale), height: 130 * CGFloat(model.textScale))
+                    }
+                }
                 if let sub = subtitle {
                     Text(sub).font(rounded(24, .medium)).foregroundStyle(state == .active ? T.ink : T.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .animation(.easeInOut(duration: 0.25), value: sub)
                 }
-                ScrollView(showsIndicators: false) { content }
+                ViewThatFits(in: .vertical) {
+                    content
+                    ScrollView(showsIndicators: false) { content }
+                }
                 Spacer(minLength: 0)
                 if !model.task.isEmpty && state != .stopped && state != .awaiting_approval {
                     Text("Votre demande : \(model.task)")
@@ -71,7 +83,8 @@ struct SessionView: View {
             .foregroundStyle(T.ink)
             .padding(34)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(guardStopped ? T.card : T.mint))
+            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous)
+                .fill(guardStopped ? T.card : state == .done ? T.peach : T.mint))
 
             if model.sessionOpen {
                 HStack(spacing: 14) {
@@ -118,6 +131,17 @@ struct SessionView: View {
         .background(Capsule().fill(T.card))
     }
 
+    private var humeur: Mascotte.Humeur {
+        if model.paused && model.sessionOpen { return .calme }
+        switch state {
+        case .planning, .awaiting_approval: return .reflechit
+        case .active: return .joyeuse
+        case .awaiting_helper: return .ecoute
+        case .done: return .bravo
+        case .stopped: return .calme
+        }
+    }
+
     private var title: String {
         if model.paused && model.sessionOpen { return "L'aide est en pause" }
         switch state {
@@ -138,7 +162,7 @@ struct SessionView: View {
         switch state {
         case .planning: return "Un instant, je prépare ce qu'il faut faire."
         case .awaiting_approval: return "Rien ne se passera sur votre écran avant son accord."
-        case .active: return "Pendant l'aide, la souris et le clavier sont réservés à Holo. Pause ou Arrêter restent toujours possibles."
+        case .active: return "La souris et le clavier sont réservés à Holo. Pause ou Arrêter, quand vous voulez."
         case .awaiting_helper: return model.questionForMe
             ? "J'ai besoin d'une information que vous seul connaissez."
             : "\(model.HelperName) répond à une question de Holo. Restez là, ne touchez à rien."
@@ -164,6 +188,7 @@ struct SessionView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 endNote("lock.fill", "Votre écran n'est plus partagé.")
+                // Fiches héritées, à remplacer par la tâche `.papi` enregistrée.
                 endNote("book.fill", "\(model.HelperName) peut en faire un tutoriel. Vous le retrouverez dans « Mes tutoriels » pour le refaire sans aide.")
             }
         case .stopped where guardStopped:
@@ -222,7 +247,7 @@ private struct Progress: View {
     let carer: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 14) {
             GeometryReader { g in
                 ZStack(alignment: .leading) {
                     Capsule().fill(T.card)
@@ -239,15 +264,15 @@ private struct Progress: View {
             step(1, "\(helper) vérifie et donne son accord")
             step(2, "\(carer) s'en occupe, avec Holo")
         }
-        .padding(24)
-        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card.opacity(0.55)))
+        .padding(22)
+        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card.opacity(0.7)))
     }
 
     private func step(_ i: Int, _ text: String) -> some View {
         let done = i < phase, now = i == phase
         return HStack(spacing: 14) {
             Image(systemName: done ? "checkmark.circle.fill" : now ? "circle.dotted" : "circle")
-                .font(.system(size: 24)).foregroundStyle(done || now ? T.accent : T.muted)
+                .font(.system(size: 24)).foregroundStyle(done || now ? T.accent : T.muted.opacity(0.6))
             Text(text).font(rounded(21, now ? .semibold : .regular))
                 .foregroundStyle(done ? T.muted : T.ink)
         }
@@ -270,7 +295,7 @@ private struct SeniorQuestion: View {
             Text(question).font(rounded(28, .medium)).fixedSize(horizontal: false, vertical: true)
             if sent {
                 Label("Merci, c'est noté.", systemImage: "checkmark.circle.fill")
-                    .font(rounded(20, .semibold)).foregroundStyle(T.accent)
+                    .font(rounded(20, .semibold)).foregroundStyle(T.leaf)
             } else {
                 if !options.isEmpty {
                     HStack(spacing: 10) {
