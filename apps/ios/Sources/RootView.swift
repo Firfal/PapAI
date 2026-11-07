@@ -37,6 +37,9 @@ struct RootView: View {
             }
         }
         .onAppear { if !model.isConfigured && model.sheet == nil { model.sheet = .settings } }
+        .fullScreenCover(isPresented: Binding(get: { model.guardAlertId != nil }, set: { _ in })) {
+            GuardRequestView(model: model).interactiveDismissDisabled()
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -197,11 +200,13 @@ struct IdleView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if model.lastAlert == nil && model.guardAlertId == nil {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Tout va bien chez \(model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
                     Text("Vous serez prévenu dès qu’une demande d’aide arrive.").font(.system(size: 16)).foregroundStyle(Soin.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(Soin.accentSoft, radius: 28)
+                }
 
                 if let live = model.liveDictation {
                     VStack(alignment: .leading, spacing: 8) {
@@ -268,9 +273,16 @@ struct StoppedView: View {
             Image(systemName: model.iRefusedPlan ? "xmark" : "pause")
                 .font(.system(size: 22, weight: .semibold)).foregroundStyle(Soin.ink)
                 .frame(width: 64, height: 64).background(Soin.card, in: Circle())
-            Text(model.iRefusedPlan ? "Vous avez refusé le plan" : "\(model.seniorTitle) a arrêté l’assistance")
+            Text(model.stoppedBy == "gardien" ? "PapAI a arrêté l'assistance : démarche suspecte"
+                 : model.iRefusedPlan ? "Vous avez refusé le plan" : "\(model.seniorTitle) a arrêté l’assistance")
                 .font(.system(size: 22, weight: .bold)).foregroundStyle(Soin.ink)
-            Text("Rien n’a été fait sur son ordinateur.").font(.system(size: 15)).foregroundStyle(Soin.secondary)
+                .multilineTextAlignment(.center).padding(.horizontal, 24)
+            Text("L'assistance reste arrêtée. Toute nouvelle aide demande votre accord.")
+                .font(.system(size: 15)).foregroundStyle(Soin.secondary)
+                .multilineTextAlignment(.center).padding(.horizontal, 24)
+            Text("Appelez \(model.senior) à son numéro habituel.")
+                .font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
+                .multilineTextAlignment(.center).padding(.horizontal, 24)
             Spacer(); Spacer()
         }.frame(maxWidth: .infinity)
     }

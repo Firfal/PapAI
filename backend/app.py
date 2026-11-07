@@ -182,6 +182,8 @@ class BridgeLink:
         )
 
     async def execute(self, name: str, args: dict) -> str | None:
+        if pending_alert:
+            return None
         data = await self._request({"type": "execute", "action": {"name": name, "args": args}})
         if data is None:
             return None
@@ -198,12 +200,13 @@ class BridgeLink:
 
 bridge: BridgeLink | None = None
 helper_sockets: set[WebSocket] = set()
+helper_alert_scopes: dict[WebSocket, str | None] = {}
 agent_task: asyncio.Task | None = None
 
 
 # Ce que la personne aidée doit aussi voir : l'état de la session, le plan en
 # attente, la réponse finale. Jamais les captures, qu'elle a sous les yeux.
-BRIDGE_TYPES = {"status", "answer", "alert"}
+BRIDGE_TYPES = {"status", "answer", "alert", "alert_cleared", "alert_acknowledged"}
 
 
 # Qui est derrière chaque app d'aidant ouverte : son prénom et son identifiant.
@@ -222,11 +225,21 @@ async def _send_helpers_to_bridge() -> None:
             pass
 
 
-async def broadcast_helper(payload: dict) -> None:
-    if bridge is not None and payload.get("type") in BRIDGE_TYPES:
+def helper_can_access_alert(ws: WebSocket, alert: dict) -> bool:
+    if ws not in helper_alert_scopes:
+        return False
+    scope = helper_alert_scopes[ws]
+    return scope is None or scope == alert.get("session")
+
+
+async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
+    if to_bridge and bridge is not None and payload.get("type") in BRIDGE_TYPES:
         await bridge.send(payload)
     dead = []
     for ws in helper_sockets:
+        scoped = payload.get("type") == "guard_advice" or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
+        if scoped and not helper_can_access_alert(ws, payload):
+            continue
         try:
             await ws.send_json(payload)
         except Exception:  # noqa: BLE001
@@ -301,6 +314,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if kind == "profile":
                     continue
                 await ws.send_json({"type": "helpers", "helpers": family.public(_online_ids())})
+                if pending_alert:
+                    await ws.send_json(pending_alert["senior"])
                 continue
 
             if kind == "pair_start":
@@ -416,9 +431,21 @@ async def run_session(session, link: "BridgeLink") -> None:
     """Plan d'abord, validé par l'aidant ; l'agent n'agit qu'ensuite."""
     notes: list[str] = []
     try:
+        if pending_alert:
+            session.stop(by="gardien")
+            await broadcast_helper(session.status())
+            await link.send(pending_alert["senior"])
+            await broadcast_helper(pending_alert["helper"], to_bridge=False)
+            return
+        if await check_request(session, session.task, "request"):
+            return
         while True:
             await broadcast_helper(session.status())
             steps = await propose_plan(session, link, broadcast_helper, " ; ".join(notes))
+            if not session.is_open:
+                return
+            if await check_request(session, "\n".join([session.task, *notes, *steps]), "plan"):
+                return
             if not session.is_open:
                 return
             decision = session.propose_plan(steps)
@@ -465,7 +492,11 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
 
     await ws.accept()
     helper_sockets.add(ws)
+    helper_alert_scopes[ws] = session.id
     await ws.send_json(session.status())
+    await ws.send_json({"type": "senior", "name": family.senior or None})
+    if pending_alert and helper_can_access_alert(ws, pending_alert["helper"]):
+        await ws.send_json(pending_alert["helper"])
     if session.last_frame:
         await ws.send_json(
             {
@@ -483,11 +514,18 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
         pass
     finally:
         helper_sockets.discard(ws)
+        helper_alert_scopes.pop(ws, None)
 
 
 async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
     """Un message de l'aidant, page web ou app iPhone. Tout est revalidé ici."""
     kind = msg.get("type")
+    if kind == "ack_alert":
+        await acknowledge_guard(msg, ws)
+        return
+    if kind == "dismiss_alert":
+        await dismiss_guard(msg, ws)
+        return
     # Le jeton identifie la session, mais la session a pu se fermer
     # depuis que la page est ouverte : on revérifie avant toute action
     # sur le PC. Rédiger une fiche, en revanche, se fait APRÈS la
@@ -615,6 +653,7 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
     session.take_control(Owner.HELPER)
     args = {"element": "clic du proche", "x": round(x * 1000), "y": round(y * 1000)}
     session.log("helper_click", x=args["x"], y=args["y"])
+    session.execution_started = True
     result = await bridge.execute("click", args)
     session.release_control()
 
@@ -769,6 +808,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         await ws.close()
         return
     helper_sockets.add(ws)
+    helper_alert_scopes[ws] = None
     await ws.send_json({"type": "hello", "bridge": bridge is not None,
                         "os": bridge.os if bridge else None, "senior": family.senior or None})
     s = current_session()
@@ -777,6 +817,8 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         if s.last_frame:
             await ws.send_json({"type": "frame", "frame_id": s.last_frame.frame_id,
                                 "png_b64": s.last_frame.png_b64})
+    if pending_alert and helper_can_access_alert(ws, pending_alert["helper"]):
+        await ws.send_json(pending_alert["helper"])
     try:
         while True:
             msg = await ws.receive_json()
@@ -792,6 +834,12 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
                     await ws.send_json({"type": "helper_id", "id": h["id"]})
                     await _send_helpers_to_bridge()
                 continue
+            if msg.get("type") == "dismiss_alert":
+                await dismiss_guard(msg, ws)
+                continue
+            if msg.get("type") == "ack_alert":
+                await acknowledge_guard(msg, ws)
+                continue
             s = current_session()
             if s is None:
                 await ws.send_json({"type": "refused", "reason": "Aucune demande en cours."})
@@ -801,6 +849,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         pass
     finally:
         helper_sockets.discard(ws)
+        helper_alert_scopes.pop(ws, None)
         if helper_who.pop(ws, None) is not None:
             await _send_helpers_to_bridge()
 
@@ -810,6 +859,112 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
 _guard_vu: dict[str, float] = {}
 _guard_taches: set[asyncio.Task] = set()
 GUARD_SILENCE_S = 300
+pending_alert: dict | None = None
+GUARD_ADVICE_TIMEOUT_S = 9
+
+
+def guard_contact() -> str:
+    if not family.helpers:
+        return "votre proche"
+    h = next((h for h in family.helpers if h["id"] in _online_ids()), family.helpers[0])
+    relation = re.sub(r"^(mon|ma|mes|son|sa|ses|votre)\s+", "", h.get("relation", "").strip(), flags=re.I)
+    return f"votre {relation} {h['name']}" if relation else h["name"]
+
+
+async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
+                        senior_detail: str | None = None, helper_detail: str | None = None) -> None:
+    global pending_alert
+    for s in registry._by_id.values():
+        if s.is_open:
+            s.stop(by="gardien")
+    if pending_alert:
+        return
+    common = {"type": "alert", "alert_id": secrets.token_hex(12), "level": alerte.niveau,
+              "source": source, "blocked": True,
+              "session": session.id if session else None, "task": session.task if session else ""}
+    detail = f"Contactez {guard_contact()} avant d'aller plus loin. "
+    detail += ("Rien n'a été exécuté pour cette demande." if source in ("request", "plan")
+               else "L'assistance est arrêtée.")
+    senior = {**common, "title": "Attention, cette démarche peut être une arnaque.",
+              "detail": senior_detail or detail}
+    who = family.senior or "Votre proche"
+    detail = f"{who} a besoin de votre avis. {alerte.detail}"
+    if session:
+        detail += f"\nDemande : « {session.task} »"
+    detail += "\nPrenez contact avec votre proche avant de poursuivre. Choisissez « C'est normal » uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
+    helper = {**common, "title": f"Démarche à vérifier pour {who}", "detail": helper_detail or detail}
+    pending_alert = {"senior": senior, "helper": helper}
+    if bridge:
+        await bridge.send(senior)
+    await broadcast_helper(helper, to_bridge=False)
+    s = session or current_session()
+    if s:
+        await broadcast_helper(s.status())
+
+
+def guard_action_allowed(msg: dict, ws: WebSocket) -> bool:
+    return bool(pending_alert and helper_can_access_alert(ws, pending_alert["helper"])
+                and msg.get("alert_id") == pending_alert["helper"]["alert_id"])
+
+
+async def acknowledge_guard(msg: dict, ws: WebSocket) -> None:
+    if not guard_action_allowed(msg, ws):
+        await ws.send_json({"type": "refused", "reason": "Cette alerte n'est plus en attente."})
+        return
+    alert = pending_alert
+    for payload in alert.values():
+        payload["acknowledged"] = True
+    session = registry.get(alert["helper"]["session"])
+    if session:
+        session.guard_acknowledged = True
+    await broadcast_helper({"type": "alert_acknowledged", "alert_id": alert["helper"]["alert_id"],
+                            "session": alert["helper"]["session"],
+                            "acknowledged": True})
+
+
+async def dismiss_guard(msg: dict, ws: WebSocket) -> None:
+    global pending_alert
+    if not guard_action_allowed(msg, ws):
+        await ws.send_json({"type": "refused", "reason": "Cette alerte n'est plus en attente."})
+        return
+    aid = pending_alert["helper"]["alert_id"]
+    session_id = pending_alert["helper"]["session"]
+    pending_alert = None
+    await broadcast_helper({"type": "alert_cleared", "alert_id": aid, "session": session_id})
+
+
+async def check_request(session, texte: str, source: str) -> bool:
+    alerte = guard.evaluer_demande(texte)
+    if alerte is None and guard.demande_incertaine(texte):
+        from .agent import client
+        from papai_tools import MODEL, TEMPERATURE
+        try:
+            resp = await asyncio.wait_for(asyncio.to_thread(
+                client.with_options(timeout=8, max_retries=0).chat.completions.create,
+                model=MODEL, temperature=TEMPERATURE,
+                messages=[{"role": "system", "content": guard.PROMPT_DEMANDE},
+                          {"role": "user", "content": json.dumps({"texte_a_evaluer": texte}, ensure_ascii=False)}],
+            ), timeout=GUARD_ADVICE_TIMEOUT_S)
+            session.record_usage(getattr(resp, "usage", None))
+            avis = json.loads(resp.choices[0].message.content or "")
+            if type(avis.get("suspect")) is not bool:
+                raise ValueError("Avis manquant")
+            if avis["suspect"]:
+                raison = str(avis.get("raison") or "Demande inhabituelle à vérifier avec votre proche.")[:500]
+                alerte = guard.Alerte("attention", "Démarche à vérifier", raison, "avis_holo", False)
+        except Exception:
+            if session.is_open:
+                await broadcast_helper({"type": "guard_advice", "level": "attention",
+                                        "source": "avis_indisponible", "session": session.id,
+                                        "title": "Avis de sécurité indisponible",
+                                        "detail": "Un doute subsiste. Vérifiez cette demande et le plan avant de les valider."},
+                                       to_bridge=False)
+    if not session.is_open:
+        return True
+    if alerte:
+        await publish_guard(alerte, source, session)
+        return True
+    return False
 
 
 async def handle_guard(msg: dict) -> None:
@@ -832,22 +987,9 @@ async def handle_guard(msg: dict) -> None:
         return
     _guard_vu[alerte.motif] = time.time()
 
-    detail = alerte.detail
     s = current_session()
-    if alerte.confirmer and s is not None and s.is_open and s.consented:
-        # Seulement pendant une session acceptée, où Holo voit déjà l'écran.
-        # Hors session, aucune capture ne part : l'alerte repose sur les
-        # seuls signaux textuels.
-        vu = await confirmer_par_le_modele(alerte)
-        if vu:
-            detail = detail + "\n\nCe que voit PapAI : " + vu
-
     print(f"[gardien] {alerte.niveau} — {alerte.motif}", flush=True)
-    charge = {
-        "type": "alert", "level": alerte.niveau,
-        "title": alerte.titre, "detail": detail,
-    }
-    await broadcast_helper(charge)   # part aussi vers le pont (BRIDGE_TYPES)
+    await publish_guard(alerte, "environment", s)
 
 
 async def confirmer_par_le_modele(alerte) -> str:

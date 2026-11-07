@@ -167,6 +167,7 @@
 
   // ----------------------------------------------------------------- Session
   function sessionTitle(st) {
+    if (st === 'stopped' && S.stoppedBy === 'gardien') return "PapAI a arrêté l'assistance : démarche suspecte";
     return { planning: 'Holo regarde votre écran…', awaiting_approval: `${S.HelperName} vérifie le plan`,
       active: "Holo s'en occupe", awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !",
       stopped: "L'assistance est arrêtée." }[st];
@@ -413,7 +414,8 @@
         <span style="${f(17, 6)}">${danger ? 'Attention' : 'Pour information'}</span></div>
       <div style="${f(30, 6)}">${esc(a.title)}</div>
       ${a.detail ? `<div class="muted" style="${f(19, 5)}">${esc(a.detail)}</div>` : ''}
-      <div class="row"><div class="spacer"></div>${pill("J'ai compris", 'dismissAlert', { height: 56 })}</div></div>`;
+      ${a.acknowledged ? `<div style="${f(20, 6)}">Un proche a vu l'alerte et s'en occupe</div>` : ''}
+      ${a.blocked ? '' : `<div class="row"><div class="spacer"></div>${pill("J'ai compris", 'dismissAlert', { height: 56 })}</div>`}</div>`;
   }
 
   // ------------------------------------------------------------------- rendu
@@ -501,7 +503,7 @@
     },
     openSettings: () => { ui.settings = { name: S.storedFirstName || S.firstName, server: S.server }; ui.sheet = 'settings'; render(); },
     closeSheet: () => { ui.sheet = null; render(); },
-    dismissAlert: () => { S.alert = null; render(); call('dismiss_alert'); },
+    dismissAlert: () => { if (!S.alert?.blocked) { S.alert = null; render(); call('dismiss_alert'); } },
     openHelpers: () => { ui.sheet = 'helpers'; render(); },
     closeHelpers: () => { call('stop_pairing'); ui.sheet = null; render(); },
     replayOnboarding: () => { ui.sheet = null; ui.name = null; call('reset_onboarding'); render(); },
