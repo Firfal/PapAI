@@ -155,18 +155,29 @@ async def draft_lesson(session: Session) -> dict:
     )
     data = _parse(resp.choices[0].message.content or "")
 
+    raw_steps = data.get("steps")
     steps = []
-    for s in (data.get("steps") or [])[:4]:
-        frame = s.get("frame") or ""
+    for s in (raw_steps if isinstance(raw_steps, list) else [])[:4]:
+        # Le modèle renvoie parfois de simples phrases au lieu d'objets.
+        if isinstance(s, str):
+            s = {"instruction": s}
+        if not isinstance(s, dict):
+            continue
+        instruction = str(s.get("instruction", "")).strip()
+        if not instruction:
+            continue
+        frame = str(s.get("frame") or "")
         steps.append(
             {
-                "instruction": str(s.get("instruction", "")).strip(),
+                "instruction": instruction,
                 "checkpoint": str(s.get("checkpoint", "")).strip(),
                 # On ne fait pas confiance à l'identifiant renvoyé : il doit
                 # exister parmi les captures réellement prises.
                 "frame": frame if frame in session.frames else "",
             }
         )
+    if not steps:
+        raise ValueError("fiche sans étape exploitable")
 
     lesson = {
         "id": f"lesson-{int(time.time())}",

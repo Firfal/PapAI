@@ -370,7 +370,11 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
 
         elif kind == "draft_lesson":
             await ws.send_json({"type": "lesson_pending"})
-            lesson = await draft_lesson(session)
+            try:
+                lesson = await draft_lesson(session)
+            except Exception as e:  # noqa: BLE001 — l'aidant ne doit pas rester sans réponse
+                session.log("lesson_failed", error=f"{type(e).__name__}: {e}")
+                raise Refused("Holo n'a pas pu rédiger la fiche. Réessayez.") from e
             session.lesson = lesson
             # Aperçu : les captures voyagent avec le brouillon, mais
             # ne sont écrites nulle part tant que rien n'est validé.

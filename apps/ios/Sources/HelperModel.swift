@@ -222,7 +222,7 @@ final class HelperModel {
 
         case "refused":
             showToast(m["reason"] as? String ?? "Refusé")
-            sending = false; planBusy = false
+            sending = false; planBusy = false; lessonBusy = false
 
         case "ack":
             if m["what"] as? String == "click" {
