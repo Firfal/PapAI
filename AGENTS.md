@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794090979-reglages` | Réglages plus complets (Mac aidé, puis iPhone aidant) | `apps/mac/Sources/SettingsView.swift` (sorti de `PermissionsView.swift`), `apps/ios/Sources/SettingsView.swift` (sorti de `RootView.swift`), partie réglages de `apps/mac/Sources/Model.swift` et `apps/ios/Sources/HelperModel.swift` | 7 nov. soir |
 
 ## Journal
 
