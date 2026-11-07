@@ -124,6 +124,7 @@ final class WebAgentHost {
     /// Arrêter, fin de session ou alerte : marche hors ligne, sans le serveur.
     func stopLocal(notifyServer: Bool = true) {
         generation += 1
+        guard holo != nil || sessionID != nil || chromePID != nil || starting else { return }
         let h = holo
         holo = nil
         if sessionID != nil {
