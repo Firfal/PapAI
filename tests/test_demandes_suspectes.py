@@ -360,9 +360,11 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         await app.acknowledge_guard({"alert_id": aid}, other)
         other.send_json.assert_awaited()
         self.assertNotIn("acknowledged_by", app.pending_alert["helper"])
+        self.assertFalse(app.pending_alert["helper"].get("acknowledged"))
         with patch.object(app, "helper_who", {self.ws: {"name": "Quentin"}}):
             await app.acknowledge_guard({"alert_id": "périmé"}, self.ws)
             self.assertNotIn("acknowledged_by", app.pending_alert["helper"])
+            self.assertFalse(app.pending_alert["helper"].get("acknowledged"))
             await app.acknowledge_guard({"alert_id": aid, "name": "Usurpation"}, self.ws)
             await app.acknowledge_guard({"alert_id": aid}, self.ws)
         self.assertTrue(app.pending_alert["helper"]["acknowledged"])
@@ -379,6 +381,17 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         await app.dismiss_guard({"alert_id": aid}, self.ws)
         self.assertIsNone(app.pending_alert)
         self.assertEqual(s.status()["stopped_by"], "gardien")
+
+    async def test_accuse_anonyme_rejoue_et_conserve_apres_rejet(self):
+        s = self.session(SUSPECTES[0])
+        await app.check_request(s, s.task, "request")
+        aid = app.pending_alert["helper"]["alert_id"]
+        await app.acknowledge_guard({"alert_id": aid}, self.ws)
+        await app.dismiss_guard({"alert_id": aid}, self.ws)
+        self.assertTrue(s.status()["guard_acknowledged"])
+        await app.ws_helper(self.ws, s.helper_token)
+        self.assertTrue(any(c.args[0].get("guard_acknowledged") is True
+                            for c in self.ws.send_json.await_args_list))
 
     async def test_arret_avant_tout_geste_explicitement_signale(self):
         s = self.session(SUSPECTES[0])
