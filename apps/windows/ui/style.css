@@ -1,0 +1,92 @@
+/* Design « Soin » : recopie de apps/mac/Sources/Theme.swift.
+   Les tailles sont celles de SwiftUI, en points = px CSS à 100 %.
+   Police : Nunito (OFL), l'arrondie la plus proche de SF Rounded. */
+@font-face {
+  font-family: "Nunito";
+  src: url("fonts/Nunito.ttf") format("truetype");
+  font-weight: 200 1000;
+}
+:root {
+  --bg: #EEF0EE; --card: #FFFFFF; --ink: #111312; --muted: #7A807C;
+  --accent: #2E9E5B; --mint: #E2F2E7;
+  --r: 28px; --rBig: 36px;
+  --ts: 1;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: "Nunito", "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
+  font-weight: 500; line-height: 1.2; -webkit-font-smoothing: antialiased; overflow: hidden;
+  user-select: none;
+}
+button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(46,158,91,.45); outline-offset: 2px; }
+input, textarea { font: inherit; color: var(--ink); border: 0; outline: none; background: none; user-select: text; }
+input::placeholder, textarea::placeholder { color: rgba(17,19,18,.32); }
+svg { display: block; flex: none; }
+
+#root { height: 100vh; display: flex; flex-direction: column; gap: 22px; padding: 0 28px 28px; }
+.hdr { display: flex; align-items: center; gap: 14px; padding-top: 24px; flex: none; }
+.spacer { flex: 1 1 0; min-width: 0; min-height: 0; }
+.main { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+
+.muted { color: var(--muted); }
+.accent { color: var(--accent); }
+.w4 { font-weight: 400; } .w5 { font-weight: 500; } .w6 { font-weight: 600; } .w7 { font-weight: 700; }
+
+.col { display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; }
+.card { background: var(--card); border-radius: var(--r); }
+.mintCard { background: var(--mint); border-radius: var(--rBig); flex: 1 1 0; min-height: 0;
+  display: flex; flex-direction: column; overflow: hidden; }
+.mintCard > * { flex-shrink: 0; }
+.mintCard > .scroll, .mintCard > .spacer { flex-shrink: 1; }
+.pillChip { background: var(--card); border-radius: 999px; display: inline-flex; align-items: center; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.circle { border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.scroll { overflow-y: auto; min-height: 0; scrollbar-width: none; }
+.scroll::-webkit-scrollbar { display: none; }
+
+/* PillStyle et PressStyle */
+.pill { border-radius: 999px; padding: 0 30px; font-weight: 600; display: inline-flex;
+  align-items: center; justify-content: center; white-space: nowrap; flex: none;
+  transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+.pill.filled { background: var(--ink); color: #fff; }
+.pill.plain { background: var(--card); color: var(--ink); }
+.press { transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+.pill:active:not(:disabled), .press:active:not(:disabled) { transform: scale(.97); }
+.grow { flex: 1 1 0; min-width: 0; }
+
+.field { background: var(--card); border-radius: var(--r); width: 100%; resize: none; display: block; }
+
+/* Micro : pulsation pendant l'écoute */
+.micRing { position: absolute; inset: 0; border-radius: 50%; background: rgba(46,158,91,.25);
+  animation: pulse .9s ease-in-out infinite alternate; }
+@keyframes pulse { from { transform: scale(.9); } to { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .micRing { animation: none; } }
+.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(17,19,18,.15);
+  border-top-color: var(--muted); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.fade { animation: fade .25s ease-in-out; }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+.dots .d { height: 12px; border-radius: 999px; transition: width .3s cubic-bezier(.2,.8,.2,1), background .3s; }
+
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 8px; row-gap: 14px; }
+.appIcon { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center;
+  justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.appIcon img { width: 52px; height: 52px; }
+
+/* Feuilles (réglages, proches), comme .sheet sur macOS */
+#sheet:empty { display: none; }
+#sheet { position: fixed; inset: 0; background: rgba(17,19,18,.22); display: flex;
+  align-items: flex-start; justify-content: center; padding-top: 28px; animation: fade .2s; }
+.sheet { border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.25), 0 0 0 .5px rgba(0,0,0,.12);
+  max-height: calc(100vh - 56px); overflow: auto; }
+.seg { display: flex; background: rgba(17,19,18,.07); border-radius: 8px; padding: 2px; }
+.seg button { flex: 1; height: 26px; border-radius: 6px; font-size: 13px; font-weight: 500;
+  font-family: "Segoe UI", system-ui, sans-serif; }
+.seg button.on { background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.15); }

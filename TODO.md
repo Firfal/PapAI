@@ -60,7 +60,7 @@ Mis à jour le 7 novembre à 16 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Rangement guidé des dossiers : plan de rangement validé par l'aidant, rien supprimé, tout annulable.
 - [ ] Notification push quand l'app iPhone est fermée (APNs).
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).
-- [ ] Version Windows de l'app de la personne aidée (le prototype est dans la branche `archive/windows-7-nov`).
+- [x] Version Windows de l'app de la personne aidée, design « Soin » de l'app Mac (`apps/windows`). Reste : l'essayer sur un vrai Windows (capture, clics, accents, exclusion de la fenêtre, dictée).
 
 ## Fait
 
