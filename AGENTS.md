@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794082375-android-aidant` | App Android de l'aidant (APK hors store), portage de l'app iPhone | `apps/android/` | 7 nov. soir |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -56,3 +56,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 - 2026-11-07 Claude : dictée pour préciser le plan (iPhone), captures des automatismes agrandies (Mac, iPhone), « Mes proches » compte les aidants connectés, applications de l'accueil selon l'usage et les demandes, « <aidant> s'en occupe », une seule phrase « ce que fait Holo » côté aidant.
 - 2026-11-07 Claude : les proches survivent aux redéploiements Cloud Run (le Mac garde la liste et la renvoie dans `profile.known_helpers`).
 - 2026-11-07 Claude : icône Mac = logotype papai au pépin sur le i, fond vert profond (Dock rafraîchi par install-mac.sh) ; « Bonsoir » après 19 h (Mac, iPhone, Windows) ; champ serveur retiré des Réglages Mac ; 6 propositions d'accueil dans Figma (page « Accueil Mac — propositions »).
+- 2026-11-07 Devin (`devin/1794082375-android-aidant`) : app Android de l'aidant (`apps/android/`, Kotlin + Compose), portage de l'app iPhone sur le même protocole ; APK de release signé hors dépôt (`keystore.properties` ignoré), installable en « sources inconnues ». Liaison gardée par un service de premier plan, notification forte à chaque plan ou question. Lancée sur un émulateur Android 14 ; parcours complet pas encore essayé sur un vrai téléphone. Fichiers libérés.
