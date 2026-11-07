@@ -132,7 +132,7 @@ def _same_machine(conn: HTTPConnection) -> bool:
 
 # Jamais de clé ni de jeton dans les journaux : les chemins qui en portent un
 # sont masqués, y compris dans les journaux d'accès d'uvicorn.
-_SECRET_PATH = re.compile(r"/(k|a|h|p|ws/aidant|ws/helper)/[^/?#\s\"']+")
+_SECRET_PATH = re.compile(r"/(k|a|h|p|o|ws/aidant|ws/helper)/[^/?#\s\"']+")
 
 
 def masquer(texte: str) -> str:
