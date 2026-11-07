@@ -73,17 +73,31 @@ struct SessionView: View {
             .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
 
             if model.sessionOpen {
-                Button { model.stop() } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "stop.fill").font(.system(size: 20))
-                        Text("Arrêter").font(rounded(26, .semibold))
+                HStack(spacing: 14) {
+                    if state == .active || state == .awaiting_helper || model.paused {
+                        Button { model.togglePause() } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: model.paused ? "play.fill" : "pause.fill").font(.system(size: 20))
+                                Text(model.paused ? "Reprendre" : "Pause").font(rounded(26, .semibold))
+                            }
+                            .foregroundStyle(T.ink).frame(maxWidth: .infinity).frame(height: 70)
+                            .background(Capsule().fill(T.card))
+                        }
+                        .buttonStyle(PressStyle())
+                        .accessibilityLabel(model.paused ? "Reprendre l'aide" : "Mettre l'aide en pause")
                     }
-                    .foregroundStyle(.white).frame(maxWidth: .infinity).frame(height: 70)
-                    .background(Capsule().fill(T.ink))
+                    Button { model.stop() } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: "stop.fill").font(.system(size: 20))
+                            Text("Arrêter").font(rounded(26, .semibold))
+                        }
+                        .foregroundStyle(.white).frame(maxWidth: .infinity).frame(height: 70)
+                        .background(Capsule().fill(T.ink))
+                    }
+                    .buttonStyle(PressStyle())
+                    .keyboardShortcut(.cancelAction)
+                    .accessibilityLabel("Arrêter l'assistance (Échap)")
                 }
-                .buttonStyle(PressStyle())
-                .keyboardShortcut(.cancelAction)
-                .accessibilityLabel("Arrêter l'assistance (Échap)")
             } else {
                 Button { model.backHome() } label: {
                     Text("Retour à l'accueil").frame(maxWidth: .infinity)
@@ -104,26 +118,30 @@ struct SessionView: View {
     }
 
     private var title: String {
+        if model.paused && model.sessionOpen { return "L'aide est en pause" }
         switch state {
-        case .planning: "Holo regarde votre écran…"
-        case .awaiting_approval: "\(model.HelperName) vérifie votre demande"
-        case .active: "Holo s'en occupe"
-        case .awaiting_helper: "\(model.HelperName) vous aide"
-        case .done: "C'est fait !"
-        case .stopped: "L'assistance est arrêtée."
+        case .planning: return "Holo regarde votre écran…"
+        case .awaiting_approval: return "\(model.HelperName) vérifie votre demande"
+        case .active: return "Holo s'en occupe"
+        case .awaiting_helper: return "\(model.HelperName) vous aide"
+        case .done: return "C'est fait !"
+        case .stopped: return "L'assistance est arrêtée."
         }
     }
 
     private var subtitle: String? {
+        if model.paused && model.sessionOpen {
+            return "Vous pouvez utiliser votre ordinateur. Appuyez sur Reprendre quand vous voulez."
+        }
         switch state {
-        case .planning: "Un instant, je prépare ce qu'il faut faire."
-        case .awaiting_approval: "Rien ne se passera sur votre écran avant son accord."
-        case .active: "Ne touchez à rien, je m'occupe de tout."
-        case .awaiting_helper: model.questionForMe
+        case .planning: return "Un instant, je prépare ce qu'il faut faire."
+        case .awaiting_approval: return "Rien ne se passera sur votre écran avant son accord."
+        case .active: return "Pendant l'aide, la souris et le clavier sont réservés à Holo. Pause ou Arrêter restent toujours possibles."
+        case .awaiting_helper: return model.questionForMe
             ? "J'ai besoin d'une information que vous seul connaissez."
             : "\(model.HelperName) répond à une question de Holo. Restez là, ne touchez à rien."
-        case .done: nil
-        case .stopped: "Votre écran n'est plus partagé."
+        case .done: return nil
+        case .stopped: return "Votre écran n'est plus partagé."
         }
     }
 

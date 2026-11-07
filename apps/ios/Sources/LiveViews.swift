@@ -6,10 +6,17 @@ struct ActiveView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 CaptureView(model: model)
+                if model.seniorPaused {
+                    Label("\(model.seniorTitle) a mis l’aide en pause. Holo attend la reprise.", systemImage: "pause.circle.fill")
+                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.ink)
+                        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                        .soinCard(Soin.accentSoft, radius: 18)
+                }
                 HStack(spacing: 12) {
-                    ProgressView().tint(Soin.accent)
+                    if model.seniorPaused { Image(systemName: "pause.fill").foregroundStyle(Soin.secondary) }
+                    else { ProgressView().tint(Soin.accent) }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Holo travaille sur l’ordinateur de \(model.senior)").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.ink)
+                        Text(model.seniorPaused ? "Aide en pause" : "Holo travaille sur l’ordinateur de \(model.senior)").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.ink)
                         if !model.task.isEmpty { Text("« \(model.task) »").font(.system(size: 14)).foregroundStyle(Soin.secondary) }
                     }
                     Spacer(minLength: 0)

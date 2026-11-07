@@ -344,6 +344,15 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 t.add_done_callback(_guard_taches.discard)
                 continue
 
+            if kind in ("pause", "resume"):
+                # La personne aidée suspend ou reprend l'aide depuis son écran.
+                s = current_session()
+                if s is not None and s.is_open:
+                    s.paused = kind == "pause"
+                    s.log("senior_" + kind)
+                    await broadcast_helper(s.status())
+                continue
+
             if kind == "dictation":
                 # Transcription en direct : l'aidant voit ce que la personne dit.
                 await broadcast_helper({"type": "dictation",

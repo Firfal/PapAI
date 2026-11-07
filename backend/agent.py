@@ -109,6 +109,12 @@ class AgentRunner:
             if not self.s.is_open:
                 return
 
+            # En pause : Holo attend, sans rien faire, que la personne reprenne.
+            while self.s.paused and self.s.is_open:
+                await asyncio.sleep(0.4)
+            if not self.s.is_open:
+                return
+
             started = time.time()
 
             frame = await self.bridge.capture()

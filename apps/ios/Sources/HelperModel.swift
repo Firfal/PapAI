@@ -81,6 +81,8 @@ final class HelperModel {
     var questionToSenior = false
     /// Ce que la personne aidée est en train de dicter, en direct.
     var liveDictation: String?
+    /// La personne aidée a mis l'aide en pause depuis son écran.
+    var seniorPaused = false
     private var dictationClear: Task<Void, Never>?
     var sessionId = ""
     var requestStart = Date()
@@ -456,6 +458,7 @@ final class HelperModel {
             task = m["task"] as? String ?? task
             plan = m["plan"] as? [String] ?? []
             planStep = m["plan_step"] as? Int
+            seniorPaused = m["paused"] as? Bool ?? false
             if let q = m["question"] as? [String: Any], let t = q["question"] as? String {
                 question = (t, q["options"] as? [String] ?? [])
                 questionToSenior = (q["to"] as? String) == "senior"

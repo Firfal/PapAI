@@ -98,6 +98,10 @@ class Session:
     # jamais une action en cours, on refuse la suivante.
     pause_requested: bool = False
 
+    # Pause demandée par la personne aidée depuis son écran : Holo n'agit plus,
+    # elle reprend la main sur sa souris et son clavier, jusqu'à « Reprendre ».
+    paused: bool = False
+
     # Consommation du modèle. Le contexte du dernier appel est le chiffre qui
     # compte : le free tier plafonne à 65k tokens, et trois captures pèsent.
     usage: dict = field(
@@ -315,6 +319,7 @@ class Session:
             "question": self.question,
             "plan": self.plan,
             "plan_approved": self.plan_approved,
+            "paused": self.paused,
             "plan_step": self.plan_step
             if self.plan_approved and self.state in (State.ACTIVE, State.AWAITING_HELPER)
             else None,

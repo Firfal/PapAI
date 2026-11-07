@@ -26,6 +26,11 @@ final class AppModel {
     var connected = false
     var screen: AppScreen = .home
     var state: SessionState?
+    /// L'aide est en pause à la demande de la personne aidée : Holo n'agit plus et
+    /// elle retrouve sa souris et son clavier.
+    var paused = false
+    /// Dernier message du serveur : sans nouvelles, le verrou des entrées se lève.
+    @ObservationIgnored private var lastHeard = Date()
     var task = ""
     var plan: [String] = []
     /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
@@ -185,9 +190,22 @@ final class AppModel {
         guard !started else { return }
         started = true
         client.onMessage = { [weak self] m in self?.handle(m) }
+        InputLock.shared.allowedRect = { [weak self] in self?.protectedRect() }
+        InputLock.shared.onEscape = { [weak self] in self?.stop() }
+        Task { [weak self] in
+            while true {
+                try? await Task.sleep(for: .seconds(5))
+                guard let self else { return }
+                if InputLock.shared.isOn, Date().timeIntervalSince(self.lastHeard) > 45 {
+                    InputLock.shared.set(false)
+                }
+            }
+        }
         client.onConnection = { [weak self] ok in
             guard let self else { return }
             self.connected = ok
+            // Plus de connexion : la personne ne doit jamais rester bloquée.
+            if !ok { InputLock.shared.set(false) }
             if ok { self.sendProfile() }
             // Test : PAPAI_AUTOTASK lance une demande dès la connexion.
             if ok, !self.autoSent, let t = ProcessInfo.processInfo.environment["PAPAI_AUTOTASK"], !t.isEmpty {
@@ -267,6 +285,17 @@ final class AppModel {
 
     func applyLevel() {
         window?.level = sessionOpen ? .floating : .normal
+        // Souris et clavier réservés à Holo et à l'aidant pendant qu'il agit.
+        let holoActs = (state == .active || state == .awaiting_helper) && !paused && !gate.isStopped
+        InputLock.shared.set(holoActs)
+    }
+
+    /// Pause ou reprise, depuis l'écran de la personne aidée.
+    func togglePause() {
+        guard sessionOpen else { return }
+        paused.toggle()
+        client.send(["type": paused ? "pause" : "resume"])
+        applyLevel()
     }
 
     /// Cadre de la fenêtre PapAI, en points écran, origine en haut à gauche.
@@ -354,6 +383,7 @@ final class AppModel {
     // MARK: Messages du serveur
 
     private func handle(_ m: [String: Any]) {
+        lastHeard = Date()
         switch m["type"] as? String {
         case "capture":
             guard let req = m["req"] as? String else { return }
@@ -413,6 +443,7 @@ final class AppModel {
         if let t = m["task"] as? String, !t.isEmpty { task = t }
         plan = (m["plan"] as? [String]) ?? []
         planStep = m["plan_step"] as? Int
+        paused = m["paused"] as? Bool ?? false
         let q = m["question"] as? [String: Any]
         question = q?["question"] as? String
         questionForMe = (q?["to"] as? String) == "senior"
