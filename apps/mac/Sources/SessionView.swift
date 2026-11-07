@@ -61,6 +61,11 @@ struct SessionView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .animation(.easeInOut(duration: 0.25), value: sub)
                 }
+                if model.sessionWhere == "web" && (state == .active || state == .awaiting_helper) {
+                    Text("Holo travaille dans une fenêtre Chrome à part, sans vos comptes ni vos onglets. Vous pouvez tout arrêter ici à tout moment.")
+                        .font(rounded(24, .medium)).foregroundStyle(T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 ScrollView(showsIndicators: false) { content }
                 Spacer(minLength: 0)
                 if !model.task.isEmpty && state != .stopped && state != .awaiting_approval {

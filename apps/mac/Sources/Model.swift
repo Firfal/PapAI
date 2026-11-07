@@ -26,6 +26,7 @@ final class AppModel {
     var connected = false
     var screen: AppScreen = .home
     var state: SessionState?
+    var sessionWhere: String?
     /// L'aide est en pause à la demande de la personne aidée : Holo n'agit plus et
     /// elle retrouve sa souris et son clavier.
     var paused = false
@@ -444,6 +445,7 @@ final class AppModel {
         guard guardAlert == nil else { return }
         gate.reset()
         stoppedBy = nil
+        sessionWhere = nil
         guardAcknowledged = false
         homeTimer?.cancel()
         self.task = task
@@ -558,6 +560,7 @@ final class AppModel {
 
     private func applyStatus(_ m: [String: Any]) {
         stoppedBy = m["stopped_by"] as? String
+        sessionWhere = m["where"] as? String
         if let ack = m["guard_acknowledged"] as? Bool { guardAcknowledged = ack }
         guard screen == .session else { return }
         if gate.isStopped { state = .stopped; applyLevel(); return }
