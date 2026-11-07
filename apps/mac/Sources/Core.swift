@@ -380,11 +380,15 @@ enum Automations {
             for (n, d) in got {
                 let target = dest.appendingPathComponent(n)
                 if let old = try? Data(contentsOf: target), old != d {
-                    // Jamais rien de perdu : l'ancien modèle est gardé à côté.
+                    // Jamais rien de perdu : une copie de l'ancien modèle est gardée à côté.
                     let ext = target.pathExtension, stem = target.deletingPathExtension().lastPathComponent
-                    let stamp = Int(Date().timeIntervalSince1970)
-                    try FileManager.default.moveItem(
-                        at: target, to: dest.appendingPathComponent("\(stem) (avant PapAI \(stamp)).\(ext)"))
+                    var n = 1
+                    var backup = dest.appendingPathComponent("\(stem) (avant PapAI).\(ext)")
+                    while FileManager.default.fileExists(atPath: backup.path) {
+                        n += 1
+                        backup = dest.appendingPathComponent("\(stem) (avant PapAI \(n)).\(ext)")
+                    }
+                    try FileManager.default.copyItem(at: target, to: backup)
                 }
                 try d.write(to: target, options: .atomic)
             }

@@ -465,10 +465,17 @@ def install_templates(files: list[tuple[str, bytes]], dest: Path | None = None) 
         for name, data in files:
             target = dest / name
             if target.is_file() and target.read_bytes() != data:
-                # Jamais rien de perdu : l'ancien modèle est gardé à côté.
+                # Jamais rien de perdu : une copie de l'ancien modèle est gardée à côté.
+                import shutil
                 stem, ext = os.path.splitext(name)
-                target.replace(dest / f"{stem} (avant PapAI {time.strftime('%Y-%m-%d %H%M%S')}){ext}")
-            target.write_bytes(data)
+                n, backup = 1, dest / f"{stem} (avant PapAI){ext}"
+                while backup.exists():
+                    n += 1
+                    backup = dest / f"{stem} (avant PapAI {n}){ext}"
+                shutil.copy2(target, backup)
+            tmp = dest / f".{name}.papai-tmp"
+            tmp.write_bytes(data)
+            os.replace(tmp, target)
     except OSError as e:
         return False, str(e)
     n = len(files)
