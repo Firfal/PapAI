@@ -183,6 +183,10 @@ async def ws_bridge(ws: WebSocket) -> None:
                 print(f"[session {session.id}] {session.task}")
                 print(f"[session {session.id}] lien du proche : {url}")
                 await broadcast_helper(session.status())
+                # Le proche n'a qu'un seul lien à connaître : celui du QR,
+                # qu'il garde ouvert. C'est lui qu'on amène sur la session,
+                # au lieu d'afficher un nouveau code à chaque demande.
+                await broadcast_pairing({"type": "accepted", "helper_url": url})
 
                 if agent_task and not agent_task.done():
                     agent_task.cancel()

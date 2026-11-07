@@ -144,8 +144,7 @@
   <div class="live-banner" id="liveBanner"><span class="dot"></span><span id="liveLabel">Écran partagé</span></div>
   <p class="sub" id="liveTask" style="text-align:center"></p>
   <div id="doing">Connexion à votre proche…</div>
-  <img id="liveQr" alt="" style="display:none;margin:0 auto 10px;border-radius:var(--r)">
-  <div class="link" id="liveLink"></div>
+  <p class="note" id="liveHint">Votre proche a été prévenu sur son lien habituel.</p>
   <button class="danger" id="stop" style="margin-top:18px">ARRÊTER</button>
   <p class="note">Vous pouvez arrêter à tout moment.<br>Rien ne continuera.</p>
 </section>
@@ -327,22 +326,16 @@ window.carepilot = {
     $('liveBanner').classList.remove('off');
     $('liveLabel').textContent = 'Écran partagé';
     $('doing').textContent = 'Votre proche a été prévenu…';
-    $('liveQr').style.display = 'none';
-    $('liveLink').textContent = '';
     show('live');
   },
   doing(text) { $('doing').textContent = text; },
-  session(url, qr) {
-    $('liveQr').src = 'data:image/png;base64,' + qr;
-    $('liveQr').style.display = '';
-    $('liveLink').textContent = url;
-  },
+  /* Plus de code à montrer : le proche garde un lien unique, donné une
+     fois, et c'est le serveur qui l'amène sur la session. */
+  session() {},
   stopped() {
     $('liveBanner').classList.add('off');
     $('liveLabel').textContent = 'Arrêté';
     $('doing').textContent = "L'assistance est arrêtée.\nVotre écran n'est plus partagé.";
-    $('liveQr').style.display = 'none';
-    $('liveLink').textContent = '';
     setTimeout(() => { show('home'); fillQuick(); }, 2600);
   },
   invitation(text) { $('inviteText').textContent = text ? '« ' + text + ' »' : ''; show('invite'); },
