@@ -7,6 +7,7 @@ enum Soin {
     static let secondary = Color(red: 0x7A/255, green: 0x80/255, blue: 0x7C/255)
     static let accent = Color(red: 0x2E/255, green: 0x9E/255, blue: 0x5B/255)
     static let accentSoft = Color(red: 0xE2/255, green: 0xF2/255, blue: 0xE7/255)
+    static let danger = Color(red: 0xC8/255, green: 0x44/255, blue: 0x2F/255)
 }
 
 extension View {

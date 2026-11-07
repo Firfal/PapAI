@@ -133,6 +133,7 @@ final class HelperModel {
     static let frameTTL: Double = 30
 
     init() {
+        #if DEBUG
         // `-serverURL …` et `-helperKey …` au lancement (dépannage, démo) : on les garde.
         let args = ProcessInfo.processInfo.arguments
         for k in ["serverURL", "helperKey"] {
@@ -141,6 +142,7 @@ final class HelperModel {
                 if !v.isEmpty { UserDefaults.standard.set(v, forKey: k) }
             }
         }
+        #endif
         serverURL = UserDefaults.standard.string(forKey: "serverURL") ?? ""
         helperKey = UserDefaults.standard.string(forKey: "helperKey") ?? ""
     }
