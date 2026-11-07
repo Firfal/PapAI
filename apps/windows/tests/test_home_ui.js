@@ -106,7 +106,7 @@ test('bascule micro/texte à chaud, sans perdre le brouillon', async () => {
 
 test('aucun tutoriel vide, date ni ancien bouton', async () => {
   const h = await home(false);
-  assert.doesNotMatch(h.root.innerHTML, /Mes tutoriels|J'ai besoin d'aide|Mes applications/);
+  assert.doesNotMatch(h.root.innerHTML, /Mes tutoriels|J'ai besoin d'aide|Demander une assistance|Mes applications/);
   assert.match(h.root.innerHTML, /Mes raccourcis/);
   assert.match(h.root.innerHTML, /logotype-papai.svg/);
 });
