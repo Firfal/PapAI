@@ -40,6 +40,11 @@ try {
     };
   });
   const popup = await navigateur.newPage();
+  const aidant = new WebSocket(serveur.replace("http", "ws") + "/ws/aidant/" + (process.env.PAPAI_TEST_KEY || "demo"));
+  aidant.onmessage = (evenement) => {
+    const message = JSON.parse(evenement.data);
+    if (message.type === "alert" && message.alert_id) aidant.send(JSON.stringify({type: "dismiss_alert", alert_id: message.alert_id}));
+  };
   await popup.goto(`chrome-extension://${identifiant}/popup.html`);
   await popup.locator("#serveur").fill(serveur);
   await popup.locator("#code").fill(code);
@@ -117,6 +122,7 @@ try {
   await page.goto(`http://nonlie-${suffixe}.test/`);
   await page.waitForLoadState("load");
   check("non lié sans requête", (await worker.evaluate(() => appelsSites.length)) === 3);
+  aidant.close();
   console.log(`\n${controles} contrôles extension réussis, 0 échec`);
 } finally {
   await navigateur.close();

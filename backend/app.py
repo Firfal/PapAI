@@ -293,17 +293,12 @@ async def ext_site(request: Request):
                         else f"{senior} visite un site douteux")
         charge = {"type": "alert", "source": "environment", "level": "danger" if avis.verdict == "arnaque" else "attention",
                   "title": titre_aidant, "detail": aidant}
-        if avis.verdict == "arnaque" and "publish_guard" in globals():
+        if avis.verdict == "arnaque":
             alerte = guard.Alerte("danger", titre_aide, aide, "site:" + domaine, False)
-            await globals()["publish_guard"](alerte, source="environment", senior_detail=aide, helper_detail=aidant)
+            await publish_guard(alerte, source="environment", senior_detail=aide, helper_detail=aidant,
+                                senior_title=titre_aide, helper_title=titre_aidant)
         else:
-            if avis.verdict == "arnaque" and bridge is not None:
-                await bridge.send({**charge, "title": titre_aide, "detail": aide})
-            for ws in list(helper_sockets):
-                try:
-                    await ws.send_json(charge)
-                except Exception:
-                    helper_sockets.discard(ws)
+            await broadcast_helper(charge, to_bridge=False)
     return {"verdict": avis.verdict, "raison": avis.raison, "proche": proche}
 
 
@@ -923,7 +918,8 @@ def guard_contact() -> str:
 
 
 async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
-                        senior_detail: str | None = None, helper_detail: str | None = None) -> None:
+                        senior_detail: str | None = None, helper_detail: str | None = None,
+                        senior_title: str | None = None, helper_title: str | None = None) -> None:
     global pending_alert
     for s in registry._by_id.values():
         if s.is_open:
@@ -936,14 +932,14 @@ async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
     detail = f"Contactez {guard_contact()} avant d'aller plus loin. "
     detail += ("Rien n'a été exécuté pour cette demande." if source in ("request", "plan")
                else "L'assistance est arrêtée.")
-    senior = {**common, "title": "Attention, cette démarche peut être une arnaque.",
+    senior = {**common, "title": senior_title or "Attention, cette démarche peut être une arnaque.",
               "detail": senior_detail or detail}
     who = family.senior or "Votre proche"
     detail = f"{who} a besoin de votre avis. {alerte.detail}"
     if session:
         detail += f"\nDemande : « {session.task} »"
     detail += "\nRappelez votre proche avant de poursuivre. Rejetez l'alerte uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
-    helper = {**common, "title": f"Arnaque possible : rappelez {who}", "detail": helper_detail or detail}
+    helper = {**common, "title": helper_title or f"Arnaque possible : rappelez {who}", "detail": helper_detail or detail}
     pending_alert = {"senior": senior, "helper": helper}
     if bridge:
         await bridge.send(senior)

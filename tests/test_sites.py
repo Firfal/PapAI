@@ -11,7 +11,8 @@ import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import websockets
 
@@ -112,6 +113,30 @@ async def erreurs_holo():
         check("JSON invalide reste douteux", (await sites.avis_holo("exemple.xyz", "", "")).verdict == "douteux")
 
 
+async def blocage_sites():
+    from backend import app
+    from backend.sessions import Registry, State
+
+    registre = Registry()
+    session = registre.create("Retrouver mes photos")
+    session.grant_consent()
+    pont = SimpleNamespace(send=AsyncMock())
+    requete = SimpleNamespace(headers={"authorization": "Bearer test"}, json=AsyncMock())
+    with patch.object(app, "registry", registre), patch.object(app, "bridge", pont), \
+         patch.object(app, "pending_alert", None), patch.object(app, "_sites_vus", {}), \
+         patch.object(app, "broadcast_helper", AsyncMock()), \
+         patch.object(app.liaison_extension, "autoriser", return_value=200), \
+         patch.object(sites, "avis_holo", AsyncMock(return_value=sites.Avis("douteux", "À vérifier"))):
+        requete.json.return_value = {"domain": "boutique.xyz"}
+        await app.ext_site(requete)
+        check("doute ne stoppe pas la session", session.state != State.STOPPED and app.pending_alert is None)
+        requete.json.return_value = {"domain": "ameli-remboursement.xyz"}
+        await app.ext_site(requete)
+        check("arnaque stoppe l'exécution", session.state == State.STOPPED and app.pending_alert is not None)
+        await app.dismiss_guard({"alert_id": app.pending_alert["helper"]["alert_id"]}, SimpleNamespace(send_json=AsyncMock()))
+        check("dismiss ne reprend pas l'exécution", session.state == State.STOPPED and app.pending_alert is None)
+
+
 def http(base, chemin, corps, jeton=""):
     requete = urllib.request.Request(base + chemin, data=json.dumps(corps).encode(),
                                    headers={"Content-Type": "application/json", "Authorization": "Bearer " + jeton})
@@ -153,6 +178,16 @@ async def integration(base, cle):
             alerte = await recevoir(aidant, "alert")
             check("texte aidant distinct", "Jeanne" in alerte["detail"] and "Ameli" in alerte["detail"] and "Ne donnez rien" not in alerte["detail"])
             check("titre aidant danger", alerte["title"] == "Jeanne est sur un site d'arnaque probable")
+            identifiant = alerte.get("alert_id")
+            check("alerte site bloquante", alerte.get("blocked") is True and alerte.get("source") == "environment" and identifiant)
+            async with websockets.connect(wsbase + "/ws/aidant/" + cle) as reconnecte:
+                conservee = await recevoir(reconnecte, "alert")
+                check("alerte site conservée à la reconnexion", conservee.get("alert_id") == identifiant)
+            await aidant.send(json.dumps({"type": "dismiss_alert", "alert_id": "inconnu"}))
+            check("rejet périmé refusé", (await recevoir(aidant, "refused"))["type"] == "refused")
+            await aidant.send(json.dumps({"type": "dismiss_alert", "alert_id": identifiant}))
+            check("dismiss site côté pont", (await recevoir(pont, "alert_cleared")).get("alert_id") == identifiant)
+            check("dismiss site côté aidant", (await recevoir(aidant, "alert_cleared")).get("alert_id") == identifiant)
             await asyncio.to_thread(http, base, "/ext/site", page, jeton)
             for canal, nom in ((pont, "pont"), (aidant, "aidant")):
                 try:
@@ -167,6 +202,7 @@ async def integration(base, cle):
             alerte = await recevoir(aidant, "alert")
             check("doute aidant attention", alerte["level"] == "attention")
             check("titre aidant douteux", alerte["title"] == "Jeanne visite un site douteux")
+            check("doute non bloquant", not alerte.get("blocked") and not alerte.get("alert_id"))
             try:
                 await recevoir(pont, "alert", .3)
                 check("doute absent du pont", False)
@@ -186,6 +222,7 @@ async def integration(base, cle):
 
 
 asyncio.run(erreurs_holo())
+asyncio.run(blocage_sites())
 if len(sys.argv) > 1:
     asyncio.run(integration(sys.argv[1].rstrip("/"), sys.argv[2] if len(sys.argv) > 2 else "demo"))
 print(f"\n{ok} contrôles réussis, {fails} échecs")
