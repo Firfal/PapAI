@@ -335,7 +335,10 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
   - `support_token` (`sup-…`) : donné aux supports (personnes ou support IA). `support_url` =
     `<server>/o/<jeton>` (page web), `app_url` = `papai://org?u=<server>&t=<jeton>` (Android, iPhone).
 - `POST /spaces` `{"org": "<enroll_token>", "name": "<utilisateur · poste>"}` : le poste s'inscrit
-  au premier lancement (pas de limite par IP, jeton inconnu → 403). Réponse : en plus, `"org": "<nom>"`.
+  au premier lancement (pas de limite par IP). Réponse : en plus, `"org": "<nom>"`.
+  Jeton inconnu → 403 : l'app crée alors son espace sans organisation. Plus de
+  `PAPAI_ORG_ENROLLS_PER_HOUR` (200 par défaut) inscriptions par heure pour une organisation → 429 :
+  l'app réessaie plus tard, comme hors ligne.
 - `POST /k/<clé>/org` `{"org","name"}` : un poste déjà installé rejoint l'organisation → `{"org"}`.
   403 jeton inconnu, 409 si le poste appartient à une autre organisation ou si c'est l'espace historique.
 - `GET /o/<support_token>/spaces` → `{"org","server","spaces":[{"key","name","label","online"}]}`
