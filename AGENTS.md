@@ -16,12 +16,13 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794082375-android-aidant` | Appairage Android : textes sûrs et avertissements UX | `apps/android/` | 7 nov. soir |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 7 nov. soir | Devin | `devin/1794082375-android-aidant` | Relecture UX d’appairage : titre neutre, aucun prénom du lien affiché, serveur officiel identifié, avertissement rouge pour les autres serveurs, refus persistant avec consigne sûre, remplacement en carte blanche Soin. Textes repris de l’iPhone (#29). Tests JVM 18/18 et builds debug/release réussis ; quatre états capturés sur émulateur Android 14 (`~/captures-android/v2/`), aucun POST vers la production. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794082375-android-aidant` | Appairage sûr (#25) : HTTPS seul, HTTP local en debug uniquement, domaine affiché, confirmation de remplacement, `server` de la réponse ignoré, prénom enregistré après succès. Sauvegardes désactivées (`allowBackup`), notifications privées, `FLAG_SECURE`, avertissement de signature debug et checksum du wrapper. Prénom « null » et capsule « Envoyer à Holo » corrigés, réglages, nouveau plan et couleurs améliorés. Vérifié sur émulateur Android 14. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794084386-accueil-mac-voix` | Retouches `apps/mac/Sources/HomeView.swift` : vraies icônes des applications résolues par bundle, y compris en démo (symbole si absentes) ; bouton « Montrez-moi » sur une ligne sans tronquer le titre à 1.18. Builds Xcode et CLI réussis ; captures `apres-raccourcis.png` et `apres-grande.png` régénérées et regardées dans `~/captures`. TextScale restauré. Fichier libéré. |
 | 7 nov. soir | Devin | `devin/1794084386-accueil-mac-voix` | Accueil Mac voix d'abord et raccourcis locaux sécurisés : `HomeView.swift`, `MiniPanel.swift`, `Theme.swift`, `Model.swift` (démo seulement), `MicPresence.swift`, `HomeShortcuts.swift`, tests `mic_presence_test.swift` et `home_shortcuts_test.swift`, `brand/logotype-papai.svg`, `TODO.md`. Présence micro, écriture discrète, tutoriels masqués si vides, logotype vectoriel 36 pt, applications/dossiers/groupes de photos et actions Mail/Photos, personnalisation JSON locale (4 ajouts, 9 tuiles avec Ajouter). Validation des dossiers à l'ajout et à l'ouverture, Finder explicite. Builds Xcode et CLI ; Swift raccourcis 35 contrôles, micro OK ; Python gardien 14, protocole 14, parcours 27. Captures dans `~/captures`, dont taille 1.18 restaurée ensuite. Pas de micro physique : `PAPAI_DEMO_MIC=1` pour les captures, dictée réelle non essayée. Fichiers libérés. |
