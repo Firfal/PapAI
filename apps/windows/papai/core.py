@@ -463,7 +463,12 @@ def install_templates(files: list[tuple[str, bytes]], dest: Path | None = None) 
     try:
         dest.mkdir(parents=True, exist_ok=True)
         for name, data in files:
-            (dest / name).write_bytes(data)
+            target = dest / name
+            if target.is_file() and target.read_bytes() != data:
+                # Jamais rien de perdu : l'ancien modèle est gardé à côté.
+                stem, ext = os.path.splitext(name)
+                target.replace(dest / f"{stem} (avant PapAI {time.strftime('%Y-%m-%d %H%M%S')}){ext}")
+            target.write_bytes(data)
     except OSError as e:
         return False, str(e)
     n = len(files)

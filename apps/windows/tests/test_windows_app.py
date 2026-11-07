@@ -149,6 +149,10 @@ def unit() -> None:
         ok, _ = core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04x")], Path(d))
         check(ok and (Path(d) / "Lettre Acme.dotx").is_file(), "modèle Word copié")
         check(not core.install_templates([("faux.dotx", b"MZ")], Path(d))[0], "fichier non Office refusé")
+        core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04v2")], Path(d))
+        check((Path(d) / "Lettre Acme.dotx").read_bytes().endswith(b"v2")
+              and len(list(Path(d).glob("Lettre Acme (avant PapAI *).dotx"))) == 1,
+              "modèle déjà présent : gardé à côté, jamais écrasé")
     if not core.WINDOWS:
         check(not core.antivirus_scan()[0], "scan antivirus : seulement sous Windows")
     g.raise_stop()

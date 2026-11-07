@@ -377,7 +377,17 @@ enum Automations {
         guard !got.isEmpty else { return (false, "Aucun modèle valable.") }
         do {
             try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
-            for (n, d) in got { try d.write(to: dest.appendingPathComponent(n), options: .atomic) }
+            for (n, d) in got {
+                let target = dest.appendingPathComponent(n)
+                if let old = try? Data(contentsOf: target), old != d {
+                    // Jamais rien de perdu : l'ancien modèle est gardé à côté.
+                    let ext = target.pathExtension, stem = target.deletingPathExtension().lastPathComponent
+                    let stamp = Int(Date().timeIntervalSince1970)
+                    try FileManager.default.moveItem(
+                        at: target, to: dest.appendingPathComponent("\(stem) (avant PapAI \(stamp)).\(ext)"))
+                }
+                try d.write(to: target, options: .atomic)
+            }
         } catch { return (false, error.localizedDescription) }
         return (true, got.count > 1 ? "\(got.count) modèles ajoutés dans Word." : "Modèle ajouté dans Word.")
     }
