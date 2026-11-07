@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794091852-appairage-code-seul` | Relier un support avec le seul code à 6 chiffres (sans adresse de serveur) | `backend/app.py` (routes `/p`), `apps/android/…/Helper.kt`, `apps/ios/Sources/HelperModel.swift`, `PROTOCOL.md`, `tests/test_appairage_code.py` | 7 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -76,3 +76,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 - 2026-11-07 Devin (`devin/1794084327-ios-modifier-dictee`) : iPhone, glisser une étape vers la gauche → « Modifier », feuille préremplie (clavier ou voix), consigne « Étape N : remplacer « … » par « … » » envoyée par `refine_plan` (pas de nouveau message). Dictée (`Dictation.swift`, remplace `VoiceInput.swift`) dans Préciser, Modifier et la réponse à Holo : WAV 16 kHz envoyé à `/k/<clé>/transcribe` (Gladia), SFSpeech en direct et en secours, texte modifiable avant envoi. `faux_holo.py` applique ces consignes. Essayé sur simulateur avec un fichier audio et un Gladia simulé. HelperModel, alertes et notifications non touchés. Fichiers libérés.
 - 2026-11-07 Devin (`devin/1794086337-ios-dictee-suite`) : iPhone, suite de la dictée. Micro touché puis feuille fermée aussitôt : l'écoute ne démarre pas, rien n'est envoyé (un envoi en cours est interrompu). Clavier bloqué pendant l'écoute (le texte déjà écrit est gardé, la dictée s'y ajoute). Bouton « Annuler » dans Modifier, Préciser et la réponse à Holo. Au premier plan affiché, une seule fois, la 1re étape glisse et montre le crayon, texte d'indice mis en avant. Appairage non touché. Fichiers libérés.
 - 2026-11-07 Devin (`devin/1794082375-android-aidant`) : app Android de l'aidant (`apps/android/`, Kotlin + Compose), portage de l'app iPhone sur le même protocole ; APK de release signé hors dépôt (`keystore.properties` ignoré), installable en « sources inconnues ». Liaison gardée par un service de premier plan, notification forte à chaque plan ou question. Lancée sur un émulateur Android 14 ; parcours complet pas encore essayé sur un vrai téléphone. Fichiers libérés.
+| 7 nov. | Devin | `devin/1794091852-appairage-code-seul` | Relier un support avec le seul code à 6 chiffres : `/p` et `/p/<code>` répondent sans clé en ligne (code à usage unique, 5 essais), Android et iPhone visent le serveur officiel s'ils ne sont pas réglés (`tests/test_appairage_code.py`). |

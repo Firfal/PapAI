@@ -248,7 +248,11 @@ En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gard�
   L'app lit `u` (`https://…[/k/<clé>]/p/<code>`), demande prénom et lien, fait le POST sur `u`,
   puis enregistre `serverURL = server + "/k/" + key` et `helperKey = key`, et se connecte.
 - Le scanner de l'app accepte `papai://pair?u=…` comme l'ancien `https://…/p/<code>`.
-- Saisie du code à la main : POST sur `<serverURL déjà connu>/p/<code>`.
+- Saisie du code à la main : le support ne tape que le code, jamais d'adresse. POST sur
+  `<serverURL réglé>/p/<code>`, ou sur `https://papai-450417131702.europe-west1.run.app/p/<code>`
+  (serveur officiel) si l'app n'est pas encore réglée. En ligne, `GET /p`, `GET /p/<code>` et
+  `POST /p/<code>` répondent donc aussi sans clé : le code est le secret (une seule fois, 10 min
+  ou 24 h, invalidé après 5 essais faux), et la réponse donne `server` et `key`.
 - Arguments de lancement `-serverURL` et `-helperKey` (dépannage, démo) : l'app les enregistre.
 
 ## Prénom et invitation (7 novembre au soir)

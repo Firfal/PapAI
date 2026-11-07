@@ -363,10 +363,11 @@ final class HelperModel {
         sheet = .pair(link)
     }
 
-    /// Saisie du code à la main : il faut déjà connaître le serveur.
+    /// Saisie du code à la main : serveur déjà réglé, sinon le serveur PapAI officiel.
     func manualPairLink() -> PairLink? {
         let s = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        return s.isEmpty || !PairServer.allowed(baseHTTP) ? nil : PairLink(base: baseHTTP, code: nil)
+        if s.isEmpty { return PairLink(base: "https://" + PairServer.officialHost, code: nil) }
+        return PairServer.allowed(baseHTTP) ? PairLink(base: baseHTTP, code: nil) : nil
     }
 
     func needsReplaceConfirmation(_ link: PairLink) -> Bool {

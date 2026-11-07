@@ -74,9 +74,7 @@ fun SettingsSheet() {
         T("Le plus simple : scannez le QR affiché sur l'ordinateur de ${m.senior} (Proches › Ajouter un proche).",
             15.sp, color = Soin.secondary)
         CapsuleButton("Scanner le QR de l'ordinateur", fill = Soin.accent, onClick = scan)
-        m.manualPairLink()?.let { l ->
-            CapsuleButton("Entrer le code à 6 chiffres", fill = Soin.card, text = Soin.ink) { m.openPair(l) }
-        }
+        CapsuleButton("Entrer le code à 6 chiffres", fill = Soin.card, text = Soin.ink) { m.openPair(m.manualPairLink()) }
         T("Ou à la main", 17.sp, FontWeight.SemiBold, modifier = Modifier.padding(top = 8.dp))
         val uri = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrect = false, keyboardType = KeyboardType.Uri)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

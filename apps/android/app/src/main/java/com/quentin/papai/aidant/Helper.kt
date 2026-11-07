@@ -360,8 +360,9 @@ object Helper {
         sheet = AppSheet.Pair(link)
     }
 
-    /** Saisie du code à la main : il faut déjà connaître le serveur. */
-    fun manualPairLink(): PairLink? = if (serverURL.isBlank()) null else PairLink(baseHTTP, null)
+    /** Saisie du code à la main : serveur déjà réglé, sinon le serveur PapAI officiel. */
+    fun manualPairLink(): PairLink =
+        if (serverURL.isBlank()) PairLink("https://${PairingPolicy.officialHost}", null) else PairLink(baseHTTP, null)
 
     /** POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur. */
     fun submitPair(link: PairLink, code: String?, name: String, relation: String, confirmed: Boolean = false) {

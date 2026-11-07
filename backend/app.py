@@ -710,10 +710,11 @@ async def _pair_submit(code: str, request: Request):
             "server": PUBLIC_URL, "key": AIDANT_KEY}
 
 
+# Sans clé, même en ligne : le support tape seulement le code à 6 chiffres.
+# Le code est le secret (10 min ou 24 h, une seule fois, invalidé après
+# MAX_TRIES essais faux) et la réponse lui donne l'adresse et la clé.
 @app.get("/p")
 async def pair_page_manual():
-    if PUBLIC_MODE:
-        return JSONResponse({"error": "introuvable"}, status_code=404)
     return await _pair_page("")
 
 
@@ -726,15 +727,11 @@ async def pair_page_manual_keyed(fam: str):
 
 @app.get("/p/{code}")
 async def pair_page(code: str):
-    if PUBLIC_MODE:
-        return JSONResponse({"error": "introuvable"}, status_code=404)
     return await _pair_page(code)
 
 
 @app.post("/p/{code}")
 async def pair_submit(code: str, request: Request):
-    if PUBLIC_MODE:
-        return JSONResponse({"error": "introuvable"}, status_code=404)
     return await _pair_submit(code, request)
 
 
