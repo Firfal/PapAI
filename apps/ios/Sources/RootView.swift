@@ -7,7 +7,7 @@ struct RootView: View {
         ZStack(alignment: .bottom) {
             Soin.bg.ignoresSafeArea()
             VStack(spacing: 0) {
-                Header(name: model.helperName ?? "Quentin", onAvatar: { model.sheet = .settings })
+                Header(name: model.helperName ?? "Support", onAvatar: { model.sheet = .settings })
                     .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 12)
                 if model.isConfigured && !model.connected {
                     LostBanner(model: model).padding(.horizontal, 20).padding(.bottom, 10)
