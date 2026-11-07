@@ -163,6 +163,8 @@ def main() -> None:
             if webview.screens:
                 sw, sh = webview.screens[0].width, webview.screens[0].height
             if compact:
+                w.restore()  # réduite avant l'accord : l'encart doit rester visible
+                w.show()
                 w.resize(*MINI_SIZE)
                 w.move(max(0, sw - MINI_SIZE[0] - 24), max(0, sh - MINI_SIZE[1] - 72))
             else:
