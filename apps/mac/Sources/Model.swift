@@ -49,6 +49,8 @@ final class AppModel {
     var helpers: [Helper] = []
     var pairCode: String?
     var pairURL: String?
+    /// Lien `papai://` du QR, envoyé par le serveur (`app_url`) ou construit depuis `pairURL`.
+    var pairAppURL: String?
     var pairAdded: String?
     var remoteRequest: RemoteRequest?
     var showHelpers = false
@@ -122,6 +124,14 @@ final class AppModel {
     func stopPairing() {
         pairCode = nil
         pairURL = nil
+        pairAppURL = nil
+    }
+
+    /// `papai://pair?u=<url encodée>` : l'appareil photo de l'iPhone ouvre l'app, pas Safari.
+    static func appPairingURL(_ url: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return "papai://pair?u=" + (url.addingPercentEncoding(withAllowedCharacters: allowed) ?? url)
     }
 
     func removeHelper(_ h: Helper) {
@@ -299,6 +309,7 @@ final class AppModel {
         case "pair_code":
             pairCode = m["code"] as? String
             pairURL = m["url"] as? String
+            pairAppURL = m["app_url"] as? String ?? pairURL.map(Self.appPairingURL)
         case "remote_request":
             guard !sessionOpen else { return }
             remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre proche",
