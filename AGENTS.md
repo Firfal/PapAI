@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Claude | `integration` | Centralisation sur main (PR #19, #21, #22), tests et déploiement | tout le dépôt, le temps de l’intégration | 7 nov. soir |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -45,3 +45,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | 7 nov. | Devin | `devin/1794072357-pitch-etat` | Pitch, soumission et démo remis à jour après les fusions de Claude : gardien sur le Mac (PR #8) et renommage (PR #6) désormais dans `main`, R6 = essai réel seulement ; rôle de Devin recompté (66 des 114 commits de `main`) ; `docs/demo.md` : pas d'AnyDesk ouvert, autorisation d'automatisation des navigateurs à donner avant. Fichiers libérés. |
 | 7 nov. | Devin | `devin/1794072473-fiche-captures` | Fiches : `draft_lesson()` envoie à Holo jusqu'à 4 vraies captures de la session (réparties, la dernière toujours incluse) avec la trajectoire ; chaque étape reçoit une capture réelle, celle choisie par Holo ou à défaut celle de sa place dans la session ; sans capture, `refused`. Contrôle ajouté dans `test_protocole.py` (14/14), parcours 26/26, gardien 14/14. |
 | 7 nov. | Devin | `devin/1794072960-accord-une-fois` | Accord de partage d'écran demandé une seule fois (Mac `screenConsent` dans UserDefaults, Windows `screenConsent` dans settings.json) ; « Retirer l'accord de partage » dans Réglages. Tests Windows 36/36 avec faux Holo ; Swift non compilé ici (Linux). Fichiers libérés. |
+| 7 nov. soir | Claude | `integration` → `main` | Centralisation : PR #19 (accord une fois), #22 (appairage iPhone `papai://`, reconnexion), #21 (sécurité #14, #17, #18) fusionnées ; #20 sans code, à fermer. Tests : gardien 14, protocole 14, dictée, parcours 27, sécurité 31, Windows 27 ; iPhone et Mac compilés et installés ; Cloud Run révision 8 déployée depuis main. Plus aucun chantier ouvert. |
