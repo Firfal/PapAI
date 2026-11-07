@@ -1,6 +1,42 @@
 import SwiftUI
 import AVFoundation
 
+enum PairServer {
+    static let refusal = "Lien refusé : PapAI n'accepte que les serveurs sécurisés (https)."
+
+    static func allowed(_ text: String) -> Bool {
+        guard let c = URLComponents(string: text), let host = c.host?.lowercased(),
+              !host.isEmpty, c.user == nil, c.password == nil else { return false }
+        if c.scheme?.lowercased() == "https" { return true }
+        #if DEBUG
+        guard c.scheme?.lowercased() == "http" else { return false }
+        if host == "localhost" || host.hasSuffix(".local") { return true }
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 4, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
+              parts.allSatisfy({ (Int($0) ?? 256) <= 255 }) else { return false }
+        let octets = parts.map { Int($0)! }
+        return octets[0] == 127 || octets[0] == 10 ||
+            (octets[0] == 172 && (16...31).contains(octets[1])) ||
+            (octets[0] == 192 && octets[1] == 168)
+        #else
+        return false
+        #endif
+    }
+
+    static func normalized(_ text: String) -> String {
+        guard var c = URLComponents(string: text) else { return text }
+        c.scheme = c.scheme?.lowercased(); c.host = c.host?.lowercased()
+        if (c.scheme == "https" && c.port == 443) || (c.scheme == "http" && c.port == 80) { c.port = nil }
+        while c.path.hasSuffix("/") { c.path.removeLast() }
+        return c.string ?? text
+    }
+
+    static func sameOrigin(_ lhs: String, _ rhs: String) -> Bool {
+        guard let a = URLComponents(string: normalized(lhs)), let b = URLComponents(string: normalized(rhs)) else { return false }
+        return a.scheme == b.scheme && a.host == b.host && a.port == b.port
+    }
+}
+
 /// Adresse d'appairage : `https://…[/k/<clé>]/p/<code>`, éventuellement dans `papai://pair?u=…`.
 struct PairLink: Identifiable, Equatable {
     let id = UUID()
@@ -8,6 +44,7 @@ struct PairLink: Identifiable, Equatable {
     var base: String
     /// nil : le code sera tapé à la main.
     var code: String?
+    var senior: String?
 
     var host: String { URL(string: base)?.host ?? base }
     var origin: String {
@@ -22,9 +59,11 @@ struct PairLink: Identifiable, Equatable {
         if scheme == "papai" {
             guard let inner = c.queryItems?.first(where: { $0.name == "u" })?.value,
                   !inner.lowercased().hasPrefix("papai:") else { return nil }
-            return parse(inner)
+            guard var link = parse(inner) else { return nil }
+            link.senior = c.queryItems?.first(where: { $0.name == "n" })?.value ?? link.senior
+            return link
         }
-        guard scheme == "http" || scheme == "https", let host = c.host, !host.isEmpty,
+        guard PairServer.allowed(t), let host = c.host, !host.isEmpty,
               let m = c.path.wholeMatch(of: /(.*)\/p\/(\d{6})\/?/) else { return nil }
         let origin = "\(scheme)://\(host)" + (c.port.map { ":\($0)" } ?? "")
         return PairLink(base: origin + m.1, code: String(m.2))
@@ -43,6 +82,7 @@ struct PairSheet: View {
     @State private var name = ""
     @State private var relation = ""
     @State private var code = ""
+    @State private var confirmReplace = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -57,10 +97,18 @@ struct PairSheet: View {
         .presentationDetents([.large])
         .interactiveDismissDisabled(model.pairBusy)
         .onAppear { if name.isEmpty { name = model.helperName ?? "" } }
+        .alert("Remplacer la liaison ?", isPresented: $confirmReplace) {
+            Button("Remplacer", role: .destructive) {
+                Task { await model.submitPair(link, code: code, name: name, relation: relation, confirmedReplace: true) }
+            }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("Ceci remplacera votre liaison \(model.connected ? "active " : "")avec \(model.senior) (\(model.displayHost)) par \(link.host). Les demandes de \(model.senior) n'arriveront plus sur ce téléphone.")
+        }
     }
 
     @ViewBuilder private var form: some View {
-        Text("Rejoindre \(model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
+        Text("Rejoindre \(link.senior ?? model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
         Text("Vous serez prévenu quand elle demande de l’aide sur son ordinateur. Rien ne bouge sans votre accord.")
             .font(.system(size: 15)).foregroundStyle(Soin.secondary)
         if link.code == nil {
@@ -74,7 +122,7 @@ struct PairSheet: View {
         label("Votre prénom")
         TextField("Claire", text: $name)
             .textContentType(.givenName).font(.system(size: 17)).padding(16).soinCard(radius: 18)
-        label("Votre lien avec \(model.senior)")
+        label("Votre lien avec \(link.senior ?? model.senior)")
         FlowLayout(spacing: 8) {
             ForEach(relations, id: \.value) { r in
                 Button { relation = relation == r.value ? "" : r.value } label: {
@@ -88,9 +136,12 @@ struct PairSheet: View {
         if let e = model.pairError {
             Text(e).font(.system(size: 15, weight: .semibold)).foregroundStyle(.red)
         }
-        Text("Serveur : \(link.host)").font(.system(size: 13)).foregroundStyle(Soin.secondary)
+        Text("Vous allez vous relier à \(link.host)")
+            .font(.system(size: 19, weight: .bold)).foregroundStyle(Soin.ink)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(18).soinCard(Soin.accentSoft)
         Button {
-            Task { await model.submitPair(link, code: code, name: name, relation: relation) }
+            if model.needsReplaceConfirmation(link) { confirmReplace = true }
+            else { Task { await model.submitPair(link, code: code, name: name, relation: relation) } }
         } label: {
             if model.pairBusy { ProgressView().tint(.white) } else { Text("Rejoindre") }
         }
@@ -171,7 +222,7 @@ struct ScannerSheet: View {
     }
 
     private func found(_ text: String) -> Bool {
-        guard let link = PairLink.parse(text) else { wrongCode = true; return false }
+        guard let link = PairLink.parse(text) else { problem = PairServer.refusal; return false }
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         model.openPair(link)
         return true

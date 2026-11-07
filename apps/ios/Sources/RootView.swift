@@ -157,7 +157,12 @@ struct SettingsView: View {
                     }
                     .font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.accent)
                 }
-                Button("Enregistrer et se connecter") { model.applySettings(server: server, key: key); dismiss() }
+                if let error = model.pairError {
+                    Text(error).font(.system(size: 15, weight: .semibold)).foregroundStyle(.red)
+                }
+                Button("Enregistrer et se connecter") {
+                    if model.applySettings(server: server, key: key) { dismiss() }
+                }
                     .buttonStyle(CapsuleButtonStyle())
                     .disabled(server.trimmingCharacters(in: .whitespaces).isEmpty || key.trimmingCharacters(in: .whitespaces).isEmpty)
                     .padding(.top, 8)
