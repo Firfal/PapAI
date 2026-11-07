@@ -89,7 +89,8 @@ fun CaptureView() {
     val img = m.frame
     if (img == null) {
         Box(Modifier.fillMaxWidth().heightIn(min = 180.dp).soinCard(), contentAlignment = Alignment.Center) {
-            T("En attente de la première capture d'écran…", 15.sp, color = Soin.secondary)
+            T(if (m.webLive) "En attente de la première image de Chrome PapAI…"
+              else "En attente de la première capture d'écran…", 15.sp, color = Soin.secondary)
         }
         return
     }
@@ -114,7 +115,7 @@ fun CaptureView() {
                 }
             },
     ) {
-        Image(img, if (m.sessionWhere == "web") m.webBrowserTitle else "Écran de ${m.senior}",
+        Image(img, if (m.webLive) m.webBrowserTitle else "Écran de ${m.senior}",
             Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
         val t = m.target
         if (m.aiming && t != null) Canvas(Modifier.fillMaxSize()) {
@@ -189,14 +190,14 @@ fun HelperScreen() {
                 }
             }
         }
-        if (m.sessionWhere == "web") {
+        if (m.webLive) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 T(m.webBrowserTitle, 17.sp, FontWeight.SemiBold)
                 T("Holo agit seulement dans le navigateur. Répondez à ses questions ici.", 13.sp, color = Soin.secondary)
             }
         }
         CaptureView()
-        if (m.sessionWhere != "web") {
+        if (!m.webLive) {
             if (m.aiming) AimBar() else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 CapsuleButton("Prendre la main") { m.setAimingOn(true) }
                 T("Vous pouvez cliquer vous-même sur l'écran de ${m.senior}.", 13.sp, color = Soin.secondary)

@@ -348,6 +348,9 @@ final class HelperModel {
         let firstName = seniorName.split(whereSeparator: \.isWhitespace).first.map(String.init)
         return firstName.map { "Chrome PapAI de \($0)" } ?? "Chrome PapAI"
     }
+    var webLive: Bool {
+        sessionWhere == "web" && (state == "active" || state == "awaiting_helper")
+    }
 
     func setSenior(_ name: String?) {
         let n = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -484,7 +487,9 @@ final class HelperModel {
         case "status":
             let newState = m["state"] as? String
             let sid = "\(m["session"] ?? "")"
+            var wasWebLive = webLive
             if sid != sessionId {
+                wasWebLive = false
                 liveDictation = nil
                 sessionId = sid; requestStart = Date(); iRefusedPlan = false
                 sessionWhere = nil
@@ -492,8 +497,10 @@ final class HelperModel {
                 pausing = false; doneFresh = false
             }
             let newWhere = m["where"] as? String
-            if newWhere == "web" && sessionWhere != "web" {
+            let newWebLive = newWhere == "web" && (newState == "active" || newState == "awaiting_helper")
+            if newWebLive && !wasWebLive {
                 aiming = false; target = nil; sending = false
+                frame = nil; frameId = nil; frameAt = nil
             }
             sessionWhere = newWhere
             if newState != state {

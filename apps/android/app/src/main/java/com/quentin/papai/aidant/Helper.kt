@@ -104,6 +104,7 @@ object Helper {
     // Session
     var state by mutableStateOf<String?>(null)
     var sessionWhere by mutableStateOf<String?>(null)
+    val webLive get() = sessionWhere == "web" && (state == "active" || state == "awaiting_helper")
     var task by mutableStateOf("")
     var plan by mutableStateOf<List<String>>(emptyList())
     var planStep by mutableStateOf<Int?>(null)
@@ -486,7 +487,9 @@ object Helper {
                 val newState = m.text("state").ifEmpty { null }
                 val newWhere = m.text("where").ifEmpty { null }
                 val sid = m.text("session")
+                var wasWebLive = webLive
                 if (sid != sessionId) {
+                    wasWebLive = false
                     liveDictation = null
                     sessionId = sid; requestStart = System.currentTimeMillis(); iRefusedPlan = false
                     sessionWhere = null
@@ -495,8 +498,10 @@ object Helper {
                     pausing = false; doneFresh = false
                     frame = null; frameId = null; frameAt = null
                 }
-                if (newWhere == "web" && sessionWhere != "web") {
+                val newWebLive = newWhere == "web" && (newState == "active" || newState == "awaiting_helper")
+                if (newWebLive && !wasWebLive) {
                     aiming = false; target = null; sending = false
+                    frame = null; frameId = null; frameAt = null
                 }
                 sessionWhere = newWhere
                 val q = m.optJSONObject("question")

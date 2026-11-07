@@ -471,16 +471,24 @@ function browserTitle() {
   return firstName ? `Chrome PapAI de ${firstName}` : 'Chrome PapAI';
 }
 
+function webLive() {
+  return sessionWhere === 'web' && ['active', 'awaiting_helper'].includes(state);
+}
+
 function render() {
   const s = screen();
+  const isWebLive = webLive();
   $('allWell').hidden = !$('alert').hidden;
   $('v-idle').hidden = s !== 'idle';
   $('v-request').hidden = !['waiting', 'planning', 'approval'].includes(s);
   $('v-live').hidden = !['active', 'helper'].includes(s);
-  $('browserLabel').hidden = sessionWhere !== 'web' || !['active', 'helper'].includes(s);
+  $('browserLabel').hidden = !isWebLive;
   $('browserTitle').textContent = browserTitle();
-  $('thumbTitle').textContent = sessionWhere === 'web' ? browserTitle() : 'Son écran';
-  $('frame').alt = sessionWhere === 'web' ? browserTitle() : 'Écran de votre proche';
+  $('thumbTitle').textContent = isWebLive ? browserTitle() : 'Son écran';
+  $('frame').alt = isWebLive ? browserTitle() : 'Écran de votre proche';
+  $('empty').textContent = isWebLive
+    ? 'En attente de la première image de Chrome PapAI…'
+    : "En attente de la première capture d'écran…";
   $('v-done').hidden = s !== 'done';
   $('v-stopped').hidden = s !== 'stopped';
   $('b-approval').hidden = s !== 'approval';
@@ -500,8 +508,8 @@ function render() {
   $('working').hidden = s !== 'active';
   $('workingTask').textContent = task ? `« ${task} »` : '';
   $('question').hidden = s !== 'helper' || armed || !$('qtext').textContent;
-  $('hand').hidden = s !== 'helper' || armed || sessionWhere === 'web';
-  $('aimbar').hidden = !armed || sessionWhere === 'web';
+  $('hand').hidden = s !== 'helper' || armed || isWebLive;
+  $('aimbar').hidden = !armed || isWebLive;
 
   $('doneTask').textContent = task ? `« ${task} »` : '';
   $('makeWrap').hidden = !!savedTitle || hasDraft;
@@ -633,14 +641,25 @@ function onMessage(ev) {
   if (m.type === 'status') {
     sawStatus = true;
     const prev = state;
+    let wasWebLive = webLive();
     state = m.state;
     sessionWhere = typeof m.where === 'string' ? m.where : null;
-    if (sessionWhere === 'web' && armed) setArmed(false);
     stoppedBy = m.stopped_by || null;
     executionStarted = typeof m.execution_started === 'boolean' ? m.execution_started : null;
     if (m.task !== undefined) task = m.task || '';
-    if (m.session !== sessionId) { sessionId = m.session; requestAt = Date.now(); }
+    if (m.session !== sessionId) {
+      wasWebLive = false;
+      sessionId = m.session; requestAt = Date.now();
+    }
     if (!requestAt) requestAt = Date.now();
+    if (webLive() && !wasWebLive) {
+      frameId = null; frameAt = 0; frameSrc = '';
+      $('frame').removeAttribute('src'); $('frame').style.display = 'none';
+      $('empty').style.display = '';
+      $('thumbImg').removeAttribute('src');
+      $('thumb').hidden = true;
+      if (armed) setArmed(false);
+    }
     if (['waiting_consent', 'planning'].includes(state) && prev !== state) {
       home = false;
       if (prev === null || ['done', 'stopped'].includes(prev)) {

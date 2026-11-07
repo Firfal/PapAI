@@ -83,7 +83,7 @@ struct CaptureView: View {
         if let img = model.frame {
             Image(uiImage: img).resizable().aspectRatio(img.size, contentMode: .fit)
                 .frame(maxWidth: .infinity)
-                .accessibilityLabel(model.sessionWhere == "web" ? model.webBrowserTitle : "Écran de \(model.senior)")
+                .accessibilityLabel(model.webLive ? model.webBrowserTitle : "Écran de \(model.senior)")
                 .overlay {
                     GeometryReader { g in
                         ZStack {
@@ -102,7 +102,9 @@ struct CaptureView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(model.aiming ? Soin.accent : .clear, lineWidth: 2))
         } else {
-            Text("En attente de la première capture d’écran…")
+            Text(model.webLive
+                 ? "En attente de la première image de Chrome PapAI…"
+                 : "En attente de la première capture d’écran…")
                 .font(.system(size: 15)).foregroundStyle(Soin.secondary)
                 .frame(maxWidth: .infinity, minHeight: 180).soinCard()
         }
@@ -161,7 +163,7 @@ struct HelperView: View {
                 } else if let q = model.question {
                     questionCard(q)
                 }
-                if model.sessionWhere == "web" {
+                if model.webLive {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(model.webBrowserTitle).font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
                         Text("Holo agit seulement dans le navigateur. Répondez à ses questions ici.")
@@ -169,7 +171,7 @@ struct HelperView: View {
                     }
                 }
                 CaptureView(model: model)
-                if model.sessionWhere != "web" {
+                if !model.webLive {
                     if model.aiming { aimBar } else { handButton }
                 }
             }
