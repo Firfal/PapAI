@@ -55,8 +55,8 @@ struct SessionView: View {
             // Le suivi passe avant la mascotte : elle rapetisse puis s'efface avant que le contenu défile.
             ViewThatFits(in: .vertical) {
                 if !guardStopped {
-                    carte(mascotte: 130 * CGFloat(model.textScale))
-                    carte(mascotte: 80)
+                    carte(mascotte: Mascotte.Taille.session)
+                    carte(mascotte: Mascotte.Taille.sessionReduite)
                 }
                 carte(mascotte: nil)
                 carte(mascotte: nil, defile: true)

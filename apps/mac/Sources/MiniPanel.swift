@@ -65,7 +65,7 @@ private struct MiniView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Mascotte(humeur: model.paused || !model.sessionOpen ? .calme : .joyeuse, anime: false)
-                    .frame(width: 30, height: 30)
+                    .frame(width: Mascotte.Taille.encart, height: Mascotte.Taille.encart)
                 Text(title).font(rounded(17, .semibold)).foregroundStyle(T.ink).lineLimit(1)
                 Spacer(minLength: 0)
                 Button { model.expandWindow() } label: {
