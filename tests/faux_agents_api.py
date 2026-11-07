@@ -142,7 +142,7 @@ class FauxAgentsAPI:
                     corps = self._corps()
                     sid = f"h{len(api.sessions) + 1}"
                     api.sessions[sid] = FauxSession(sid, corps, api.scenario)
-                    return self._json(200, {"id": sid, "status": "running", "created_at": _now(), "request": corps})
+                    return self._json(200, {"id": sid, "status": {"status": "running"}, "created_at": _now(), "request": corps})
                 s = api.sessions.get(parts[3]) if len(parts) > 3 else None
                 if s is None:
                     return self._json(404, {"detail": "session"})
