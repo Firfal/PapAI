@@ -143,7 +143,7 @@ struct SettingsView: View {
                 field("Adresse du serveur", text: $server, prompt: "https://…/k/<clé famille>")
                 field("Clé aidant", text: $key, prompt: "demo")
                 HStack(alignment: .top, spacing: 6) {
-                    Circle().fill(model.connected ? Soin.accent : (model.linkError == nil ? Soin.secondary : .red))
+                    Circle().fill(model.connected ? Soin.accent : (model.linkError == nil ? Soin.secondary : Soin.danger))
                         .frame(width: 8, height: 8).padding(.top, 5)
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         Text(model.isConfigured ? ConnectionText.line(model, now: ctx.date) : "Non configuré")
@@ -157,7 +157,12 @@ struct SettingsView: View {
                     }
                     .font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.accent)
                 }
-                Button("Enregistrer et se connecter") { model.applySettings(server: server, key: key); dismiss() }
+                if let error = model.pairError {
+                    Text(error).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.danger)
+                }
+                Button("Enregistrer et se connecter") {
+                    if model.applySettings(server: server, key: key) { dismiss() }
+                }
                     .buttonStyle(CapsuleButtonStyle())
                     .disabled(server.trimmingCharacters(in: .whitespaces).isEmpty || key.trimmingCharacters(in: .whitespaces).isEmpty)
                     .padding(.top, 8)

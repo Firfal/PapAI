@@ -39,7 +39,6 @@ targets:
             CFBundleURLSchemes: [papai]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
-          NSAllowsArbitraryLoads: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.quentin.papai.aidant
