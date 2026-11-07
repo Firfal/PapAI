@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794084327-ios-modifier-dictee` | iPhone : glisser une étape pour la modifier, dictée vocale (Gladia + SFSpeech) | `apps/ios/Sources/ApprovalView.swift`, `apps/ios/Sources/Dictation.swift` (nouveau, remplace `VoiceInput.swift`), carte de question de `apps/ios/Sources/LiveViews.swift`, `apps/ios/Sources/DebugDriver.swift`, `apps/ios/project.yml` | 7 nov. soir |
 
 ## Journal
 
