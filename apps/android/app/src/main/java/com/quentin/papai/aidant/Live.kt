@@ -72,7 +72,8 @@ fun ActiveScreen() {
                     else CircularProgressIndicator(Modifier.size(14.dp), color = Soin.accent, strokeWidth = 2.dp)
                     T(caption, 13.sp, FontWeight.SemiBold, Soin.secondary)
                 }
-                T(if (m.seniorPaused) "${m.seniorTitle} a mis l'aide en pause. Holo attend la reprise."
+                T(if (m.webLive) "Holo travaille dans ${m.webBrowserTitle}"
+                  else if (m.seniorPaused) "${m.seniorTitle} a mis l'aide en pause. Holo attend la reprise."
                   else m.doing ?: "Holo regarde l'écran de ${m.senior}…", 19.sp, FontWeight.SemiBold, maxLines = 3)
             }
         }
@@ -173,7 +174,8 @@ fun HelperScreen() {
             if (img != null && t != null) Loupe(img, t)
         } else if (q != null) {
             Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                T(if (m.questionToSenior) "Question posée à ${m.senior} sur son écran. Vous pouvez aussi répondre."
+                T(if (m.webLive) "Holo a une question"
+                  else if (m.questionToSenior) "Question posée à ${m.senior} sur son écran. Vous pouvez aussi répondre."
                   else "${m.seniorTitle} a besoin de vous", 13.sp, color = Soin.secondary)
                 T(q.text, 20.sp, FontWeight.SemiBold)
                 if (q.options.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

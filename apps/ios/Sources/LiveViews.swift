@@ -19,7 +19,11 @@ struct ActiveView: View {
                         else { ProgressView().tint(Soin.accent).controlSize(.small) }
                         Text(caption).font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.secondary)
                     }
-                    Text(model.seniorPaused ? "\(model.seniorTitle) a mis l’aide en pause. Holo attend la reprise." : (model.doing ?? "Holo regarde l’écran de \(model.senior)…"))
+                    Text(model.webLive
+                         ? "Holo travaille dans \(model.webBrowserTitle)"
+                         : model.seniorPaused
+                             ? "\(model.seniorTitle) a mis l’aide en pause. Holo attend la reprise."
+                             : (model.doing ?? "Holo regarde l’écran de \(model.senior)…"))
                         .font(.system(size: 19, weight: .semibold)).foregroundStyle(Soin.ink)
                         .lineLimit(3).fixedSize(horizontal: false, vertical: true)
                         .contentTransition(.opacity)
@@ -183,9 +187,11 @@ struct HelperView: View {
 
     private func questionCard(_ q: (text: String, options: [String])) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(model.questionToSenior
-                 ? "Question posée à \(model.senior) sur son écran. Vous pouvez aussi répondre."
-                 : "\(model.seniorTitle) a besoin de vous").font(.system(size: 13)).foregroundStyle(Soin.secondary)
+            Text(model.webLive
+                 ? "Holo a une question"
+                 : model.questionToSenior
+                     ? "Question posée à \(model.senior) sur son écran. Vous pouvez aussi répondre."
+                     : "\(model.seniorTitle) a besoin de vous").font(.system(size: 13)).foregroundStyle(Soin.secondary)
             Text(q.text).font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
             if !q.options.isEmpty {
                 FlowLayout(spacing: 8) {

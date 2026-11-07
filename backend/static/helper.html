@@ -280,7 +280,7 @@
   <!-- Holo agit, ou l'aidant a la main -->
   <section id="v-live" class="stack" hidden>
     <div class="mint question" id="question" hidden>
-      <small>Votre proche a besoin de vous</small>
+      <small id="questionTitle">Votre proche a besoin de vous</small>
       <h2 id="qtext"></h2>
       <div class="options" id="options"></div>
       <div class="reply">
@@ -300,7 +300,7 @@
     </div>
     <div class="card working" id="working">
       <div class="spinner"></div>
-      <div><strong>Holo travaille sur l'ordinateur de votre proche</strong><small id="workingTask"></small></div>
+      <div><strong id="workingTitle">Holo travaille sur l'ordinateur de votre proche</strong><small id="workingTask"></small></div>
     </div>
     <div class="hand" id="hand" hidden>
       <button class="capsule" id="arm" type="button">Prendre la main</button>
@@ -506,7 +506,11 @@ function render() {
     : '<svg class="i" style="width:16px;height:16px;stroke-width:3"><use href="#i-check"/></svg>';
 
   $('working').hidden = s !== 'active';
+  $('workingTitle').textContent = isWebLive
+    ? `Holo travaille dans ${browserTitle()}`
+    : "Holo travaille sur l'ordinateur de votre proche";
   $('workingTask').textContent = task ? `« ${task} »` : '';
+  $('questionTitle').textContent = isWebLive ? 'Holo a une question' : 'Votre proche a besoin de vous';
   $('question').hidden = s !== 'helper' || armed || !$('qtext').textContent;
   $('hand').hidden = s !== 'helper' || armed || isWebLive;
   $('aimbar').hidden = !armed || isWebLive;
