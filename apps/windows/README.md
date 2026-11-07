@@ -35,8 +35,8 @@ accessibilité, contrairement à macOS.
 | Session : plan affiché, états, bouton Arrêter | ✅ |
 | Pas à pas d'un automatisme | ✅ |
 | Capture, exclusion de la fenêtre PapAI | ✅ |
-| Clics, saisie, touches, défilement | ✅ codés, pas encore exercés |
-| Verrou d'arrêt local | ✅ |
+| Clics, saisie, touches, défilement | ✅ exercés sur un vrai écran |
+| Verrou d'arrêt local | ✅ vérifié : clic refusé, souris immobile |
 | Gardien anti-arnaque (processus + fenêtre active) | ✅ |
 | URL du navigateur pour le gardien | ⬜ le Mac l'obtient par AppleScript, pas d'équivalent simple ici |
 | Icônes réelles des applications | ⬜ symboles en attendant |

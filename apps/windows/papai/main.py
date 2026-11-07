@@ -130,6 +130,14 @@ async def reseau() -> None:
                 _ws = ws
                 await ws.send(json.dumps({"type": "hello", "os": "windows"}))
                 vers_ui.put(("connexion", True))
+                # Comme sur le Mac : PAPAI_AUTOTASK lance une demande dès la
+                # connexion, pour essayer sans cliquer.
+                auto = os.environ.get("PAPAI_AUTOTASK", "").strip()
+                if auto and not getattr(reseau, "_auto_fait", False):
+                    reseau._auto_fait = True
+                    gate.reset()
+                    await ws.send(json.dumps({"type": "help_request", "task": auto}))
+                    print(f'[papai] demande automatique : {auto}', flush=True)
                 veille = asyncio.create_task(gardien(ws, screen))
                 try:
                     async for brut in ws:
