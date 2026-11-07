@@ -40,6 +40,7 @@ struct HomeView: View {
             if bullePossible(128 * CGFloat(model.textScale)) { helpContent(mascotte: 128 * CGFloat(model.textScale)) }
             if bullePossible(72) { helpContent(mascotte: 72) }
             helpContent(mascotte: nil)
+            helpContent(mascotte: nil, compact: true)
         }
         .foregroundStyle(T.ink)
         .padding(32)
@@ -57,13 +58,15 @@ struct HomeView: View {
         largeurCarte - 64 - taille - (taille > 100 ? 26 : 18) - 44 >= 240
     }
 
-    private func helpContent(mascotte taille: CGFloat?) -> some View {
+    /// `compact` : micro réduit, quand le champ d'écriture et un avertissement s'ajoutent au micro.
+    private func helpContent(mascotte taille: CGFloat?, compact: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 0) {
           VStack(alignment: .leading, spacing: 16) {
             TimelineView(.everyMinute) { ctx in
                 let hello = Greeting.word(at: ctx.date)
                 Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName) !")
                     .font(rounded(44, .bold)).tracking(-0.8)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
             if let taille {
                 HStack(alignment: .center, spacing: taille > 100 ? 26 : 18) {
@@ -78,7 +81,11 @@ struct HomeView: View {
           VStack(alignment: .leading, spacing: 16) {
             if raccourcis.microPresent {
                 VStack(spacing: 12) {
-                    micButton
+                    if compact {
+                        micButton.scaleEffect(0.66).frame(width: 120, height: 120)
+                    } else {
+                        micButton
+                    }
                     Text(dictation.phase == .listening ? "Je vous écoute…" :
                          dictation.phase == .transcribing ? "Je note…" : "Parler à PapAI")
                         .font(rounded(22, .bold))
@@ -114,8 +121,9 @@ struct HomeView: View {
             if let warning {
                 Label(warning, systemImage: "exclamationmark.circle")
                     .font(rounded(17, .semibold))
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 18).padding(.vertical, 12)
-                    .background(Capsule().fill(T.card))
+                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(T.card))
             }
           }
           Spacer(minLength: 0)
