@@ -187,7 +187,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(s.state, State.STOPPED)
         self.assertEqual(s.status()["stopped_by"], "gardien")
         self.assertFalse(s.plan_approved)
-        a = app.pending_alert
+        a = app.S().pending_alert
         self.assertIn("votre petit-fils Quentin", a["senior"]["detail"])
         self.assertIn("Sophie", a["helper"]["title"])
         self.assertIn(s.task, a["helper"]["detail"])
@@ -202,7 +202,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
             await app.run_session(s, self.link)
         runner.assert_not_called()
         self.assertIsNone(s.plan)
-        self.assertEqual(app.pending_alert["helper"]["source"], "plan")
+        self.assertEqual(app.S().pending_alert["helper"]["source"], "plan")
 
     async def test_plan_revise_verifie_aussi(self):
         s = self.session()
@@ -222,13 +222,13 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
             for texte in LEGITIMES:
                 self.assertFalse(await app.check_request(self.session(texte), texte, "request"))
         client.with_options.assert_not_called()
-        self.assertIsNone(app.pending_alert)
+        self.assertIsNone(app.S().pending_alert)
 
     async def test_avis_holo_suspect_normal_et_invalide(self):
         for avis, bloque in [({"suspect": True, "raison": "Le gain est douteux"}, True),
                              ({"suspect": False}, False), ({"suspect": "false"}, False)]:
             with self.subTest(avis=avis):
-                app.pending_alert = None
+                app.S().pending_alert = None
                 resp = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(avis)))])
                 with patch("backend.agent.client") as client:
                     client.with_options.return_value.chat.completions.create.return_value = resp
@@ -241,7 +241,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
             s = self.session("Un investissement proposé au téléphone")
             self.assertFalse(await app.check_request(s, s.task, "request"))
         self.assertEqual(s.state, State.PLANNING)
-        self.assertIsNone(app.pending_alert)
+        self.assertIsNone(app.S().pending_alert)
         self.link.send.assert_not_awaited()
         args = self.broadcast.await_args
         self.assertEqual(args.args[0]["type"], "guard_advice")
@@ -267,7 +267,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(0.01)
                 self.assertEqual(s.state, State.AWAITING_APPROVAL)
                 self.assertFalse(s.plan_approved)
-                self.assertIsNone(app.pending_alert)
+                self.assertIsNone(app.S().pending_alert)
                 self.link.send.assert_not_awaited()
                 runner.assert_not_called()
             finally:
@@ -278,11 +278,11 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
     async def test_rejet_identifie_ne_reprend_pas(self):
         s = self.session(SUSPECTES[0])
         await app.check_request(s, s.task, "request")
-        aid = app.pending_alert["helper"]["alert_id"]
+        aid = app.S().pending_alert["helper"]["alert_id"]
         await app.dismiss_guard({"alert_id": "inconnu"}, self.ws)
-        self.assertIsNotNone(app.pending_alert)
+        self.assertIsNotNone(app.S().pending_alert)
         await app.dismiss_guard({"alert_id": aid}, self.ws)
-        self.assertIsNone(app.pending_alert)
+        self.assertIsNone(app.S().pending_alert)
         self.assertEqual(s.state, State.STOPPED)
         self.broadcast.assert_any_await({"type": "alert_cleared", "alert_id": aid, "session": s.id})
 
@@ -291,7 +291,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         old.stop(by="proche")
         s = self.session(SUSPECTES[0])
         await app.check_request(s, s.task, "request")
-        aid = app.pending_alert["helper"]["alert_id"]
+        aid = app.S().pending_alert["helper"]["alert_id"]
         self.ws.receive_json.side_effect = [
             {"type": "dismiss_alert", "alert_id": aid}, WebSocketDisconnect(),
         ]
@@ -299,8 +299,8 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         messages = [c.args[0] for c in self.ws.send_json.await_args_list]
         self.assertFalse(any(m["type"] == "alert" for m in messages))
         self.assertTrue(any(m["type"] == "refused" for m in messages))
-        self.assertIsNotNone(app.pending_alert)
-        self.assertNotIn(self.ws, app.helper_alert_scopes)
+        self.assertIsNotNone(app.S().pending_alert)
+        self.assertNotIn(self.ws, app.S().helper_alert_scopes)
 
         self.ws.send_json.reset_mock()
         self.ws.receive_json.side_effect = [
@@ -309,19 +309,19 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         await app.ws_helper(self.ws, s.helper_token)
         messages = [c.args[0] for c in self.ws.send_json.await_args_list]
         self.assertTrue(any(m["type"] == "alert" for m in messages))
-        self.assertIsNone(app.pending_alert)
+        self.assertIsNone(app.S().pending_alert)
         self.assertEqual(s.state, State.STOPPED)
 
     async def test_cle_famille_recoit_et_rejette_alerte_sans_session(self):
         await app.publish_guard(guard._risque("Support frauduleux"), "environment")
-        aid = app.pending_alert["helper"]["alert_id"]
+        aid = app.S().pending_alert["helper"]["alert_id"]
         self.ws.receive_json.side_effect = [
             {"type": "dismiss_alert", "alert_id": aid}, WebSocketDisconnect(),
         ]
         await app.ws_aidant(self.ws, app.AIDANT_KEY)
         self.assertTrue(any(c.args[0]["type"] == "alert" for c in self.ws.send_json.await_args_list))
-        self.assertIsNone(app.pending_alert)
-        self.assertNotIn(self.ws, app.helper_alert_scopes)
+        self.assertIsNone(app.S().pending_alert)
+        self.assertNotIn(self.ws, app.S().helper_alert_scopes)
 
     async def test_diffusion_alerte_et_effacement_respecte_portee(self):
         s = self.session(SUSPECTES[0])
@@ -329,10 +329,10 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         same = Mock(send_json=AsyncMock())
         other = Mock(send_json=AsyncMock())
         unknown = Mock(send_json=AsyncMock())
-        app.helper_alert_scopes.update({same: s.id, other: "autre-session"})
-        app.helper_sockets.update([self.ws, same, other, unknown])
+        app.S().helper_alert_scopes.update({same: s.id, other: "autre-session"})
+        app.S().helper_sockets.update([self.ws, same, other, unknown])
         for kind in ["alert", "alert_cleared", "alert_acknowledged", "guard_advice"]:
-            payload = {**app.pending_alert["helper"], "type": kind}
+            payload = {**app.S().pending_alert["helper"], "type": kind}
             if kind == "guard_advice":
                 payload.pop("alert_id")
             await self.real_broadcast(payload, to_bridge=False)
@@ -343,8 +343,8 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
 
     async def test_alerte_raccourci_historique_diffusee_aux_liens_session(self):
         old = Mock(send_json=AsyncMock())
-        app.helper_sockets.update([self.ws, old])
-        app.helper_alert_scopes[old] = "ancienne-session"
+        app.S().helper_sockets.update([self.ws, old])
+        app.S().helper_alert_scopes[old] = "ancienne-session"
         alert = {"type": "alert", "title": "Raccourci introuvable", "detail": "Le dossier a changé."}
         await self.real_broadcast(alert)
         old.send_json.assert_awaited_with(alert)
@@ -354,22 +354,22 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
     async def test_prise_en_charge_anonyme_sans_fermeture_ni_reprise(self):
         s = self.session(SUSPECTES[0])
         await app.check_request(s, s.task, "request")
-        aid = app.pending_alert["helper"]["alert_id"]
+        aid = app.S().pending_alert["helper"]["alert_id"]
         other = Mock(send_json=AsyncMock())
-        app.helper_alert_scopes[other] = "autre-session"
+        app.S().helper_alert_scopes[other] = "autre-session"
         await app.acknowledge_guard({"alert_id": aid}, other)
         other.send_json.assert_awaited()
-        self.assertNotIn("acknowledged_by", app.pending_alert["helper"])
-        self.assertFalse(app.pending_alert["helper"].get("acknowledged"))
+        self.assertNotIn("acknowledged_by", app.S().pending_alert["helper"])
+        self.assertFalse(app.S().pending_alert["helper"].get("acknowledged"))
         with patch.object(app, "helper_who", {self.ws: {"name": "Quentin"}}):
             await app.acknowledge_guard({"alert_id": "périmé"}, self.ws)
-            self.assertNotIn("acknowledged_by", app.pending_alert["helper"])
-            self.assertFalse(app.pending_alert["helper"].get("acknowledged"))
+            self.assertNotIn("acknowledged_by", app.S().pending_alert["helper"])
+            self.assertFalse(app.S().pending_alert["helper"].get("acknowledged"))
             await app.acknowledge_guard({"alert_id": aid, "name": "Usurpation"}, self.ws)
             await app.acknowledge_guard({"alert_id": aid}, self.ws)
-        self.assertTrue(app.pending_alert["helper"]["acknowledged"])
-        self.assertTrue(app.pending_alert["senior"]["acknowledged"])
-        self.assertNotIn("acknowledged_by", app.pending_alert["senior"])
+        self.assertTrue(app.S().pending_alert["helper"]["acknowledged"])
+        self.assertTrue(app.S().pending_alert["senior"]["acknowledged"])
+        self.assertNotIn("acknowledged_by", app.S().pending_alert["senior"])
         self.assertTrue(s.status()["guard_acknowledged"])
         self.assertEqual(s.status()["stopped_by"], "gardien")
         self.broadcast.assert_any_await({"type": "alert_acknowledged", "alert_id": aid,
@@ -377,15 +377,15 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         await app.ws_helper(self.ws, s.helper_token)
         self.assertTrue(any(c.args[0].get("acknowledged") is True
                             for c in self.ws.send_json.await_args_list))
-        app.helper_alert_scopes[self.ws] = None
+        app.S().helper_alert_scopes[self.ws] = None
         await app.dismiss_guard({"alert_id": aid}, self.ws)
-        self.assertIsNone(app.pending_alert)
+        self.assertIsNone(app.S().pending_alert)
         self.assertEqual(s.status()["stopped_by"], "gardien")
 
     async def test_accuse_anonyme_rejoue_et_conserve_apres_rejet(self):
         s = self.session(SUSPECTES[0])
         await app.check_request(s, s.task, "request")
-        aid = app.pending_alert["helper"]["alert_id"]
+        aid = app.S().pending_alert["helper"]["alert_id"]
         await app.acknowledge_guard({"alert_id": aid}, self.ws)
         await app.dismiss_guard({"alert_id": aid}, self.ws)
         self.assertTrue(s.status()["guard_acknowledged"])
@@ -397,7 +397,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         s = self.session(SUSPECTES[0])
         await app.check_request(s, s.task, "request")
         self.assertIs(s.status()["execution_started"], False)
-        await app.dismiss_guard({"alert_id": app.pending_alert["helper"]["alert_id"]}, self.ws)
+        await app.dismiss_guard({"alert_id": app.S().pending_alert["helper"]["alert_id"]}, self.ws)
         self.assertIs(s.status()["execution_started"], False)
 
     async def test_action_holo_en_cours_comptee_meme_sans_resultat(self):
@@ -447,7 +447,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
             await app.handle_guard({"processes": ["AnyDesk"], "url": "https://ma-banque.fr"})
         avis.assert_not_called()
         self.assertEqual(s.state, State.STOPPED)
-        self.assertIn("Prenez contact avec ", app.pending_alert["helper"]["detail"])
+        self.assertIn("Prenez contact avec ", app.S().pending_alert["helper"]["detail"])
 
     async def test_execute_refuse_si_alerte_en_attente(self):
         await app.check_request(self.session(SUSPECTES[0]), SUSPECTES[0], "request")

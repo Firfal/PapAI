@@ -1,7 +1,8 @@
 """Relier un support avec le seul code à 6 chiffres, sans adresse ni clé.
 
-Serveur temporaire en mode en ligne (PAPAI_PUBLIC=1) : l'ordinateur se connecte
-avec la clé, le support ne connaît que le code tapé et reçoit `server` et `key`.
+Serveur temporaire en mode en ligne (PAPAI_PUBLIC=1) avec plusieurs espaces :
+chaque ordinateur reçoit sa clé au premier lancement, le support ne connaît que
+le code tapé, l'ordinateur accepte ce support, et la réponse donne `server` et `key`.
 
     python tests/test_appairage_code.py
 """
@@ -61,6 +62,19 @@ async def code(ws, long: bool = False) -> str:
             return m["code"]
 
 
+async def repondre(ws, accept: bool, vus: list) -> None:
+    """L'ordinateur aidé : accepte ou refuse le support qui a tapé son code."""
+    while True:
+        m = json.loads(await ws.recv())
+        if m.get("type") == "pair_confirm":
+            vus.append(m)
+            await ws.send(json.dumps({"type": "pair_decision", "req": m["req"], "accept": accept}))
+
+
+async def post(url: str, body: dict):
+    return await asyncio.to_thread(http, url, body)
+
+
 async def parcours(base: str) -> None:
     wsb = base.replace("http://", "ws://")
     try:
@@ -70,25 +84,51 @@ async def parcours(base: str) -> None:
     except Exception:  # noqa: BLE001
         check("en ligne, l'ordinateur sans clé reste refusé", True)
 
-    async with websockets.connect(f"{wsb}/k/{CLE}/ws/bridge", max_size=2**24) as w:
+    st, a = http(f"{base}/spaces", {})
+    st2, b = http(f"{base}/spaces", {})
+    check("premier lancement : le serveur crée un espace et donne sa clé",
+          st == 200 and st2 == 200 and a["key"] != b["key"] and a["bridge_url"].endswith(f"/k/{a['key']}/ws/bridge"))
+
+    async with websockets.connect(f"{wsb}/k/{CLE}/ws/bridge", max_size=2**24) as w0, \
+            websockets.connect(a["bridge_url"]) as wa, websockets.connect(b["bridge_url"]) as wb:
         st, page = http(f"{base}/p")
         check("page de saisie du code ouverte sans clé", st == 200 and "<html" in str(page).lower())
-        c = await code(w)
-        faux = f"{(int(c) + 1) % 1_000_000:06d}"
-        st, r = http(f"{base}/p/{faux}", {"name": "Claire", "relation": "sa fille"})
-        check("mauvais code refusé", st == 400 and not r.get("ok"))
-        st, r = http(f"{base}/p/{c}", {"name": "Claire", "relation": "sa fille"})
-        check("le code seul suffit : le support est relié", st == 200 and r.get("ok"))
-        check("la réponse donne l'adresse et la clé", r.get("key") == CLE and r.get("server") == base)
-        st, r = http(f"{base}/p/{c}", {"name": "Intrus", "relation": "?"})
-        check("un code ne sert qu'une fois", st == 400)
 
-        c = await code(w, long=True)
-        faux = f"{(int(c) + 1) % 1_000_000:06d}"
-        for _ in range(5):
-            http(f"{base}/p/{faux}", {"name": "X", "relation": ""})
-        st, r = http(f"{base}/p/{c}", {"name": "Claire", "relation": ""})
-        check("5 essais faux invalident le code (pas de force brute)", st == 400 and not r.get("ok"))
+        cb = await code(wb)
+        vus_b: list = []
+        tb = asyncio.create_task(repondre(wb, True, vus_b))
+        st, r = await post(f"{base}/p/{cb}", {"name": "Claire", "relation": "Service informatique"})
+        check("le code seul retrouve le bon espace, accepté sur l'ordinateur",
+              st == 200 and r.get("ok") and r.get("key") == b["key"] and r.get("server") == base)
+        check("l'ordinateur a vu qui demandait à devenir son support",
+              len(vus_b) == 1 and vus_b[0]["name"] == "Claire")
+        st, r = await post(f"{base}/p/{cb}", {"name": "Intrus", "relation": "?"})
+        check("un code ne sert qu'une fois", st == 400)
+        tb.cancel()
+
+        ca = await code(wa)
+        ta = asyncio.create_task(repondre(wa, False, []))
+        st, r = await post(f"{base}/p/{ca}", {"name": "Intrus", "relation": ""})
+        check("refusé sur l'ordinateur : pas de liaison", st == 403 and not r.get("ok"))
+        ta.cancel()
+
+        c0 = await code(w0)
+        st, r = http(f"{base}/k/{CLE}/p/{c0}", {"name": "Paul", "relation": ""})
+        check("lien avec clé (QR, SMS) : sans confirmation", st == 200 and r.get("key") == CLE)
+
+        st, r = http(f"{base}/k/{a['key']}/lessons")
+        st0, r0 = http(f"{base}/k/{b['key']}/lessons")
+        check("chaque espace a ses propres fiches", st == 200 and st0 == 200)
+
+        codes = []
+        for _ in range(12):
+            codes.append(http(f"{base}/p/000001", {"name": "X", "relation": ""})[0])
+        check("trop de codes faux : bloqué (pas de force brute)", codes[0] == 400 and codes[-1] == 429)
+
+    async with websockets.connect(f"{wsb}/k/cle-revenue-apres-redeploiement/ws/bridge") as w:
+        await w.send(json.dumps({"type": "pair_start"}))
+        m = json.loads(await asyncio.wait_for(w.recv(), 5))
+        check("clé inconnue bien formée : l'ordinateur retrouve un espace", m.get("type") in ("helpers", "pair_code"))
 
 
 def main() -> None:
@@ -99,6 +139,7 @@ def main() -> None:
     port = port_libre()
     base = f"http://127.0.0.1:{port}"
     env = {**os.environ, "HAI_API_KEY": "faux", "PAPAI_PUBLIC": "1", "PAPAI_AIDANT_KEY": CLE,
+           "PAPAI_DATA_DIR": str(tmp / "data"),
            "PORT": str(port), "PAPAI_PUBLIC_URL": base}
     env.pop("GLADIA_API_KEY", None)
     log = open(tmp / "serveur.log", "w")
