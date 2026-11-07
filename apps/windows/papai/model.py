@@ -11,6 +11,7 @@ import base64
 import json
 import os
 import threading
+import time
 import urllib.request
 from urllib.parse import quote
 from typing import Callable
@@ -248,12 +249,19 @@ class Model:
         threading.Thread(target=self.refresh_lessons, daemon=True).start()
         self.push()
 
-    def _create_space(self) -> None:
-        """Premier lancement sans serveur réglé : l'espace est créé sur le serveur officiel."""
-        url = self._provision()
-        if url:
-            self.prefs = settings.save({"server": url})
-            self.reconnect()
+    def _create_space(self, wait=time.sleep) -> None:
+        """Premier lancement sans serveur réglé : l'espace est créé sur le serveur officiel.
+
+        Hors ligne, on réessaie jusqu'au retour du réseau, sans redémarrer l'app."""
+        delay = 5
+        while settings.needs_space(self.prefs):
+            url = self._provision()
+            if url:
+                self.prefs = settings.save({"server": url})
+                self.reconnect()
+                return
+            wait(delay)
+            delay = min(delay * 2, 60)
 
     def _provision(self) -> str | None:
         return settings.provision()

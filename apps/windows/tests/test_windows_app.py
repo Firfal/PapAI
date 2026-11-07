@@ -405,6 +405,13 @@ def pairing() -> None:
         check(m.server_url == "wss://srv/k/cle-de-test-123/ws/bridge" and not settings.needs_space(m.prefs),
               "l'espace créé est gardé : plus rien à régler")
         check(settings.provision("http://127.0.0.1:9", timeout=1) is None, "serveur injoignable : pas d'espace")
+        settings.save({"server": ""})
+        m = Model()
+        essais, attentes = iter([None, None, "wss://srv/k/cle-apres-coupure/ws/bridge"]), []
+        m._provision = lambda: next(essais)
+        m._create_space(wait=attentes.append)
+        check(m.server_url == "wss://srv/k/cle-apres-coupure/ws/bridge" and attentes == [5, 10],
+              "hors ligne au premier lancement : l'espace est créé au retour du réseau")
     finally:
         settings.save({"server": ""})
         if saved is not None:
