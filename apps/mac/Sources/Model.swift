@@ -42,6 +42,9 @@ final class AppModel {
     var showSettings = false
     var captureError: String?
     var onboarded = UserDefaults.standard.bool(forKey: "onboarded")
+    /// Dans le modèle et non dans la vue : changer la taille du texte recrée
+    /// toute la fenêtre (`.id(textScale)`), l'accueil doit garder son étape.
+    var onboardingStep = 0
     var textScale = TextScale.current
     var helpers: [Helper] = []
     var pairCode: String?
