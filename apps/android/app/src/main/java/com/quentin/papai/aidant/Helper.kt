@@ -549,7 +549,7 @@ object Helper {
                         return@post
                     }
                     val server = PairingPolicy.responseOrigin(link, r.text("server"))
-                    seniorName = r.text("senior").ifBlank { cleanText(link.senior) }
+                    seniorName = r.text("senior")
                     prefs.edit().putString("seniorName", seniorName).apply()
                     LinkService.refresh(ctx)
                     helperName = r.text("name").ifEmpty { n }

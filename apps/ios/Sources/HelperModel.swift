@@ -549,7 +549,7 @@ final class HelperModel {
             if !PairServer.allowed(server) || !PairServer.sameOrigin(server, link.origin) { server = link.origin }
             while server.hasSuffix("/") { server.removeLast() }
             // Pas setSenior : il renommerait la personne suivie jusqu'ici.
-            seniorName = (r["senior"] as? String ?? link.senior ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            seniorName = (r["senior"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             UserDefaults.standard.set(seniorName, forKey: "seniorName")
             helperName = r["name"] as? String ?? n
             UserDefaults.standard.set(helperName, forKey: "helperName")

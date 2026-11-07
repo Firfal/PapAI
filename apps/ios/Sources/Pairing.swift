@@ -122,7 +122,7 @@ struct PairSheet: View {
         label("Votre prénom")
         TextField("Claire", text: $name)
             .textContentType(.givenName).font(.system(size: 17)).padding(16).soinCard(radius: 18)
-        label("Votre lien avec \(link.senior ?? "la personne aidée")")
+        label("Votre lien avec la personne aidée")
         FlowLayout(spacing: 8) {
             ForEach(relations, id: \.value) { r in
                 Button { relation = relation == r.value ? "" : r.value } label: {
