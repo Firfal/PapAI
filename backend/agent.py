@@ -11,7 +11,7 @@ import json
 import re
 import time
 
-from carepilot_tools import (
+from papai_tools import (
     MIN_SECONDS_PER_STEP,
     PLAN_PROMPT,
     system_prompt,
@@ -31,7 +31,8 @@ import os
 
 # Abaissé pendant les essais : un agent qui tâtonne sur un vrai bureau coûte
 # des clics imprévus. 25 en usage normal.
-MAX_STEPS = int(os.environ.get("CAREPILOT_MAX_STEPS", "25"))
+# CAREPILOT_MAX_STEPS : ancien nom, encore lu pour les déploiements existants.
+MAX_STEPS = int(os.environ.get("PAPAI_MAX_STEPS") or os.environ.get("CAREPILOT_MAX_STEPS") or "25")
 
 client = make_client()
 

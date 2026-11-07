@@ -1,4 +1,4 @@
-"""Backend CarePilot : sessions, verrou de contrôle, relais vers le pont.
+"""Backend PapAI : sessions, verrou de contrôle, relais vers le pont.
 
 Deux WebSockets :
   /ws/bridge          le PC de la personne aidée (capture et exécution)
@@ -49,8 +49,9 @@ def _lan_ip() -> str:
         s.close()
 
 
-# En production, CAREPILOT_PUBLIC_URL porte l'URL publique du service hébergé.
-PUBLIC_URL = os.environ.get("CAREPILOT_PUBLIC_URL") or f"http://{_lan_ip()}:{os.environ.get('PORT', '8000')}"
+# En production, PAPAI_PUBLIC_URL porte l'URL publique du service hébergé
+# (CAREPILOT_PUBLIC_URL : ancien nom, encore lu pour les déploiements existants).
+PUBLIC_URL = os.environ.get("PAPAI_PUBLIC_URL") or os.environ.get("CAREPILOT_PUBLIC_URL") or f"http://{_lan_ip()}:{os.environ.get('PORT', '8000')}"
 
 app = FastAPI(title="PapAI")
 registry = Registry()
@@ -673,7 +674,7 @@ async def confirmer_par_le_modele(ws: WebSocket, alerte) -> str:
     if frame is None:
         return ""
     try:
-        from carepilot_tools import MODEL, TEMPERATURE, observation
+        from papai_tools import MODEL, TEMPERATURE, observation
         from .agent import client
 
         resp = await asyncio.to_thread(

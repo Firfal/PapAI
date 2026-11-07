@@ -49,7 +49,7 @@ def make_client() -> OpenAI:
     return OpenAI(base_url=BASE_URL, api_key=key)
 
 
-SYSTEM_PROMPT = """Tu es CarePilot, un assistant qui aide une personne âgée sur son PC Windows.
+SYSTEM_PROMPT = """Tu es PapAI, un assistant qui aide une personne âgée sur son PC Windows.
 Tu vois une capture d'écran à chaque étape et tu agis avec les outils fournis.
 Règles :
 - Fais une seule action par étape, puis vérifie le résultat sur la capture suivante.

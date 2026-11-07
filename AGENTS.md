@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794070613-renommer-carepilot` | Restes du nom CarePilot → PapAI | `carepilot_tools.py` (→ `papai_tools.py`), `backend/agent.py`, `backend/app.py`, `backend/caremamory.py`, `Dockerfile`, `.dockerignore`, `README.md`, `HANDOFF.md`, `TODO.md` | 7 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -32,3 +32,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | 7 nov. | Devin | `devin/1794069197-fiche-etapes-chaines` | Fiche : `draft_lesson()` accepte des étapes en chaînes ; en cas d'échec l'aidant reçoit `refused` (iPhone : bouton libéré). Faux Holo `tests/faux_holo.py`, contrôle « la fiche est rédigée » (protocole 10/10, gardien 14/14). Reste `helper.html` (réservé ailleurs) : gérer `refused` pendant la rédaction. Fichiers libérés. |
 | 7 nov. | Devin | `devin/1794069172-pitch` | `docs/pitch.md` (script minuté de 2 min 30, découpage en 13 plans de la vidéo de 2 min calé sur la démo P0) et `docs/soumission.md` (titre, accroche, descriptions, technos, équipe et liens à compléter). Passages conditionnels marqués quand une case P0 ou P2 est encore ouverte. Fichiers libérés. |
 | 7 nov. | Devin | `devin/etape-du-plan` | Étape du plan en cours : champ optionnel `plan_step` dans `status` (`PROTOCOL.md`, `backend/sessions.py`, `backend/agent.py`, argument `plan_step` des outils dans `carepilot_tools.py`, retiré avant l'envoi au Mac), affiché sur le Mac (`SessionView.swift`) et l'iPhone (`LiveViews.swift`). Swift non compilé (VM Linux). Tests gardien 14/14, protocole 12/12 avec un faux Holo. Fichiers libérés. |
+| 7 nov. | Devin | `devin/1794070613-renommer-carepilot` | Restes du nom CarePilot → PapAI : `carepilot_tools.py` devient `papai_tools.py` (imports, `Dockerfile`, docs), consigne Windows « Tu es PapAI », variables `PAPAI_PUBLIC_URL` et `PAPAI_MAX_STEPS` (les anciens noms `CAREPILOT_*` restent lus, Cloud Run n'est pas cassé). Gardien 14/14, protocole 13/13 avec le faux Holo. Fichiers libérés. |

@@ -1,4 +1,4 @@
-# Backend CarePilot uniquement.
+# Backend PapAI uniquement.
 #
 # Ni pyautogui ni mss ici : ils exigent un écran et ne s'installent pas sur un
 # serveur. Le code qui touche la souris vit sur le PC de la personne aidée, et
@@ -15,7 +15,7 @@ WORKDIR /app
 COPY requirements-backend.txt .
 RUN pip install --no-cache-dir -r requirements-backend.txt
 
-COPY carepilot_tools.py .
+COPY papai_tools.py .
 COPY backend/ ./backend/
 
 # L'hébergeur impose le port par $PORT ; 8000 en local.
