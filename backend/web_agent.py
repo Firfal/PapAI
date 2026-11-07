@@ -126,7 +126,7 @@ def make_client():
     if base:
         kwargs["base_url"] = base
     client = AsyncClient(**kwargs)
-    client._auto_bridges = False  # en plus de HAI_AUTO_BRIDGE=0
+    client._auto_bridges = False  # HAI_AUTO_BRIDGE seul ne suffit pas à empêcher un pont local.
     return client
 
 

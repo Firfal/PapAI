@@ -103,6 +103,30 @@ class ChoixDuMode(Base):
                       WEB_AGENT_INSTRUCTIONS)
         self.assertEqual(os.environ.get("HAI_AUTO_BRIDGE"), "0")
 
+    async def test_session_web_ne_demarre_pas_de_pont_local(self):
+        from hai_agents_local.manager import BridgeManager
+
+        demarrages = []
+        original_spec = web_agent.agent_spec
+
+        def spec_sans_session(session_id):
+            spec = original_spec(session_id)
+            spec["environments"][0].pop("session_id")
+            return spec
+
+        def demarrer(_manager, bridge):
+            demarrages.append(bridge)
+            return False
+
+        with patch.dict(os.environ, {"HAI_AUTO_BRIDGE": "1"}), \
+             patch.object(BridgeManager, "_ensure_one", demarrer), \
+             patch.object(web_agent, "agent_spec", side_effect=spec_sans_session):
+            s = self.session()
+            await self.lancer(s)
+            s.decide_plan("approve", "")
+            self.assertTrue(await attendre(lambda: not s.is_open))
+        self.assertEqual(demarrages, [])
+
     def test_identifiant_annonce_valide(self):
         self.assertEqual(web_agent.valid_browser_session({"session_id": NAV}), NAV)
         for mauvais in (None, "", "a b", "x" * 80, {"session_id": "../etc"}, 42, {"autre": NAV}):
