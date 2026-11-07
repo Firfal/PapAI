@@ -184,7 +184,8 @@ struct HomeView: View {
             if !(l.steps ?? []).isEmpty {
                 Button { model.openLesson(l) } label: {
                     Text("Montrez-moi").font(rounded(15, .semibold)).foregroundStyle(T.accent)
-                        .multilineTextAlignment(.center).frame(width: 84)
+                        .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, 10)
                         .padding(.vertical, 5).background(Capsule().fill(T.mint))
                 }
                 .buttonStyle(PressStyle())
@@ -204,8 +205,8 @@ struct HomeView: View {
                             Circle().fill(T.card).frame(width: 54, height: 54)
                                 .overlay {
                                     if case .application(let bundle) = tuile.cible,
-                                       ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil {
-                                        Image(nsImage: icon(bundle)).resizable().frame(width: 36, height: 36)
+                                       let image = icon(bundle) {
+                                        Image(nsImage: image).resizable().frame(width: 36, height: 36)
                                     } else {
                                         Image(systemName: symbole(tuile)).font(rounded(24))
                                             .foregroundStyle(T.accent)
@@ -246,11 +247,11 @@ struct HomeView: View {
         return tuile.symbole
     }
 
-    private func icon(_ bundle: String) -> NSImage {
+    private func icon(_ bundle: String) -> NSImage? {
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) {
             return NSWorkspace.shared.icon(forFile: url.path)
         }
-        return NSImage(systemSymbolName: "app", accessibilityDescription: nil) ?? NSImage()
+        return nil
     }
 
 }
