@@ -120,8 +120,26 @@ Règles :
   une dernière étape « Demander confirmation au proche avant de valider ».
 - Français simple et correct, aucun mot anglais.
 
+Indique aussi où se fait la tâche : "web" si tout se passe dans un navigateur
+(un site, une page internet, un webmail), sinon "desktop".
+
 Réponds UNIQUEMENT par un objet JSON, sans texte autour :
-{{"steps": ["...", "..."]}}"""
+{{"steps": ["...", "..."], "where": "web"}}"""
+
+
+# Consignes de l'agent navigateur de H (backend/web_agent.py), mot pour mot.
+WEB_AGENT_INSTRUCTIONS = (
+    "Tu aides une personne âgée dans son navigateur, sous le contrôle de son proche. "
+    "Suis uniquement le plan validé ci-dessous, étape par étape. "
+    "Ne saisis jamais de mot de passe, de code reçu par SMS, de numéro de carte ni d'IBAN. "
+    "Ne valide jamais un paiement, un virement, un achat, une inscription ou une suppression : "
+    "appelle ask_helper à la place. "
+    "Si une page demande de payer, d'installer un logiciel, d'appeler un numéro ou d'autoriser "
+    "un accès à distance, arrête-toi et appelle ask_helper. "
+    "Après deux essais ratés sur la même étape, appelle ask_helper. "
+    "Quand la tâche est faite et visible à l'écran, termine par une phrase simple en français "
+    "pour la personne."
+)
 
 
 def system_prompt(os_name: str) -> str:

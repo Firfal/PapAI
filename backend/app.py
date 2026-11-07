@@ -26,6 +26,7 @@ from starlette.requests import HTTPConnection
 
 from . import guard, voice
 from .agent import AgentRunner, propose_plan
+from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, Family, PairingError
 from .caremamory import LESSONS_DIR, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
@@ -146,6 +147,9 @@ class BridgeLink:
         self.ws = ws
         self._pending: dict[str, asyncio.Future] = {}
         self.os = "windows"  # annoncé par le pont dans son message hello
+        # Identifiant du navigateur servi par `holo local browser` sur la machine
+        # de la personne aidée, s'il tourne (PROTOCOL.md, agent navigateur).
+        self.web_agent: str | None = None
 
     async def close(self, code: int = 1000) -> None:
         try:
@@ -304,7 +308,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
             if kind in ("hello", "profile"):
                 if kind == "hello":
                     link.os = str(msg.get("os", "windows")).lower()[:20]
-                    print(f"[pont] système : {link.os}")
+                    link.web_agent = valid_browser_session(msg.get("web_agent"))
+                    print(f"[pont] système : {link.os}, navigateur : {'oui' if link.web_agent else 'non'}")
                 # Le prénom saisi sur l'ordinateur, transmis aux aidants.
                 if family.set_senior(str(msg.get("name", ""))):
                     await broadcast_helper({"type": "senior", "name": family.senior})
@@ -376,6 +381,12 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 t = asyncio.create_task(handle_guard(msg))
                 _guard_taches.add(t)
                 t.add_done_callback(_guard_taches.discard)
+                continue
+
+            if kind == "web_agent":
+                # Chrome PapAI et `holo local browser` viennent de démarrer ou de s'arrêter.
+                link.web_agent = valid_browser_session(msg.get("session_id"))
+                print(f"[pont] navigateur : {'oui' if link.web_agent else 'non'}")
                 continue
 
             if kind in ("pause", "resume"):
@@ -462,7 +473,14 @@ async def run_session(session, link: "BridgeLink") -> None:
                 await broadcast_helper(session.status())
                 return
             notes.append(note)  # refine : on refait un plan avec la précision
-        await AgentRunner(session, link, broadcast_helper, notes).run()
+        # Mode web seulement si Holo l'a proposé ET si l'ordinateur sert un navigateur.
+        browser = link.web_agent if session.where == "web" else None
+        session.where = "web" if browser else "desktop"
+        session.log("mode", where=session.where)
+        if browser:
+            await WebAgentRunner(session, browser, broadcast_helper, notes).run()
+        else:
+            await AgentRunner(session, link, broadcast_helper, notes).run()
     except asyncio.CancelledError:
         session.stop(by="annulation")
         raise
