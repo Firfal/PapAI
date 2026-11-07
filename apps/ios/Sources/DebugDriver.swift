@@ -25,6 +25,15 @@ extension HelperModel {
                     }
                     else if l == "click" { confirmClick() }
                     else if l.hasPrefix("answer:") { answer(String(l.dropFirst(7))) }
+                    else if l.hasPrefix("pair:"), case .pair(let link)? = sheet {
+                        // pair:Prénom|lien|code (code seulement pour la saisie manuelle)
+                        let p = l.dropFirst(5).split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+                        Task { await submitPair(link, code: p.count > 2 ? p[2] : nil, name: p[0], relation: p.count > 1 ? p[1] : "") }
+                    }
+                    else if l == "settings" { sheet = .settings }
+                    else if l == "scanner" { sheet = .scanner }
+                    else if l == "manual", let link = manualPairLink() { openPair(link) }
+                    else if l == "close" { sheet = nil }
                 }
             }
         }
