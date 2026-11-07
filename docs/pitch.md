@@ -1,7 +1,7 @@
 # PapAI : script du pitch et plan de la vidéo
 
 Rendu : dimanche 8 novembre, 14 h (Luma) et 14 h 30 (BuilderBase).
-Relu le 7 novembre à 18 h sur l'état réel : `main`, journal d'`AGENTS.md`, `TODO.md`, `HANDOFF.md`, PR #1 à #9.
+Relu le 7 novembre à 18 h, puis à 19 h après les fusions de Claude, sur l'état réel : `main`, journal d'`AGENTS.md`, `TODO.md`, `HANDOFF.md`, PR #1 à #11.
 Checklist du jour J : [`docs/demo.md`](demo.md).
 
 ## Ce qui est vrai aujourd'hui, et ce qui reste à essayer
@@ -16,7 +16,7 @@ Le texte du pitch ne dit que ce qui marche. Une phrase suivie d'une marque **[R1
 | R3 | Arrêter pendant une action : plus rien ne passe, même réseau coupé | logique écrite (verrou local), jamais essayée en réel |
 | R4 | « Garder comme automatisme » sur l'iPhone, la tuile apparaît sur le Mac et rouvre le dossier | jamais fait en réel |
 | R5 | Dossier déplacé, tuile relancée : le Mac s'arrête, l'iPhone reçoit l'alerte | jamais fait en réel |
-| R6 | Gardien anti-arnaque branché sur le Mac | PR #8 ouverte, pas fusionnée |
+| R6 | Gardien anti-arnaque sur le Mac : AnyDesk ouvert, alerte sur le Mac et l'iPhone | dans `main` (`Guard.swift`), app Mac compilée, jamais déclenché en réel |
 
 **Vérifié** (sans marque) : le serveur sur Cloud Run déployé depuis `main` ; rien ne bouge avant validation
 (tests protocole 13/13, gardien 14/14) ; le plan refait après une précision (en ligne, avec un faux Mac) ; le refus d'un
@@ -105,7 +105,7 @@ la compilation de l'app Mac sur macOS, ce pitch, et une app Windows au même des
   Une capture de plus de 30 secondes ne peut pas servir à un clic du proche. Mot de passe, paiement, suppression : Holo pose la question au proche. »
 - **Gardien anti-arnaque** (20 s) [R6] : « PapAI regarde aussi trois indices textuels, sans capture : les applications ouvertes,
   le titre de la fenêtre, l'adresse du navigateur. AnyDesk avec la banque ouverte ? Le proche est prévenu. »
-  Si R6 n'est pas fait : « La détection est écrite et testée, 14 contrôles ; on la branche sur le Mac. »
+  Si R6 n'est pas fait : « La détection est écrite et testée, 14 contrôles, et branchée sur le Mac. »
 - **Technique** (10 s) : « Deux apps SwiftUI, un serveur FastAPI sur Cloud Run. Le serveur décide, les apps exécutent. »
 
 ### Questions probables du jury
@@ -119,7 +119,7 @@ la compilation de l'app Mac sur macOS, ce pitch, et une app Windows au même des
 | Où sont gardés les automatismes ? | Aujourd'hui sur le serveur, une seule instance : ils disparaissent à un redéploiement. Le stockage durable est la suite. |
 | Et la dictée sans réseau ? | Gladia côté serveur ; en secours, la reconnaissance vocale d'Apple sur le Mac. |
 | Windows ? | Une app Windows au design du Mac est dans le dépôt (PR #7 et #9). Une session a été essayée sur un vrai écran Windows, mais l'app complète pas encore : on ne la montre pas aujourd'hui. |
-| Qu'a fait Devin exactement ? | Voir `docs/soumission.md`, section « Prix Devin » : PR #1 à #5, #7 et #9 fusionnées ; #6 et #8 ouvertes. |
+| Qu'a fait Devin exactement ? | Voir `docs/soumission.md`, section « Prix Devin » : 66 des 114 commits de `main`, toutes ses branches de la journée fusionnées. |
 
 ---
 

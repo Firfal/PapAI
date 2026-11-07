@@ -59,7 +59,7 @@ Les garde-fous
 - Les proches s'ajoutent par QR ou code à 6 chiffres, à usage unique ; toutes les routes en ligne sont protégées par une clé famille.
 
 Gardien anti-arnaque
-PapAI sait reconnaître les situations d'arnaque typiques à partir de trois signaux textuels, sans capture : un outil de prise en main qui tourne (AnyDesk, TeamViewer…), une fausse alerte « votre ordinateur est infecté », un site de carte prépayée, et surtout un outil de prise en main avec une page bancaire ouverte. La logique est écrite et testée (14 contrôles) ; son branchement sur l'app Mac est en cours. [R6 : si la PR #8 est fusionnée et essayée, remplacer la dernière phrase par « Le proche est prévenu, et Holo lui décrit ce qui est réellement à l'écran. »]
+PapAI sait reconnaître les situations d'arnaque typiques à partir de trois signaux textuels, sans capture : un outil de prise en main qui tourne (AnyDesk, TeamViewer…), une fausse alerte « votre ordinateur est infecté », un site de carte prépayée, et surtout un outil de prise en main avec une page bancaire ouverte. La logique est testée (14 contrôles) et branchée sur l'app Mac, qui envoie ces signaux toutes les 8 secondes en dehors des sessions. Le proche est prévenu, et Holo lui décrit ce qui est réellement à l'écran. [R6]
 
 Limites connues
 Les automatismes sont gardés sur une seule instance du serveur et disparaissent à un redéploiement ; le stockage durable est la prochaine étape. Les notifications de l'iPhone demandent que l'app soit ouverte (pas encore de push).
@@ -92,17 +92,18 @@ Vérifié : Gladia en ligne sur Cloud Run, dictée de l'app Mac essayée par Que
 ### Devin
 
 ```
-Devin a travaillé sur PapAI comme un membre de l'équipe, en plusieurs sessions parallèles le 7 novembre, chacune sur sa branche et avec une réservation de fichiers dans AGENTS.md pour ne pas gêner les autres agents. Au 7 novembre à 18 h, il a écrit 45 des 79 commits de la branche principale, avec 7 pull requests fusionnées et 2 ouvertes :
+Devin a travaillé sur PapAI comme un membre de l'équipe, en plusieurs sessions parallèles le 7 novembre, chacune sur sa branche et avec une réservation de fichiers dans AGENTS.md pour ne pas gêner les autres agents. Au 7 novembre à 18 h, il a écrit 66 des 114 commits de la branche principale, et toutes ses branches de la journée y sont fusionnées :
 - la page web du proche, refaite sur le modèle des apps macOS et iPhone : plan à valider, préciser ou refuser, écran en direct avec prise en main, alertes (PR #1) ;
 - l'étape du plan en cours, du serveur jusqu'aux écrans du Mac et de l'iPhone (PR #3) ;
 - la robustesse de la rédaction des automatismes : une réponse mal formée de Holo ne fait plus planter « Garder comme automatisme », et le proche est prévenu au lieu d'attendre en silence ; un faux Holo local pour tester sans clé (PR #4) ;
 - un correctif de l'accueil Mac, compilé et essayé sur une machine macOS, et un test de bout en bout en une commande : serveur, Holo simulé, faux Mac et faux proche, 26 contrôles (PR #5) ;
 - le pitch, la vidéo et ces textes de soumission (PR #2) ;
 - l'app Windows de la personne aidée : fusion du portage de cyp-cor (PR #7), puis refonte dans le design de l'app Mac, avec les mêmes écrans et le même protocole (PR #9) ;
-- en cours : le gardien anti-arnaque branché sur le Mac (PR #8), la fin du renommage CarePilot vers PapAI (PR #6).
+- le gardien anti-arnaque branché sur le Mac : signaux envoyés au serveur, alerte affichée par-dessus tout (PR #8) ;
+- la fin du renommage CarePilot vers PapAI (PR #6) et la mise à jour de la ToDo et du Notion selon l'état réel (PR #10).
 ```
 
-Sources : journal d'`AGENTS.md`, `git log main` (auteur « Devin AI »), PR #1 à #9 de `Firfal/PapAI`.
+Sources : journal d'`AGENTS.md`, `git log main` (auteur « Devin AI »), PR #1 à #11 de `Firfal/PapAI`.
 Mettre à jour les chiffres et la liste « en cours » le jour J (`git log main --format=%an | sort | uniq -c`).
 
 ## Équipe
