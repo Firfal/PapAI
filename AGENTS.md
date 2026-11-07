@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794069172-pitch` | Pitch (script, vidéo) et textes de soumission | `docs/pitch.md`, `docs/soumission.md` | 7 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -30,3 +30,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | 7 nov. | Devin | `devin/aidant-web-soin` | Page web de l'aidant (`helper.html`) en design « Soin » avec le logotype : carte du plan avec Valider, Préciser (champ de précision) et Refuser ; carte d'alerte (gardien, `automation_failed`) ; « Garder comme automatisme » seulement en fin de session. Essayée avec `faux_mac.py` et un faux Holo. Fichier libéré. |
 | 7 nov. | Devin | `devin/aidant-web-soin` | Page aidant refaite sur le modèle des apps macOS/iPhone : en-tête, carte de demande menthe, plan en cartes numérotées, barre Valider / Préciser / Refuser en bas, feuilles de précision et de refus, écran en direct avec pause et prise en main (loupe ×3), fin de session et automatisme. Alertes visibles sur tous les écrans. Fichier libéré. |
 | 7 nov. | Devin | `devin/1794069197-fiche-etapes-chaines` | Fiche : `draft_lesson()` accepte des étapes en chaînes ; en cas d'échec l'aidant reçoit `refused` (iPhone : bouton libéré). Faux Holo `tests/faux_holo.py`, contrôle « la fiche est rédigée » (protocole 10/10, gardien 14/14). Reste `helper.html` (réservé ailleurs) : gérer `refused` pendant la rédaction. Fichiers libérés. |
+| 7 nov. | Devin | `devin/1794069172-pitch` | `docs/pitch.md` (script minuté de 2 min 30, découpage en 13 plans de la vidéo de 2 min calé sur la démo P0) et `docs/soumission.md` (titre, accroche, descriptions, technos, équipe et liens à compléter). Passages conditionnels marqués quand une case P0 ou P2 est encore ouverte. Fichiers libérés. |
