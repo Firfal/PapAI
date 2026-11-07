@@ -1,7 +1,7 @@
 # PapAI : script du pitch et plan de la vidéo
 
 Rendu : dimanche 8 novembre, 14 h (Luma) et 14 h 30 (BuilderBase).
-Relu le 7 novembre à 18 h sur l'état réel : `main`, journal d'`AGENTS.md`, `TODO.md`, `HANDOFF.md`, PR #1 à #8.
+Relu le 7 novembre à 18 h sur l'état réel : `main`, journal d'`AGENTS.md`, `TODO.md`, `HANDOFF.md`, PR #1 à #9.
 Checklist du jour J : [`docs/demo.md`](demo.md).
 
 ## Ce qui est vrai aujourd'hui, et ce qui reste à essayer
@@ -91,7 +91,7 @@ C'est tout le principe : un proche de confiance décide, l'agent exécute. »
 « Holo pour voir et agir. Gladia pour la voix de Jeanne. Et une équipe d'humains et d'agents.
 Devin a travaillé en sessions parallèles, chacune sur sa branche : la page web de l'aidant,
 la rédaction fiable des automatismes, l'étape du plan affichée en direct, un test de bout en bout,
-la compilation de l'app Mac sur macOS, et ce pitch. L'app Windows est en cours. »
+la compilation de l'app Mac sur macOS, ce pitch, et une app Windows au même design. »
 
 ### 2:25 – 2:30 · Conclusion
 
@@ -118,8 +118,8 @@ la compilation de l'app Mac sur macOS, et ce pitch. L'app Windows est en cours. 
 | Qui voit l'écran ? | Holo pendant la session, et le proche. Les routes en ligne sont protégées par une clé famille. |
 | Où sont gardés les automatismes ? | Aujourd'hui sur le serveur, une seule instance : ils disparaissent à un redéploiement. Le stockage durable est la suite. |
 | Et la dictée sans réseau ? | Gladia côté serveur ; en secours, la reconnaissance vocale d'Apple sur le Mac. |
-| Windows ? | En cours : une app Windows existe sur une branche (PR #7, ouverte), elle n'est pas montrée aujourd'hui. |
-| Qu'a fait Devin exactement ? | Voir `docs/soumission.md`, section « Prix Devin » : PR #1 à #5 fusionnées, #6 à #8 ouvertes. |
+| Windows ? | Une app Windows au design du Mac est dans le dépôt (PR #7 et #9). Une session a été essayée sur un vrai écran Windows, mais l'app complète pas encore : on ne la montre pas aujourd'hui. |
+| Qu'a fait Devin exactement ? | Voir `docs/soumission.md`, section « Prix Devin » : PR #1 à #5, #7 et #9 fusionnées ; #6 et #8 ouvertes. |
 
 ---
 
