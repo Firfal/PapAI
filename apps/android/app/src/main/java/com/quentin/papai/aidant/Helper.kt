@@ -103,6 +103,8 @@ object Helper {
 
     // Session
     var state by mutableStateOf<String?>(null)
+    var sessionWhere by mutableStateOf<String?>(null)
+    val webLive get() = sessionWhere == "web" && (state == "active" || state == "awaiting_helper")
     var task by mutableStateOf("")
     var plan by mutableStateOf<List<String>>(emptyList())
     var planStep by mutableStateOf<Int?>(null)
@@ -174,6 +176,8 @@ object Helper {
     val senior get() = seniorName.ifEmpty { "la personne aidée" }
     /** En début de phrase : « Sophie a besoin de vous ». */
     val seniorTitle get() = seniorName.ifEmpty { "La personne aidée" }
+    val webBrowserTitle get() = seniorName.trim().split(Regex("\\s+")).firstOrNull()
+        ?.let { "Chrome PapAI de $it" } ?: "Chrome PapAI"
 
     val screen: Screen
         get() = when (state) {
@@ -481,15 +485,25 @@ object Helper {
 
             "status" -> {
                 val newState = m.text("state").ifEmpty { null }
+                val newWhere = m.text("where").ifEmpty { null }
                 val sid = m.text("session")
+                var wasWebLive = webLive
                 if (sid != sessionId) {
+                    wasWebLive = false
                     liveDictation = null
                     sessionId = sid; requestStart = System.currentTimeMillis(); iRefusedPlan = false
+                    sessionWhere = null
                     hasProposedPlan = false
                     doneAnswer = null; hasDraft = false; savedTitle = null; lessonBusy = false
                     pausing = false; doneFresh = false
                     frame = null; frameId = null; frameAt = null
                 }
+                val newWebLive = newWhere == "web" && (newState == "active" || newState == "awaiting_helper")
+                if (newWebLive && !wasWebLive) {
+                    aiming = false; target = null; sending = false
+                    frame = null; frameId = null; frameAt = null
+                }
+                sessionWhere = newWhere
                 val q = m.optJSONObject("question")
                 val toSenior = q?.text("to") == "senior"
                 if (newState != state) {

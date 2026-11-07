@@ -127,6 +127,8 @@
   .shot { position: relative; border-radius: 22px; overflow: hidden; background: var(--card); }
   .shot img { display: block; width: 100%; height: auto; }
   .shot.armed { box-shadow: 0 0 0 2px var(--accent); cursor: crosshair; touch-action: none; }
+  .browser-label strong { display: block; font-size: 17px; font-weight: 600; }
+  .browser-label small { display: block; margin-top: 3px; font-size: 13px; color: var(--muted); }
   #empty { min-height: 180px; display: flex; align-items: center; justify-content: center;
            font-size: 15px; color: var(--muted); padding: 16px; text-align: center; }
   #pin { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px; display: none;
@@ -265,7 +267,7 @@
       </div>
       <p class="quote" id="task"></p>
       <button class="thumb" id="thumb" type="button" hidden aria-label="Agrandir la dernière capture">
-        <img id="thumbImg" alt=""><span>Son écran</span>
+        <img id="thumbImg" alt=""><span id="thumbTitle">Son écran</span>
       </button>
     </div>
     <div class="waiting" id="waiting"><div class="spinner"></div><span id="waitingText">Holo regarde l'écran…</span></div>
@@ -278,7 +280,7 @@
   <!-- Holo agit, ou l'aidant a la main -->
   <section id="v-live" class="stack" hidden>
     <div class="mint question" id="question" hidden>
-      <small>La personne aidée a besoin de vous</small>
+      <small id="questionTitle">La personne aidée a besoin de vous</small>
       <h2 id="qtext"></h2>
       <div class="options" id="options"></div>
       <div class="reply">
@@ -287,6 +289,10 @@
       </div>
     </div>
     <div id="loupe"></div>
+    <div id="browserLabel" class="browser-label" hidden>
+      <strong id="browserTitle"></strong>
+      <small>Holo agit seulement dans le navigateur. Répondez à ses questions ici.</small>
+    </div>
     <div class="shot" id="shot">
       <div id="empty">En attente de la première capture d'écran…</div>
       <img id="frame" alt="Écran de la personne aidée" style="display:none">
@@ -294,7 +300,7 @@
     </div>
     <div class="card working" id="working">
       <div class="spinner"></div>
-      <div><strong>Holo travaille sur l'ordinateur de la personne aidée</strong><small id="workingTask"></small></div>
+      <div><strong id="workingTitle">Holo travaille sur l'ordinateur de la personne aidée</strong><small id="workingTask"></small></div>
     </div>
     <div class="hand" id="hand" hidden>
       <button class="capsule" id="arm" type="button">Prendre la main</button>
@@ -401,7 +407,7 @@ const FRAME_TTL_S = 30;
 const permanent = /\/a\/[^/]+\/?$/.test(location.pathname);
 
 let ws = null, reconnectIn = 1000, connected = false, guardAlertId = null;
-let frameId = null, frameAt = 0, frameSrc = '', state = null, task = '', stoppedBy = null, executionStarted = null;
+let frameId = null, frameAt = 0, frameSrc = '', state = null, sessionWhere = null, task = '', stoppedBy = null, executionStarted = null;
 let armed = false, target = null, sending = false;
 let planBusy = false, refusedByMe = false, home = false, requestAt = 0;
 let sawStatus = false, sessionId = null;
@@ -460,12 +466,29 @@ function screen() {
             active: 'active', awaiting_helper: 'helper', done: 'done', stopped: 'stopped' })[state] || 'idle';
 }
 
+function browserTitle() {
+  const firstName = seniorName.trim().split(/\s+/)[0];
+  return firstName ? `Chrome PapAI de ${firstName}` : 'Chrome PapAI';
+}
+
+function webLive() {
+  return sessionWhere === 'web' && ['active', 'awaiting_helper'].includes(state);
+}
+
 function render() {
   const s = screen();
+  const isWebLive = webLive();
   $('allWell').hidden = !$('alert').hidden;
   $('v-idle').hidden = s !== 'idle';
   $('v-request').hidden = !['waiting', 'planning', 'approval'].includes(s);
   $('v-live').hidden = !['active', 'helper'].includes(s);
+  $('browserLabel').hidden = !isWebLive;
+  $('browserTitle').textContent = browserTitle();
+  $('thumbTitle').textContent = isWebLive ? browserTitle() : 'Son écran';
+  $('frame').alt = isWebLive ? browserTitle() : 'Écran de la personne aidée';
+  $('empty').textContent = isWebLive
+    ? 'En attente de la première image de Chrome PapAI…'
+    : "En attente de la première capture d'écran…";
   $('v-done').hidden = s !== 'done';
   $('v-stopped').hidden = s !== 'stopped';
   $('b-approval').hidden = s !== 'approval';
@@ -483,10 +506,14 @@ function render() {
     : '<svg class="i" style="width:16px;height:16px;stroke-width:3"><use href="#i-check"/></svg>';
 
   $('working').hidden = s !== 'active';
+  $('workingTitle').textContent = isWebLive
+    ? `Holo travaille dans ${browserTitle()}`
+    : "Holo travaille sur l'ordinateur de la personne aidée";
   $('workingTask').textContent = task ? `« ${task} »` : '';
+  $('questionTitle').textContent = isWebLive ? 'Holo a une question' : 'La personne aidée a besoin de vous';
   $('question').hidden = s !== 'helper' || armed || !$('qtext').textContent;
-  $('hand').hidden = s !== 'helper' || armed;
-  $('aimbar').hidden = !armed;
+  $('hand').hidden = s !== 'helper' || armed || isWebLive;
+  $('aimbar').hidden = !armed || isWebLive;
 
   $('doneTask').textContent = task ? `« ${task} »` : '';
   $('makeWrap').hidden = !!savedTitle || hasDraft;
@@ -618,12 +645,25 @@ function onMessage(ev) {
   if (m.type === 'status') {
     sawStatus = true;
     const prev = state;
+    let wasWebLive = webLive();
     state = m.state;
+    sessionWhere = typeof m.where === 'string' ? m.where : null;
     stoppedBy = m.stopped_by || null;
     executionStarted = typeof m.execution_started === 'boolean' ? m.execution_started : null;
     if (m.task !== undefined) task = m.task || '';
-    if (m.session !== sessionId) { sessionId = m.session; requestAt = Date.now(); }
+    if (m.session !== sessionId) {
+      wasWebLive = false;
+      sessionId = m.session; requestAt = Date.now();
+    }
     if (!requestAt) requestAt = Date.now();
+    if (webLive() && !wasWebLive) {
+      frameId = null; frameAt = 0; frameSrc = '';
+      $('frame').removeAttribute('src'); $('frame').style.display = 'none';
+      $('empty').style.display = '';
+      $('thumbImg').removeAttribute('src');
+      $('thumb').hidden = true;
+      if (armed) setArmed(false);
+    }
     if (['waiting_consent', 'planning'].includes(state) && prev !== state) {
       home = false;
       if (prev === null || ['done', 'stopped'].includes(prev)) {
