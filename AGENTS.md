@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794072947-securite-apps-15-16` | Sécurité #15 et #16 côté apps : garde-fous locaux (clics, frappes), cible des automatismes | `apps/mac/Sources/` (Core, Model, Guard, nouveau Safety), `apps/mac/tests/`, `apps/windows/papai/` (core, bridge, model), `apps/windows/ui/app.js`, `apps/windows/tests/`, `backend/static/helper.html`, `backend/app.py` (bloc `approve_lesson` seulement), `PROTOCOL.md` (Automatismes) | 7 nov. 18 h 45 |
 
 ## Journal
 
