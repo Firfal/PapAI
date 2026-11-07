@@ -456,7 +456,7 @@ try {
 const watchers = {};
 
 function savePeople() {
-  try { localStorage.setItem(PEOPLE_KEY, JSON.stringify(people.slice(0, 50))); } catch (e) {}
+  try { localStorage.setItem(PEOPLE_KEY, JSON.stringify(people.slice(0, 200))); } catch (e) {}
 }
 
 function rememberHere() {
@@ -513,6 +513,25 @@ function watchPeople() {
     open();
   }
   renderPeople();
+}
+
+// Organisations suivies (page /o/<jeton>) : les postes inscrits depuis la
+// dernière visite rejoignent la liste.
+async function refreshOrgs() {
+  let orgs = [];
+  try { orgs = JSON.parse(localStorage.getItem('papai_orgs') || '[]'); } catch (e) {}
+  for (const t of Array.isArray(orgs) ? orgs : []) {
+    try {
+      const r = await fetch(`/o/${encodeURIComponent(t)}/spaces`);
+      if (!r.ok) continue;
+      for (const s of (await r.json()).spaces || []) {
+        const path = `/a/${s.key}`;
+        if (!people.some(p => p.path === path)) people.push({ path, name: s.name || '' });
+      }
+    } catch (e) {}
+  }
+  savePeople();
+  watchPeople();
 }
 
 function renderPeople() {
@@ -1096,6 +1115,7 @@ $('remoteSend').onclick = () => {
 
 render();
 renderPeople();
+refreshOrgs();
 watchPeople();
 connect();
 </script>

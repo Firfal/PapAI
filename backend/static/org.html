@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#EEF0EE">
+<title>PapAI · Organisation</title>
+<style>
+  /* Direction « Soin », comme helper.html. */
+  :root { --bg: #EEF0EE; --card: #FFFFFF; --ink: #111312; --muted: #7A807C; --accent: #2E9E5B; --mint: #E2F2E7; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--bg); }
+  body { margin: 0 auto; max-width: 640px; min-height: 100vh; color: var(--ink); padding: 24px 20px 80px;
+         font: 17px/1.4 ui-rounded, "SF Pro Rounded", -apple-system, system-ui, "Segoe UI", sans-serif; }
+  h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 28px 0 10px; }
+  p { margin: 0; } .muted { color: var(--muted); }
+  .card { background: var(--card); border-radius: 22px; padding: 6px 0; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; }
+  .row + .row { border-top: 1px solid var(--bg); }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; display: flex; align-items: center;
+            justify-content: center; font-weight: 700; color: var(--accent); background: var(--mint); }
+  .grow { flex: 1; min-width: 0; } .grow small { display: block; color: var(--muted); font-size: 14px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.on { background: var(--accent); }
+  a.btn, button { font: inherit; font-size: 15px; font-weight: 600; border: 0; border-radius: 999px; padding: 9px 16px;
+                  cursor: pointer; text-decoration: none; background: var(--ink); color: #fff; }
+  button.light { background: var(--mint); color: var(--accent); }
+  .empty { padding: 18px; color: var(--muted); }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff;
+           padding: 10px 18px; border-radius: 999px; font-size: 15px; }
+</style>
+</head>
+<body>
+<h1 id="title">Organisation</h1>
+<p class="muted">Tous les postes inscrits avec le jeton de l'organisation. Ils s'ajoutent à « Mes personnes aidées » dans ce navigateur, sans appairage.</p>
+
+<h2>Postes</h2>
+<div class="card" id="spaces"><p class="empty">Chargement…</p></div>
+
+<h2>Automatismes de l'organisation</h2>
+<p class="muted" style="margin-bottom:10px">Importés une fois, proposés sur chaque poste, y compris ceux inscrits plus tard. L'importer, c'est le valider : la personne le lance seule, en un clic.</p>
+<div class="card" id="autos"><p class="empty">Chargement…</p></div>
+<p style="margin-top:12px"><button class="light" id="import">Importer un automatisme (.papai)</button>
+<input type="file" id="file" accept=".papai,application/json" hidden></p>
+<div id="toast" hidden></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const token = location.pathname.split('/').filter(Boolean)[1] || '';
+const api = `/o/${encodeURIComponent(token)}`;
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.h); toast.h = setTimeout(() => { t.hidden = true; }, 3500);
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+// Même stockage que helper.html : les postes apparaissent dans « Mes personnes aidées ».
+function remember(spaces) {
+  let people = [];
+  try { people = JSON.parse(localStorage.getItem('papai_people') || '[]'); } catch (e) {}
+  if (!Array.isArray(people)) people = [];
+  for (const s of spaces) {
+    const path = `/a/${s.key}`;
+    const p = people.find(x => x && x.path === path);
+    if (p) { if (s.name && !p.name) p.name = s.name; } else people.push({ path, name: s.name || '' });
+  }
+  try {
+    localStorage.setItem('papai_people', JSON.stringify(people.slice(0, 200)));
+    const orgs = JSON.parse(localStorage.getItem('papai_orgs') || '[]').filter(o => o !== token);
+    localStorage.setItem('papai_orgs', JSON.stringify([token, ...orgs].slice(0, 10)));
+  } catch (e) {}
+}
+
+async function loadSpaces() {
+  const r = await fetch(`${api}/spaces`);
+  if (!r.ok) { $('spaces').replaceChildren(el('p', 'empty', 'Lien invalide.')); return; }
+  const d = await r.json();
+  $('title').textContent = d.org || 'Organisation';
+  document.title = `PapAI · ${d.org || 'Organisation'}`;
+  remember(d.spaces);
+  const box = $('spaces');
+  box.replaceChildren();
+  if (!d.spaces.length) box.append(el('p', 'empty', "Aucun poste inscrit pour l'instant."));
+  for (const s of d.spaces) {
+    const row = el('div', 'row');
+    const name = s.name || 'Poste';
+    const g = el('div', 'grow', name);
+    if (s.label && s.label !== name) g.append(el('small', '', s.label));
+    const dot = el('span', 'dot' + (s.online ? ' on' : ''));
+    dot.title = s.online ? 'Connecté' : 'Hors ligne';
+    const a = el('a', 'btn', 'Suivre'); a.href = `/a/${s.key}`;
+    row.append(el('span', 'avatar', name[0].toUpperCase()), g, dot, a);
+    box.append(row);
+  }
+}
+
+async function loadAutos() {
+  const r = await fetch(`${api}/automations`);
+  const list = r.ok ? await r.json() : [];
+  const box = $('autos');
+  box.replaceChildren();
+  if (!list.length) box.append(el('p', 'empty', 'Aucun automatisme partagé.'));
+  for (const l of list) {
+    const row = el('div', 'row');
+    const g = el('div', 'grow', l.title || l.id);
+    if (l.publisher) g.append(el('small', '', `Fourni par ${l.publisher}`));
+    const b = el('button', 'light', 'Retirer');
+    b.onclick = async () => {
+      if (!confirm(`Retirer « ${l.title} » de tous les postes ?`)) return;
+      const x = await fetch(`${api}/automations/${encodeURIComponent(l.id)}`, { method: 'DELETE' });
+      toast(x.ok ? 'Retiré de tous les postes.' : 'Impossible de retirer.');
+      loadAutos();
+    };
+    row.append(g, b);
+    box.append(row);
+  }
+}
+
+$('import').onclick = () => $('file').click();
+$('file').onchange = async () => {
+  const f = $('file').files[0];
+  if (!f) return;
+  const r = await fetch(`${api}/automations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: await f.text() });
+  const d = await r.json().catch(() => ({}));
+  toast(r.ok ? `« ${d.title} » proposé sur tous les postes.` : (d.error || 'Import refusé.'));
+  $('file').value = '';
+  loadAutos();
+};
+
+loadSpaces(); loadAutos();
+setInterval(loadSpaces, 30000);
+</script>
+</body>
+</html>
