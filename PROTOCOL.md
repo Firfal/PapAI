@@ -300,6 +300,11 @@ bureau reste le comportement par défaut.
   `{"type":"web_agent_start"}` si le plan demande le web et que le Mac a annoncé
   cette capacité. Le Mac ne démarre le navigateur que pour une session en cours
   et si le verrou local n'est pas levé.
+- Si aucune session navigateur valide n'arrive dans les 20 secondes, ou si la
+  session est arrêtée pendant son démarrage, le serveur envoie
+  `{"type":"web_agent_stop"}` au Mac. Celui-ci annule son démarrage local sans
+  renvoyer de réponse. Après l'expiration, une réponse tardive est ignorée et la
+  session encore ouverte passe en mode bureau.
 - Mac → serveur, en cours de session :
   `{"type":"web_agent","session_id":"<uuid>"}` après le démarrage de Chrome
   PapAI (profil dédié, port de debug 9222) et de

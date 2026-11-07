@@ -207,24 +207,41 @@ class BridgeLink:
             pass
 
     def receive_web_agent(self, value) -> str | None:
-        self.web_agent = valid_browser_session(value)
         waiter = self._web_agent_waiter
+        if waiter is None and self.active_web_session is None:
+            self.web_agent = None
+            return None
+        self.web_agent = valid_browser_session(value)
         if self.web_agent and waiter is not None and not waiter.done():
             waiter.set_result(self.web_agent)
         return self.web_agent
+
+    async def stop_web_agent(self) -> None:
+        waiter = self._web_agent_waiter
+        self._web_agent_waiter = None
+        self.web_agent = None
+        if waiter is not None and not waiter.done():
+            waiter.cancel()
+        await self.send({"type": "web_agent_stop"})
 
     async def start_web_agent(self) -> str | None:
         self.web_agent = None
         waiter = asyncio.get_running_loop().create_future()
         self._web_agent_waiter = waiter
-        await self.send({"type": "web_agent_start"})
         try:
+            await self.send({"type": "web_agent_start"})
             return await asyncio.wait_for(waiter, WEB_AGENT_START_TIMEOUT_S)
         except asyncio.TimeoutError:
+            await self.stop_web_agent()
             return None
+        except asyncio.CancelledError:
+            await asyncio.shield(self.stop_web_agent())
+            raise
         finally:
             if self._web_agent_waiter is waiter:
                 self._web_agent_waiter = None
+            if not waiter.done():
+                waiter.cancel()
 
 
 bridge: BridgeLink | None = None
@@ -520,6 +537,8 @@ async def run_session(session, link: "BridgeLink") -> None:
         if session.where == "web" and link.web_agent_available:
             browser = await link.start_web_agent()
             if not session.is_open:
+                if browser is not None:
+                    await link.stop_web_agent()
                 return
             if browser is None:
                 session.log("web_agent_timeout")

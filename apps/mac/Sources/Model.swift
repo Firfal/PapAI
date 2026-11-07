@@ -499,6 +499,8 @@ final class AppModel {
             applyStatus(m)
         case "web_agent_start":
             if sessionOpen && !gate.isStopped { webHost.start() }
+        case "web_agent_stop":
+            webHost.stopLocal(notifyServer: false)
         case "answer":
             answer = m["content"] as? String
         case "helpers":

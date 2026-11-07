@@ -159,6 +159,31 @@ class ChoixDuMode(Base):
         bureau.assert_called_once()
         web.assert_not_called()
         self.assertEqual(s.where, "desktop")
+        start = next(i for i, m in enumerate(self.bridge_sent) if m["type"] == "web_agent_start")
+        stop = next(i for i, m in enumerate(self.bridge_sent) if m["type"] == "web_agent_stop")
+        self.assertLess(start, stop)
+        await app.handle_web_agent_change(self.link, NAV)
+        self.assertIsNone(self.link.web_agent)
+        self.assertIsNone(s.status()["stopped_by"])
+        web.assert_not_called()
+
+    async def test_arret_pendant_attente_envoie_web_agent_stop(self):
+        self.web_reply = None
+        s = self.session()
+        with patch.object(app, "AgentRunner") as bureau, patch.object(app, "WebAgentRunner") as web:
+            task = await self.lancer(s, "web")
+            s.decide_plan("approve", "")
+            self.assertTrue(await attendre(
+                lambda: any(m["type"] == "web_agent_start" for m in self.bridge_sent)
+            ))
+            s.stop(by="senior")
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+        self.assertIn({"type": "web_agent_stop"}, self.bridge_sent)
+        self.assertIsNone(self.link._web_agent_waiter)
+        bureau.assert_not_called()
+        web.assert_not_called()
 
     async def test_bureau_si_hello_sans_capacite_navigateur(self):
         self.link.web_agent_available = False

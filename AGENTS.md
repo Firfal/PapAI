@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794089468-agent-navigateur` | Correctifs revue PR #38 : annulation du démarrage navigateur, captures web et arrêt Mac | `AGENTS.md`, `backend/app.py`, `tests/test_agent_navigateur.py`, `PROTOCOL.md`, `backend/static/helper.html`, `apps/ios/Sources/HelperModel.swift`, `apps/ios/Sources/LiveViews.swift`, `apps/android/app/src/main/java/com/quentin/papai/aidant/Helper.kt`, `apps/android/app/src/main/java/com/quentin/papai/aidant/Live.kt`, `apps/mac/Sources/WebAgent.swift`, `apps/mac/Sources/Model.swift` | 8 nov. |
 
 ## Journal
 
