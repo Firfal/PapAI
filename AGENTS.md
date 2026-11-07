@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794089468-agent-navigateur` | Correctifs revue : démarrage après validation, arrêt de lancement, navigateur perdu, rafraîchissement web | `AGENTS.md`, `PROTOCOL.md`, `apps/mac/Sources/Bridge.swift`, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/WebAgent.swift`, `backend/app.py`, `backend/web_agent.py`, `tests/test_agent_navigateur.py` | 8 nov. |
 
 ## Journal
 

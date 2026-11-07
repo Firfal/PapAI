@@ -292,12 +292,20 @@ local de H (Agents API) au lieu de l'agent bureau. Tous les champs sont
 optionnels : un ancien serveur ou une ancienne app les ignore et le mode
 bureau reste le comportement par défaut.
 
-- Mac → serveur, `hello` : `"web_agent": {"session_id": "<uuid>"}` seulement
-  quand « Chrome PapAI » (profil dédié, port de debug 9222) **et**
-  `holo local browser --session-id <uuid>` tournent sur le Mac.
-- Mac → serveur, en cours de connexion : `{"type":"web_agent","session_id":"<uuid>"}`
-  dès que les deux tournent (le Mac les lance au début d'une demande),
-  `{"type":"web_agent","session_id":null}` quand ils s'arrêtent.
+- Mac → serveur, `hello` : `"web_agent_available": true` quand
+  `WebAgentHost.isInstalled` et `browserExecutable()` sont vrais. Le Mac
+  n'annonce plus de session navigateur dans `hello`; l'absence du champ signifie
+  que le serveur doit rester en mode bureau.
+- Après la validation du plan, serveur → Mac :
+  `{"type":"web_agent_start"}` si le plan demande le web et que le Mac a annoncé
+  cette capacité. Le Mac ne démarre le navigateur que pour une session en cours
+  et si le verrou local n'est pas levé.
+- Mac → serveur, en cours de session :
+  `{"type":"web_agent","session_id":"<uuid>"}` après le démarrage de Chrome
+  PapAI (profil dédié, port de debug 9222) et de
+  `holo local browser --session-id <uuid>`; `{"type":"web_agent","session_id":null}`
+  quand ils s'arrêtent. Le serveur attend au plus 20 secondes une session valide,
+  puis utilise le mode bureau si le Mac ne répond pas.
 - Serveur → apps, `status.where` : `"web"`, `"desktop"` ou `null`. Avant la
   validation, c'est l'endroit proposé par Holo avec le plan ; après la
   validation, c'est le mode réellement utilisé (`"desktop"` si le Mac n'a pas

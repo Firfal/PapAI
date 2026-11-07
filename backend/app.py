@@ -77,6 +77,7 @@ PUBLIC_MODE = os.environ.get("PAPAI_PUBLIC", "") == "1"
 MAX_TASK = 500
 MAX_PROCESSES = 500
 MAX_PROCESS_NAME = 200
+WEB_AGENT_START_TIMEOUT_S = 20.0
 
 
 def _key_ok(fam: str) -> bool:
@@ -147,9 +148,11 @@ class BridgeLink:
         self.ws = ws
         self._pending: dict[str, asyncio.Future] = {}
         self.os = "windows"  # annoncé par le pont dans son message hello
+        self.web_agent_available = False
         # Identifiant du navigateur servi par `holo local browser` sur la machine
         # de la personne aidée, s'il tourne (PROTOCOL.md, agent navigateur).
         self.web_agent: str | None = None
+        self._web_agent_waiter: asyncio.Future[str] | None = None
 
     async def close(self, code: int = 1000) -> None:
         try:
@@ -200,6 +203,26 @@ class BridgeLink:
             await self.ws.send_json(payload)
         except Exception:  # noqa: BLE001 — pont déconnecté
             pass
+
+    def receive_web_agent(self, value) -> str | None:
+        self.web_agent = valid_browser_session(value)
+        waiter = self._web_agent_waiter
+        if self.web_agent and waiter is not None and not waiter.done():
+            waiter.set_result(self.web_agent)
+        return self.web_agent
+
+    async def start_web_agent(self) -> str | None:
+        self.web_agent = None
+        waiter = asyncio.get_running_loop().create_future()
+        self._web_agent_waiter = waiter
+        await self.send({"type": "web_agent_start"})
+        try:
+            return await asyncio.wait_for(waiter, WEB_AGENT_START_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            return None
+        finally:
+            if self._web_agent_waiter is waiter:
+                self._web_agent_waiter = None
 
 
 bridge: BridgeLink | None = None
@@ -308,8 +331,9 @@ async def _ws_bridge(ws: WebSocket) -> None:
             if kind in ("hello", "profile"):
                 if kind == "hello":
                     link.os = str(msg.get("os", "windows")).lower()[:20]
-                    link.web_agent = valid_browser_session(msg.get("web_agent"))
-                    print(f"[pont] système : {link.os}, navigateur : {'oui' if link.web_agent else 'non'}")
+                    link.web_agent_available = msg.get("web_agent_available") is True
+                    link.web_agent = None
+                    print(f"[pont] système : {link.os}, navigateur : {'disponible' if link.web_agent_available else 'non'}")
                 # Le prénom saisi sur l'ordinateur, transmis aux aidants.
                 if family.set_senior(str(msg.get("name", ""))):
                     await broadcast_helper({"type": "senior", "name": family.senior})
@@ -474,7 +498,13 @@ async def run_session(session, link: "BridgeLink") -> None:
                 return
             notes.append(note)  # refine : on refait un plan avec la précision
         # Mode web seulement si Holo l'a proposé ET si l'ordinateur sert un navigateur.
-        browser = link.web_agent if session.where == "web" else None
+        browser = None
+        if session.where == "web" and link.web_agent_available:
+            browser = await link.start_web_agent()
+            if not session.is_open:
+                return
+            if browser is None:
+                session.log("web_agent_timeout")
         session.where = "web" if browser else "desktop"
         session.log("mode", where=session.where)
         if browser:

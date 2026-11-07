@@ -221,7 +221,6 @@ final class AppModel {
         started = true
         client.onMessage = { [weak self] m in self?.handle(m) }
         webHost.onChange = { [weak self] id in
-            self?.client.webAgentID = id
             self?.client.send(["type": "web_agent", "session_id": id ?? NSNull()])
         }
         InputLock.shared.allowedRect = { [weak self] in self?.protectedRect() }
@@ -453,7 +452,6 @@ final class AppModel {
         sessionHelper = nil
         AppUsage.shared.noteRequest(task)
         webFronted = false
-        webHost.start()
         state = .planning
         screen = .session
         applyLevel()
@@ -493,6 +491,8 @@ final class AppModel {
             Task { await doExecute(req, action) }
         case "status":
             applyStatus(m)
+        case "web_agent_start":
+            if sessionOpen && !gate.isStopped { webHost.start() }
         case "answer":
             answer = m["content"] as? String
         case "helpers":

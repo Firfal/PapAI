@@ -44,8 +44,19 @@ class Base(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.api.fermer)
         os.environ["HAI_AGENTS_BASE_URL"] = self.api.url
         self.registry = Registry()
-        self.link = SimpleNamespace(send=AsyncMock(), capture=AsyncMock(return_value=None),
-                                    execute=AsyncMock(), os="macos", web_agent=NAV)
+        self.bridge_sent = []
+        self.web_reply = NAV
+
+        async def envoyer_au_pont(message):
+            self.bridge_sent.append(message)
+            if message.get("type") == "web_agent_start" and self.web_reply is not None:
+                self.link.receive_web_agent(self.web_reply)
+
+        self.link = app.BridgeLink(SimpleNamespace(send_json=AsyncMock(side_effect=envoyer_au_pont)))
+        self.link.capture = AsyncMock(return_value=None)
+        self.link.execute = AsyncMock()
+        self.link.os = "macos"
+        self.link.web_agent_available = True
         self.envoyes = []
 
         async def diffuser(msg, to_bridge=True):
@@ -53,7 +64,8 @@ class Base(unittest.IsolatedAsyncioTestCase):
 
         for p in (patch.object(app, "registry", self.registry), patch.object(app, "bridge", self.link),
                   patch.object(app, "pending_alert", None), patch.object(app, "broadcast_helper", diffuser),
-                  patch.object(web_agent, "PAUSE_POLL_S", 0.05)):
+                  patch.object(web_agent, "PAUSE_POLL_S", 0.05),
+                  patch.object(app, "WEB_AGENT_START_TIMEOUT_S", 0.05)):
             p.start()
             self.addCleanup(p.stop)
 
@@ -97,7 +109,7 @@ class ChoixDuMode(Base):
             self.assertIsNone(web_agent.valid_browser_session(mauvais), mauvais)
 
     async def mode(self, where, annonce):
-        self.link.web_agent = annonce
+        self.web_reply = annonce
         s = self.session()
         with patch.object(app, "AgentRunner") as bureau, patch.object(app, "WebAgentRunner") as web:
             bureau.return_value.run = AsyncMock()
@@ -110,6 +122,7 @@ class ChoixDuMode(Base):
 
     async def test_web_si_propose_et_annonce(self):
         s, bureau, web = await self.mode("web", NAV)
+        self.assertIn({"type": "web_agent_start"}, self.bridge_sent)
         web.assert_called_once()
         self.assertEqual(web.call_args.args[1], NAV)
         bureau.assert_not_called()
@@ -117,8 +130,17 @@ class ChoixDuMode(Base):
 
     async def test_bureau_si_pas_de_navigateur(self):
         s, bureau, web = await self.mode("web", None)
+        self.assertTrue(any(e["kind"] == "web_agent_timeout" for e in s.journal))
         bureau.assert_called_once()
         web.assert_not_called()
+        self.assertEqual(s.where, "desktop")
+
+    async def test_bureau_si_hello_sans_capacite_navigateur(self):
+        self.link.web_agent_available = False
+        s, bureau, web = await self.mode("web", NAV)
+        bureau.assert_called_once()
+        web.assert_not_called()
+        self.assertFalse(any(m["type"] == "web_agent_start" for m in self.bridge_sent))
         self.assertEqual(s.where, "desktop")
 
     async def test_bureau_si_tache_hors_navigateur(self):
@@ -291,7 +313,7 @@ class MessagesDuPont(unittest.IsolatedAsyncioTestCase):
 
         async def recevoir():
             if app.bridge is not None and vus is not None and len(vus) < 4:
-                vus.append(app.bridge.web_agent)
+                vus.append((app.bridge.web_agent, app.bridge.web_agent_available))
             if msgs:
                 return msgs.pop(0)
             raise WebSocketDisconnect()
@@ -302,7 +324,7 @@ class MessagesDuPont(unittest.IsolatedAsyncioTestCase):
             fam.set_senior.return_value = False
             fam.restore.return_value = False
             await app._ws_bridge(ws)
-        self.assertEqual(vus, [None, NAV, None, None])
+        self.assertEqual(vus, [(None, False), (None, False), (NAV, False), (None, False)])
 
 
 if __name__ == "__main__":
