@@ -61,9 +61,16 @@ struct HomeView: View {
         let listening = dictation.phase == .listening
         return Button {
             warning = nil
-            dictation.toggle(httpBase: model.httpBase) { text in
-                request = request.isEmpty ? text : request + " " + text
-                // Dictée : quand la personne s'arrête de parler, la demande part,
+            let before = request.trimmingCharacters(in: .whitespacesAndNewlines)
+            func joined(_ t: String) -> String { before.isEmpty ? t : before + " " + t }
+            dictation.toggle(httpBase: model.httpBase, onLive: { t in
+                // Les mots s'affichent pendant qu'elle parle, et partent chez l'aidant.
+                request = joined(t)
+                model.sendDictation(t)
+            }) { text in
+                request = joined(text)
+                model.sendDictation(text, final: true)
+                // Quand la personne s'arrête de parler, la demande part seule,
                 // sans qu'elle ait à appuyer sur « J'ai besoin d'aide ».
                 submit()
             }

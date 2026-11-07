@@ -193,9 +193,19 @@ struct IdleView: View {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Tout va bien chez \(model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
-                    Text("Vous serez prévenu dès qu’elle demande de l’aide.").font(.system(size: 16)).foregroundStyle(Soin.secondary)
+                    Text("Vous serez prévenu dès qu’une demande d’aide arrive.").font(.system(size: 16)).foregroundStyle(Soin.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(Soin.accentSoft, radius: 28)
+
+                if let live = model.liveDictation {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("\(model.seniorTitle) est en train de parler", systemImage: "waveform")
+                            .font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.accent)
+                        Text("« \(live) »").font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
+                            .animation(.easeOut(duration: 0.15), value: live)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(20).soinCard(.white, radius: 24)
+                }
 
                 if let a = model.lastAlert {
                     VStack(alignment: .leading, spacing: 4) {

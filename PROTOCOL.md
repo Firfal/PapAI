@@ -163,3 +163,8 @@ En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gard�
 - `status.question` porte alors `"to":"senior"` (sinon `"helper"`). Le message `question` aussi.
 - App de la personne aidée : elle affiche la question et répond par `{"type":"senior_answer","text":"…"}`. L'aidant voit « Question posée à Sophie » et peut aussi répondre (`answer`). La première réponse compte.
 - Côté personne aidée, le plan n'est plus affiché : seulement l'avancement (`state`, `plan_step` / longueur du plan).
+
+## Dictée en direct
+
+- App de la personne aidée → serveur : `{"type":"dictation","text":"…","final":false}` pendant qu'elle parle (au plus 3 par seconde), puis `final:true` avec le texte retenu.
+- Serveur → aidants : le même message. L'iPhone affiche « Sophie est en train de parler : « … » ».

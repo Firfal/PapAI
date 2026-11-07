@@ -344,6 +344,13 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 t.add_done_callback(_guard_taches.discard)
                 continue
 
+            if kind == "dictation":
+                # Transcription en direct : l'aidant voit ce que la personne dit.
+                await broadcast_helper({"type": "dictation",
+                                        "text": str(msg.get("text", ""))[:300],
+                                        "final": bool(msg.get("final"))})
+                continue
+
             if kind == "senior_answer":
                 # La personne aidée répond à une question de Holo qui lui était posée.
                 s = current_session()

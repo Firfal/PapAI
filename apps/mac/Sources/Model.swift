@@ -289,6 +289,15 @@ final class AppModel {
         askHelp(task: task)
     }
 
+    /// Transcription en direct de la dictée, montrée à l'aidant pendant qu'elle parle.
+    private var lastDictationSent = Date.distantPast
+    func sendDictation(_ text: String, final: Bool = false) {
+        let now = Date()
+        guard final || now.timeIntervalSince(lastDictationSent) > 0.35 else { return }
+        lastDictationSent = now
+        client.send(["type": "dictation", "text": String(text.prefix(300)), "final": final])
+    }
+
     /// Réponse de la personne aidée à une question de Holo qui lui est posée.
     func answerSenior(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)

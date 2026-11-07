@@ -79,6 +79,9 @@ final class HelperModel {
     var question: (text: String, options: [String])?
     /// Vrai quand Holo pose la question à la personne aidée (`to: senior`).
     var questionToSenior = false
+    /// Ce que la personne aidée est en train de dicter, en direct.
+    var liveDictation: String?
+    private var dictationClear: Task<Void, Never>?
     var sessionId = ""
     var requestStart = Date()
     var iRefusedPlan = false
@@ -423,6 +426,13 @@ final class HelperModel {
         case "hello":
             setSenior(m["senior"] as? String)
 
+        case "dictation":
+            let t = (m["text"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            liveDictation = t.isEmpty ? nil : t
+            dictationClear?.cancel()
+            // Sans nouvelle demande dans la minute, on efface le texte affiché.
+            dictationClear = Task { try? await Task.sleep(for: .seconds(60)); if !Task.isCancelled { liveDictation = nil } }
+
         case "senior":
             setSenior(m["name"] as? String)
 
@@ -430,6 +440,7 @@ final class HelperModel {
             let newState = m["state"] as? String
             let sid = "\(m["session"] ?? "")"
             if sid != sessionId {
+                liveDictation = nil
                 sessionId = sid; requestStart = Date(); iRefusedPlan = false
                 doneAnswer = nil; hasDraft = false; savedTitle = nil; lessonBusy = false
                 pausing = false; doneFresh = false
