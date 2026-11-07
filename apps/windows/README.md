@@ -13,7 +13,7 @@ puis ouvre PapAI. Les lancements suivants sont immédiats. Si Windows affiche
 « Windows a protégé votre ordinateur » : Informations complémentaires > Exécuter
 quand même. Pour repartir de zéro, supprimer le dossier `.python`.
 
-Avec un Python déjà installé sur le PC, `install.bat` crée plutôt un `.venv`.
+Avec un Python déjà installé sur le PC : `install.bat` (crée un `.venv`), puis `run.bat`.
 
 Le serveur par défaut est `ws://localhost:8000/ws/bridge`. Pour un autre
 serveur : roue dentée > Serveur, ou variable `PAPAI_SERVER` avant `PapAI.bat`.
