@@ -104,6 +104,7 @@ class Bridge:
                         watch.cancel()
             except asyncio.CancelledError:
                 self._ws = None
+                self._set_connected(False)
                 raise
             except Exception:  # noqa: BLE001 — serveur absent ou coupé
                 pass
