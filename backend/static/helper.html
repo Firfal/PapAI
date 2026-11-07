@@ -93,6 +93,14 @@
   #question p { margin: 0 0 12px; font-weight: 600; }
   .options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 
+  /* ----------------------------------------------------------- le plan */
+
+  #plan { margin-top: 14px; padding: 14px; border-radius: var(--r);
+          background: var(--panel); border: 1px solid var(--warn); display: none; }
+  #plan p { margin: 0 0 10px; font-weight: 600; }
+  #planSteps { margin: 0 0 12px; padding-left: 22px; }
+  #planSteps li { margin-bottom: 6px; }
+
   /* ------------------------------------------------------- les contrôles */
 
   .row { display: flex; gap: 8px; margin-top: 12px; }
@@ -168,6 +176,19 @@
   <div class="row">
     <input type="text" id="reply" placeholder="Votre réponse…" autocomplete="off" aria-label="Votre réponse">
     <button class="primary" id="send" type="button" style="flex:0 0 auto">Envoyer</button>
+  </div>
+</div>
+
+<div id="plan">
+  <p>Holo propose ce plan. Rien ne bouge sur l'ordinateur avant votre accord.</p>
+  <ol id="planSteps"></ol>
+  <div class="row">
+    <button class="primary" id="planApprove" type="button">Valider</button>
+    <button class="danger" id="planRefuse" type="button">Refuser</button>
+  </div>
+  <div class="row">
+    <input type="text" id="planNote" placeholder="Préciser, par exemple : c'est dans Images › Noël 2025" autocomplete="off" aria-label="Précision pour Holo">
+    <button id="planRefine" type="button" style="flex:0 0 auto">Préciser</button>
   </div>
 </div>
 
@@ -270,6 +291,8 @@ function toast(msg) {
 }
 
 const LABELS = {
+  planning:          ['Holo regarde l’écran et prépare un plan', 'waiting'],
+  awaiting_approval: ['Un plan attend votre accord', 'waiting'],
   waiting_consent: ["En attente de l'autorisation de votre proche", 'waiting'],
   active:          ["L'assistance travaille sur le PC", 'active'],
   awaiting_helper: ['Votre proche a besoin de vous', 'waiting'],
@@ -385,7 +408,7 @@ function onMessage(ev) {
     setBanner(label, cls);
     if (m.task) $('task').textContent = '« ' + m.task + ' »';
 
-    const open = ['waiting_consent', 'active', 'awaiting_helper'].includes(m.state);
+    const open = ['waiting_consent', 'planning', 'awaiting_approval', 'active', 'awaiting_helper'].includes(m.state);
     $('remote').hidden = ['planning', 'awaiting_approval', 'active', 'awaiting_helper'].includes(m.state);
     $('pause').disabled = !open || m.state !== 'active';
     $('arm').disabled = m.state !== 'awaiting_helper';
@@ -394,6 +417,19 @@ function onMessage(ev) {
       : "Vous pourrez cliquer vous-même quand l'assistance sera en pause.";
     if (m.state !== 'awaiting_helper') { setArmed(false); $('question').style.display = 'none'; }
     if (m.state === 'active') { $('pause').textContent = 'Mettre en pause'; }
+
+    // Le plan de Holo : Valider, Préciser ou Refuser, comme dans l'app iPhone.
+    const planOpen = m.state === 'awaiting_approval';
+    $('plan').style.display = planOpen ? 'block' : 'none';
+    if (planOpen) {
+      $('planSteps').innerHTML = '';
+      (m.plan || []).forEach(t => {
+        const li = document.createElement('li');
+        li.textContent = t;
+        $('planSteps').appendChild(li);
+      });
+    }
+    ['planApprove', 'planRefuse', 'planRefine'].forEach(id => $(id).disabled = !planOpen);
 
     // La fiche se rédige une fois la manipulation terminée.
     $('memory').style.display = open ? 'none' : 'block';
@@ -546,6 +582,15 @@ $('approve').onclick = () => {
   const steps = [...$('steps').querySelectorAll('textarea')]
     .map(t => ({ instruction: t.value.trim() }));
   send({ type: 'approve_lesson', lesson: { title: $('lessonTitle').value.trim(), steps } });
+};
+
+$('planApprove').onclick = () => send({ type: 'approve_plan' });
+$('planRefuse').onclick = () => send({ type: 'refuse_plan' });
+$('planRefine').onclick = () => {
+  const text = $('planNote').value.trim();
+  if (!text) { toast('Écrivez la précision à donner à Holo.'); $('planNote').focus(); return; }
+  send({ type: 'refine_plan', text });
+  $('planNote').value = '';
 };
 
 $('remoteSend').onclick = () => {

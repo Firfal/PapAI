@@ -6,7 +6,10 @@ import SwiftUI
 /// les réglages.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
-    @State private var step = 0
+    private var step: Int {
+        get { model.onboardingStep }
+        nonmutating set { model.onboardingStep = newValue }
+    }
     @State private var name = ""
     @FocusState private var nameFocused: Bool
 
