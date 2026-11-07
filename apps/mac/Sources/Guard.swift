@@ -100,6 +100,12 @@ struct GuardAlertView: View {
                 .frame(maxHeight: 260)
                 Text("Un message est parti à \(model.helperName).")
                     .font(rounded(18)).foregroundStyle(T.muted)
+                if model.sessionOpen {
+                    Button { model.stop(); model.guardAlert = nil } label: {
+                        Text("Arrêter l'assistance").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PillStyle(height: 72))
+                }
                 Button { model.guardAlert = nil } label: { Text("J'ai compris").frame(maxWidth: .infinity) }
                     .buttonStyle(PillStyle(height: 72))
                     .keyboardShortcut(.defaultAction)
