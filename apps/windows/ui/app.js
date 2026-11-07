@@ -266,12 +266,12 @@
   }
 
   // -------------------------------------------------------------- Onboarding
-  const ONB = 5;
+  const ONB = 4;  // la taille du texte se règle dans les réglages, pas à l'accueil
   function onboarding() {
     const step = S.onboardingStep;
     const dots = `<div class="row dots" style="gap:8px" aria-label="Étape ${step + 1} sur ${ONB}">` +
       Array.from({ length: ONB }, (_, i) => `<span class="d" style="width:${i === step ? 34 : 12}px;background:${i <= step ? 'var(--accent)' : 'var(--card)'}"></span>`).join('') + '</div>';
-    const content = [onbWelcome, onbName, onbTextSize, onbPermissions, () => helpersPanel(true)][step]();
+    const content = [onbWelcome, onbName, onbPermissions, () => helpersPanel(true)][step]();
     const label = step === 0 ? 'Commencer' : step === ONB - 1 ? (S.helpers.length ? 'Terminer' : 'Plus tard') : 'Continuer';
     return mint(`${dots}<div class="col" style="gap:22px;flex:1;min-height:0">${content}</div>`, 40, 22) +
       `<div class="row" style="gap:14px;margin-top:18px">

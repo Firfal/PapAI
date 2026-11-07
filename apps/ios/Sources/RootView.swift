@@ -45,7 +45,7 @@ struct RootView: View {
         } else {
             switch model.screen {
             case .idle: IdleView(model: model)
-            case .waiting: WaitingView(model: model, text: "En attente de l’autorisation de Jeanne")
+            case .waiting: WaitingView(model: model, text: "En attente de l’autorisation de \(model.senior)")
             case .planning: WaitingView(model: model, text: "Holo regarde l’écran…")
             case .approval: ApprovalView(model: model)
             case .active: ActiveView(model: model)
@@ -130,7 +130,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Connexion").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
-                Text("Le plus simple : scannez le QR affiché sur l’ordinateur de Jeanne (Proches › Ajouter un proche).")
+                Text("Le plus simple : scannez le QR affiché sur l’ordinateur de \(model.senior) (Proches › Ajouter un proche).")
                     .font(.system(size: 15)).foregroundStyle(Soin.secondary)
                 Button("Scanner le QR de l’ordinateur") { model.sheet = .scanner }
                     .buttonStyle(CapsuleButtonStyle(fill: Soin.accent))
@@ -192,7 +192,7 @@ struct IdleView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Tout va bien chez Jeanne").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
+                    Text("Tout va bien chez \(model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
                     Text("Vous serez prévenu dès qu’elle demande de l’aide.").font(.system(size: 16)).foregroundStyle(Soin.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(Soin.accentSoft, radius: 28)
@@ -252,7 +252,7 @@ struct StoppedView: View {
             Image(systemName: model.iRefusedPlan ? "xmark" : "pause")
                 .font(.system(size: 22, weight: .semibold)).foregroundStyle(Soin.ink)
                 .frame(width: 64, height: 64).background(Soin.card, in: Circle())
-            Text(model.iRefusedPlan ? "Vous avez refusé le plan" : "Jeanne a arrêté l’assistance")
+            Text(model.iRefusedPlan ? "Vous avez refusé le plan" : "\(model.seniorTitle) a arrêté l’assistance")
                 .font(.system(size: 22, weight: .bold)).foregroundStyle(Soin.ink)
             Text("Rien n’a été fait sur son ordinateur.").font(.system(size: 15)).foregroundStyle(Soin.secondary)
             Spacer(); Spacer()
@@ -275,7 +275,7 @@ struct RequestCard: View {
                         Text("Demande de Mamie · \(ago(model.requestStart))")
                             .font(.system(size: 13)).foregroundStyle(Soin.secondary).lineLimit(1)
                     }
-                    Text("Jeanne, 81 ans").font(.system(size: 20, weight: .bold)).foregroundStyle(Soin.ink)
+                    Text(model.seniorTitle).font(.system(size: 20, weight: .bold)).foregroundStyle(Soin.ink)
                 }
             }
             Text("« \(model.task) »")
@@ -286,7 +286,7 @@ struct RequestCard: View {
                     HStack(spacing: 8) {
                         Image(uiImage: img).resizable().scaledToFill().frame(width: 38, height: 26)
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        Text("Écran de Jeanne").font(.system(size: 13, weight: .medium)).foregroundStyle(Soin.ink)
+                        Text("Écran de \(model.senior)").font(.system(size: 13, weight: .medium)).foregroundStyle(Soin.ink)
                     }
                     .padding(.leading, 6).padding(.trailing, 12).padding(.vertical, 6)
                     .background(Soin.card, in: Capsule())

@@ -99,7 +99,7 @@ final class HelperModel {
     var lessonBusy = false
     var draftTitle = ""
     var draftSteps: [DraftStep] = []
-    /// Ce que la tuile ouvrira chez Jeanne (« Images › Noël 2025 »), à voir avant de valider.
+    /// Ce que la tuile ouvrira chez la personne aidée (« Images › Noël 2025 »), à voir avant de valider.
     var draftTarget: String?
     var hasDraft = false
     var savedTitle: String?
@@ -310,7 +310,26 @@ final class HelperModel {
 
     // MARK: Appairage
 
+    // MARK: Personne aidée
+
+    /// Prénom saisi sur l'ordinateur de la personne aidée (`hello.senior`, `senior`,
+    /// réponse d'appairage, paramètre `n` du lien). Jamais un nom figé.
+    var seniorName: String = UserDefaults.standard.string(forKey: "seniorName") ?? ""
+    /// Dans une phrase : « Tout va bien chez Sophie », sinon « chez votre proche ».
+    var senior: String { seniorName.isEmpty ? "votre proche" : seniorName }
+    /// En début de phrase : « Sophie a besoin de vous », sinon « Votre proche… ».
+    var seniorTitle: String { seniorName.isEmpty ? "Votre proche" : seniorName }
+
+    func setSenior(_ name: String?) {
+        let n = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty, n != seniorName else { return }
+        seniorName = n
+        UserDefaults.standard.set(n, forKey: "seniorName")
+    }
+
     func open(url: URL) {
+        if let n = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "n" })?.value { setSenior(n) }
         guard let link = PairLink.parse(url.absoluteString) else { showToast("Lien PapAI non reconnu."); return }
         openPair(link)
     }
@@ -352,6 +371,7 @@ final class HelperModel {
             }
             var server = (r["server"] as? String) ?? link.origin
             while server.hasSuffix("/") { server.removeLast() }
+            setSenior(r["senior"] as? String)
             helperName = r["name"] as? String ?? n
             UserDefaults.standard.set(helperName, forKey: "helperName")
             log.info("appairé avec \(server, privacy: .public)")
@@ -398,6 +418,12 @@ final class HelperModel {
               let type = m["type"] as? String else { return }
 
         switch type {
+        case "hello":
+            setSenior(m["senior"] as? String)
+
+        case "senior":
+            setSenior(m["name"] as? String)
+
         case "status":
             let newState = m["state"] as? String
             let sid = "\(m["session"] ?? "")"
@@ -446,7 +472,7 @@ final class HelperModel {
         case "ack":
             if m["what"] as? String == "click" {
                 sending = false; aiming = false; target = nil
-                showToast("Clic transmis à l’ordinateur de Jeanne.")
+                showToast("Clic transmis à l’ordinateur de \(senior).")
             } else if m["what"] as? String == "pause" { pausing = true }
 
         case "lesson_pending": lessonBusy = true
@@ -478,7 +504,7 @@ final class HelperModel {
     // MARK: Notifications
 
     private func notify(_ s: String) {
-        let who = "Jeanne"
+        let who = seniorTitle
         if s == "awaiting_approval" {
             notifyLocal(title: "\(who) demande de l’aide", body: task.isEmpty ? "Un plan attend votre accord." : "« \(task) » : un plan attend votre accord.")
         } else {

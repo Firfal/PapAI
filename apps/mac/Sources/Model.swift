@@ -54,6 +54,9 @@ final class AppModel {
     /// Lien `papai://` du QR, envoyé par le serveur (`app_url`) ou construit depuis `pairURL`.
     var pairAppURL: String?
     var pairAdded: String?
+    /// Vrai pour une invitation à envoyer (SMS, WhatsApp…), valable 24 h.
+    var pairLong = false
+    var pairExpires = 600
     var remoteRequest: RemoteRequest?
     var showHelpers = false
     var pendingTask = ""
@@ -84,7 +87,7 @@ final class AppModel {
     }
     var firstName: String {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
-        return n.isEmpty ? "Jeanne" : n
+        return n
     }
 
     /// Qui aide : toujours au singulier pour accorder le verbe qui suit.
@@ -105,6 +108,14 @@ final class AppModel {
 
     func setFirstName(_ name: String) {
         UserDefaults.standard.set(name.trimmingCharacters(in: .whitespaces), forKey: "firstName")
+        sendProfile()
+    }
+
+    /// Le prénom réellement saisi (sans la valeur d'exemple), transmis au serveur
+    /// pour que l'aidant lise « Vous allez aider Sophie » et non un nom figé.
+    func sendProfile() {
+        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
+        if !n.isEmpty { client.send(["type": "profile", "name": n]) }
     }
 
     func setTextScale(_ v: Double) {
@@ -119,15 +130,23 @@ final class AppModel {
         stopPairing()
     }
 
-    func startPairing() {
+    func startPairing(long: Bool = false) {
         pairAdded = nil
-        client.send(["type": "pair_start"])
+        client.send(long ? ["type": "pair_start", "long": true] : ["type": "pair_start"])
+    }
+
+    /// Le texte de l'invitation envoyée au proche, avec le lien d'appairage.
+    var invitationText: String {
+        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
+        let who = n.isEmpty ? "Votre proche" : n
+        return "\(who) aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre téléphone pour vous relier (valable 24 heures) :"
     }
 
     func stopPairing() {
         pairCode = nil
         pairURL = nil
         pairAppURL = nil
+        pairLong = false
     }
 
     /// `papai://pair?u=<url encodée>` : l'appareil photo de l'iPhone ouvre l'app, pas Safari.
@@ -163,6 +182,7 @@ final class AppModel {
         client.onConnection = { [weak self] ok in
             guard let self else { return }
             self.connected = ok
+            if ok { self.sendProfile() }
             // Test : PAPAI_AUTOTASK lance une demande dès la connexion.
             if ok, !self.autoSent, let t = ProcessInfo.processInfo.environment["PAPAI_AUTOTASK"], !t.isEmpty {
                 self.autoSent = true
@@ -340,6 +360,8 @@ final class AppModel {
             pairCode = m["code"] as? String
             pairURL = m["url"] as? String
             pairAppURL = m["app_url"] as? String ?? pairURL.map(Self.appPairingURL)
+            pairLong = m["long"] as? Bool ?? false
+            pairExpires = m["expires_in"] as? Int ?? 600
         case "alert":
             // Le gardien a reconnu une situation : le proche est prévenu en même temps.
             guardAlert = GuardAlert(level: m["level"] as? String ?? "attention",

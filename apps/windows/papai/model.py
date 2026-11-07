@@ -184,7 +184,15 @@ class Model:
         if self.bridge is not None:
             self.bridge.send(payload)
 
+    def _send_profile(self) -> None:
+        """Le prénom réellement saisi, pour que l'aidant lise le bon nom."""
+        n = str(self.prefs.get("firstName") or "").strip()
+        if n:
+            self._send({"type": "profile", "name": n})
+
     def _connection(self, ok: bool) -> None:
+        if ok:
+            self._send_profile()
         with self._lock:
             self.connected = ok
             t = os.environ.get("PAPAI_AUTOTASK", "").strip()
@@ -230,6 +238,7 @@ class Model:
 
     def set_first_name(self, name: str) -> None:
         self.save_prefs(firstName=str(name or "").strip())
+        self._send_profile()
         self.push()
 
     def set_text_scale(self, v: float) -> None:
@@ -237,7 +246,7 @@ class Model:
         self.push()
 
     def set_onboarding_step(self, step: int) -> None:
-        self.onboarding_step = max(0, min(4, int(step)))
+        self.onboarding_step = max(0, min(3, int(step)))
         self.push()
 
     def finish_onboarding(self) -> None:
@@ -505,7 +514,7 @@ class Model:
         if demo.startswith("onboarding"):
             self.onboarded = False
             try:
-                self.onboarding_step = max(0, min(4, int(demo[len("onboarding"):] or 0)))
+                self.onboarding_step = max(0, min(3, int(demo[len("onboarding"):] or 0)))
             except ValueError:
                 self.onboarding_step = 0
             if self.onboarding_step == 1:

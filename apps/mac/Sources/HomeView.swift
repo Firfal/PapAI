@@ -22,7 +22,7 @@ struct HomeView: View {
 
     private var helpCard: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Bonjour \(model.firstName)")
+            Text(model.firstName.isEmpty ? "Bonjour" : "Bonjour \(model.firstName)")
                 .font(rounded(52, .semibold)).tracking(-0.8)
             Text("Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à \(model.helperName).")
                 .font(rounded(21)).foregroundStyle(T.muted)

@@ -27,7 +27,7 @@ struct DoneView: View {
                             Text(model.lessonBusy ? "Rédaction en cours…" : "Garder comme automatisme")
                         }
                     }.buttonStyle(CapsuleButtonStyle()).disabled(model.lessonBusy)
-                    Text("Holo transforme cette session en pas à pas que Jeanne pourra relancer seule.")
+                    Text("Holo transforme cette session en pas à pas que \(model.senior) pourra relancer sans aide.")
                         .font(.system(size: 13)).foregroundStyle(Soin.secondary)
                 }
             }.padding(.horizontal, 20).padding(.bottom, 24)
@@ -43,7 +43,7 @@ struct DoneView: View {
                 Image(systemName: "folder").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.accent)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("La tuile ouvrira").font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.secondary)
-                    Text(model.draftTarget ?? "Aucun dossier : Jeanne aura seulement le pas à pas.")
+                    Text(model.draftTarget ?? "Aucun dossier : \(model.senior) aura seulement le pas à pas.")
                         .font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.ink)
                 }
             }.padding(16).frame(maxWidth: .infinity, alignment: .leading).soinCard()
@@ -53,7 +53,7 @@ struct DoneView: View {
                         .font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.accent)
                     TextField("Instruction", text: $s.instruction, axis: .vertical)
                         .font(.system(size: 16)).foregroundStyle(Soin.ink)
-                    if let c = s.checkpoint { Text("Jeanne doit voir : \(c)").font(.system(size: 13)).foregroundStyle(Soin.secondary) }
+                    if let c = s.checkpoint { Text("\(model.seniorTitle) doit voir : \(c)").font(.system(size: 13)).foregroundStyle(Soin.secondary) }
                     if let p = s.preview {
                         Image(uiImage: p).resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }

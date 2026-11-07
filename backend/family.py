@@ -15,6 +15,8 @@ from pathlib import Path
 
 DATA = Path(__file__).parent.parent / "family.json"
 CODE_TTL = 600
+# Invitation envoyée par SMS, WhatsApp… à un proche absent : il a le temps de l'ouvrir.
+INVITE_TTL = 24 * 3600
 MAX_TRIES = 5
 
 
@@ -26,20 +28,25 @@ class Family:
     def __init__(self, path: Path = DATA) -> None:
         self.path = path
         self.helpers: list[dict] = []
+        # Le prénom de la personne aidée, saisi sur son ordinateur. C'est lui que
+        # l'aidant doit voir partout (« Vous allez aider Sophie »), jamais un nom figé.
+        self.senior: str = ""
         self._code: str | None = None
         self._expires = 0.0
         self._tries = 0
         if path.is_file():
             try:
-                self.helpers = json.loads(path.read_text("utf-8")).get("helpers", [])
+                data = json.loads(path.read_text("utf-8"))
+                self.helpers = data.get("helpers", [])
+                self.senior = str(data.get("senior", ""))
             except (OSError, ValueError):
                 self.helpers = []
 
     # ------------------------------------------------------------ code
 
-    def new_code(self) -> str:
+    def new_code(self, ttl: int = CODE_TTL) -> str:
         self._code = f"{secrets.randbelow(1_000_000):06d}"
-        self._expires = time.time() + CODE_TTL
+        self._expires = time.time() + ttl
         self._tries = 0
         return self._code
 
@@ -73,9 +80,18 @@ class Family:
         self.helpers = [h for h in self.helpers if h["id"] != helper_id]
         self._save()
 
+    def set_senior(self, name: str) -> bool:
+        """Retient le prénom de la personne aidée. Vrai s'il a changé."""
+        name = (name or "").strip()[:40]
+        if not name or name == self.senior:
+            return False
+        self.senior = name
+        self._save()
+        return True
+
     def public(self) -> list[dict]:
         return [{"id": h["id"], "name": h["name"], "relation": h.get("relation", "")}
                 for h in self.helpers]
 
     def _save(self) -> None:
-        self.path.write_text(json.dumps({"helpers": self.helpers}, ensure_ascii=False, indent=1), "utf-8")
+        self.path.write_text(json.dumps({"helpers": self.helpers, "senior": self.senior}, ensure_ascii=False, indent=1), "utf-8")

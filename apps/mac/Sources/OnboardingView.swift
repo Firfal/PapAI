@@ -1,8 +1,8 @@
 import CoreImage
 import SwiftUI
 
-/// Premier lancement : bienvenue, prénom, taille du texte, autorisations,
-/// puis ajout d'un proche. Une seule fois ; tout se modifie ensuite dans
+/// Premier lancement : bienvenue, prénom, autorisations, puis ajout d'un
+/// proche. La taille du texte se règle dans les réglages, pas ici. Une seule fois ; tout se modifie ensuite dans
 /// les réglages.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
@@ -13,7 +13,7 @@ struct OnboardingView: View {
     @State private var name = ""
     @FocusState private var nameFocused: Bool
 
-    private let count = 5
+    private let count = 4
 
     var body: some View {
         VStack(spacing: 18) {
@@ -23,8 +23,7 @@ struct OnboardingView: View {
                     switch step {
                     case 0: welcome
                     case 1: firstName
-                    case 2: textSize
-                    case 3: permissions
+                    case 2: permissions
                     default: HelpersPanel(onboarding: true)
                     }
                 }
@@ -65,7 +64,7 @@ struct OnboardingView: View {
     private var nextLabel: String {
         switch step {
         case 0: "Commencer"
-        case 3: model.screenOK && model.axOK ? "Continuer" : "Plus tard"
+        case 2: model.screenOK && model.axOK ? "Continuer" : "Plus tard"
         case count - 1: model.helpers.isEmpty ? "Plus tard" : "Terminer"
         default: "Continuer"
         }
@@ -124,31 +123,6 @@ struct OnboardingView: View {
                 .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 .onSubmit(next)
                 .onAppear { nameFocused = true }
-        }
-    }
-
-    private var textSize: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Text("La taille du texte").font(rounded(44, .semibold)).tracking(-0.6)
-            Text("Choisissez ce qui est le plus confortable à lire. Vous pourrez changer plus tard.")
-                .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 16) {
-                ForEach(TextScale.options, id: \.value) { opt in
-                    let on = abs(model.textScale - opt.value) < 0.01
-                    Button { model.setTextScale(opt.value) } label: {
-                        VStack(spacing: 10) {
-                            Text("Aa").font(.system(size: 54 * opt.value, weight: .semibold, design: .rounded))
-                            Text(opt.label).font(.system(size: 20 * opt.value, weight: .medium, design: .rounded))
-                        }
-                        .frame(maxWidth: .infinity).frame(height: 190)
-                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
-                        .overlay(RoundedRectangle(cornerRadius: T.r, style: .continuous)
-                            .stroke(on ? T.accent : .clear, lineWidth: 4))
-                    }
-                    .buttonStyle(PressStyle())
-                    .accessibilityAddTraits(on ? .isSelected : [])
-                }
-            }
         }
     }
 
@@ -214,6 +188,14 @@ struct HelpersPanel: View {
                     }
                     .buttonStyle(PillStyle(filled: model.helpers.isEmpty, height: 60))
                     .disabled(!model.connected)
+                    // Le proche n'est pas là : on lui envoie un lien par SMS, WhatsApp, Mail…
+                    Button {
+                        model.startPairing(long: true)
+                    } label: {
+                        Label("Envoyer une invitation", systemImage: "paperplane.fill")
+                    }
+                    .buttonStyle(PillStyle(filled: false, height: 60))
+                    .disabled(!model.connected)
                     if !model.connected {
                         Text("Connexion au serveur en cours…").font(rounded(16)).foregroundStyle(T.muted)
                     }
@@ -239,7 +221,16 @@ struct HelpersPanel: View {
                 .font(.system(size: 38 * CGFloat(TextScale.current), weight: .semibold, design: .rounded))
                 .monospacedDigit().tracking(4)
                 .textSelection(.enabled)
-            Text("Valable 10 minutes").font(rounded(15)).foregroundStyle(T.muted)
+            Text(model.pairLong ? "Valable 24 heures" : "Valable 10 minutes").font(rounded(15)).foregroundStyle(T.muted)
+            if model.pairLong, let link = URL(string: url) {
+                ShareLink(item: link, subject: Text("Rejoignez-moi sur PapAI"),
+                          message: Text(model.invitationText)) {
+                    Label("Envoyer par SMS, WhatsApp…", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillStyle(height: 56))
+                .frame(width: 260)
+            }
             if !url.isEmpty {
                 Text("Sans l'app PapAI : \(url)")
                     .font(rounded(13)).foregroundStyle(T.muted)

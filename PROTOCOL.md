@@ -32,13 +32,14 @@ connaît doit accepter qu'il manque (ancien serveur) ou soit `null`.
 ## App de la personne aidée (Mac, puis Windows) : `ws://SERVEUR/ws/bridge`
 
 Envoie :
-- `{"type":"hello","os":"macos"}` à chaque connexion.
+- `{"type":"hello","os":"macos","name":"Sophie"}` à chaque connexion. `name` : le prénom saisi sur l'ordinateur (absent tant qu'il n'est pas saisi).
+- `{"type":"profile","name":"Sophie"}` quand le prénom change. Le serveur le garde et le transmet aux aidants (`senior`).
 - `{"type":"help_request","task":"…"}` quand elle appuie sur « J'ai besoin d'aide ».
 - `{"type":"stop"}` bouton Arrêter. **Le verrou local passe d'abord** : plus aucune action exécutée, même hors ligne.
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
 - `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt ou action interdite.
 - `{"type":"automation_failed","title":"…","detail":"…"}` quand un automatisme ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
-- `{"type":"pair_start"}` pour ajouter un proche : le serveur répond `pair_code`.
+- `{"type":"pair_start"}` pour ajouter un proche (QR, 10 min) ; `{"type":"pair_start","long":true}` pour une **invitation à envoyer** par SMS, WhatsApp, Mail… (24 h). Le serveur répond `pair_code`.
 - `{"type":"remove_helper","id":"…"}` retire un proche.
 - `{"type":"remote_answer","accepted":false}` refus d'une session proposée par un proche. En cas d'accord, l'app envoie directement `help_request` avec `"requested_by":"Claire"`.
 
@@ -62,7 +63,8 @@ Lien permanent : suit toujours la dernière demande, reste ouvert entre deux dem
 La clé est affichée au démarrage du serveur (`PAPAI_AIDANT_KEY` dans `.env` pour la figer).
 
 Reçoit :
-- `{"type":"hello","bridge":true,"os":"macos"}`
+- `{"type":"hello","bridge":true,"os":"macos","senior":"Sophie"|null}` : `senior` est le prénom de la personne aidée, à afficher partout à la place d'un nom figé.
+- `{"type":"senior","name":"Sophie"}` : le prénom a changé sur l'ordinateur.
 - `{"type":"status","session":id,"state":…,"task":"…","plan":["…"]|null,"plan_approved":bool,"plan_step":2|null,"question":{"question":"…","options":["…"]}|null,"usage":{…}}`
 - `{"type":"frame","frame_id":"…","png_b64":"…"}` capture de l'écran de l'aîné
 - `{"type":"question","question":"…","options":["…"]}`
@@ -148,3 +150,9 @@ En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gard�
 - Le scanner de l'app accepte `papai://pair?u=…` comme l'ancien `https://…/p/<code>`.
 - Saisie du code à la main : POST sur `<serverURL déjà connu>/p/<code>`.
 - Arguments de lancement `-serverURL` et `-helperKey` (dépannage, démo) : l'app les enregistre.
+
+## Prénom et invitation (7 novembre au soir)
+
+- `pair_code` porte `expires_in` (600 ou 86400) et `long` (vrai pour une invitation). `app_url` = `papai://pair?u=<url>&n=<prénom>` : l'app iPhone affiche « Rejoindre Sophie » avant même l'appairage.
+- La réponse de `POST …/p/<code>` contient `senior` (prénom de la personne aidée), en plus de `server` et `key`.
+- Test : `python tests/test_profil.py http://127.0.0.1:8000 demo` (6 contrôles).

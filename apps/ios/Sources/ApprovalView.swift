@@ -41,7 +41,7 @@ struct ApprovalView: View {
         .confirmationDialog("Refuser ce plan ?", isPresented: $confirmRefuse, titleVisibility: .visible) {
             Button("Refuser le plan", role: .destructive) { model.refusePlan() }
             Button("Annuler", role: .cancel) {}
-        } message: { Text("Jeanne sera prévenue que rien ne sera fait.") }
+        } message: { Text("Rien ne sera fait, et l’ordinateur de \(model.senior) l’indiquera.") }
         .fullScreenCover(isPresented: $zoom) { ZoomView(image: model.frame) }
     }
 

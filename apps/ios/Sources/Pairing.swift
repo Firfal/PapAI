@@ -36,7 +36,7 @@ private let relations: [(label: String, value: String)] = [
     ("Petit-fils", "son petit-fils"), ("Proche", "un proche"), ("Voisin, voisine", "un voisin"),
 ]
 
-/// « Rejoindre Jeanne » : prénom et lien, puis POST et réglage automatique.
+/// « Rejoindre <prénom> » : prénom et lien, puis POST et réglage automatique.
 struct PairSheet: View {
     @Bindable var model: HelperModel
     let link: PairLink
@@ -60,7 +60,7 @@ struct PairSheet: View {
     }
 
     @ViewBuilder private var form: some View {
-        Text("Rejoindre Jeanne").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
+        Text("Rejoindre \(model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
         Text("Vous serez prévenu quand elle demande de l’aide sur son ordinateur. Rien ne bouge sans votre accord.")
             .font(.system(size: 15)).foregroundStyle(Soin.secondary)
         if link.code == nil {
@@ -74,7 +74,7 @@ struct PairSheet: View {
         label("Votre prénom")
         TextField("Claire", text: $name)
             .textContentType(.givenName).font(.system(size: 17)).padding(16).soinCard(radius: 18)
-        label("Votre lien avec Jeanne")
+        label("Votre lien avec \(model.senior)")
         FlowLayout(spacing: 8) {
             ForEach(relations, id: \.value) { r in
                 Button { relation = relation == r.value ? "" : r.value } label: {
@@ -106,7 +106,7 @@ struct PairSheet: View {
         Image(systemName: "checkmark").font(.system(size: 26, weight: .bold)).foregroundStyle(Soin.accent)
             .frame(width: 72, height: 72).background(Soin.accentSoft, in: Circle())
             .frame(maxWidth: .infinity)
-        Text("Vous êtes relié à Jeanne").font(.system(size: 26, weight: .bold)).foregroundStyle(Soin.ink)
+        Text("Vous êtes relié à \(model.senior)").font(.system(size: 26, weight: .bold)).foregroundStyle(Soin.ink)
             .frame(maxWidth: .infinity).multilineTextAlignment(.center)
         HStack(spacing: 8) {
             if model.connected {
@@ -140,7 +140,7 @@ struct ScannerSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Scanner le QR de l’ordinateur").font(.system(size: 26, weight: .bold)).foregroundStyle(Soin.ink)
-            Text("Sur l’ordinateur de Jeanne : Proches › Ajouter un proche.")
+            Text("Sur l’ordinateur de \(model.senior) : Proches › Ajouter un proche.")
                 .font(.system(size: 15)).foregroundStyle(Soin.secondary)
             ZStack {
                 Soin.ink

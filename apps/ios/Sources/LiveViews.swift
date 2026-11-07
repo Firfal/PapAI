@@ -9,7 +9,7 @@ struct ActiveView: View {
                 HStack(spacing: 12) {
                     ProgressView().tint(Soin.accent)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Holo travaille sur l’ordinateur de Jeanne").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.ink)
+                        Text("Holo travaille sur l’ordinateur de \(model.senior)").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.ink)
                         if !model.task.isEmpty { Text("« \(model.task) »").font(.system(size: 14)).foregroundStyle(Soin.secondary) }
                     }
                     Spacer(minLength: 0)
@@ -65,7 +65,7 @@ struct PlanProgress: View {
     }
 }
 
-/// Capture de l'écran de Jeanne, avec le viseur quand on prend la main.
+/// Capture de l'écran de la personne aidée, avec le viseur quand on prend la main.
 struct CaptureView: View {
     let model: HelperModel
     var body: some View {
@@ -158,7 +158,7 @@ struct HelperView: View {
 
     private func questionCard(_ q: (text: String, options: [String])) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Jeanne a besoin de vous").font(.system(size: 13)).foregroundStyle(Soin.secondary)
+            Text("\(model.seniorTitle) a besoin de vous").font(.system(size: 13)).foregroundStyle(Soin.secondary)
             Text(q.text).font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
             if !q.options.isEmpty {
                 FlowLayout(spacing: 8) {
@@ -191,7 +191,7 @@ struct HelperView: View {
     private var handButton: some View {
         VStack(spacing: 8) {
             Button("Prendre la main") { model.setAiming(true) }.buttonStyle(CapsuleButtonStyle())
-            Text("Vous pouvez cliquer vous-même sur l’écran de Jeanne.").font(.system(size: 13)).foregroundStyle(Soin.secondary)
+            Text("Vous pouvez cliquer vous-même sur l’écran de \(model.senior).").font(.system(size: 13)).foregroundStyle(Soin.secondary)
         }
     }
 
@@ -201,7 +201,7 @@ struct HelperView: View {
             let stale = age >= HelperModel.frameTTL
             VStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(model.target == nil ? "Touchez l’écran de Jeanne à l’endroit où il faut cliquer." : "Ajustez en gardant le doigt appuyé, puis confirmez.")
+                    Text(model.target == nil ? "Touchez l’écran de \(model.senior) à l’endroit où il faut cliquer." : "Ajustez en gardant le doigt appuyé, puis confirmez.")
                         .font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.ink)
                     Text(stale ? "Cette capture est trop ancienne : l’écran a pu changer."
                          : "Capture d’il y a \(Int(age)) s, valable \(HelperModel.frameTTL - Double(Int(age))) s encore.".replacingOccurrences(of: ".0 s", with: " s"))

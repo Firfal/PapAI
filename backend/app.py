@@ -26,7 +26,7 @@ from starlette.requests import HTTPConnection
 
 from . import guard, voice
 from .agent import AgentRunner, propose_plan
-from .family import Family, PairingError
+from .family import CODE_TTL, INVITE_TTL, Family, PairingError
 from .caremamory import LESSONS_DIR, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
 
@@ -272,17 +272,26 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 link.resolve(str(msg.get("req", "")), msg)
                 continue
 
-            if kind == "hello":
-                link.os = str(msg.get("os", "windows")).lower()[:20]
-                print(f"[pont] système : {link.os}")
+            if kind in ("hello", "profile"):
+                if kind == "hello":
+                    link.os = str(msg.get("os", "windows")).lower()[:20]
+                    print(f"[pont] système : {link.os}")
+                # Le prénom saisi sur l'ordinateur, transmis aux aidants.
+                if family.set_senior(str(msg.get("name", ""))):
+                    await broadcast_helper({"type": "senior", "name": family.senior})
+                if kind == "profile":
+                    continue
                 await ws.send_json({"type": "helpers", "helpers": family.public()})
                 continue
 
             if kind == "pair_start":
                 # Ajout d'un proche : un code à 6 chiffres et son lien (QR).
-                code = family.new_code()
+                # `long` : invitation à envoyer par SMS ou WhatsApp, valable 24 h.
+                ttl = INVITE_TTL if msg.get("long") else CODE_TTL
+                code = family.new_code(ttl)
                 await ws.send_json({"type": "pair_code", "code": code, "url": pairing_url(code),
-                                    "app_url": app_pairing_url(code), "expires_in": 600})
+                                    "app_url": app_pairing_url(code), "expires_in": ttl,
+                                    "long": bool(msg.get("long"))})
                 continue
 
             if kind == "remove_helper":
@@ -575,8 +584,15 @@ def pairing_url(code: str) -> str:
 
 
 def app_pairing_url(code: str) -> str:
-    """Le lien du QR : ouvre l'app iPhone, qui fait elle-même le POST sur `url`."""
-    return "papai://pair?u=" + quote(pairing_url(code), safe="")
+    """Le lien du QR : ouvre l'app iPhone, qui fait elle-même le POST sur `url`.
+
+    `n` porte le prénom de la personne aidée, pour que l'aidant lise « Rejoindre
+    Sophie » avant même d'avoir validé.
+    """
+    link = "papai://pair?u=" + quote(pairing_url(code), safe="")
+    if family.senior:
+        link += "&n=" + quote(family.senior, safe="")
+    return link
 
 
 def aidant_url() -> str:
@@ -599,7 +615,8 @@ async def _pair_submit(code: str, request: Request):
     print("[proches] un proche ajouté")
     if bridge is not None:
         await bridge.send({"type": "helpers", "helpers": family.public(), "added": helper["name"]})
-    return {"ok": True, "name": helper["name"], "aidant_url": aidant_url(),
+    return {"ok": True, "name": helper["name"], "senior": family.senior or None,
+            "aidant_url": aidant_url(),
             "server": PUBLIC_URL, "key": AIDANT_KEY}
 
 
@@ -702,7 +719,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         return
     helper_sockets.add(ws)
     await ws.send_json({"type": "hello", "bridge": bridge is not None,
-                        "os": bridge.os if bridge else None})
+                        "os": bridge.os if bridge else None, "senior": family.senior or None})
     s = current_session()
     if s is not None:
         await ws.send_json(s.status())
