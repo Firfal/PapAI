@@ -341,12 +341,13 @@ object Helper {
     fun open(uri: String) {
         val u = android.net.Uri.parse(uri)
         if (u.host == "open") return
-        setSenior(u.getQueryParameter("n"))
         val link = PairLink.parse(uri) ?: run { showToast("Lien PapAI non reconnu."); return }
         openPair(link)
     }
 
     fun openPair(link: PairLink) {
+        if (pairBusy) return
+        PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { showToast(it); return }
         pairDone = false; pairError = null; pairBusy = false
         sheet = AppSheet.Pair(link)
     }
@@ -355,7 +356,13 @@ object Helper {
     fun manualPairLink(): PairLink? = if (serverURL.isBlank()) null else PairLink(baseHTTP, null)
 
     /** POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur. */
-    fun submitPair(link: PairLink, code: String?, name: String, relation: String) {
+    fun submitPair(link: PairLink, code: String?, name: String, relation: String, confirmed: Boolean = false) {
+        if (pairBusy) return
+        PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairError = it; return }
+        if (PairingPolicy.needsConfirmation(lastGood != null, confirmed)) {
+            pairError = "Confirmez le remplacement de votre liaison avant de rejoindre."
+            return
+        }
         val c = (link.code ?: code ?: "").filter { it.isDigit() }
         val n = name.trim()
         if (c.length != 6) { pairError = "Le code fait 6 chiffres."; return }
@@ -366,7 +373,7 @@ object Helper {
             Request.Builder().url(link.base + "/p/" + c).post(body).build()
         } catch (_: IllegalArgumentException) { pairError = "Adresse invalide."; return }
         pairBusy = true; pairError = null
-        rest.newCall(req).enqueue(object : Callback {
+        rest.newBuilder().followRedirects(false).followSslRedirects(false).build().newCall(req).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 main.post { pairBusy = false; pairError = "Le serveur ne répond pas à ${link.host}." }
             }
@@ -384,8 +391,9 @@ object Helper {
                         pairError = "Le serveur n'a pas renvoyé de clé : réglez la connexion à la main."
                         return@post
                     }
-                    val server = r.optString("server").ifEmpty { link.origin }.trimEnd('/')
-                    setSenior(r.optString("senior"))
+                    val server = PairingPolicy.responseOrigin(link, r.optString("server"))
+                    seniorName = r.optString("senior").ifBlank { link.senior.orEmpty() }.trim()
+                    prefs.edit().putString("seniorName", seniorName).apply()
                     helperName = r.optString("name").ifEmpty { n }
                     r.optString("id").takeIf { it.isNotEmpty() }?.let { helperId = it }
                     helperRelation = relation

@@ -22,6 +22,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -53,7 +55,6 @@ fun rememberQrScanner(): () -> Unit {
         val text = r.contents ?: return@rememberLauncherForActivityResult
         val link = PairLink.parse(text)
         if (link == null) Helper.showToast("Ce QR n'est pas celui de PapAI.") else {
-            if (text.startsWith("papai://", true)) android.net.Uri.parse(text).getQueryParameter("n")?.let { Helper.setSenior(it) }
             Helper.openPair(link)
         }
     }
@@ -118,6 +119,26 @@ fun PairSheet(link: PairLink) {
     var name by rememberSaveable { mutableStateOf(m.helperName ?: "") }
     var relation by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
+    var confirmReplacement by rememberSaveable(link) { mutableStateOf(false) }
+    val policyError = PairingPolicy.error(link.base, BuildConfig.DEBUG)
+    if (confirmReplacement) {
+        AlertDialog(
+            onDismissRequest = { confirmReplacement = false },
+            title = { T("Remplacer la liaison ?", 24.sp, FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    T("Ceci remplacera votre liaison avec ${m.senior}", 18.sp, FontWeight.SemiBold)
+                    T("Ancien serveur : ${m.lastGood?.first?.let { runCatching { PairLink(it, null).host }.getOrDefault(it) }.orEmpty()}", 17.sp)
+                    T("Nouveau serveur : ${link.host}", 20.sp, FontWeight.Bold)
+                }
+            },
+            confirmButton = { TextButton(onClick = {
+                confirmReplacement = false
+                m.submitPair(link, code, name, relation, confirmed = true)
+            }) { T("Remplacer et rejoindre", 16.sp, FontWeight.Bold) } },
+            dismissButton = { TextButton(onClick = { confirmReplacement = false }) { T("Annuler", 16.sp) } },
+        )
+    }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         if (m.pairDone) {
@@ -146,8 +167,13 @@ fun PairSheet(link: PairLink) {
             CapsuleButton("Terminer") { m.sheet = null }
             return@Column
         }
-        SheetTitle("Rejoindre ${m.senior}")
-        T("Vous serez prévenu quand ${m.senior} demande de l'aide sur son ordinateur. Rien ne bouge sans votre accord.",
+        val targetSenior = link.senior?.takeIf { it.isNotBlank() } ?: "votre proche"
+        SheetTitle("Rejoindre $targetSenior")
+        FieldLabel("Serveur à rejoindre")
+        T(link.host, 28.sp, FontWeight.Bold)
+        T(link.origin, 15.sp, color = Soin.secondary)
+        policyError?.let { T(it, 16.sp, FontWeight.SemiBold, Soin.danger) }
+        T("Vous serez prévenu quand $targetSenior demande de l'aide sur son ordinateur. Rien ne bouge sans votre accord.",
             15.sp, color = Soin.secondary)
         if (link.code == null) {
             FieldLabel("Code affiché sur l'ordinateur")
@@ -157,7 +183,7 @@ fun PairSheet(link: PairLink) {
         }
         FieldLabel("Votre prénom")
         SoinField(name, { name = it }, "Claire", keyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Words))
-        FieldLabel("Votre lien avec ${m.senior}")
+        FieldLabel("Votre lien avec $targetSenior")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             relations.forEach { (label, value) ->
                 val on = relation == value
@@ -167,10 +193,12 @@ fun PairSheet(link: PairLink) {
             }
         }
         m.pairError?.let { T(it, 15.sp, FontWeight.SemiBold, Soin.danger) }
-        T("Serveur : ${link.host}", 13.sp, color = Soin.secondary)
-        CapsuleButton("Rejoindre", enabled = !m.pairBusy, content = if (m.pairBusy) {
+        CapsuleButton("Rejoindre", enabled = !m.pairBusy && policyError == null, content = if (m.pairBusy) {
             { CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) }
-        } else null) { m.submitPair(link, code, name, relation) }
-        TextLink("Annuler") { m.sheet = if (m.isConfigured) null else AppSheet.Settings }
+        } else null) {
+            if (PairingPolicy.needsConfirmation(m.lastGood != null)) confirmReplacement = true
+            else m.submitPair(link, code, name, relation)
+        }
+        if (!m.pairBusy) TextLink("Annuler") { m.sheet = if (m.isConfigured) null else AppSheet.Settings }
     }
 }
