@@ -14,6 +14,7 @@ struct ActiveView: View {
                     }
                     Spacer(minLength: 0)
                 }.padding(16).frame(maxWidth: .infinity, alignment: .leading).soinCard()
+                if !model.plan.isEmpty { PlanProgress(plan: model.plan, current: model.planStep) }
             }.padding(.horizontal, 20)
         }
         .safeAreaInset(edge: .bottom) {
@@ -22,6 +23,41 @@ struct ActiveView: View {
                 .disabled(model.pausing)
                 .padding(.horizontal, 20).padding(.vertical, 8).background(Soin.bg)
         }
+    }
+}
+
+/// Le plan validé, avec l'étape que Holo exécute.
+struct PlanProgress: View {
+    let plan: [String]
+    let current: Int?
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(current.map { "Étape \($0) sur \(plan.count)" } ?? "Plan validé")
+                .font(.system(size: 13)).foregroundStyle(Soin.secondary)
+            ForEach(Array(plan.enumerated()), id: \.offset) { i, raw in
+                let past = current.map { i + 1 < $0 } ?? false
+                let now = current == i + 1
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle().fill(now ? Soin.accent : past ? Soin.accentSoft : Soin.bg)
+                        if past {
+                            Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Soin.accent)
+                        } else {
+                            Text("\(i + 1)").font(.system(size: 14, weight: .semibold)).foregroundStyle(now ? Color.white : Soin.ink)
+                        }
+                    }
+                    .frame(width: 30, height: 30)
+                    Text(PlanStep(id: i, raw: raw).title)
+                        .font(.system(size: 15, weight: now ? .semibold : .regular))
+                        .foregroundStyle(past ? Soin.secondary : Soin.ink)
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(now ? "En cours : \(raw)" : past ? "Fait : \(raw)" : raw)
+            }
+        }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading).soinCard()
+        .animation(.easeInOut(duration: 0.25), value: current)
     }
 }
 
