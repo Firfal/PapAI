@@ -88,6 +88,49 @@ def unit() -> None:
     m._apply_status({"state": "active", "plan_approved": True})
     check(m.state == "stopped", "un status tardif ne relance pas une session arrêtée")
 
+    # Parité Mac : Pause, question à la personne, encart pendant que Holo agit.
+    out, compacts = [], []
+
+    class FakeBridge:
+        def send(self, payload): out.append(payload)
+        def ask_help(self, task, requested_by=None): pass
+        def stop(self): pass
+
+    m = Model(demo="", on_compact=compacts.append)
+    m.bridge = FakeBridge()
+    m.helpers = [{"id": "1", "name": "Claire", "relation": ""}]
+    m.ask_help("Mes photos")
+    m._apply_status({"state": "active", "plan_approved": True, "helper_name": "Théo"})
+    check(m.compact and compacts == [True], "Holo agit : la fenêtre devient l'encart")
+    check(m.snapshot()["carer"] == "Théo", "l'encart dit qui s'occupe de l'aide")
+    m.expand_window()
+    check(not m.compact and compacts == [True, False], "agrandir : la grande fenêtre revient")
+    m.toggle_pause()
+    check(out[-1] == {"type": "pause"} and m.snapshot()["paused"], "Pause envoyée au serveur")
+    m.toggle_pause()
+    check(out[-1] == {"type": "resume"} and not m.paused, "Reprendre envoyé au serveur")
+    m._apply_status({"state": "awaiting_helper", "paused": False,
+                     "question": {"question": "Ordinateur ou clé USB ?", "options": ["Ordinateur", "Clé USB"],
+                                  "to": "senior"}})
+    snap = m.snapshot()
+    check(snap["questionForMe"] and snap["questionOptions"] == ["Ordinateur", "Clé USB"] and not m.compact,
+          "question posée à la personne : grande fenêtre et réponses proposées")
+    m.answer_senior("  Clé USB ")
+    check(out[-1] == {"type": "senior_answer", "text": "Clé USB"}, "réponse de la personne envoyée")
+    m.answer_senior("   ")
+    check(out[-1]["text"] == "Clé USB", "réponse vide ignorée")
+    m._apply_status({"state": "awaiting_helper", "question": {"question": "?", "to": "helper"}})
+    check(not m.question_for_me and m.compact, "question pour l'aidant : encart, la personne attend")
+    m.send_dictation("Mes photos de Noël", final=True)
+    check(out[-1] == {"type": "dictation", "text": "Mes photos de Noël", "final": True}, "dictée transmise à l'aidant")
+    m.stop()
+    check(not m.compact and compacts[-1] is False, "Arrêter : la grande fenêtre revient")
+    m.toggle_pause()
+    check(out[-1]["type"] == "dictation", "pas de Pause hors session")
+    m._handle({"type": "alert", "level": "danger", "title": "x", "alert_id": "a1"})
+    m._handle({"type": "alert_acknowledged", "alert_id": "a1"})
+    check(m.snapshot()["guardAcknowledged"], "accusé du proche gardé pour l'écran de fin")
+
     # Bridge sans serveur : exécutions refusées sans plan validé, puis après arrêt.
     sent = []
 

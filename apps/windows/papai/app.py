@@ -20,6 +20,8 @@ from .mic_presence import MicPresence
 from .model import Model
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
+FULL_SIZE = (1100, 720)
+MINI_SIZE = (380, 210)
 
 
 class Api:
@@ -82,6 +84,9 @@ class Api:
     def ask_help(self, task): self._model.ask_help(task)
     def stop(self): self._model.stop()
     def back_home(self): self._model.back_home()
+    def toggle_pause(self): self._model.toggle_pause()
+    def answer_senior(self, text): self._model.answer_senior(text)
+    def expand_window(self): self._model.expand_window()
     def run_shortcut(self, lesson_id): self._model.run_shortcut(lesson_id)
     def open_lesson(self, lesson_id): self._model.open_lesson(lesson_id)
     def close_lesson(self): self._model.close_lesson()
@@ -147,11 +152,33 @@ def main() -> None:
             except Exception:  # noqa: BLE001
                 pass
 
-    model = Model(push=push, on_level=on_level, on_remote=on_remote)
+    def on_compact(compact: bool) -> None:
+        # Holo agit : la fenêtre devient un petit encart en bas à droite (MiniPanel
+        # du Mac), toujours au premier plan, avec l'avancement, Pause et Arrêter.
+        w = state["window"]
+        if w is None:
+            return
+        try:
+            sw, sh = 1280, 800
+            if webview.screens:
+                sw, sh = webview.screens[0].width, webview.screens[0].height
+            if compact:
+                w.resize(*MINI_SIZE)
+                w.move(max(0, sw - MINI_SIZE[0] - 24), max(0, sh - MINI_SIZE[1] - 72))
+            else:
+                w.resize(*FULL_SIZE)
+                w.move(max(0, (sw - FULL_SIZE[0]) // 2), max(0, (sh - FULL_SIZE[1]) // 2))
+                w.restore()
+                w.show()
+        except Exception:  # noqa: BLE001 — fenêtre en cours de fermeture
+            pass
+
+    model = Model(push=push, on_level=on_level, on_remote=on_remote, on_compact=on_compact)
     dictation = Dictation(on_phase=lambda p, m: model.set_dictation(p, m),
                           on_text=lambda t: push_text(t))
 
     def push_text(text: str) -> None:
+        model.send_dictation(text, final=True)
         w = state["window"]
         if w is not None:
             w.evaluate_js(f"window.PapAI && PapAI.dictated({json.dumps(text, ensure_ascii=False)}, {dictation.run_id})")
@@ -159,7 +186,7 @@ def main() -> None:
     api = Api(model, dictation)
     state["api"] = api
     window = webview.create_window(
-        "PapAI", str(UI), js_api=api, width=1100, height=720, min_size=(900, 640),
+        "PapAI", str(UI), js_api=api, width=FULL_SIZE[0], height=FULL_SIZE[1], min_size=MINI_SIZE,
         background_color="#EEF0EE", text_select=False,
     )
     state["window"] = window
