@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794095636-vocabulaire-support-reglages` | Vocabulaire proche → support (Mac, iPhone) + lier un support depuis les Réglages Mac | `apps/mac/Sources/{Model,OnboardingView,PermissionsView,Guard,SessionView,Info.plist}`, `apps/ios/Sources/*` | 8 nov. |
 
 ## Journal
 
