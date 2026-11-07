@@ -48,7 +48,7 @@ PapAI est un agent de computer use pour les personnes âgées, avec une règle n
 
 Les garde-fous
 - Aucune action sans plan validé, et chaque décision de l'aidant est revalidée par le serveur.
-- Holo ne touche jamais une fenêtre d'autorisation du système ni les Réglages. Face à un mot de passe, un paiement ou une suppression, il pose la question au proche au lieu d'agir. La première consigne consigne vient d'une vraie répétition : le plan proposait de fermer une fenêtre de sécurité macOS, l'aidant a refusé, rien n'a bougé.
+- Holo ne touche jamais une fenêtre d'autorisation du système ni les Réglages. Face à un mot de passe, un paiement ou une suppression, il pose la question au proche au lieu d'agir. La première consigne vient d'une vraie répétition : le plan proposait de fermer une fenêtre de sécurité macOS, l'aidant a refusé, rien n'a bougé.
 - La fenêtre PapAI est exclue des captures et des clics. Une capture trop ancienne ne peut pas servir à un clic de l'aidant.
 - Un seul pilote à la fois : l'aidant ne prend la main que quand l'agent est suspendu.
 - La personne accepte explicitement que PapAI regarde son écran, et c'est elle qui accepte ou refuse une session proposée par un proche.
