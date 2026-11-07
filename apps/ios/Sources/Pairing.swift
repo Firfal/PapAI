@@ -205,7 +205,7 @@ struct ScannerSheet: View {
             .frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit)
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             if wrongCode {
-                Text("Ce QR n’est pas celui de PapAI.").font(.system(size: 15, weight: .semibold)).foregroundStyle(.red)
+                Text("Ce QR n’est pas un lien PapAI sécurisé (https).").font(.system(size: 15, weight: .semibold)).foregroundStyle(.red)
             }
             Spacer()
             if let l = model.manualPairLink() {
@@ -222,7 +222,7 @@ struct ScannerSheet: View {
     }
 
     private func found(_ text: String) -> Bool {
-        guard let link = PairLink.parse(text) else { problem = PairServer.refusal; return false }
+        guard let link = PairLink.parse(text) else { wrongCode = true; return false }
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         model.openPair(link)
         return true
