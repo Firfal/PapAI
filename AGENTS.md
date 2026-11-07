@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794070613-renommer-carepilot` | Restes du nom CarePilot → PapAI | `carepilot_tools.py` (→ `papai_tools.py`), `backend/agent.py`, `backend/app.py`, `backend/caremamory.py`, `Dockerfile`, `.dockerignore`, `README.md`, `HANDOFF.md`, `TODO.md` | 7 nov. |
 
 ## Journal
 
