@@ -73,7 +73,13 @@ final class AppModel {
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored let client = BridgeClient()
-    @ObservationIgnored weak var window: NSWindow? { didSet { applyLevel() } }
+    @ObservationIgnored weak var window: NSWindow? { didSet { watchWindow(); applyLevel() } }
+    /// La grande fenêtre est rangée pour laisser voir ce que fait Holo.
+    @ObservationIgnored private var compact = false
+    /// La personne a rouvert PapAI en grand pendant la tâche : on la laisse, jusqu'au prochain état.
+    @ObservationIgnored private var userExpanded = false
+    @ObservationIgnored private var lastState: SessionState?
+    @ObservationIgnored private var windowObservers: [NSObjectProtocol] = []
     @ObservationIgnored private var started = false
     @ObservationIgnored private var autoSent = false
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
@@ -284,10 +290,65 @@ final class AppModel {
     // MARK: Fenêtre
 
     func applyLevel() {
-        window?.level = sessionOpen ? .floating : .normal
+        // La grande fenêtre ne reste plus au premier plan : elle masquerait Holo.
+        window?.level = .normal
+        if state != lastState {
+            let wasOpen = lastState?.isOpen ?? false
+            userExpanded = false; lastState = state
+            // Fin de l'aide (faite ou arrêtée) : la grande fenêtre revient pour le dire.
+            if wasOpen && !sessionOpen {
+                compact = false
+                showMainWindow()
+            }
+        }
+        // Holo agit (ou l'aidant a la main) : on range PapAI, l'encart suffit.
+        let wantCompact = sessionOpen && !userExpanded
+            && (state == .active || (state == .awaiting_helper && !questionForMe))
+        if wantCompact != compact {
+            compact = wantCompact
+            if wantCompact {
+                window?.orderOut(nil)
+                MiniPanel.shared.show(model: self)
+            } else {
+                showMainWindow()
+            }
+        } else if wantCompact, !MiniPanel.shared.isVisible {
+            MiniPanel.shared.show(model: self)
+        }
         // Souris et clavier réservés à Holo et à l'aidant pendant qu'il agit.
         let holoActs = (state == .active || state == .awaiting_helper) && !paused && !gate.isStopped
         InputLock.shared.set(holoActs)
+    }
+
+    /// Bouton « agrandir » de l'encart : la grande fenêtre revient.
+    func expandWindow() {
+        userExpanded = true
+        compact = false
+        showMainWindow()
+    }
+
+    private func showMainWindow() {
+        MiniPanel.shared.hide()
+        if let w = window {
+            if w.isMiniaturized { w.deminiaturize(nil) }
+            w.makeKeyAndOrderFront(nil)
+        }
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Fenêtre réduite à la main : l'encart reste en bas à droite.
+    private func watchWindow() {
+        windowObservers.forEach(NotificationCenter.default.removeObserver)
+        guard let w = window else { return }
+        let nc = NotificationCenter.default
+        windowObservers = [
+            nc.addObserver(forName: NSWindow.didMiniaturizeNotification, object: w, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { if let self { MiniPanel.shared.show(model: self) } }
+            },
+            nc.addObserver(forName: NSWindow.didDeminiaturizeNotification, object: w, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { if self?.compact == false { MiniPanel.shared.hide() } }
+            },
+        ]
     }
 
     /// Pause ou reprise, depuis l'écran de la personne aidée.
@@ -300,7 +361,8 @@ final class AppModel {
 
     /// Cadre de la fenêtre PapAI, en points écran, origine en haut à gauche.
     func protectedRect() -> CGRect? {
-        guard let w = window, w.isVisible, !w.isMiniaturized else { return nil }
+        // Fenêtre rangée : c'est l'encart qu'il faut protéger.
+        guard let w = window, w.isVisible, !w.isMiniaturized else { return MiniPanel.shared.protectedRect() }
         let h = NSScreen.screens.first?.frame.height ?? 0
         let f = w.frame
         return CGRect(x: f.minX, y: h - f.maxY, width: f.width, height: f.height).insetBy(dx: -4, dy: -4)
