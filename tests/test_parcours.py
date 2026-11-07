@@ -263,7 +263,7 @@ def main() -> None:
         shutil.copy(module, tmp)
     port = port_libre()
     env = {**os.environ, "HAI_API_KEY": "faux", "HOLO_BASE_URL": f"http://127.0.0.1:{holo.server_port}/v1/",
-           "PAPAI_AIDANT_KEY": CLE, "PORT": str(port), "CAREPILOT_PUBLIC_URL": f"http://127.0.0.1:{port}"}
+           "PAPAI_AIDANT_KEY": CLE, "PORT": str(port), "PAPAI_PUBLIC_URL": f"http://127.0.0.1:{port}"}
     for var in ("PAPAI_PUBLIC", "GLADIA_API_KEY"):
         env.pop(var, None)
     log = open(tmp / "serveur.log", "w")
