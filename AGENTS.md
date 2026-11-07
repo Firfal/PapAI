@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794094580-sans-raccourcis` | Accueil Mac : suppression des raccourcis (sur #39) | `apps/mac/Sources/HomeShortcuts.swift`, `apps/mac/tests/home_shortcuts_test.swift`, `apps/mac/Sources/HomeView.swift` (retrait des raccourcis seulement, mise en page à l'agent recherche+AutoMates) | 8 nov. |
 
 ## Journal
 
