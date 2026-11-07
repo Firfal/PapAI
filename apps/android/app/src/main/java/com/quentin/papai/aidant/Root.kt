@@ -159,37 +159,43 @@ fun IdleScreen() {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 30.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            T("Tout va bien chez ${m.senior}", 28.sp, FontWeight.Bold)
-            T("Vous serez prévenu dès qu'une demande d'aide arrive.", 16.sp, color = Soin.secondary)
-        }
-        m.liveDictation?.let { live ->
-            Column(Modifier.fillMaxWidth().soinCard(radius = 24.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Icons.Default.GraphicEq, null, Modifier.size(16.dp), tint = Soin.accent)
-                    T("${m.seniorTitle} est en train de parler", 13.sp, FontWeight.SemiBold, Soin.accent)
+        homeCards(m.lastAlert != null, m.liveDictation != null).forEach { card ->
+            when (card) {
+                HomeCard.WELLBEING -> Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    T("Tout va bien chez ${m.senior}", 28.sp, FontWeight.Bold)
+                    T("Vous serez prévenu dès qu'une demande d'aide arrive.", 16.sp, color = Soin.secondary)
                 }
-                T("« $live »", 20.sp, FontWeight.SemiBold)
-            }
-        }
-        m.lastAlert?.let { a ->
-            Column(Modifier.fillMaxWidth().soinCard().padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                T(a.title, 16.sp, FontWeight.SemiBold)
-                if (a.detail.isNotEmpty()) T(a.detail, 14.sp, color = Soin.secondary)
-            }
-        }
-        T("Derniers automatismes", 17.sp, FontWeight.SemiBold)
-        if (m.lessons.isEmpty()) T("Aucun automatisme pour l'instant.", 15.sp, color = Soin.secondary)
-        else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            m.lessons.take(5).forEach { l ->
-                Row(Modifier.fillMaxWidth().soinCard().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Box(Modifier.size(32.dp).clip(CircleShape).background(Soin.accentSoft), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Check, null, Modifier.size(16.dp), tint = Soin.accent)
+                HomeCard.DICTATION -> m.liveDictation?.let { live ->
+                    Column(Modifier.fillMaxWidth().soinCard(radius = 24.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(Icons.Default.GraphicEq, null, Modifier.size(16.dp), tint = Soin.accent)
+                            T("${m.seniorTitle} est en train de parler", 13.sp, FontWeight.SemiBold, Soin.accent)
+                        }
+                        T("« $live »", 20.sp, FontWeight.SemiBold)
                     }
-                    Column {
-                        T(l.title, 16.sp, FontWeight.SemiBold)
-                        T("${l.steps} étape${if (l.steps > 1) "s" else ""}", 13.sp, color = Soin.secondary)
+                }
+                HomeCard.ALERT -> m.lastAlert?.let { a ->
+                    Column(Modifier.fillMaxWidth().soinCard().padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        T(a.title, 16.sp, FontWeight.SemiBold)
+                        if (a.detail.isNotEmpty()) T(a.detail, 14.sp, color = Soin.secondary)
+                    }
+                }
+                HomeCard.AUTOMATIONS -> {
+                    T("Derniers automatismes", 17.sp, FontWeight.SemiBold)
+                    if (m.lessons.isEmpty()) T("Aucun automatisme pour l'instant.", 15.sp, color = Soin.secondary)
+                    else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        m.lessons.take(5).forEach { l ->
+                            Row(Modifier.fillMaxWidth().soinCard().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Box(Modifier.size(32.dp).clip(CircleShape).background(Soin.accentSoft), contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.Check, null, Modifier.size(16.dp), tint = Soin.accent)
+                                }
+                                Column {
+                                    T(l.title, 16.sp, FontWeight.SemiBold)
+                                    T("${l.steps} étape${if (l.steps > 1) "s" else ""}", 13.sp, color = Soin.secondary)
+                                }
+                            }
+                        }
                     }
                 }
             }
