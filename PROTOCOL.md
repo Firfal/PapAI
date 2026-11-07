@@ -102,6 +102,134 @@ envoie un ponctuellement, et répond alors par :
 {"type":"alert","level":"danger|attention|info","title":"…","detail":"…"}
 ```
 
+<<<<<<< HEAD
+||||||| d692278
+Pour les situations visuelles (fausse alerte virus, page de paiement), le
+serveur demande **une** capture et fait décrire l'écran par Holo : le proche lit
+ce qui s'y trouve vraiment, pas un soupçon technique.
+
+Ce qui est reconnu aujourd'hui : un outil de prise en main qui tourne
+(AnyDesk, TeamViewer, UltraViewer…), une fausse alerte « votre ordinateur est
+infecté, appelez ce numéro », un site de carte prépayée ou de transfert
+irréversible, et la combinaison la plus grave — outil de prise en main **plus**
+page bancaire ouverte.
+
+Consulter sa banque seule ne déclenche rien.
+
+=======
+### Demandes suspectes (champs optionnels, anciens clients compatibles)
+
+Le serveur examine le texte de **chaque** `help_request` avant capture et
+planification, puis chaque plan (y compris après `refine_plan`). Les règles
+déterministes suffisent aux cas manifestes ; Holo ne donne qu'un avis textuel
+en cas d'hésitation. Si cet avis expire ou échoue, le serveur envoie seulement
+au proche un `guard_advice` non bloquant (ni `alert_id`, ni `blocked`) :
+`{"type":"guard_advice","level":"attention","source":"avis_indisponible","session":"…","title":"Avis de sécurité indisponible","detail":"…"}`.
+Le proche de la famille et le jeton de cette session le reçoivent, jamais le
+pont aidé. La préparation continue et le plan attend toujours sa validation.
+Un verdict Holo réellement suspect ou une règle déterministe reste bloquant.
+Les achats de cartes cadeaux offerts à un proche ne déclenchent pas seuls le
+gardien ; transmettre leurs codes ou les utiliser comme moyen de paiement
+suspect reste signalé. Un virement explicitement adressé à un membre de la
+famille, ou une facture d'un fournisseur habituel (EDF, Engie, Orange, SFR,
+Free, Bouygues, impôts, eau, loyer) jusqu'à 1 500 € inclus, n'est pas bloqué
+pour son seul montant. La dispense facture ne vaut pas au-delà de 1 500 €.
+Étranger, urgence, compte/numéro nouveau ou inconnu, IBAN, code reçu ou support
+suspect annulent cette exception. Un proche annonçant un téléphone perdu ou
+un nouveau numéro ne bénéficie pas de la dispense familiale. Les montants
+`k€`, les lettres espacées/ponctuées et les demandes en anglais/allemand
+sont aussi analysés. Confirmer un virement, même sans montant, est signalé.
+Une demande suspecte termine la session en `stopped`, sans `execute` ni plan à
+approuver. Les alertes de veille arrêtent aussi l'assistance en cours.
+
+`alert` peut porter `alert_id` (opaque), `source` (`request`, `plan`, `environment`),
+`blocked: true`, `session` (si liée à une demande) et `task` (texte de la demande).
+**`title` et `detail` sont adaptés au destinataire** : sur le Mac, avertissement
+et « Contactez votre petit-fils Quentin avant d'aller plus loin » (prénom et lien
+familial connus, sinon « votre proche ») ; côté aidant, demande de rappel,
+raison du soupçon et texte de la demande. Aucun numéro n'est inventé : le proche
+utilise son moyen de contact habituel. L'app iPhone réutilise notification locale
+et Live Activity existantes (pas de nouvelle promesse de push APNs).
+
+Le Mac garde l'alerte bloquante au-dessus de l'interface et refuse tout `execute`,
+y compris `press_key`. Aucune touche (Entrée, Échap…) ne ferme l'alerte.
+Le proche a deux actions : « Je m'en occupe » et « C'est normal ».
+La première ne passe aucun appel et envoie :
+
+```json
+{"type":"ack_alert","alert_id":"…"}
+```
+
+Même contrôle d'identité et de portée que le rejet ci-dessous. Le serveur
+envoie `{"type":"alert_acknowledged","alert_id":"…","session":"…","acknowledged":true}`.
+L'aidé lit « Un proche a vu l'alerte et s'en occupe ». Aucun prénom n'est
+attribué : la clé famille n'authentifie pas une identité individuelle.
+Cet accusé est conservé dans le champ optionnel `alert.acknowledged` et
+rejoué à la reconnexion. Les clients peuvent lire l'ancien champ
+`acknowledged_by` uniquement comme présence d'un accusé, jamais l'afficher.
+Un client ignore l'accusé si son identifiant ne correspond plus à l'alerte
+affichée : un accusé tardif ne fait pas réapparaître une alerte rejetée.
+Il ne ferme rien et ne relance aucune action. Un deuxième accusé est
+idempotent. Aucun bouton côté aidé ne prétend passer un appel.
+
+« C'est normal » demande une confirmation puis envoie :
+
+```json
+{"type":"dismiss_alert","alert_id":"…"}
+```
+
+Le rejet exige la clé famille (canal aidant permanent), ou le jeton de la
+session indiquée par `alert.session`, même si celle-ci est déjà arrêtée.
+Le jeton d'une autre session n'autorise ni la réception/relecture de cette
+alerte ni son rejet. Une alerte sans session n'est accessible qu'à la famille.
+
+Ce message, accepté uniquement sur un canal aidant authentifié, signifie
+« Je connais cette démarche, rejeter l'alerte », **pas autoriser l'exécution**.
+Le serveur vérifie l'identifiant puis envoie aux apps :
+
+```json
+{"type":"alert_cleared","alert_id":"…","session":"…"}
+```
+
+Le champ optionnel `session` (ou `null`) conserve la même portée de diffusion
+que l'alerte d'origine. Les anciens clients peuvent l'ignorer.
+
+La session arrêtée reste terminale. Il faut une nouvelle demande et une nouvelle
+validation normale. Tant qu'une alerte reste ouverte, les nouvelles demandes
+sont arrêtées aussi. L'alerte est renvoyée aux aidants et au pont à la reconnexion
+(mémoire serveur uniquement, pas de persistance après redémarrage).
+
+Les alertes de veille partent immédiatement à partir des signaux textuels,
+sans attendre de capture ni de confirmation visuelle de Holo.
+`status.stopped_by` est optionnel (`null` hors arrêt explicite). La valeur
+`gardien` est conservée même après rejet de l'alerte : l'iPhone, le web et
+Windows affichent « PapAI a arrêté l'assistance : démarche suspecte » ;
+la fin Mac adaptée à l'aidé est décrite ci-dessous. Aucun de ces écrans
+n'attribue l'arrêt à la personne aidée. Les autres causes restent inchangées.
+`status.execution_started` est un booléen irréversible dans une session, posé
+juste avant l'envoi d'une action Holo ou d'un clic du proche au pont. Il peut
+donc valoir `true` pour une action en cours, refusée ou sans résultat confirmé.
+Seule la valeur explicite `false` permet d'affirmer « Rien n'a été fait sur
+son ordinateur ». Si `true` ou absent (ancien serveur), l'aidant lit
+« L'assistance est arrêtée. Vérifiez avec Sophie ce qui a été fait. »
+`status.guard_acknowledged` conserve l'accusé anonyme après rejet de l'alerte.
+La fin Mac du gardien est une carte blanche : « PapAI a arrêté : cette démarche
+peut être une arnaque », sans paiement/code et appel du premier proche connu
+à son numéro habituel. Aucune carte « Tout va bien » ne coexiste avec une alerte.
+Sur Windows, `level: danger` ou `blocked: true` lève immédiatement le verrou
+local et annule les tâches `execute` engagées. Le fil d'exécution conserve le
+verrou de sa demande et le relit avant les gestes suivants, même si une nouvelle
+demande réinitialise ensuite le verrou courant.
+
+Ce qui est reconnu aujourd'hui : un outil de prise en main qui tourne
+(AnyDesk, TeamViewer, UltraViewer…), une fausse alerte « votre ordinateur est
+infecté, appelez ce numéro », un site de carte prépayée ou de transfert
+irréversible, et la combinaison la plus grave — outil de prise en main **plus**
+page bancaire ouverte.
+
+Consulter sa banque seule ne déclenche rien.
+
+>>>>>>> origin/main
 ## Automatismes
 
 `GET /lessons` renvoie les automatismes validés. Chacun a `title`, `steps`

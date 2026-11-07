@@ -71,6 +71,8 @@ final class AppModel {
     var pendingAutomation: Lesson?
     var actions: [String] = []
     var guardAlert: GuardAlert?
+    var stoppedBy: String?
+    var guardAcknowledged = false
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored let client = BridgeClient()
@@ -435,7 +437,10 @@ final class AppModel {
     }
 
     func askHelp(task: String, requestedBy: String? = nil) {
+        guard guardAlert == nil else { return }
         gate.reset()
+        stoppedBy = nil
+        guardAcknowledged = false
         homeTimer?.cancel()
         self.task = task
         pendingTask = ""
@@ -460,6 +465,7 @@ final class AppModel {
     }
 
     func backHome() {
+        guard guardAlert == nil else { return }
         homeTimer?.cancel()
         screen = .home
         state = nil
@@ -512,11 +518,24 @@ final class AppModel {
             pairExpires = m["expires_in"] as? Int ?? 600
         case "alert":
             // Le gardien a reconnu une situation : le proche est prévenu en même temps.
+            gate.raise()
+            InputLock.shared.set(false)
             guardAlert = GuardAlert(level: m["level"] as? String ?? "attention",
                                     title: m["title"] as? String ?? "",
-                                    detail: m["detail"] as? String ?? "")
+                                    detail: m["detail"] as? String ?? "",
+                                    id: m["alert_id"] as? String,
+                                    blocked: m["blocked"] as? Bool ?? false,
+                                    acknowledged: m["acknowledged"] as? Bool ?? (m["acknowledged_by"] as? String != nil))
+            guardAcknowledged = guardAlert?.acknowledged ?? false
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
+        case "alert_acknowledged":
+            if let id = m["alert_id"] as? String, id == guardAlert?.id {
+                guardAlert?.acknowledged = true
+                guardAcknowledged = true
+            }
+        case "alert_cleared":
+            if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
         case "remote_request":
             guard !sessionOpen else { return }
             remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre proche",
@@ -529,6 +548,8 @@ final class AppModel {
     }
 
     private func applyStatus(_ m: [String: Any]) {
+        stoppedBy = m["stopped_by"] as? String
+        if let ack = m["guard_acknowledged"] as? Bool { guardAcknowledged = ack }
         guard screen == .session else { return }
         if gate.isStopped { state = .stopped; applyLevel(); return }
         let before = state
@@ -577,7 +598,7 @@ final class AppModel {
         func reply(_ text: String, refused: Bool) {
             client.send(["type": "result", "req": req, "result": text, "refused": refused])
         }
-        if gate.isStopped { reply("Arrêt demandé par la personne aidée.", refused: true); return }
+        if gate.isStopped || guardAlert != nil { reply("Assistance arrêtée ou alerte du gardien en attente.", refused: true); return }
         let said = describeAction(name, args)
         currentAction = said
         if actions.last != said { actions.append(said) }

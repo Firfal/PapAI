@@ -48,6 +48,7 @@ class Bridge:
         self._ws = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._task: asyncio.Task | None = None
+        self._executions: set[asyncio.Task] = set()
 
     # ---------------------------------------------------------------- cycle
 
@@ -159,8 +160,14 @@ class Bridge:
             asyncio.create_task(self._capture(ws, str(m.get("req", ""))))
             return
         if kind == "execute":
-            asyncio.create_task(self._execute(ws, str(m.get("req", "")), m.get("action") or {}))
+            task = asyncio.create_task(self._execute(ws, str(m.get("req", "")), m.get("action") or {}))
+            self._executions.add(task)
+            task.add_done_callback(self._executions.discard)
             return
+        if kind == "alert" and (m.get("level") == "danger" or m.get("blocked")):
+            self.gate.raise_stop()
+            for task in self._executions:
+                task.cancel()
         if kind == "status":
             self.last_status = m
         self.on_message(m)
@@ -195,10 +202,16 @@ class Bridge:
             await reply("Action refusée : aucun plan validé par l'aidant.", True)
             return
         self.on_action(describe_action(name, args))
+        gate = self.gate.pin()
         try:
-            text = await asyncio.to_thread(self.runner, name, args, self.screen, self.gate,
+            text = await asyncio.to_thread(self.runner, name, args, self.screen, gate,
                                            self.protected())
+            if gate.is_stopped:
+                raise Stopped()
             await reply(text, False)
+        except asyncio.CancelledError:
+            await reply(STOPPED_TEXT, True)
+            raise
         except Stopped:
             await reply(STOPPED_TEXT, True)
         except ProtectedZone:
