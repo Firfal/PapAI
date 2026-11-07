@@ -19,7 +19,11 @@ struct ActiveView: View {
                         else { ProgressView().tint(Soin.accent).controlSize(.small) }
                         Text(caption).font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.secondary)
                     }
-                    Text(model.seniorPaused ? "\(model.seniorTitle) a mis l’aide en pause. Holo attend la reprise." : (model.doing ?? "Holo regarde l’écran de \(model.senior)…"))
+                    Text(model.webLive
+                         ? "Holo travaille dans \(model.webBrowserTitle)"
+                         : model.seniorPaused
+                             ? "\(model.seniorTitle) a mis l’aide en pause. Holo attend la reprise."
+                             : (model.doing ?? "Holo regarde l’écran de \(model.senior)…"))
                         .font(.system(size: 19, weight: .semibold)).foregroundStyle(Soin.ink)
                         .lineLimit(3).fixedSize(horizontal: false, vertical: true)
                         .contentTransition(.opacity)
@@ -83,6 +87,7 @@ struct CaptureView: View {
         if let img = model.frame {
             Image(uiImage: img).resizable().aspectRatio(img.size, contentMode: .fit)
                 .frame(maxWidth: .infinity)
+                .accessibilityLabel(model.webLive ? model.webBrowserTitle : "Écran de \(model.senior)")
                 .overlay {
                     GeometryReader { g in
                         ZStack {
@@ -101,7 +106,9 @@ struct CaptureView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(model.aiming ? Soin.accent : .clear, lineWidth: 2))
         } else {
-            Text("En attente de la première capture d’écran…")
+            Text(model.webLive
+                 ? "En attente de la première image de Chrome PapAI…"
+                 : "En attente de la première capture d’écran…")
                 .font(.system(size: 15)).foregroundStyle(Soin.secondary)
                 .frame(maxWidth: .infinity, minHeight: 180).soinCard()
         }
@@ -160,8 +167,17 @@ struct HelperView: View {
                 } else if let q = model.question {
                     questionCard(q)
                 }
+                if model.webLive {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(model.webBrowserTitle).font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
+                        Text("Holo agit seulement dans le navigateur. Répondez à ses questions ici.")
+                            .font(.system(size: 13)).foregroundStyle(Soin.secondary)
+                    }
+                }
                 CaptureView(model: model)
-                if model.aiming { aimBar } else { handButton }
+                if !model.webLive {
+                    if model.aiming { aimBar } else { handButton }
+                }
             }
             .padding(.horizontal, 20).padding(.bottom, 24)
         }
@@ -171,9 +187,11 @@ struct HelperView: View {
 
     private func questionCard(_ q: (text: String, options: [String])) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(model.questionToSenior
-                 ? "Question posée à \(model.senior) sur son écran. Vous pouvez aussi répondre."
-                 : "\(model.seniorTitle) a besoin de vous").font(.system(size: 13)).foregroundStyle(Soin.secondary)
+            Text(model.webLive
+                 ? "Holo a une question"
+                 : model.questionToSenior
+                     ? "Question posée à \(model.senior) sur son écran. Vous pouvez aussi répondre."
+                     : "\(model.seniorTitle) a besoin de vous").font(.system(size: 13)).foregroundStyle(Soin.secondary)
             Text(q.text).font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
             if !q.options.isEmpty {
                 FlowLayout(spacing: 8) {
