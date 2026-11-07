@@ -284,3 +284,35 @@ En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gard�
   - `helper_name` : le prénom de l'aidant qui a validé le plan, répondu ou cliqué. L'ordinateur affiche « Quentin s'en occupe ».
   - `doing` : une seule phrase sur ce que fait Holo, tirée de sa réflexion (si elle est en français) ou de l'action.
 - Ordinateur → serveur : `profile` porte `known_helpers` (la liste gardée sur le Mac). Le serveur rajoute ceux qui lui manquent (disque Cloud Run effacé à chaque mise en ligne) et renvoie `helpers`.
+
+## Agent navigateur de H (tâches dans le navigateur, Mac)
+
+Quand la demande se fait dans un navigateur, le serveur pilote l'agent web
+local de H (Agents API) au lieu de l'agent bureau. Tous les champs sont
+optionnels : un ancien serveur ou une ancienne app les ignore et le mode
+bureau reste le comportement par défaut.
+
+- Mac → serveur, `hello` : `"web_agent": {"session_id": "<uuid>"}` seulement
+  quand « Chrome PapAI » (profil dédié, port de debug 9222) **et**
+  `holo local browser --session-id <uuid>` tournent sur le Mac.
+- Mac → serveur, en cours de connexion : `{"type":"web_agent","session_id":"<uuid>"}`
+  dès que les deux tournent (le Mac les lance au début d'une demande),
+  `{"type":"web_agent","session_id":null}` quand ils s'arrêtent.
+- Serveur → apps, `status.where` : `"web"`, `"desktop"` ou `null`. Avant la
+  validation, c'est l'endroit proposé par Holo avec le plan ; après la
+  validation, c'est le mode réellement utilisé (`"desktop"` si le Mac n'a pas
+  annoncé de navigateur). Les apps l'ignorent si absent.
+- Rien ne change avant `approve_plan` : gardien, capture pour le plan, plan à
+  valider. La session H n'est créée qu'après la validation.
+- En mode web, le serveur n'envoie ni `capture` ni `execute` au Mac pendant
+  l'exécution : H agit dans Chrome PapAI. `status.doing`, `plan_step`, `frame`
+  (aidants seulement), `ask_helper` / `answer`, `pause` / `resume` et `answer`
+  final gardent leur forme. Arrêt, refus, alerte du gardien ou pont déconnecté :
+  le serveur annule la session H.
+- Le Mac met la fenêtre Chrome PapAI au premier plan tant que
+  `where == "web"` et que la session est `active` ou `awaiting_helper`.
+  « Arrêter » exécute en plus `holo local stop` et termine le process, même
+  hors ligne.
+- Limite : `holo local browser` exige une clé H (`HAI_API_KEY`) sur le Mac de
+  la personne aidée (`~/.config/hai/.env` ou variable d'environnement). Elle
+  n'est jamais dans le dépôt ni dans les journaux.
