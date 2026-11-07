@@ -49,7 +49,9 @@ Reçoit :
   `press_key` (`keys`, ex. `cmd+space`, `enter`, `esc`), `scroll` (`x`,`y`,`direction`).
 - `{"type":"session","id":…,"helper_url":…}`
 - `{"type":"helpers","helpers":[{"id","name","relation"}],"added":"Claire"?}` à chaque `hello` et après chaque ajout ou retrait.
-- `{"type":"pair_code","code":"482913","url":"http://…/p/482913","expires_in":600}` code à afficher et à mettre en QR.
+- `{"type":"pair_code","code":"482913","url":"http://…/p/482913","app_url":"papai://pair?u=http%3A%2F%2F…%2Fp%2F482913","expires_in":600}` code à afficher.
+  Le QR contient `app_url` (ouvre l'app iPhone) ; le code et `url` restent affichés en texte pour le secours web.
+  Ancien serveur sans `app_url` : l'app le construit, `papai://pair?u=` + `url` encodée (tous caractères réservés).
 - `{"type":"lessons_changed","title":"…"}` le proche vient de valider un tutoriel : l'app relit `/lessons`.
 - `{"type":"remote_request","from":"Claire","task":"…"}` un proche propose une session : rien ne démarre sans l'accord de la personne aidée.
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
@@ -135,3 +137,13 @@ La personne aidée affiche un code à 6 chiffres et son QR (`pair_code`). Le pro
 `/p/{code}` (ou `/p` pour taper le code), donne son prénom et son lien, et reçoit le lien
 de l'espace aidant. Le code sert une fois, expire en 10 minutes et tombe après 5 essais ratés.
 En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gardés dans `family.json`.
+
+`POST …/p/{code}` avec `{"name","relation"}` répond `{"ok":true,"name","aidant_url","server","key"}`
+(ou `{"ok":false,"error"}` en 400). L'app iPhone s'en sert pour se régler seule :
+
+- **Lien d'app** `papai://pair?u=<URL d'appairage encodée>` (QR du Mac, bouton de `pair.html`).
+  L'app lit `u` (`https://…[/k/<clé>]/p/<code>`), demande prénom et lien, fait le POST sur `u`,
+  puis enregistre `serverURL = server + "/k/" + key` et `helperKey = key`, et se connecte.
+- Le scanner de l'app accepte `papai://pair?u=…` comme l'ancien `https://…/p/<code>`.
+- Saisie du code à la main : POST sur `<serverURL déjà connu>/p/<code>`.
+- Arguments de lancement `-serverURL` et `-helperKey` (dépannage, démo) : l'app les enregistre.

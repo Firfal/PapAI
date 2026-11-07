@@ -24,6 +24,8 @@
                  background: var(--ink); color: #fff; font: 600 19px ui-rounded, system-ui, sans-serif;
                  text-align: center; line-height: 60px; text-decoration: none; cursor: pointer; }
   button:disabled { opacity: .5; }
+  .btn.app { margin: 0 0 6px; background: var(--accent); }
+  .hint { font-size: 15px; text-align: center; margin: 0 0 4px; }
   .err { color: var(--err); font-weight: 600; margin-top: 14px; min-height: 1.4em; }
   .ok { font-size: 56px; line-height: 1; margin-bottom: 10px; color: var(--accent); }
   [hidden] { display: none !important; }
@@ -35,6 +37,10 @@
 <form class="card" id="form">
   <h1>Devenir aidant</h1>
   <p>Vous serez prévenu quand votre proche demande de l'aide sur son ordinateur. Rien ne se passe sur son écran sans votre accord.</p>
+  <div id="appRow" hidden>
+    <a class="btn app" id="openApp" href="#">Ouvrir dans l'app PapAI</a>
+    <p class="hint">Pas d'app sur ce téléphone ? Remplissez simplement ce formulaire.</p>
+  </div>
   <div id="codeRow" hidden>
     <label for="code">Code affiché sur l'ordinateur</label>
     <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000">
@@ -69,6 +75,11 @@
   let code = m && m[2] ? m[2] : "";
   const $ = (id) => document.getElementById(id);
   if (!code) $("codeRow").hidden = false;
+  else {
+    // L'app iPhone fait elle-même l'appairage à partir de cette adresse.
+    $("openApp").href = "papai://pair?u=" + encodeURIComponent(`${location.origin}${base}/p/${code}`);
+    $("appRow").hidden = false;
+  }
 
   $("form").addEventListener("submit", async (e) => {
     e.preventDefault();

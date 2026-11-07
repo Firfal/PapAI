@@ -22,6 +22,7 @@ import tempfile
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -174,6 +175,9 @@ async def parcours(base: str) -> None:
         pc = await mac.attendre("pair_code", 10)
         check("le Mac reçoit un code à 6 chiffres", pc and len(pc.get("code", "")) == 6, pc)
         code = pc["code"] if pc else "000000"
+        check("le QR ouvre l'app iPhone (app_url en papai://, url gardée)",
+              pc and pc.get("app_url", "").startswith("papai://pair?u=")
+              and urllib.parse.unquote(pc["app_url"].split("u=", 1)[1]) == pc.get("url"), pc)
         faux = "111111" if code != "111111" else "222222"
         st, r = post(f"{base}/p/{faux}", {"name": "Claire", "relation": "sa fille"})
         check("un mauvais code est refusé", st == 400 and not r.get("ok"), r)
