@@ -27,7 +27,7 @@ Mis à jour le 7 novembre à 16 h 30. Cochez au fur et à mesure et poussez.
 - [ ] **App iPhone sur l'appareil** : gestes réels (valider, préciser, refuser, prendre la main avec la loupe), notifications acceptées.
 - [ ] Décider quel iPhone et quel Mac servent sur scène, et sur quel réseau. Garder l'app iPhone au premier plan : en arrière-plan, la connexion se coupe.
 
-## Parcours de la personne aidée (branche `parcours-onboarding`, à relire avant fusion)
+## Parcours de la personne aidée (app Mac, fusionné le 7 novembre)
 
 - [x] 1. Accueil au premier lancement : bienvenue, prénom, taille du texte (grande par défaut), autorisations expliquées.
 - [x] 2. Ajouter un proche : QR ou code à 6 chiffres (10 min, usage unique), prénom et lien, plusieurs proches. Page `/p/{code}`, `backend/family.py`.
@@ -41,7 +41,7 @@ Mis à jour le 7 novembre à 16 h 30. Cochez au fur et à mesure et poussez.
 - [x] « Quentin » n'est plus écrit en dur : l'app affiche le prénom du ou des proches ajoutés.
 - [ ] Page web aidant : valider, préciser ou refuser le plan (l'app iPhone le fait déjà).
 - [ ] Afficher quelle étape du plan est en cours (demande un champ côté serveur).
-- [ ] Fusionner `parcours-onboarding` dans `main`.
+- [x] Fusionner `parcours-onboarding` dans `main`.
 
 ## P1 — pitch et rendu (demain matin)
 
