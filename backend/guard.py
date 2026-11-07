@@ -7,8 +7,9 @@ de la fenêtre, adresse du navigateur. Rien ne sort de la machine : pas de
 capture, pas d'appel au modèle, pas de trace ailleurs. C'est ce qui permet à une
 veille permanente de coexister avec la promesse « pas de contrôle permanent ».
 
-Quand un motif connu se déclenche, et seulement là, une capture part au modèle
-pour confirmer et expliquer ce qui se passe, en français, à l'aidant.
+Hors session, l'alerte repose sur ces seuls signaux : aucune capture ne part.
+Pendant une session acceptée, où Holo voit déjà l'écran, un motif marqué
+`confirmer` fait décrire la capture par le modèle, en français, pour l'aidant.
 
 Ce module ne promet pas de protéger : il reconnaît des situations qu'on y a
 mises. C'est une différence qu'il faut tenir dans le discours aussi.
@@ -63,7 +64,7 @@ class Alerte:
     titre: str
     detail: str
     motif: str           # ce qui a déclenché, pour le journal
-    confirmer: bool      # faut-il demander une capture au modèle ?
+    confirmer: bool      # décrire l'écran par le modèle (seulement en session)
 
 
 def _contient(texte: str, aiguilles) -> str | None:

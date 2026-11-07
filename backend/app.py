@@ -11,6 +11,8 @@ repasse par les contrôles de sessions.py.
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import os
 import re
 import secrets
@@ -19,6 +21,7 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
+from starlette.requests import HTTPConnection
 
 from . import guard, voice
 from .agent import AgentRunner, propose_plan
@@ -61,14 +64,78 @@ family = Family()
 # lancement à l'autre si on la fixe dans .env, sinon tirée au démarrage.
 AIDANT_KEY = os.environ.get("PAPAI_AIDANT_KEY") or secrets.token_urlsafe(9)
 
-# En ligne, tout passe par /k/{clé de la famille}/… : sans la clé, personne ne
-# peut se faire passer pour le PC de la personne aidée, ni lire ses fiches.
-# Les routes sans clé ne restent ouvertes qu'en local (PAPAI_PUBLIC absent).
+# Tout passe par /k/{clé de la famille}/… : sans la clé, personne ne peut se
+# faire passer pour le PC de la personne aidée, ni lire ses fiches. En local
+# (PAPAI_PUBLIC absent), les routes sans clé ne répondent qu'à une app lancée
+# sur la machine même du serveur (voir _same_machine).
 PUBLIC_MODE = os.environ.get("PAPAI_PUBLIC", "") == "1"
+
+# Bornes des messages du pont : une demande se lit en une phrase, et la liste
+# des processus d'un PC chargé tient largement dans 500 noms.
+MAX_TASK = 500
+MAX_PROCESSES = 500
+MAX_PROCESS_NAME = 200
 
 
 def _key_ok(fam: str) -> bool:
     return secrets.compare_digest(fam or "", AIDANT_KEY)
+
+
+_LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
+def _hostname(value: str) -> str:
+    """`http://localhost:8000/x` ou `[::1]:8000` → `localhost`, `::1`."""
+    v = (value or "").strip().lower()
+    if "://" in v:
+        v = v.split("://", 1)[1]
+    v = v.split("/", 1)[0]
+    if v.startswith("["):
+        return v[1:].split("]", 1)[0]
+    return v.rsplit(":", 1)[0] if v.count(":") == 1 else v
+
+
+def _same_machine(conn: HTTPConnection) -> bool:
+    """Vrai seulement pour une app lancée sur la machine du serveur.
+
+    C'est le cas de la démo locale (Mac et serveur sur le même ordinateur) :
+    l'app s'y connecte sans clé. Tout le reste — un autre appareil du même
+    Wi-Fi, un tunnel (en-têtes de relais), une page web ouverte dans le
+    navigateur (Origin, Host d'un autre site) — doit passer par /k/{clé}/….
+    """
+    if PUBLIC_MODE:
+        return False
+    if (conn.client.host if conn.client else "") not in _LOOPBACK:
+        return False
+    h = conn.headers
+    if any(k in h for k in ("x-forwarded-for", "forwarded", "x-real-ip")):
+        return False
+    if _hostname(h.get("host", "")) not in _LOOPBACK:
+        return False
+    origin = h.get("origin")
+    return not origin or _hostname(origin) in _LOOPBACK
+
+
+# Jamais de clé ni de jeton dans les journaux : les chemins qui en portent un
+# sont masqués, y compris dans les journaux d'accès d'uvicorn.
+_SECRET_PATH = re.compile(r"/(k|a|h|p|ws/aidant|ws/helper)/[^/?#\s\"']+")
+
+
+def masquer(texte: str) -> str:
+    return _SECRET_PATH.sub(r"/\1/***", texte)
+
+
+class _MasqueJournal(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        propre = masquer(msg)
+        if propre != msg:
+            record.msg, record.args = propre, ()
+        return True
+
+
+for _nom in ("uvicorn.access", "uvicorn.error"):
+    logging.getLogger(_nom).addFilter(_MasqueJournal())
 
 
 class BridgeLink:
@@ -78,6 +145,12 @@ class BridgeLink:
         self.ws = ws
         self._pending: dict[str, asyncio.Future] = {}
         self.os = "windows"  # annoncé par le pont dans son message hello
+
+    async def close(self, code: int = 1000) -> None:
+        try:
+            await self.ws.close(code=code)
+        except Exception:  # noqa: BLE001 — déjà fermé
+            pass
 
     async def _request(self, payload: dict, timeout: float = 20.0):
         req = secrets.token_hex(6)
@@ -158,29 +231,49 @@ async def ws_bridge_keyed(ws: WebSocket, fam: str) -> None:
 
 @app.websocket("/ws/bridge")
 async def ws_bridge(ws: WebSocket) -> None:
-    if PUBLIC_MODE:
+    # Sans clé : seulement depuis la machine du serveur (démo locale).
+    if not _same_machine(ws):
         await ws.close(code=4403)
         return
     await _ws_bridge(ws)
 
 
+async def _stop_open_sessions(by: str) -> None:
+    for s in list(registry._by_id.values()):
+        if s.is_open:
+            s.stop(by=by)
+            await broadcast_helper(s.status())
+
+
 async def _ws_bridge(ws: WebSocket) -> None:
     global bridge, agent_task
     await ws.accept()
-    bridge = BridgeLink(ws)
+    link = BridgeLink(ws)
+    old, bridge = bridge, link
+    if old is not None:
+        # Un seul pont. Le nouveau a passé le même contrôle que l'ancien :
+        # c'est en général le même Mac qui se reconnecte après une coupure.
+        # La session de l'ancien lien ne peut plus agir : on l'arrête.
+        print("[pont] remplacé par une nouvelle connexion")
+        if agent_task and not agent_task.done():
+            agent_task.cancel()
+        await _stop_open_sessions("pont remplacé")
+        await old.close(code=4409)
     print("[pont] connecté")
     try:
         while True:
             msg = await ws.receive_json()
+            if not isinstance(msg, dict):
+                continue
             kind = msg.get("type")
 
             if kind in ("frame", "result"):
-                bridge.resolve(msg.get("req", ""), msg)
+                link.resolve(str(msg.get("req", "")), msg)
                 continue
 
             if kind == "hello":
-                bridge.os = str(msg.get("os", "windows")).lower()
-                print(f"[pont] système : {bridge.os}")
+                link.os = str(msg.get("os", "windows")).lower()[:20]
+                print(f"[pont] système : {link.os}")
                 await ws.send_json({"type": "helpers", "helpers": family.public()})
                 continue
 
@@ -204,7 +297,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "help_request":
-                session = registry.create(msg.get("task", "").strip())
+                session = registry.create(str(msg.get("task") or "").strip()[:MAX_TASK])
                 session.grant_consent()  # le consentement est donné dans la même fenêtre
                 if msg.get("requested_by"):
                     # Lancée par un proche, acceptée à l'instant sur le Mac.
@@ -212,13 +305,13 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     await broadcast_helper({"type": "remote_accepted"})
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
                 await ws.send_json({"type": "session", "id": session.id, "helper_url": url})
-                print(f"[session {session.id}] {session.task}")
-                print(f"[session {session.id}] lien du proche : {url}")
+                # Ni la demande ni le lien du proche (son jeton) dans le journal.
+                print(f"[session {session.id}] nouvelle demande")
                 await broadcast_helper(session.status())
 
                 if agent_task and not agent_task.done():
                     agent_task.cancel()
-                agent_task = asyncio.create_task(run_session(session, bridge))
+                agent_task = asyncio.create_task(run_session(session, link))
                 continue
 
             if kind == "automation_failed":
@@ -226,17 +319,17 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 # changé. On ne tente rien à l'aveugle, on prévient l'aidant.
                 await broadcast_helper({
                     "type": "alert",
-                    "title": str(msg.get("title", "Un raccourci")),
-                    "detail": str(msg.get("detail", "")),
+                    "title": str(msg.get("title", "Un raccourci"))[:200],
+                    "detail": str(msg.get("detail", ""))[:1000],
                 })
                 continue
 
             if kind == "guard":
                 # Le gardien du Mac a vu passer un signal. Il n'envoie que du
                 # texte — processus, titre de fenêtre, adresse — jamais l'écran.
-                # À part : la confirmation attend une capture que cette boucle
-                # doit pouvoir recevoir.
-                t = asyncio.create_task(handle_guard(ws, msg))
+                # À part : pendant une session, la confirmation attend une
+                # capture que cette boucle doit pouvoir recevoir.
+                t = asyncio.create_task(handle_guard(msg))
                 _guard_taches.add(t)
                 t.add_done_callback(_guard_taches.discard)
                 continue
@@ -251,14 +344,14 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 print("[pont] ARRÊT demandé par la personne aidée")
                 continue
 
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, RuntimeError, ValueError):
         print("[pont] déconnecté")
     finally:
-        bridge = None
-        for s in list(registry._by_id.values()):
-            if s.is_open:
-                s.stop(by="pont déconnecté")
-                await broadcast_helper(s.status())
+        # Un nouveau pont a pu prendre la place entre-temps : on ne le
+        # débranche pas, et ses sessions continuent.
+        if bridge is link:
+            bridge = None
+            await _stop_open_sessions("pont déconnecté")
 
 
 async def run_session(session, link: "BridgeLink") -> None:
@@ -272,7 +365,7 @@ async def run_session(session, link: "BridgeLink") -> None:
                 return
             decision = session.propose_plan(steps)
             await broadcast_helper(session.status())
-            print(f"[session {session.id}] plan proposé : {steps}")
+            print(f"[session {session.id}] plan proposé : {len(steps)} étape(s)")
             result = await decision
             if result is None or not session.is_open:
                 return
@@ -497,7 +590,7 @@ async def _pair_submit(code: str, request: Request):
         helper = family.pair(code, str(body.get("name", "")), str(body.get("relation", "")))
     except PairingError as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
-    print(f"[proches] ajouté : {helper['name']} ({helper['relation']})")
+    print("[proches] un proche ajouté")
     if bridge is not None:
         await bridge.send({"type": "helpers", "helpers": family.public(), "added": helper["name"]})
     return {"ok": True, "name": helper["name"], "aidant_url": aidant_url(),
@@ -562,7 +655,7 @@ async def handle_remote_request(msg: dict, ws: WebSocket) -> None:
     task = str(msg.get("text", "")).strip()[:300]
     await bridge.send({"type": "remote_request", "from": who, "task": task})
     await ws.send_json({"type": "ack", "what": "remote_request"})
-    print(f"[proches] {who} propose une session : {task}")
+    print("[proches] un proche propose une session")
 
 
 # ------------------------------------------------------------------ aidant permanent
@@ -634,14 +727,17 @@ _guard_taches: set[asyncio.Task] = set()
 GUARD_SILENCE_S = 300
 
 
-async def handle_guard(ws: WebSocket, msg: dict) -> None:
+async def handle_guard(msg: dict) -> None:
     """Un signal du gardien. Évalue, et ne dérange que si ça vaut la peine."""
     import time
 
+    procs = msg.get("processes")
+    if not isinstance(procs, list):
+        procs = []
     alerte = guard.evaluer(
-        processus=[str(p) for p in (msg.get("processes") or [])],
-        fenetre=str(msg.get("window", "")),
-        url=str(msg.get("url", "")),
+        processus=[str(p)[:MAX_PROCESS_NAME] for p in procs[:MAX_PROCESSES]],
+        fenetre=str(msg.get("window", ""))[:500],
+        url=str(msg.get("url", ""))[:2000],
     )
     if alerte is None:
         return
@@ -652,10 +748,12 @@ async def handle_guard(ws: WebSocket, msg: dict) -> None:
     _guard_vu[alerte.motif] = time.time()
 
     detail = alerte.detail
-    if alerte.confirmer:
-        # Seulement ici une capture part au modèle : pour dire au proche ce qui
-        # est réellement à l'écran, au lieu d'un soupçon technique.
-        vu = await confirmer_par_le_modele(ws, alerte)
+    s = current_session()
+    if alerte.confirmer and s is not None and s.is_open and s.consented:
+        # Seulement pendant une session acceptée, où Holo voit déjà l'écran.
+        # Hors session, aucune capture ne part : l'alerte repose sur les
+        # seuls signaux textuels.
+        vu = await confirmer_par_le_modele(alerte)
         if vu:
             detail = detail + "\n\nCe que voit PapAI : " + vu
 
@@ -664,14 +762,10 @@ async def handle_guard(ws: WebSocket, msg: dict) -> None:
         "type": "alert", "level": alerte.niveau,
         "title": alerte.titre, "detail": detail,
     }
-    await broadcast_helper(charge)
-    try:
-        await ws.send_json(charge)   # et sur l'écran de la personne aidée
-    except Exception:  # noqa: BLE001
-        pass
+    await broadcast_helper(charge)   # part aussi vers le pont (BRIDGE_TYPES)
 
 
-async def confirmer_par_le_modele(ws: WebSocket, alerte) -> str:
+async def confirmer_par_le_modele(alerte) -> str:
     """Une capture, un appel, une description. Rien de plus."""
     if bridge is None:
         return ""
@@ -740,16 +834,19 @@ async def transcribe_keyed(fam: str, request: Request):
 
 
 @app.get("/lessons")
-async def lessons():
-    if PUBLIC_MODE:
+async def lessons(request: Request):
+    """Les fiches validées par un proche. Les brouillons ne sortent jamais d'ici.
+
+    Sans clé, seulement pour l'app de la machine du serveur ; sinon /k/{clé}/lessons.
+    """
+    if not _same_machine(request):
         return JSONResponse({"error": "introuvable"}, status_code=404)
-    """Les fiches validées par un proche. Les brouillons ne sortent jamais d'ici."""
     return list_lessons()
 
 
 @app.get("/lessons/{lesson_id}/{filename}")
-async def lesson_file(lesson_id: str, filename: str):
-    if PUBLIC_MODE:
+async def lesson_file(lesson_id: str, filename: str, request: Request):
+    if not _same_machine(request):
         return JSONResponse({"error": "introuvable"}, status_code=404)
     return _serve_lesson_file(lesson_id, filename)
 
@@ -763,24 +860,42 @@ def _serve_lesson_file(lesson_id: str, filename: str):
     return FileResponse(path)
 
 
-@app.get("/sessions")
-async def list_sessions():
-    """Le journal des actions, lisible par la personne aidée (section 08).
-
-    Sert aussi de point d'observation pendant les essais. Fermé en ligne.
-    """
-    if PUBLIC_MODE:
-        return JSONResponse({"error": "introuvable"}, status_code=404)
+def _sessions_journal():
     return [
         {**s.status(), "journal": s.journal}
         for s in registry._by_id.values()
     ]
 
 
+@app.get("/sessions")
+async def list_sessions(request: Request):
+    """Le journal des actions, lisible par la personne aidée (section 08).
+
+    Sert aussi de point d'observation pendant les essais. Sans clé, seulement
+    depuis la machine du serveur ; sinon /k/{clé}/sessions.
+    """
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return _sessions_journal()
+
+
+@app.get("/k/{fam}/sessions")
+async def list_sessions_keyed(fam: str):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return _sessions_journal()
+
+
 if __name__ == "__main__":
     STATIC.mkdir(exist_ok=True)
     # Les hébergeurs imposent le port par la variable PORT.
     port = int(os.environ.get("PORT", "8000"))
-    print(f"[aidant] lien permanent : {PUBLIC_URL}/a/{AIDANT_KEY}")
-    print(f"[aidant] app iPhone : serveur {PUBLIC_URL}  clé {AIDANT_KEY}")
+    # La clé ne s'écrit pas dans le journal : un proche la reçoit en
+    # s'ajoutant par code ou QR. PAPAI_SHOW_KEY=1 l'affiche sur ce terminal.
+    if os.environ.get("PAPAI_SHOW_KEY") == "1":
+        print(f"[aidant] lien permanent : {PUBLIC_URL}/a/{AIDANT_KEY}")
+    else:
+        origine = "PAPAI_AIDANT_KEY" if os.environ.get("PAPAI_AIDANT_KEY") else "tirée au hasard"
+        print(f"[aidant] lien permanent : {PUBLIC_URL}/a/<clé famille> ({origine} ; "
+              "PAPAI_SHOW_KEY=1 pour l'afficher)")
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
