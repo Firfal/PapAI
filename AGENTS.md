@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794069172-pitch` | Pitch (script, vidéo) et textes de soumission | `docs/pitch.md`, `docs/soumission.md` | 7 nov. |
 
 ## Journal
 
