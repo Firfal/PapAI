@@ -435,6 +435,7 @@ final class AppModel {
     }
 
     func askHelp(task: String, requestedBy: String? = nil) {
+        guard guardAlert == nil else { return }
         gate.reset()
         stoppedBy = nil
         homeTimer?.cancel()
@@ -461,6 +462,7 @@ final class AppModel {
     }
 
     func backHome() {
+        guard guardAlert == nil else { return }
         homeTimer?.cancel()
         screen = .home
         state = nil

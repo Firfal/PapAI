@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794084400-demandes-suspectes` | Corrections UX/règles PR #28 regroupées | `backend/app.py`, `backend/guard.py`, `backend/sessions.py`, `backend/static/helper.html`, `tests/`, `PROTOCOL.md`, `apps/ios/Sources/GuardRequestView.swift`, `apps/ios/Sources/HelperModel.swift`, vue de fin iPhone, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/Guard.swift`, `apps/mac/Sources/SessionView.swift`, `apps/windows/papai/model.py`, `apps/windows/ui/app.js`, `apps/windows/tests/`, `TODO.md` | 7 nov. soir |
+| Devin | `devin/1794084400-demandes-suspectes` | Corrections UX/règles PR #28 regroupées | `backend/app.py`, `backend/guard.py`, `backend/sessions.py`, `backend/static/helper.html`, `tests/`, `PROTOCOL.md`, `apps/ios/Sources/GuardRequestView.swift`, `apps/ios/Sources/HelperModel.swift`, vue de fin iPhone, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/Guard.swift`, `apps/mac/Sources/SessionView.swift`, `apps/mac/Sources/PapAIApp.swift` (clavier sous alerte), `apps/windows/papai/model.py`, `apps/windows/ui/app.js`, `apps/windows/tests/`, `TODO.md` | 7 nov. soir |
 
 ## Journal
 
