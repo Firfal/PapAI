@@ -61,13 +61,14 @@
   #pin::before { left: 50%; top: -9px; bottom: -9px; width: 2px; margin-left: -1px; }
   #pin::after  { top: 50%; left: -9px; right: -9px; height: 2px; margin-top: -1px; }
 
-  /* La loupe : sur un téléphone, un doigt couvre une centaine de pixels de
-     l'écran du proche. Sans agrandissement, viser une icône est un pari. */
+  /* La loupe : sur un téléphone, l'écran du proche tient dans 340 px de large
+     et un doigt en couvre le tiers. Sans agrandissement, viser une icône est
+     un pari. Elle est posée au-dessus de l'image et pas sous le doigt — une
+     loupe qui suit le doigt cache précisément ce qu'on essaie de viser. */
   #loupe {
-    position: absolute; width: 132px; height: 132px; border-radius: 50%;
-    border: 2px solid var(--accent); box-shadow: 0 8px 24px rgba(0,0,0,.55);
-    background-repeat: no-repeat; background-color: #000;
-    display: none; pointer-events: none; overflow: hidden;
+    display: none; position: relative; height: 124px; margin-bottom: 8px;
+    border-radius: var(--r); border: 1px solid var(--accent);
+    background-repeat: no-repeat; background-color: #000; overflow: hidden;
   }
   #loupe::before, #loupe::after { content: ""; position: absolute; background: rgba(77,163,255,.9); }
   #loupe::before { left: 50%; top: 0; bottom: 0; width: 1px; }
@@ -153,11 +154,21 @@
 
 <div id="banner" role="status" aria-live="polite"><span class="dot"></span><span id="bannerText">Connexion au serveur…</span></div>
 
+<div id="question">
+  <p id="qtext"></p>
+  <div class="options" id="options"></div>
+  <div class="row">
+    <input type="text" id="reply" placeholder="Votre réponse…" autocomplete="off" aria-label="Votre réponse">
+    <button class="primary" id="send" type="button" style="flex:0 0 auto">Envoyer</button>
+  </div>
+</div>
+
+<div id="loupe"></div>
+
 <div class="shot" id="shot">
   <div id="empty">En attente de la première capture d'écran…</div>
   <img id="frame" alt="Écran de votre proche" style="display:none">
   <div id="pin"></div>
-  <div id="loupe"></div>
 </div>
 
 <div id="freshness" hidden>
@@ -173,16 +184,7 @@
   </div>
 </div>
 
-<div id="question">
-  <p id="qtext"></p>
-  <div class="options" id="options"></div>
-  <div class="row">
-    <input type="text" id="reply" placeholder="Votre réponse…" autocomplete="off" aria-label="Votre réponse">
-    <button class="primary" id="send" type="button" style="flex:0 0 auto">Envoyer</button>
-  </div>
-</div>
-
-<div class="row">
+<div class="row" id="controls">
   <button class="ghost" id="pause" type="button">Mettre en pause</button>
   <button class="ghost" id="arm" type="button" disabled>Prendre la main</button>
 </div>
@@ -289,8 +291,11 @@ setInterval(tickFreshness, 1000);
 function setArmed(on) {
   armed = on && state === 'awaiting_helper';
   $('shot').classList.toggle('armed', armed);
-  $('arm').textContent = armed ? 'Annuler la prise en main' : 'Prendre la main';
   $('aimbar').style.display = armed ? 'block' : 'none';
+  // Pendant la visée, l'écran ne propose plus qu'une chose : viser, ou
+  // renoncer. Deux boutons « Annuler » côte à côte n'aident personne.
+  $('controls').style.display = armed ? 'none' : 'flex';
+  $('armNote').style.display = armed ? 'none' : 'block';
   if (!armed) clearAim();
   // On redemande une capture au moment où le proche va viser : sans ça, la
   // dernière image date du dernier pas de l'agent et a déjà vieilli.
@@ -333,17 +338,13 @@ function aimAt(clientX, clientY) {
   $('pin').style.top = (oy + py) + 'px';
   $('pin').style.display = 'block';
 
-  const Z = 3, L = 132;
+  const Z = 3;
   const loupe = $('loupe');
+  loupe.style.display = 'block';
   loupe.style.backgroundImage = `url("${img.src}")`;
   loupe.style.backgroundSize = `${r.width * Z}px ${r.height * Z}px`;
-  loupe.style.backgroundPosition = `${L / 2 - px * Z}px ${L / 2 - py * Z}px`;
-  let lx = Math.min(Math.max(ox + px - L / 2, 4), shotR.width - L - 4);
-  let ly = oy + py - L - 28;
-  if (ly < 4) ly = oy + py + 28;
-  loupe.style.left = lx + 'px';
-  loupe.style.top = Math.min(ly, shotR.height - L - 4) + 'px';
-  loupe.style.display = 'block';
+  loupe.style.backgroundPosition =
+    `${loupe.clientWidth / 2 - px * Z}px ${loupe.clientHeight / 2 - py * Z}px`;
 
   $('aimbar').classList.add('ready');
   $('aimText').textContent = 'Ajustez en gardant le doigt appuyé, puis confirmez.';
@@ -360,8 +361,8 @@ shot.addEventListener('pointerdown', e => {
 shot.addEventListener('pointermove', e => {
   if (armed && e.buttons !== 0) aimAt(e.clientX, e.clientY);
 });
-shot.addEventListener('pointerup', () => { $('loupe').style.display = 'none'; });
-shot.addEventListener('pointercancel', () => { $('loupe').style.display = 'none'; });
+// La loupe reste après le doigt levé : c'est le seul moyen de vérifier ce
+// qu'on a visé avant de confirmer un clic sur l'ordinateur de quelqu'un.
 
 /* --------------------------------------------------------- les messages */
 
