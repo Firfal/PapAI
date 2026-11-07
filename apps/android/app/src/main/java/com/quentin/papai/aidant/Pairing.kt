@@ -113,6 +113,7 @@ fun PairingRefusal() {
     val scan = rememberQrScanner()
     Dialog(onDismissRequest = { Helper.pairingRefused = false }) {
         Column(Modifier.fillMaxWidth().soinCard().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            T("Lien refusé", 24.sp, FontWeight.Bold)
             T(PairingPolicy.refusal, 18.sp, FontWeight.SemiBold, Soin.danger)
             CapsuleButton("Scanner le QR de l'ordinateur") { Helper.pairingRefused = false; scan() }
             TextLink("Fermer") { Helper.pairingRefused = false }
