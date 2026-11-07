@@ -125,6 +125,10 @@ private struct MiniView: View {
     }
 
     private var title: String {
+        if model.sessionWhere == "web" && model.sessionOpen
+            && (model.state == .active || model.state == .awaiting_helper) {
+            return "Holo travaille dans Chrome PapAI"
+        }
         if model.paused && model.sessionOpen { return "L'aide est en pause" }
         switch model.state {
         case .planning: return "Holo prépare la suite…"

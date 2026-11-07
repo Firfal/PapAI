@@ -72,7 +72,8 @@ fun ActiveScreen() {
                     else CircularProgressIndicator(Modifier.size(14.dp), color = Soin.accent, strokeWidth = 2.dp)
                     T(caption, 13.sp, FontWeight.SemiBold, Soin.secondary)
                 }
-                T(if (m.seniorPaused) "${m.seniorTitle} a mis l'aide en pause. Holo attend la reprise."
+                T(if (m.webLive) "Holo travaille dans ${m.webBrowserTitle}"
+                  else if (m.seniorPaused) "${m.seniorTitle} a mis l'aide en pause. Holo attend la reprise."
                   else m.doing ?: "Holo regarde l'écran de ${m.senior}…", 19.sp, FontWeight.SemiBold, maxLines = 3)
             }
         }
@@ -89,7 +90,8 @@ fun CaptureView() {
     val img = m.frame
     if (img == null) {
         Box(Modifier.fillMaxWidth().heightIn(min = 180.dp).soinCard(), contentAlignment = Alignment.Center) {
-            T("En attente de la première capture d'écran…", 15.sp, color = Soin.secondary)
+            T(if (m.webLive) "En attente de la première image de Chrome PapAI…"
+              else "En attente de la première capture d'écran…", 15.sp, color = Soin.secondary)
         }
         return
     }
@@ -114,7 +116,8 @@ fun CaptureView() {
                 }
             },
     ) {
-        Image(img, "Écran de ${m.senior}", Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
+        Image(img, if (m.webLive) m.webBrowserTitle else "Écran de ${m.senior}",
+            Modifier.fillMaxSize(), contentScale = ContentScale.FillBounds)
         val t = m.target
         if (m.aiming && t != null) Canvas(Modifier.fillMaxSize()) {
             val c = Offset(t.x * size.width, t.y * size.height)
@@ -171,7 +174,8 @@ fun HelperScreen() {
             if (img != null && t != null) Loupe(img, t)
         } else if (q != null) {
             Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                T(if (m.questionToSenior) "Question posée à ${m.senior} sur son écran. Vous pouvez aussi répondre."
+                T(if (m.webLive) "Holo a une question"
+                  else if (m.questionToSenior) "Question posée à ${m.senior} sur son écran. Vous pouvez aussi répondre."
                   else "${m.seniorTitle} a besoin de vous", 13.sp, color = Soin.secondary)
                 T(q.text, 20.sp, FontWeight.SemiBold)
                 if (q.options.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -188,10 +192,18 @@ fun HelperScreen() {
                 }
             }
         }
+        if (m.webLive) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                T(m.webBrowserTitle, 17.sp, FontWeight.SemiBold)
+                T("Holo agit seulement dans le navigateur. Répondez à ses questions ici.", 13.sp, color = Soin.secondary)
+            }
+        }
         CaptureView()
-        if (m.aiming) AimBar() else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            CapsuleButton("Prendre la main") { m.setAimingOn(true) }
-            T("Vous pouvez cliquer vous-même sur l'écran de ${m.senior}.", 13.sp, color = Soin.secondary)
+        if (!m.webLive) {
+            if (m.aiming) AimBar() else Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                CapsuleButton("Prendre la main") { m.setAimingOn(true) }
+                T("Vous pouvez cliquer vous-même sur l'écran de ${m.senior}.", 13.sp, color = Soin.secondary)
+            }
         }
     }
 }

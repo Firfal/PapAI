@@ -6,7 +6,6 @@ import Foundation
 final class BridgeClient {
     var onMessage: (([String: Any]) -> Void)?
     var onConnection: ((Bool) -> Void)?
-
     private var task: URLSessionWebSocketTask?
     private var loop: Task<Void, Never>?
     private let session = URLSession(configuration: .default)
@@ -36,7 +35,12 @@ final class BridgeClient {
         task = t
         t.resume()
         do {
-            try await t.send(.string(Self.json(["type": "hello", "os": "macos"])))
+            let hello: [String: Any] = [
+                "type": "hello",
+                "os": "macos",
+                "web_agent_available": WebAgentHost.isInstalled && WebAgentHost.browserExecutable() != nil
+            ]
+            try await t.send(.string(Self.json(hello)))
         } catch {
             onConnection?(false)
             return
