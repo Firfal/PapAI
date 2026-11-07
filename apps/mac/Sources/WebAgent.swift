@@ -180,7 +180,7 @@ final class WebAgentHost {
     private static func ourChromePID() -> pid_t? {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        p.arguments = ["-n", "-f", "--", "--user-data-dir=\(profile.path)"]
+        p.arguments = ["-o", "-f", "--", "--user-data-dir=\(profile.path)"]
         let out = Pipe()
         p.standardOutput = out
         p.standardError = FileHandle.nullDevice
