@@ -28,3 +28,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | 7 nov. | Claude | `parcours-onboarding` | Branche remise à jour sur `main` : la dictée de l'équipe (Gladia) remplace la mienne, ma partie de ToDo est fusionnée dans le `TODO.md` de l'équipe. |
 | 7 nov. | Claude | `main` | Parcours des étapes 1 à 8 fusionné dans `main` (tests gardien 14/14, protocole 9/9). Fichiers libérés. |
 | 7 nov. | Devin | `devin/1794070007-fix-onboarding-plan-web` | Correctifs après test E2E : l'accueil Mac ne revient plus à l'étape 1 quand on choisit « Très grande » (étape gardée dans `AppModel`) ; la page aidant web (`helper.html`) affiche le plan de Holo avec Valider, Préciser, Refuser. |
+| 7 nov. | Devin | `devin/1794070007-fix-onboarding-plan-web` | `tests/test_parcours.py` : test de bout en bout en une commande (serveur temporaire, Holo simulé, faux Mac et faux proche), 26 contrôles en 15 s. |
