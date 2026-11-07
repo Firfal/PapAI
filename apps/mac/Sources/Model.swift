@@ -231,6 +231,7 @@ final class AppModel {
                 try? await Task.sleep(for: .seconds(5))
                 guard let self else { return }
                 if InputLock.shared.isOn, Date().timeIntervalSince(self.lastHeard) > 45 {
+                    self.webHost.stopLocal()
                     InputLock.shared.set(false)
                 }
             }
@@ -239,7 +240,10 @@ final class AppModel {
             guard let self else { return }
             self.connected = ok
             // Plus de connexion : la personne ne doit jamais rester bloquée.
-            if !ok { InputLock.shared.set(false) }
+            if !ok {
+                self.webHost.stopLocal()
+                InputLock.shared.set(false)
+            }
             if ok { self.sendProfile() }
             // Test : PAPAI_AUTOTASK lance une demande dès la connexion.
             if ok, !self.autoSent, let t = ProcessInfo.processInfo.environment["PAPAI_AUTOTASK"], !t.isEmpty {
