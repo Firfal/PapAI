@@ -114,6 +114,45 @@ Quand ça se déclenche, l'aidant **et** la personne aidée reçoivent :
 {"type":"alert","level":"danger|attention|info","title":"…","detail":"…"}
 ```
 
+### Demandes suspectes (champs optionnels, anciens clients compatibles)
+
+Le serveur examine le texte de **chaque** `help_request` avant capture et
+planification, puis chaque plan (y compris après `refine_plan`). Les règles
+déterministes suffisent aux cas manifestes ; Holo ne donne qu'un avis textuel
+en cas d'hésitation. Une indisponibilité de cet avis ne débloque pas un doute.
+Une demande suspecte termine la session en `stopped`, sans `execute` ni plan à
+approuver. Les alertes de veille arrêtent aussi l'assistance en cours.
+
+`alert` peut porter `alert_id` (opaque), `source` (`request`, `plan`, `environment`),
+`blocked: true`, `session` (si liée à une demande) et `task` (texte de la demande).
+**`title` et `detail` sont adaptés au destinataire** : sur le Mac, avertissement
+et « Contactez votre petit-fils Quentin avant d'aller plus loin » (prénom et lien
+familial connus, sinon « votre proche ») ; côté aidant, demande de rappel,
+raison du soupçon et texte de la demande. Aucun numéro n'est inventé : le proche
+utilise son moyen de contact habituel. L'app iPhone réutilise notification locale
+et Live Activity existantes (pas de nouvelle promesse de push APNs).
+
+Le Mac garde l'alerte bloquante au-dessus de l'interface et refuse tout `execute`,
+y compris `press_key`. Aucune touche (Entrée, Échap…) ne ferme l'alerte.
+Le proche peut « Rappeler » (consigne de contact, sans relancer Holo) ou envoyer :
+
+```json
+{"type":"dismiss_alert","alert_id":"…"}
+```
+
+Ce message, accepté uniquement sur un canal aidant authentifié, signifie
+« Je connais cette démarche, rejeter l'alerte », **pas autoriser l'exécution**.
+Le serveur vérifie l'identifiant puis envoie aux apps :
+
+```json
+{"type":"alert_cleared","alert_id":"…"}
+```
+
+La session arrêtée reste terminale. Il faut une nouvelle demande et une nouvelle
+validation normale. Tant qu'une alerte reste ouverte, les nouvelles demandes
+sont arrêtées aussi. L'alerte est renvoyée aux aidants et au pont à la reconnexion
+(mémoire serveur uniquement, pas de persistance après redémarrage).
+
 Pour les situations visuelles (fausse alerte virus, page de paiement), le
 serveur demande **une** capture et fait décrire l'écran par Holo : le proche lit
 ce qui s'y trouve vraiment, pas un soupçon technique.
