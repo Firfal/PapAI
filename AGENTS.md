@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794086359-windows-accueil-voix` | Accueil Windows identique au Mac #26, dictée et raccourcis locaux | `apps/windows/`, `TODO.md` (ligne Windows uniquement) ; aucun changement alertes/StopGate | 7 nov. soir |
 
 ## Journal
 
