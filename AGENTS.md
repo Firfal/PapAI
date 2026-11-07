@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794072886-securite-14-17-18` | Sécurité #14, #17, #18 (clé sur le pont local, journaux, gardien sans capture hors session) | `backend/`, `tests/`, `PROTOCOL.md`, `docs/`, `requirements-backend.txt` | 7 nov. 18 h 45 |
 
 ## Journal
 
