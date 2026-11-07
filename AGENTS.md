@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794071404-todo-notion-etat` | `TODO.md` et base Features du Notion selon l'état réel | `TODO.md` | 7 nov. 18 h 10 |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -34,3 +34,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | 7 nov. | Devin | `devin/etape-du-plan` | Étape du plan en cours : champ optionnel `plan_step` dans `status` (`PROTOCOL.md`, `backend/sessions.py`, `backend/agent.py`, argument `plan_step` des outils dans `carepilot_tools.py`, retiré avant l'envoi au Mac), affiché sur le Mac (`SessionView.swift`) et l'iPhone (`LiveViews.swift`). Swift non compilé (VM Linux). Tests gardien 14/14, protocole 12/12 avec un faux Holo. Fichiers libérés. |
 | 7 nov. | Devin | `devin/1794070007-fix-onboarding-plan-web` | Correctifs après test E2E : l'accueil Mac ne revient plus à l'étape 1 quand on choisit « Très grande » (étape gardée dans `AppModel`). Ma version de `helper.html` est abandonnée au profit de celle de `devin/aidant-web-soin`, qui gère déjà le plan. Swift compilé et essayé sur un Mac. |
 | 7 nov. | Devin | `devin/1794070007-fix-onboarding-plan-web` | `tests/test_parcours.py` : test de bout en bout en une commande (serveur temporaire, Holo simulé, faux Mac et faux proche), 26 contrôles en 15 s. |
+| 7 nov. | Devin | `devin/1794071404-todo-notion-etat` | `TODO.md` et base Features du Notion mis à jour selon l'état réel (code, historique git, journal) : voix en partie faite, plusieurs aidants en partie, gardien avec sa logique et sa route serveur, branchement Mac pas fusionné. Ajout au Notion : page aidant web, étape du plan en cours, dictée Gladia, app Windows. Tests relancés sur `main` : gardien 14/14, protocole 13/13 (faux Holo), parcours 26/26, transcribe OK. Fichier libéré. |
