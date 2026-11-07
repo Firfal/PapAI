@@ -12,7 +12,7 @@ struct Helper: Identifiable, Equatable {
 
 /// Quelqu'un a tapé le code à 6 chiffres sans clé : il ne devient support qu'avec l'accord de la personne.
 struct PairRequest: Equatable {
-    var req: Int
+    var req: String
     var name: String
     var relation: String
 }
@@ -598,7 +598,7 @@ final class AppModel {
         case "alert_cleared":
             if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
         case "pair_confirm":
-            guard let req = m["req"] as? Int else { return }
+            guard let req = (m["req"] as? String) ?? (m["req"] as? Int).map(String.init) else { return }
             pairRequest = PairRequest(req: req, name: m["name"] as? String ?? "Quelqu'un",
                                       relation: m["relation"] as? String ?? "")
             NSApp.activate(ignoringOtherApps: true)
