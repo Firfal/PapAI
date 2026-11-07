@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/aidant-web-soin` | Page web de l'aidant : design « Soin », valider / préciser / refuser le plan, alertes | `backend/static/helper.html` | 7 nov. |
 
 ## Journal
 
