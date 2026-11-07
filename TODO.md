@@ -78,6 +78,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Serveur en ligne sur Cloud Run, protégé par la clé famille, testé de bout en bout à distance. Révision `papai-00007` avec les PR #1 à #4 ; la PR #5 (`tests/test_parcours.py`, message après refus sur la page web) est dans `main` après ce déploiement.
 - [x] App Mac (SwiftUI) : connexion, capture sans sa propre fenêtre, plan affiché, Arrêter local, automatismes.
 - [x] App iPhone (SwiftUI) : validation, précision, capture en direct, prise de main, automatisme. Testée sur simulateur et installée sur l'iPhone.
+- [x] App Android de l'aidant (`apps/android/`, APK hors store) : mêmes écrans que l'iPhone, appairage QR/code/lien `papai://`, notifications. Lancée sur émulateur.
+- [ ] App Android sur un vrai téléphone : installer l'APK, appairer, faire tout le parcours (plan, prise de main, automatisme), vérifier la notification écran éteint.
 - [x] Gardien anti-arnaque (logique et 14 contrôles), banc d'essai du protocole (13 contrôles avec `tests/faux_holo.py`), parcours de bout en bout (`tests/test_parcours.py`, 26 contrôles), route de dictée (`tests/test_transcribe.py`), faux Mac.
 - [x] Design « Soin », logo (logotype C) et mascotte papaye Pastel en icône des deux apps.
 - [x] Notion du hackathon avec la base Features, mise à jour le 7 novembre à 18 h 30 selon l'état réel.
