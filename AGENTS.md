@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/windows-soin` | App Windows de la personne aidée, design macOS « Soin » | `apps/windows/`, `AGENTS.md`, `TODO.md`, `README.md` (ligne Windows) | 7 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -34,3 +34,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | 7 nov. | Devin | `devin/etape-du-plan` | Étape du plan en cours : champ optionnel `plan_step` dans `status` (`PROTOCOL.md`, `backend/sessions.py`, `backend/agent.py`, argument `plan_step` des outils dans `carepilot_tools.py`, retiré avant l'envoi au Mac), affiché sur le Mac (`SessionView.swift`) et l'iPhone (`LiveViews.swift`). Swift non compilé (VM Linux). Tests gardien 14/14, protocole 12/12 avec un faux Holo. Fichiers libérés. |
 | 7 nov. | Devin | `devin/1794070007-fix-onboarding-plan-web` | Correctifs après test E2E : l'accueil Mac ne revient plus à l'étape 1 quand on choisit « Très grande » (étape gardée dans `AppModel`). Ma version de `helper.html` est abandonnée au profit de celle de `devin/aidant-web-soin`, qui gère déjà le plan. Swift compilé et essayé sur un Mac. |
 | 7 nov. | Devin | `devin/1794070007-fix-onboarding-plan-web` | `tests/test_parcours.py` : test de bout en bout en une commande (serveur temporaire, Holo simulé, faux Mac et faux proche), 26 contrôles en 15 s. |
+| 7 nov. | Devin | `devin/windows-soin` | App Windows de la personne aidée refaite dans le design « Soin » de l'app Mac (`apps/windows`, Python + pywebview/WebView2) : mêmes écrans (accueil, consentement, session et ses 6 états, tutoriel, accueil en 5 étapes, proches + QR, proposition d'un proche, réglages), même protocole (`hello` os=windows), capture et clics repris du prototype. Refus local de tout `execute` sans plan validé, verrou d'arrêt hors ligne. Tests Linux 25/25 avec faux Holo (gardien 14/14, protocole 13/13) ; pas essayée sur un vrai Windows. Fichiers libérés. |
