@@ -54,7 +54,11 @@ def reponse(corps: dict) -> dict:
         }]
     else:
         consigne = texte(messages)
-        if '"instruction"' in consigne:
+        if "Avis de site PapAI Gardien" in consigne:
+            suspect = any(m in consigne.lower() for m in ("bitcoin", "transcash", "paysafecard"))
+            message["content"] = json.dumps({"verdict": "arnaque" if suspect else "douteux",
+                                             "raison": "Ce site nécessite une vérification avec un proche."})
+        elif '"instruction"' in consigne:
             message["content"] = fiche()
         elif '"folder"' in consigne:
             message["content"] = '{"folder": "pictures", "subfolder": "Noël 2025"}'

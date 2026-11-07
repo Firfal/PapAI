@@ -1,5 +1,25 @@
 # Protocole PapAI (serveur ↔ apps)
 
+## Extension de navigateur
+
+Le pont authentifié envoie `{"type":"ext_pair_start"}`. Réponse :
+`{"type":"ext_pair_code","code":"123456","expires_in":600,"server":"https://…"}`.
+Le code expire après dix minutes, cinq erreurs ou un échange réussi.
+
+`POST /ext/pair` avec `{"code":"123456"}` rend `{"token":"…"}` (400 sinon).
+Ce jeton distinct n'autorise que `POST /ext/site`, avec `Authorization: Bearer …`.
+Corps : `{"domain":"exemple.fr","title":"…","text":"…"}` ; bornes respectives
+253, 300 et 2000 caractères (400 sinon). Le domaine est normalisé sans chemin ni port.
+Réponse : `{"verdict":"sur|douteux|arnaque","raison":"…","proche":"Claire"}`.
+Jeton inconnu : 401 ; plus de 30 signalements/10 min ou 300/jour : 429.
+
+Les règles lisent `extension/sites_connus.json`, source commune avec la future extension.
+Un signal faible seul demande un avis textuel à Holo ; une panne laisse `douteux`.
+`douteux` produit une `alert` attention, `source: environment`, uniquement aux aidants.
+`arnaque` produit une `alert` danger avec un texte propre à l'aidé et un autre aux aidants.
+Même domaine et verdict : une seule alerte par cinq minutes, sans masquer la réponse HTTP.
+Seuls le domaine et le verdict sont journalisés, jamais le titre ou le texte de page.
+
 Le serveur Python (`backend/app.py`) décide. Les apps Swift affichent et exécutent.
 Messages JSON sur WebSocket. Coordonnées toujours normalisées dans [0, 1000]
 sur l'image envoyée, jamais en pixels.

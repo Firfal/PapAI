@@ -263,6 +263,7 @@ def main() -> None:
     # Copie temporaire : ni family.json ni les fiches du dépôt ne sont touchés.
     tmp = Path(tempfile.mkdtemp(prefix="papai-e2e-"))
     shutil.copytree(RACINE / "backend", tmp / "backend", ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(RACINE / "extension", tmp / "extension")
     for module in RACINE.glob("*.py"):  # contrat avec Holo, quel que soit son nom
         shutil.copy(module, tmp)
     port = port_libre()

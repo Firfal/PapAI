@@ -292,6 +292,7 @@ def main() -> None:
     threading.Thread(target=holo.serve_forever, daemon=True).start()
     tmp = Path(tempfile.mkdtemp(prefix="papai-securite-"))
     shutil.copytree(RACINE / "backend", tmp / "backend", ignore=shutil.ignore_patterns("__pycache__"))
+    shutil.copytree(RACINE / "extension", tmp / "extension")
     for module in RACINE.glob("*.py"):
         shutil.copy(module, tmp)
     port = port_libre()

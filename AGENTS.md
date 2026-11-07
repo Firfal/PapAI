@@ -14,8 +14,6 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 ## En cours
 
-| Devin | `devin/1794084917-extension-gardien` | Extension de navigateur PapAI Gardien | `extension/`, `backend/sites.py`, `tests/test_sites.py`, route `/ext/*` et message `ext_pair_start` de `backend/app.py`, section « Extension de navigateur » de `PROTOCOL.md`, cases `ext_pair_code` de `apps/mac/Sources/Model.swift`, ligne « Protéger le navigateur » de `SettingsView` (`apps/mac/Sources/PermissionsView.swift`), branche avis de site de `tests/faux_holo.py` | 7 nov. soir |
-
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | Devin | `devin/1794084400-demandes-suspectes` | Détection des demandes suspectes, alertes aidé/proche | `backend/`, `tests/`, `PROTOCOL.md`, `apps/mac/Sources/Guard.swift`, chemins d'alerte de `apps/mac/Sources/Model.swift`, `apps/ios/Sources/HelperModel.swift`, `apps/ios/Sources/LiveAlert.swift`, alerte de `RootView.swift` et nouveau composant d'alerte (pas ApprovalView) ; `TODO.md` pour le bilan | 7 nov. soir |
@@ -24,6 +22,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 7 nov. soir | Devin | `devin/1794084917-extension-gardien` | Étape 1 : serveur du Gardien navigateur, routes `/ext/pair` et `/ext/site`, message `ext_pair_start`, jetons hachés, liste connue commune, règles et avis Holo, alertes distinctes. Sites 66/66, intégration 80/80, gardien 14/14, protocole 14/14, parcours 27/27, sécurité 31/31. Extension et interfaces Mac non réalisées (étapes suivantes). Fichiers libérés. |
 | 7 nov. | Claude | `parcours-onboarding` | Lancement sur Mac sans Xcode : `run_backend_mac.sh`, `apps/mac/scripts/build-mac-cli.sh` (swiftc + bundle + signature ad hoc). |
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 1-2 : accueil en 5 écrans (bienvenue, prénom, taille du texte, autorisations, proches), ajout d'un proche par QR ou code à 6 chiffres (`backend/family.py`, `/p/{code}`, `pair.html`), session proposée par le proche à accepter sur le Mac (`remote_request`). |
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 3 à 8 : écran de consentement, actions expliquées en phrases simples avec historique, question du proche, écran de fin avec retour auto à l'accueil, « Mes tutoriels » rafraîchi quand le proche valide une fiche (`lessons_changed`). |
