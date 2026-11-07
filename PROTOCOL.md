@@ -309,10 +309,14 @@ bureau reste le comportement par défaut.
   (aidants seulement), `ask_helper` / `answer`, `pause` / `resume` et `answer`
   final gardent leur forme. Arrêt, refus, alerte du gardien ou pont déconnecté :
   le serveur annule la session H.
-- Le Mac met la fenêtre Chrome PapAI au premier plan tant que
-  `where == "web"` et que la session est `active` ou `awaiting_helper`.
-  « Arrêter » exécute en plus `holo local stop` et termine le process, même
-  hors ligne.
+- Prise en main du proche : en mode web, `click` est refusé (l'image vient de
+  Chrome PapAI, pas du bureau) et `refresh` renvoie la dernière image de H sans
+  capturer le bureau. Le proche répond à la question de Holo.
+- Le Mac met la fenêtre Chrome PapAI au premier plan une fois, quand
+  `where == "web"` et que la session passe `active` ou `awaiting_helper`.
+  « Arrêter », une alerte ou la fin de session (`done`, `stopped`) exécutent
+  `holo local stop` et terminent le process, même hors ligne. Chrome PapAI
+  reste ouvert, plus rien ne le pilote.
 - Limite : `holo local browser` exige une clé H (`HAI_API_KEY`) sur le Mac de
   la personne aidée (`~/.config/hai/.env` ou variable d'environnement). Elle
   n'est jamais dans le dépôt ni dans les journaux.

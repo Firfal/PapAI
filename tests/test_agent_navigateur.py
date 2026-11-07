@@ -202,6 +202,20 @@ class QuestionAuProche(Base):
         self.assertEqual(res["tool_req"]["id"], "q1")
         self.assertEqual(res["result"], "Réponse du proche : Oui, accepte")
 
+    async def test_pas_de_prise_en_main_du_bureau(self):
+        s = self.session()
+        await self.lancer(s)
+        s.decide_plan("approve", "")
+        self.assertTrue(await attendre(lambda: s.state == State.AWAITING_HELPER))
+        ws = SimpleNamespace(send_json=AsyncMock())
+        with patch.object(app, "bridge", self.link):
+            with self.assertRaises(app.Refused):
+                await app.handle_helper_click(s, {"frame_id": "x", "x": 0.5, "y": 0.5}, ws)
+            await app.handle_helper_refresh(s, ws)
+        self.link.execute.assert_not_called()
+        self.link.capture.assert_not_called()
+        s.answer_from_helper("Oui")
+
     async def test_arret_pendant_la_question(self):
         s = self.session()
         await self.lancer(s)

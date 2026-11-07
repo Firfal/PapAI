@@ -636,6 +636,12 @@ async def handle_helper_refresh(session, ws: WebSocket) -> None:
     """
     if not session.consented:
         raise Refused("Le partage d'écran n'a pas été autorisé.")
+    if session.where == "web":
+        # Agent navigateur : aucune capture du bureau, la dernière image vient de H.
+        frame = session.last_frame
+        if frame is not None:
+            await ws.send_json({"type": "frame", "frame_id": frame.frame_id, "png_b64": frame.png_b64})
+        return
     if bridge is None:
         raise Refused("Le PC n'est pas connecté.")
 
@@ -657,6 +663,9 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
     """
     if session.state is not State.AWAITING_HELPER:
         raise Refused("Mettez d'abord l'assistance en pause pour prendre la main.")
+    if session.where == "web":
+        # L'image vient du Chrome PapAI, pas du bureau : un clic ici tomberait ailleurs.
+        raise Refused("Dans le navigateur, répondez à la question de Holo : la prise en main n'est pas possible.")
 
     session.validate_click(str(msg.get("frame_id", "")))
 

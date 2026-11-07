@@ -146,7 +146,7 @@ class WebAgentRunner:
         self.handle = None
         self._h_paused = False
         self._answer = ""
-        self._cancelled = False
+        self._cancel_task: asyncio.Future | None = None
 
     async def run(self) -> None:
         watcher = None
@@ -203,9 +203,14 @@ class WebAgentRunner:
             await self.broadcast(self.s.status())
 
     async def _cancel_remote(self) -> None:
-        if self.handle is None or self._cancelled:
+        # Une seule annulation, menée à terme même si l'appelant (watcher) est annulé.
+        if self.handle is None:
             return
-        self._cancelled = True
+        if self._cancel_task is None:
+            self._cancel_task = asyncio.ensure_future(self._do_cancel())
+        await asyncio.shield(self._cancel_task)
+
+    async def _do_cancel(self) -> None:
         try:
             await asyncio.wait_for(self.handle.cancel(), timeout=10)
             self.s.log("web_agent_cancelled", h_session=self.handle.id)
