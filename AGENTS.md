@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794085883-ios-appairage-sur` | iPhone : appairage sûr (#27) | `apps/ios/Sources/Pairing.swift`, `HelperModel.swift` (appairage), `RootView.swift` (SettingsView), `DebugDriver.swift`, `apps/ios/project.yml` (ATS) | 8 nov. |
 
 ## Journal
 
