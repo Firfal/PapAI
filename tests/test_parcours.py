@@ -259,7 +259,8 @@ def main() -> None:
     # Copie temporaire : ni family.json ni les fiches du dépôt ne sont touchés.
     tmp = Path(tempfile.mkdtemp(prefix="papai-e2e-"))
     shutil.copytree(RACINE / "backend", tmp / "backend", ignore=shutil.ignore_patterns("__pycache__"))
-    shutil.copy(RACINE / "carepilot_tools.py", tmp)
+    for module in RACINE.glob("*.py"):  # contrat avec Holo, quel que soit son nom
+        shutil.copy(module, tmp)
     port = port_libre()
     env = {**os.environ, "HAI_API_KEY": "faux", "HOLO_BASE_URL": f"http://127.0.0.1:{holo.server_port}/v1/",
            "PAPAI_AIDANT_KEY": CLE, "PORT": str(port), "CAREPILOT_PUBLIC_URL": f"http://127.0.0.1:{port}"}
