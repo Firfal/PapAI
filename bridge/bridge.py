@@ -27,6 +27,7 @@ import websockets
 
 from carepilot_tools import estimate_cost
 
+from . import shortcuts
 from .screen import ProtectedZone, Screen, execute_action
 
 # Le pont est un CLIENT : il sort vers le serveur, rien n'entre sur le PC de la
@@ -492,6 +493,18 @@ class App:
                   cursor="hand2",
                   command=self.ask_help).pack(fill="x", padx=24, pady=(18, 8), ipady=10)
 
+        # Ce que la personne ouvre le plus souvent, à portée immédiate. C'est
+        # la moitié du produit : une bonne partie des demandes d'aide se
+        # résument à « où est mon dossier », et n'ont pas besoin d'un agent.
+        tk.Label(f, text="Ouvrir directement", font=self.small, bg="#11151c",
+                 fg="#7d8b9e").pack(pady=(20, 6))
+        self.quick_box = tk.Frame(f, bg="#11151c")
+        self.quick_box.pack(fill="x", padx=24)
+
+        self.quick_msg = tk.Label(f, text="", font=self.small, bg="#11151c",
+                                  fg="#ffb020", wraplength=int(380 * self.scale))
+        self.quick_msg.pack(padx=24, pady=(6, 0))
+
         self.btn_lessons = tk.Button(
             f, text="Refaire quelque chose", font=self.mid, relief="flat",
             bg="#1a2029", fg="#e9eef5", activebackground="#2b3440", cursor="hand2",
@@ -509,6 +522,35 @@ class App:
         )
         self.btn_invite.pack(fill="x", padx=24, pady=(8, 0), ipady=8)
         tk.Frame(f, bg="#11151c").pack(expand=True)
+
+    def fill_quick(self) -> None:
+        """Remplit la grille des dossiers et applications, les plus ouverts d'abord."""
+        for w in self.quick_box.winfo_children():
+            w.destroy()
+        try:
+            items = shortcuts.frequent(8)
+        except Exception as e:  # noqa: BLE001 — l'accueil doit rester utilisable
+            print("[pont] raccourcis indisponibles : " + str(e), flush=True)
+            return
+        for i, item in enumerate(items):
+            b = tk.Button(
+                self.quick_box, text=item["label"], font=self.mid, relief="flat",
+                bg="#1a2029", fg="#e9eef5", activebackground="#2b3440", cursor="hand2",
+                command=lambda it=item: self.open_quick(it),
+            )
+            b.grid(row=i // 2, column=i % 2, sticky="ew", padx=3, pady=3, ipady=8)
+        self.quick_box.grid_columnconfigure(0, weight=1, uniform="q")
+        self.quick_box.grid_columnconfigure(1, weight=1, uniform="q")
+
+    def open_quick(self, item: dict) -> None:
+        """La personne ouvre elle-même. Aucun agent, aucune capture, aucun réseau."""
+        ok, detail = shortcuts.launch(item)
+        if ok:
+            self.quick_msg.config(text=f"{item['label']} est ouvert.", fg="#35c08a")
+            self.root.after(4000, lambda: self.quick_msg.config(text=""))
+            self.fill_quick()   # l'ordre suit l'usage
+        else:
+            self.quick_msg.config(text=detail, fg="#ffb020")
 
     def _entry_focus(self, _event=None) -> None:
         if self.entry.get() == PLACEHOLDER:
@@ -863,6 +905,7 @@ class App:
         frame.pack(fill="both", expand=True)
 
     def show_idle(self) -> None:
+        self.fill_quick()
         self.swap(self.frame_idle)
 
     def show_live(self) -> None:

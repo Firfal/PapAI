@@ -41,10 +41,38 @@ fonctionne par-dessus.
 | Mémoire : raccourci « faites-le pour moi » | ✅ testé, garde-fou vérifié |
 | Mémoire : fiche générée et validée | ✅ testée de bout en bout |
 | Mémoire : rejeu pas à pas (secondaire) | ✅ testé, n'exécute aucun clic |
+| L'agent ne fait rien sans aval du proche | ✅ 8 contrôles passent |
+| Accueil : dossiers et applications fréquents | ✅ détectés sur la machine |
 | Escalade `ask_helper` | ⬜ jamais déclenchée en vrai |
 | Notification push | ⬜ non commencé |
 
 ---
+
+
+## L'accueil de la personne aidée
+
+Trois choses sur un seul écran, par ordre d'usage attendu :
+
+**Demander de l'aide.** Une phrase, le consentement au partage, un bouton. La
+demande prévient le proche, et l'agent attend son arrivée sans rien regarder.
+
+**Ouvrir directement.** Une grille de ses dossiers et applications, triée par ce
+qu'elle ouvre réellement — le compteur est local, dans `usage.json`. Une bonne
+part des demandes d'aide se résument à « où est mon dossier » et n'ont besoin
+d'aucun agent : autant y répondre en un geste, sans réseau, sans capture et sans
+modèle.
+
+Les dossiers passent par l'API des dossiers connus de Windows, les applications
+par les raccourcis du menu Démarrer. Rien n'est écrit en dur : un autre PC donne
+une autre liste.
+
+Un filtre écarte les raccourcis piégeux. Sans lui, « Zoom » tombait sur
+*Uninstall Zoom Workplace* — une personne âgée cherchant à appeler sa famille
+aurait désinstallé le logiciel. « Calculatrice » attrapait LibreOffice Calc.
+
+**Refaire quelque chose.** Les automatismes enregistrés après une session
+réussie, ouverts sans relancer l'agent.
+
 
 ## Architecture
 
