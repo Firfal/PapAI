@@ -122,6 +122,11 @@ struct SessionView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .animation(.easeInOut(duration: 0.25), value: sub)
             }
+            if model.sessionWhere == "web" && (state == .active || state == .awaiting_helper) {
+                Text("Holo travaille dans une fenêtre Chrome à part, sans vos comptes ni vos onglets. Vous pouvez tout arrêter ici à tout moment.")
+                    .font(rounded(24, .medium)).foregroundStyle(T.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if defile {
                 ScrollView(showsIndicators: false) { content }
             } else {
@@ -201,6 +206,9 @@ struct SessionView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 endNote("lock.fill", "Votre écran n'est plus partagé.")
+                if model.sessionWhere == "web" {
+                    endNote("globe", "Holo a fermé sa fenêtre Chrome.")
+                }
                 // Fiches héritées, à remplacer par la tâche `.papi` enregistrée.
                 endNote("book.fill", "\(model.HelperName) peut en faire un tutoriel. Vous le retrouverez dans « Mes tutoriels » pour le refaire sans aide.")
             }
@@ -211,10 +219,17 @@ struct SessionView: View {
                 if model.guardAcknowledged {
                     Text("Un proche a vu l'alerte et s'en occupe")
                 }
+                if model.sessionWhere == "web" {
+                    Text("Holo a fermé sa fenêtre Chrome.")
+                }
             }
             .font(rounded(23, .medium))
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
+        case .stopped:
+            if model.sessionWhere == "web" {
+                endNote("globe", "Holo a fermé sa fenêtre Chrome.")
+            }
         default:
             EmptyView()
         }
