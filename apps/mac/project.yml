@@ -14,6 +14,7 @@ targets:
     platform: macOS
     sources:
       - Sources
+      - Resources
     info:
       path: Sources/Info.plist
       properties:
@@ -29,6 +30,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.quentin.papai
         PRODUCT_NAME: PapAI
         GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_FILE: Sources/Info.plist
         ENABLE_HARDENED_RUNTIME: NO
         CODE_SIGN_STYLE: Manual
