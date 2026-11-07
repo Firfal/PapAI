@@ -38,9 +38,7 @@ final class AppModel {
     var lesson: Lesson?
     var screenOK = Permissions.screenOK
     var axOK = Permissions.accessibilityOK
-    /// Les autorisations du Mac sont demandées pendant l'accueil : une fois
-    /// l'accueil fini, on ne remontre plus cet écran à chaque lancement.
-    var permissionsDismissed = UserDefaults.standard.bool(forKey: "onboarded")
+    var permissionsDismissed = false
     /// Accord de partage d'écran donné une fois, gardé ; retirable dans Réglages.
     var screenConsent = UserDefaults.standard.bool(forKey: "screenConsent")
     var showSettings = false
