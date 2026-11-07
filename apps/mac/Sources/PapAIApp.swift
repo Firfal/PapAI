@@ -25,10 +25,10 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 22) {
             Header().padding(.top, 24)
             Group {
-                if !model.onboarded {
-                    OnboardingView()
-                } else if let p = model.pairRequest {
+                if let p = model.pairRequest {
                     PairRequestView(request: p)
+                } else if !model.onboarded {
+                    OnboardingView()
                 } else if let r = model.remoteRequest {
                     RemoteRequestView(request: r)
                 } else if !(model.screenOK && model.axOK) && !model.permissionsDismissed && model.screen == .home {

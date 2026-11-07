@@ -497,8 +497,8 @@
 
   // ------------------------------------------------------------------- rendu
   function body() {
-    if (!S.onboarded) return onboarding();
     if (S.pairRequest) return pairAsk();
+    if (!S.onboarded) return onboarding();
     if (S.remoteRequest) return remote();
     if (S.screen === 'consent') return consent();
     if (S.screen === 'session') return session();
@@ -651,8 +651,8 @@
       if (S.onboarded && S.screen === 'session' && S.sessionOpen) { ui.sheet = null; return acts.stop(); }
       if (ui.sheet) { ui.sheet === 'helpers' ? acts.closeHelpers() : acts.closeSheet(); return; }
       if (S.alert) return acts.dismissAlert();
-      if (!S.onboarded) return;
       if (S.pairRequest) return acts.refusePair();
+      if (!S.onboarded) return;
       if (S.remoteRequest) return acts.refuseRemote();
       if (S.screen === 'consent') return acts.cancelConsent();
       if (S.screen === 'lesson') return acts.closeLesson();
@@ -663,6 +663,7 @@
     if (t && t.tagName === 'BUTTON') return;
     if (t && t.id === 'req') { e.preventDefault(); submit(); return; }
     if (t && t.id === 'seniorReply') { e.preventDefault(); acts.seniorReply(); return; }
+    if (S.pairRequest) return;
     if (!S.onboarded) { e.preventDefault(); onbNext(); return; }
     if (S.remoteRequest) return;
     if (S.screen === 'consent' && S.connected) acts.share();
