@@ -187,9 +187,9 @@ sont arrêtées aussi. L'alerte est renvoyée aux aidants et au pont à la recon
 Les alertes de veille partent immédiatement à partir des signaux textuels,
 sans attendre de capture ni de confirmation visuelle de Holo.
 `status.stopped_by` est optionnel (`null` hors arrêt explicite). La valeur
-`gardien` est conservée même après rejet de l'alerte : l'iPhone, le web et
-Windows affichent « PapAI a arrêté l'assistance : démarche suspecte » ;
-la fin Mac adaptée à l'aidé est décrite ci-dessous. Aucun de ces écrans
+`gardien` est conservée même après rejet de l'alerte : l'iPhone et le web
+affichent « PapAI a arrêté l'assistance : démarche suspecte » ;
+la fin Mac et Windows adaptée à l'aidé est décrite ci-dessous. Aucun de ces écrans
 n'attribue l'arrêt à la personne aidée. Les autres causes restent inchangées.
 `status.execution_started` est un booléen irréversible dans une session, posé
 juste avant l'envoi d'une action Holo ou d'un clic du proche au pont. Il peut
@@ -198,7 +198,7 @@ Seule la valeur explicite `false` permet d'affirmer « Rien n'a été fait sur
 son ordinateur ». Si `true` ou absent (ancien serveur), l'aidant lit
 « L'assistance est arrêtée. Vérifiez avec Sophie ce qui a été fait. »
 `status.guard_acknowledged` conserve l'accusé anonyme après rejet de l'alerte.
-La fin Mac du gardien est une carte blanche : « PapAI a arrêté : cette démarche
+La fin Mac (et Windows) du gardien est une carte blanche : « PapAI a arrêté : cette démarche
 peut être une arnaque », sans paiement/code et appel du premier proche connu
 à son numéro habituel. Aucune carte « Tout va bien » ne coexiste avec une alerte.
 Sur Windows, `level: danger` ou `blocked: true` lève immédiatement le verrou
