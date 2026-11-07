@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import secrets
 import shutil
 import socket
 import subprocess
@@ -28,7 +29,8 @@ from pathlib import Path
 import websockets
 
 RACINE = Path(__file__).resolve().parent.parent
-CLE = "e2e"
+# Le serveur écoute sur toutes les interfaces : clé imprévisible.
+CLE = secrets.token_urlsafe(16)
 PLAN = ["Ouvrir l'App Store", "Chercher WhatsApp", "Cliquer sur Obtenir"]
 # PNG 1×1 : on n'envoie jamais l'écran réel d'un testeur.
 FRAME = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
@@ -261,7 +263,8 @@ def main() -> None:
     port = port_libre()
     env = {**os.environ, "HAI_API_KEY": "faux", "HOLO_BASE_URL": f"http://127.0.0.1:{holo.server_port}/v1/",
            "PAPAI_AIDANT_KEY": CLE, "PORT": str(port), "CAREPILOT_PUBLIC_URL": f"http://127.0.0.1:{port}"}
-    env.pop("PAPAI_PUBLIC", None)
+    for var in ("PAPAI_PUBLIC", "GLADIA_API_KEY"):
+        env.pop(var, None)
     log = open(tmp / "serveur.log", "w")
     serveur = subprocess.Popen([sys.executable, "-m", "backend.app"], cwd=tmp, env=env,
                                stdout=log, stderr=subprocess.STDOUT)
