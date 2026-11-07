@@ -132,6 +132,18 @@ def unit() -> None:
     m.dismiss_alert()
     check(m.snapshot()["alert"] is None, "alerte fermée")
     check(m.gate.is_stopped, "fermer l'alerte ne baisse pas le verrou")
+    m._handle({"type": "alert", "level": "danger", "alert_id": "g1", "blocked": True})
+    m._apply_status({"state": "stopped", "stopped_by": "gardien"})
+    check(m.snapshot()["stoppedBy"] == "gardien", "cause d'arrêt conservée pour l'écran de fin")
+    m.dismiss_alert()
+    check(m.alert is not None, "alerte bloquante non fermable localement")
+    m._handle({"type": "alert_acknowledged", "alert_id": "g1", "acknowledged_by": "Quentin"})
+    check(m.alert["acknowledgedBy"] == "Quentin", "prise en charge affichée pour la bonne alerte")
+    m._handle({"type": "alert_cleared", "alert_id": "autre"})
+    check(m.alert is not None, "un effacement d'une autre alerte est ignoré")
+    m._handle({"type": "alert_cleared", "alert_id": "g1"})
+    m._handle({"type": "alert_acknowledged", "alert_id": "g1", "acknowledged_by": "Quentin"})
+    check(m.alert is None and m.gate.is_stopped, "effacement sans reprise ; accusé tardif ignoré")
 
     async def guard_during_action(name):
         started, release, finished = threading.Event(), threading.Event(), threading.Event()

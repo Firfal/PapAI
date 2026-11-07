@@ -255,7 +255,7 @@ async def controles(port: int) -> dict:
                   len(holo_vu) - avant)
             proche_alerte = await aid.attendre("alert", 5)
             check("l'aidant reçoit un texte pour lui", proche_alerte is not None
-                  and "Rappelez votre proche" in proche_alerte.get("detail", "")
+                  and "Prenez contact avec votre proche" in proche_alerte.get("detail", "")
                   and proche_alerte.get("detail") != alerte.get("detail"))
             await asyncio.sleep(1.5)
             n = sum(1 for m in mac2.tous if m.get("type") == "alert")

@@ -70,6 +70,7 @@ final class AppModel {
     var pendingTask = ""
     var actions: [String] = []
     var guardAlert: GuardAlert?
+    var stoppedBy: String?
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored let client = BridgeClient()
@@ -434,6 +435,7 @@ final class AppModel {
 
     func askHelp(task: String, requestedBy: String? = nil) {
         gate.reset()
+        stoppedBy = nil
         homeTimer?.cancel()
         self.task = task
         pendingTask = ""
@@ -516,9 +518,14 @@ final class AppModel {
                                     title: m["title"] as? String ?? "",
                                     detail: m["detail"] as? String ?? "",
                                     id: m["alert_id"] as? String,
-                                    blocked: m["blocked"] as? Bool ?? false)
+                                    blocked: m["blocked"] as? Bool ?? false,
+                                    acknowledgedBy: m["acknowledged_by"] as? String)
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
+        case "alert_acknowledged":
+            if let id = m["alert_id"] as? String, id == guardAlert?.id {
+                guardAlert?.acknowledgedBy = m["acknowledged_by"] as? String
+            }
         case "alert_cleared":
             if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
         case "remote_request":
@@ -533,6 +540,7 @@ final class AppModel {
     }
 
     private func applyStatus(_ m: [String: Any]) {
+        stoppedBy = m["stopped_by"] as? String
         guard screen == .session else { return }
         if gate.isStopped { state = .stopped; applyLevel(); return }
         let before = state

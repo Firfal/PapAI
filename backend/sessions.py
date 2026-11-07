@@ -70,6 +70,7 @@ class Session:
     task: str
     helper_token: str = field(default_factory=lambda: secrets.token_urlsafe(24))
     state: State = State.WAITING_CONSENT
+    stopped_by: str | None = None
     owner: Owner = Owner.NONE
     consented: bool = False
     last_frame: Frame | None = None
@@ -161,6 +162,7 @@ class Session:
             return
         self.state = State.STOPPED
         self.owner = Owner.NONE
+        self.stopped_by = by
         self.log("stop", by=by)
         self._resolve_reply(None)
         self._resolve_plan(None)
@@ -318,6 +320,7 @@ class Session:
             "type": "status",
             "session": self.id,
             "state": self.state.value,
+            "stopped_by": self.stopped_by,
             "owner": self.owner.value,
             "consented": self.consented,
             "task": self.task,

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from decimal import Decimal
 from dataclasses import dataclass
 
 # --------------------------------------------------------------- les motifs
@@ -152,25 +153,29 @@ def _risque(motif: str) -> Alerte:
 def evaluer_demande(texte: str) -> Alerte | None:
     """Règles textuelles seules : ni capture ni dépendance au modèle."""
     t = _normaliser(texte)
-    transfert = bool(re.search(r"\b(virement|virer|transferer|transfert|verser|versement|mandat|envoyer|envoi)\b", t))
-    argent = bool(re.search(r"\b(euros?|eur|dollars?|argent|virement|bancaire|iban|rib|compte)\b|[€$]", t))
-    payer = bool(re.search(r"\b(payer|paie|paye|paiement|acheter|achat|regler|rembourser|envoyer|donner|transmettre|communiquer|partager|dicter|investir|convertir)\b", t))
+    t = re.sub(r"(?<!\w)(\d+(?:[.,]\d+)?)\s*k(?=\s*(?:€|euros?\b|eur\b|\$|dollars?\b))",
+               lambda m: str(int(Decimal(m[1].replace(',', '.')) * 1000)), t)
+    transfert = bool(re.search(r"\b(virement|virer|transferer|transfert|verser|versement|mandat|envoyer|envoi|send|transfer|wire)\b", t))
+    argent = bool(re.search(r"\b(euros?|eur|dollars?|argent|virement|bancaire|iban|rib|compte|money|bank|account|payment)\b|[€$]", t))
+    payer = bool(re.search(r"\b(payer|paie|paye|paiement|acheter|achat|regler|rembourser|envoyer|donner|transmettre|communiquer|partager|dicter|investir|convertir|send|pay|buy|give|share|read)\b", t))
     operation_argent = bool(re.search(
         r"\b(virement|virer|verser|versement|mandat|payer|paie|paye|"
-        r"acheter|regler|rembourser|investir|convertir)\b|"
+        r"acheter|regler|rembourser|investir|convertir|pay|wire)\b|"
         r"\b(?:faire|effectuer|realiser)\s+(?:un|le|ce)\s+(?:achat|paiement)\b|"
-        r"^(?:achat|paiement)\b", t
+        r"\b(?:confirmer|valider|autoriser|confirm|validate|approve|authori[sz]e)\s+"
+        r"(?:(?:un|le|ce|the|a)\s+)?(?:paiement|virement|payment|transfer)\b|"
+        r"^(?:achat|paiement|payment)\b", t
     ))
-    envoi = bool(re.search(r"\b(envoyer|envoi|transferer|transfert|transmettre|donner)\b", t))
+    envoi = bool(re.search(r"\b(envoyer|envoi|transferer|transfert|transmettre|donner|send|transfer)\b", t))
     if envoi:
         objet_monetaire = (
             r"(?:(?:de|des|du|un|une|le|la|les|mon|mes|son|ses|notre|nos)\s+|[dl]')*"
-            r"(?:argent\b|fonds\b|economies\b|somme\b|montant\b|"
+            r"(?:argent\b|fonds\b|economies\b|somme\b|montant\b|money\b|funds\b|"
             r"(?:\d[\d\s.,]*|(?:(?:dix|cent)\s+)?mille|millions?)\s*"
             r"(?:euros?\b|eur\b|€|dollars?\b|\$))"
         )
         operation_argent |= bool(re.search(
-            r"\b(?:envoyer|envoi|transferer|transfert|transmettre|donner|et|puis)\s+" + objet_monetaire, t
+            r"\b(?:envoyer|envoi|transferer|transfert|transmettre|donner|send|transfer|et|puis)\s+" + objet_monetaire, t
         ))
         operation_argent |= bool(re.search(
             r"\b(?:sur|vers|a)\s+(?:(?:un|le|mon|son|notre|nouveau|autre)\s+|l')*"
@@ -183,18 +188,50 @@ def evaluer_demande(texte: str) -> Alerte | None:
     etranger = bool(re.search(r"\b(etranger|international|afrique|senegal|cote d'ivoire|benin|nigeria|maroc|ghana|cameroun|togo|mali|chine|hong kong|turquie|russie|dubai|thailande|etats.unis)\b", t))
     iban = re.search(r"\b([a-z]{2})\s*\d{2}\s*(?:\d{4}|[a-z]{4}\s*\d{4})(?:\s*[a-z0-9]){6,26}\b", t)
     compte_etranger = etranger and bool(re.search(r"\b(compte|iban|rib|banque|argent|euros?)\b|€", t))
-    if operation_argent and argent and (gros_montant or compte_etranger or (iban and iban[1] != "fr")):
+    pression = bool(re.search(r"\b(urgent\w*|urgence|immediat\w*|secret|confidentiel|ne le dis|compte securise|compte de securite|compte de secours)\b", t))
+    compte_inconnu = bool(re.search(
+        r"\b(?:(?:nouveau|nouvel|autre)\s+(?:compte|iban|rib|numero)|"
+        r"(?:compte|iban|rib|numero)\s+(?:inconnu|nouveau)|new\s+(?:account|number)|unknown\s+account)\b", t
+    ))
+    code_recu = bool(re.search(r"\b(codes?|mots? de passe)\b", t) and re.search(
+        r"\b(sms|texto|text message|banque|bancaire|verification|securite|validation|usage unique|telephone)\b", t
+    ))
+    support = bool(re.search(r"\b(support technique|technicien|conseiller bancaire|service antifraude|service anti.fraude|technical support)\b", t))
+    transfert_famille = (
+        r"\b(?:virer|verser|virement|versement|transfert|transferer|envoyer|send|transfer|wire)\s+"
+        r"(?:(?:de|la somme de|un montant de)\s+)?"
+        r"(?:\d[\d\s.,]*|(?:(?:dix|cent)\s+)?mille)\s*(?:euros?\b|eur\b|€|dollars?\b|\$)\s+"
+        r"(?:(?:a|vers)\s+(?:mon|ma|mes)\s+(?:fils|fille|petit.fils|petite.fille|"
+        r"frere|soeur|mere|pere|mari|femme|epoux|epouse|enfants?|parents?)\b|"
+        r"to my (?:son|daughter|grandson|granddaughter|brother|sister|mother|father)\b)"
+    )
+    famille = bool(re.search(transfert_famille, t))
+    facture_habituelle = (
+        r"\b(?:payer|regler|paie|paye)\s+(?:(?:ma|la|mes|les|mon|le|une|un)\s+)?"
+        r"(?:factures?\s+(?:de\s+|d')?)?(?:edf|engie|orange|sfr|free|bouygues|impots|eau|loyer)\s+"
+        r"(?:de\s+)?\d[\d\s.,]*\s*(?:euros?\b|eur\b|€)"
+    )
+    facture = bool(re.search(facture_habituelle, t))
+    reste = re.sub(transfert_famille + "|" + facture_habituelle, "", t)
+    autres_montants = re.findall(r"\d[\d\s.,]*\s*(?:euros?\b|eur\b|€|dollars?\b|\$)", reste)
+    destinataire_habituel = (famille or facture) and not autres_montants and not re.search(r"\b(mille|million)\b", reste)
+    autre_signal = etranger or pression or compte_inconnu or code_recu or support or bool(iban)
+    if operation_argent and argent and ((gros_montant and not (destinataire_habituel and not autre_signal))
+                                      or compte_etranger or compte_inconnu or (iban and iban[1] != "fr")):
         return _risque("Transfert d'argent important ou vers un compte à l'étranger.")
-    if payer and re.search(r"\b(cartes?[- ]cadeaux?|coupons?|transcash|paysafecard|neosurf|pcs|recharges? prepayees?)\b", t):
+    cadeau = bool(re.search(r"\b(cartes?[- ]cadeaux?|gift cards?)\b", t))
+    code_cadeau = cadeau and bool(re.search(r"\bcodes?\b", t)) and payer
+    payer_en_cadeau = cadeau and bool(re.search(r"\b(payer|regler|pay)\b.*\b(avec|par|en|with|using)\b", t))
+    if (payer and re.search(r"\b(coupons?|transcash|paysafecard|neosurf|pcs|recharges? prepayees?)\b", t)
+            or code_cadeau or payer_en_cadeau or (cadeau and payer and (pression or support))):
         return _risque("Paiement ou transmission de cartes cadeaux ou de coupons prépayés.")
     if (payer or transfert) and re.search(r"\b(crypto\w*|bitcoins?|ethereum|usdt|portefeuille numerique)\b", t):
         return _risque("Envoi, achat ou conversion en cryptomonnaie, difficile à annuler.")
-    if payer and re.search(r"\b(codes?|mots? de passe)\b", t) and re.search(r"\b(sms|banque|bancaire|verification|securite|validation|usage unique|telephone)\b", t):
+    if code_recu:
         return _risque("Transmission d'un code de sécurité ou reçu par SMS.")
-    support = bool(re.search(r"\b(support technique|technicien|conseiller bancaire|service antifraude|service anti.fraude)\b", t))
     if support and (payer or transfert or re.search(r"\b(installer|telecharger|prise en main|acces|controle|debloquer|anydesk|teamviewer)\b", t)):
         return _risque("Un prétendu support ou conseiller demande un paiement, un code ou un accès.")
-    if operation_argent and argent and re.search(r"\b(urgent\w*|urgence|immediat\w*|secret|confidentiel|ne le dis|compte securise|compte de securite|compte de secours)\b", t):
+    if operation_argent and argent and pression:
         return _risque("Demande d'argent sous pression, en secret ou vers un compte de sécurité.")
     return None
 

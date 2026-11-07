@@ -119,7 +119,20 @@ Quand ça se déclenche, l'aidant **et** la personne aidée reçoivent :
 Le serveur examine le texte de **chaque** `help_request` avant capture et
 planification, puis chaque plan (y compris après `refine_plan`). Les règles
 déterministes suffisent aux cas manifestes ; Holo ne donne qu'un avis textuel
-en cas d'hésitation. Une indisponibilité de cet avis ne débloque pas un doute.
+en cas d'hésitation. Si cet avis expire ou échoue, le serveur envoie seulement
+au proche un `guard_advice` non bloquant (ni `alert_id`, ni `blocked`) :
+`{"type":"guard_advice","level":"attention","source":"avis_indisponible","session":"…","title":"Avis de sécurité indisponible","detail":"…"}`.
+Le proche de la famille et le jeton de cette session le reçoivent, jamais le
+pont aidé. La préparation continue et le plan attend toujours sa validation.
+Un verdict Holo réellement suspect ou une règle déterministe reste bloquant.
+Les achats de cartes cadeaux offerts à un proche ne déclenchent pas seuls le
+gardien ; transmettre leurs codes ou les utiliser comme moyen de paiement
+suspect reste signalé. Un virement explicitement adressé à un membre de la
+famille, ou une facture d'un fournisseur habituel (EDF, Engie, Orange, SFR,
+Free, Bouygues, impôts, eau, loyer), n'est pas bloqué pour son seul montant.
+Étranger, urgence, compte/numéro nouveau ou inconnu, IBAN, code reçu ou support
+suspect annulent cette exception. Les montants `k€` et les demandes de
+transfert en anglais sont aussi analysés.
 Une demande suspecte termine la session en `stopped`, sans `execute` ni plan à
 approuver. Les alertes de veille arrêtent aussi l'assistance en cours.
 
@@ -134,7 +147,24 @@ et Live Activity existantes (pas de nouvelle promesse de push APNs).
 
 Le Mac garde l'alerte bloquante au-dessus de l'interface et refuse tout `execute`,
 y compris `press_key`. Aucune touche (Entrée, Échap…) ne ferme l'alerte.
-Le proche peut « Rappeler » (consigne de contact, sans relancer Holo) ou envoyer :
+Le proche a deux actions : « Je m'en occupe » et « C'est normal ».
+La première ne passe aucun appel et envoie :
+
+```json
+{"type":"ack_alert","alert_id":"…"}
+```
+
+Même contrôle d'identité et de portée que le rejet ci-dessous. Le serveur
+envoie `{"type":"alert_acknowledged","alert_id":"…","session":"…","acknowledged_by":"Quentin"}`.
+Le prénom vient du proche authentifié, jamais du message. L'aidé lit
+« Quentin a vu l'alerte, il va vous appeler ». Cet accusé est conservé dans
+le champ optionnel `alert.acknowledged_by` et rejoué à la reconnexion.
+Un client ignore l'accusé si son identifiant ne correspond plus à l'alerte
+affichée : un accusé tardif ne fait pas réapparaître une alerte rejetée.
+Il ne ferme rien et ne relance aucune action. Un deuxième accusé conserve le
+premier proche. Aucun bouton côté aidé ne prétend passer un appel.
+
+« C'est normal » demande une confirmation puis envoie :
 
 ```json
 {"type":"dismiss_alert","alert_id":"…"}
@@ -163,6 +193,10 @@ sont arrêtées aussi. L'alerte est renvoyée aux aidants et au pont à la recon
 
 Les alertes de veille partent immédiatement à partir des signaux textuels,
 sans attendre de capture ni de confirmation visuelle de Holo.
+`status.stopped_by` est optionnel (`null` hors arrêt explicite). La valeur
+`gardien` est conservée même après rejet de l'alerte : toutes les interfaces
+affichent « PapAI a arrêté l'assistance : démarche suspecte », sans attribuer
+l'arrêt à la personne aidée. Les autres causes d'arrêt restent inchangées.
 Sur Windows, `level: danger` ou `blocked: true` lève immédiatement le verrou
 local et annule les tâches `execute` engagées. Le fil d'exécution conserve le
 verrou de sa demande et le relit avant les gestes suivants, même si une nouvelle

@@ -206,7 +206,7 @@ agent_task: asyncio.Task | None = None
 
 # Ce que la personne aidée doit aussi voir : l'état de la session, le plan en
 # attente, la réponse finale. Jamais les captures, qu'elle a sous les yeux.
-BRIDGE_TYPES = {"status", "answer", "alert", "alert_cleared"}
+BRIDGE_TYPES = {"status", "answer", "alert", "alert_cleared", "alert_acknowledged"}
 
 
 # Qui est derrière chaque app d'aidant ouverte : son prénom et son identifiant.
@@ -237,7 +237,8 @@ async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
         await bridge.send(payload)
     dead = []
     for ws in helper_sockets:
-        if payload.get("type") in ("alert", "alert_cleared") and not helper_can_access_alert(ws, payload):
+        scoped = payload.get("type") == "guard_advice" or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
+        if scoped and not helper_can_access_alert(ws, payload):
             continue
         try:
             await ws.send_json(payload)
@@ -518,6 +519,9 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
 async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
     """Un message de l'aidant, page web ou app iPhone. Tout est revalidé ici."""
     kind = msg.get("type")
+    if kind == "ack_alert":
+        await acknowledge_guard(msg, ws)
+        return
     if kind == "dismiss_alert":
         await dismiss_guard(msg, ws)
         return
@@ -831,6 +835,9 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
             if msg.get("type") == "dismiss_alert":
                 await dismiss_guard(msg, ws)
                 continue
+            if msg.get("type") == "ack_alert":
+                await acknowledge_guard(msg, ws)
+                continue
             s = current_session()
             if s is None:
                 await ws.send_json({"type": "refused", "reason": "Aucune demande en cours."})
@@ -851,6 +858,7 @@ _guard_vu: dict[str, float] = {}
 _guard_taches: set[asyncio.Task] = set()
 GUARD_SILENCE_S = 300
 pending_alert: dict | None = None
+GUARD_ADVICE_TIMEOUT_S = 9
 
 
 def guard_contact() -> str:
@@ -881,8 +889,8 @@ async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
     detail = f"{who} a besoin de votre avis. {alerte.detail}"
     if session:
         detail += f"\nDemande : « {session.task} »"
-    detail += "\nRappelez votre proche avant de poursuivre. Rejetez l'alerte uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
-    helper = {**common, "title": f"Arnaque possible : rappelez {who}", "detail": helper_detail or detail}
+    detail += "\nPrenez contact avec votre proche avant de poursuivre. Choisissez « C'est normal » uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
+    helper = {**common, "title": f"Démarche à vérifier pour {who}", "detail": helper_detail or detail}
     pending_alert = {"senior": senior, "helper": helper}
     if bridge:
         await bridge.send(senior)
@@ -892,9 +900,31 @@ async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
         await broadcast_helper(s.status())
 
 
+def guard_action_allowed(msg: dict, ws: WebSocket) -> bool:
+    return bool(pending_alert and helper_can_access_alert(ws, pending_alert["helper"])
+                and msg.get("alert_id") == pending_alert["helper"]["alert_id"])
+
+
+async def acknowledge_guard(msg: dict, ws: WebSocket) -> None:
+    if not guard_action_allowed(msg, ws):
+        await ws.send_json({"type": "refused", "reason": "Cette alerte n'est plus en attente."})
+        return
+    alert = pending_alert
+    if not alert["helper"].get("acknowledged_by"):
+        session = registry.get(alert["helper"]["session"])
+        who = helper_who.get(ws, {}).get("name") or (session.helper_name if session else "")
+        if not who:
+            who = family.helpers[0]["name"] if len(family.helpers) == 1 else "Votre proche"
+        for payload in alert.values():
+            payload["acknowledged_by"] = who
+    await broadcast_helper({"type": "alert_acknowledged", "alert_id": alert["helper"]["alert_id"],
+                            "session": alert["helper"]["session"],
+                            "acknowledged_by": alert["helper"]["acknowledged_by"]})
+
+
 async def dismiss_guard(msg: dict, ws: WebSocket) -> None:
     global pending_alert
-    if not pending_alert or not helper_can_access_alert(ws, pending_alert["helper"]) or msg.get("alert_id") != pending_alert["helper"]["alert_id"]:
+    if not guard_action_allowed(msg, ws):
         await ws.send_json({"type": "refused", "reason": "Cette alerte n'est plus en attente."})
         return
     aid = pending_alert["helper"]["alert_id"]
@@ -914,7 +944,7 @@ async def check_request(session, texte: str, source: str) -> bool:
                 model=MODEL, temperature=TEMPERATURE,
                 messages=[{"role": "system", "content": guard.PROMPT_DEMANDE},
                           {"role": "user", "content": json.dumps({"texte_a_evaluer": texte}, ensure_ascii=False)}],
-            ), timeout=9)
+            ), timeout=GUARD_ADVICE_TIMEOUT_S)
             session.record_usage(getattr(resp, "usage", None))
             avis = json.loads(resp.choices[0].message.content or "")
             if type(avis.get("suspect")) is not bool:
@@ -923,8 +953,12 @@ async def check_request(session, texte: str, source: str) -> bool:
                 raison = str(avis.get("raison") or "Demande inhabituelle à vérifier avec votre proche.")[:500]
                 alerte = guard.Alerte("attention", "Démarche à vérifier", raison, "avis_holo", False)
         except Exception:
-            alerte = guard.Alerte("attention", "Démarche à vérifier",
-                                 "Un doute subsiste et l'avis de sécurité est indisponible.", "avis_indisponible", False)
+            if session.is_open:
+                await broadcast_helper({"type": "guard_advice", "level": "attention",
+                                        "source": "avis_indisponible", "session": session.id,
+                                        "title": "Avis de sécurité indisponible",
+                                        "detail": "Un doute subsiste. Vérifiez cette demande et le plan avant de les valider."},
+                                       to_bridge=False)
     if not session.is_open:
         return True
     if alerte:

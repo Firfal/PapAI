@@ -121,6 +121,8 @@ final class HelperModel {
     var lastAlert: (title: String, detail: String)?
     var guardAlertId: String?
     var guardTask = ""
+    var guardAcknowledgedBy: String?
+    var stoppedBy: String?
 
     private var socket: URLSessionWebSocketTask?
     private var runTask: Task<Void, Never>?
@@ -476,6 +478,7 @@ final class HelperModel {
                 if newState == "awaiting_approval" { planBusy = false }
             }
             state = newState
+            stoppedBy = m["stopped_by"] as? String
             task = m["task"] as? String ?? task
             plan = m["plan"] as? [String] ?? []
             planStep = m["plan_step"] as? Int
@@ -499,19 +502,31 @@ final class HelperModel {
         case "answer":
             doneAnswer = m["content"] as? String
 
+        case "guard_advice":
+            let t = m["title"] as? String ?? "Avis de sécurité indisponible"
+            notifyLocal(title: t, body: m["detail"] as? String ?? "Vérifiez le plan avant de le valider.")
+            showToast(t)
+
         case "alert":
             let t = m["title"] as? String ?? "Alerte", d = m["detail"] as? String ?? ""
             let fresh = guardAlertId != m["alert_id"] as? String || lastAlert?.detail != d
             lastAlert = (t, d)
             guardAlertId = m["alert_id"] as? String
             guardTask = m["task"] as? String ?? ""
+            guardAcknowledgedBy = m["acknowledged_by"] as? String
             if fresh { notifyLocal(title: t, body: d) }
             if guardAlertId == nil { showToast(t) }
             syncLive()
 
+        case "alert_acknowledged":
+            if let id = m["alert_id"] as? String, id == guardAlertId {
+                guardAcknowledgedBy = m["acknowledged_by"] as? String
+            }
+
         case "alert_cleared":
             if let id = m["alert_id"] as? String, id == guardAlertId {
                 guardAlertId = nil; lastAlert = nil; guardTask = ""
+                guardAcknowledgedBy = nil
                 syncLive()
                 showToast("Alerte rejetée. L'assistance reste arrêtée.")
             }
@@ -593,6 +608,11 @@ final class HelperModel {
     func dismissGuardAlert() {
         guard let id = guardAlertId else { return }
         send(["type": "dismiss_alert", "alert_id": id])
+    }
+
+    func acknowledgeGuardAlert() {
+        guard let id = guardAlertId else { return }
+        send(["type": "ack_alert", "alert_id": id])
     }
 
     func approvePlan() { planBusy = true; send(["type": "approve_plan"]) }
