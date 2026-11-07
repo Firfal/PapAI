@@ -1,0 +1,7 @@
+# Backend seul : tourne sur un serveur Linux sans ecran.
+# Surtout pas pyautogui ni mss — ils exigent un affichage.
+openai>=1.40
+python-dotenv>=1.0
+fastapi>=0.115
+uvicorn[standard]>=0.30
+websockets>=13.0

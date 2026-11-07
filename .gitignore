@@ -1,0 +1,16 @@
+# secrets
+.env
+
+# artefacts de session (captures d'écran du PC de la personne aidée)
+frames/
+trace.jsonl
+STOP
+
+# python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# fiches CareMemory : contiennent des captures de l ecran de la personne aidee
+lessons/

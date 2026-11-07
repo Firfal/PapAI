@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#11151c">
+<title>CarePilot — aider un proche</title>
+<style>
+  :root {
+    --bg: #11151c; --panel: #1a2029; --sunken: #0c1016; --line: #2b3440;
+    --text: #e9eef5; --muted: #93a1b3; --faint: #6b7a8d;
+    --accent: #4da3ff; --ink: #04121f; --warn: #ffb020; --stop: #ff5c5c; --ok: #35c08a;
+    --r: 12px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0 auto; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 760px;
+    /* viewport-fit=cover découpe sous l'encoche et la barre de geste :
+       sans ces marges, le dernier bouton est à moitié inatteignable. */
+    padding:
+      env(safe-area-inset-top) calc(16px + env(safe-area-inset-right))
+      calc(32px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+  }
+
+  header { display: flex; align-items: baseline; gap: 10px; padding: 18px 0 10px; }
+  h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
+  .task { color: var(--muted); font-size: 14px; min-width: 0; flex: 1;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ------------------------------------------------------------- bandeau */
+
+  #banner {
+    display: flex; align-items: center; gap: 10px;
+    padding: 11px 14px; border-radius: var(--r); font-size: 14px; font-weight: 600;
+    background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px;
+  }
+  #banner .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex: none; }
+  #banner.active   { border-color: var(--ok);   color: var(--ok); }
+  #banner.active .dot { animation: pulse 1.6s ease-in-out infinite; }
+  #banner.waiting  { border-color: var(--warn); color: var(--warn); }
+  #banner.closed   { border-color: var(--stop); color: var(--stop); }
+  @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
+  @media (prefers-reduced-motion: reduce) { #banner.active .dot { animation: none } }
+
+  /* -------------------------------------------------------- la capture */
+
+  .shot { position: relative; border: 1px solid var(--line); border-radius: var(--r);
+          overflow: hidden; background: #000; }
+  .shot img { display: block; width: 100%; height: auto; }
+  .shot.armed { border-color: var(--accent); cursor: crosshair; touch-action: none; }
+  #empty { padding: 48px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+
+  #pin { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px;
+         border: 2px solid var(--accent); border-radius: 50%; display: none;
+         pointer-events: none; box-shadow: 0 0 0 2px rgba(4,18,31,.55); }
+  #pin::before, #pin::after {
+    content: ""; position: absolute; background: var(--accent);
+  }
+  #pin::before { left: 50%; top: -9px; bottom: -9px; width: 2px; margin-left: -1px; }
+  #pin::after  { top: 50%; left: -9px; right: -9px; height: 2px; margin-top: -1px; }
+
+  /* La loupe : sur un téléphone, un doigt couvre une centaine de pixels de
+     l'écran du proche. Sans agrandissement, viser une icône est un pari. */
+  #loupe {
+    position: absolute; width: 132px; height: 132px; border-radius: 50%;
+    border: 2px solid var(--accent); box-shadow: 0 8px 24px rgba(0,0,0,.55);
+    background-repeat: no-repeat; background-color: #000;
+    display: none; pointer-events: none; overflow: hidden;
+  }
+  #loupe::before, #loupe::after { content: ""; position: absolute; background: rgba(77,163,255,.9); }
+  #loupe::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+  #loupe::after  { top: 50%; left: 0; right: 0; height: 1px; }
+
+  #aimbar {
+    display: none; margin-top: 10px; padding: 12px 14px; border-radius: var(--r);
+    background: var(--panel); border: 1px solid var(--accent);
+  }
+  #aimbar p { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
+  #aimbar.ready p { color: var(--text); }
+
+  #freshness { margin-top: 8px; font-size: 13px; color: var(--faint);
+               display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  #freshness.stale { color: var(--warn); }
+  #freshness button { padding: 6px 10px; font-size: 13px; }
+
+  /* -------------------------------------------------------- la question */
+
+  #question { margin-top: 14px; padding: 14px; border-radius: var(--r);
+              background: var(--panel); border: 1px solid var(--warn); display: none; }
+  #question p { margin: 0 0 12px; font-weight: 600; }
+  .options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+
+  /* ------------------------------------------------------- les contrôles */
+
+  .row { display: flex; gap: 8px; margin-top: 12px; }
+  .row > * { flex: 1; min-width: 0; }
+  input[type=text] {
+    padding: 13px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--sunken); color: var(--text); font-size: 16px;
+  }
+  button {
+    min-height: 46px; padding: 12px 16px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+    font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--ink); }
+  button.danger  { background: var(--stop);   border-color: var(--stop);   color: #fff; }
+  button.ghost   { background: transparent; }
+  button:disabled { opacity: .38; cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .note { color: var(--faint); font-size: 13px; margin: 10px 2px 0; }
+
+  /* ------------------------------------------------------- CareMemory */
+
+  #memory { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: none; }
+  #memory h2 { font-size: 16px; margin: 0 0 4px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  #draft, #saved { display: none; margin-top: 14px; }
+  #lessonTitle { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
+                 background: var(--sunken); color: var(--text); font-size: 16px; font-weight: 600; }
+  #steps { margin: 14px 0; padding: 0; list-style: none; counter-reset: step; }
+  #steps li { margin-bottom: 18px; }
+  #steps li::before {
+    counter-increment: step; content: "Étape " counter(step);
+    display: block; font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 6px;
+  }
+  #steps textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--line);
+                    background: var(--sunken); color: var(--text); font: inherit; font-size: 15px;
+                    resize: vertical; }
+  #steps .check { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  #steps img { width: 100%; border-radius: 8px; border: 1px solid var(--line); margin-top: 8px; }
+  #saved { padding: 14px; border-radius: 10px; border: 1px solid var(--ok);
+           color: var(--ok); font-weight: 600; }
+
+  #toast {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    background: var(--stop); color: #fff; padding: 11px 16px; border-radius: 10px;
+    font-size: 14px; font-weight: 600; display: none; max-width: 92vw; text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>CarePilot</h1>
+  <div class="task" id="task">Connexion…</div>
+</header>
+
+<div id="banner" role="status" aria-live="polite"><span class="dot"></span><span id="bannerText">Connexion au serveur…</span></div>
+
+<div class="shot" id="shot">
+  <div id="empty">En attente de la première capture d'écran…</div>
+  <img id="frame" alt="Écran de votre proche" style="display:none">
+  <div id="pin"></div>
+  <div id="loupe"></div>
+</div>
+
+<div id="freshness" hidden>
+  <span id="freshText"></span>
+  <button class="ghost" id="refresh" type="button">Rafraîchir</button>
+</div>
+
+<div id="aimbar" aria-live="polite">
+  <p id="aimText">Touchez l'écran de votre proche à l'endroit où il faut cliquer.</p>
+  <div class="row">
+    <button class="primary" id="confirm" type="button" disabled>Cliquer ici</button>
+    <button class="ghost" id="cancelAim" type="button">Annuler</button>
+  </div>
+</div>
+
+<div id="question">
+  <p id="qtext"></p>
+  <div class="options" id="options"></div>
+  <div class="row">
+    <input type="text" id="reply" placeholder="Votre réponse…" autocomplete="off" aria-label="Votre réponse">
+    <button class="primary" id="send" type="button" style="flex:0 0 auto">Envoyer</button>
+  </div>
+</div>
+
+<div class="row">
+  <button class="ghost" id="pause" type="button">Mettre en pause</button>
+  <button class="ghost" id="arm" type="button" disabled>Prendre la main</button>
+</div>
+<p class="note" id="armNote">Vous pourrez cliquer vous-même quand l'assistance sera en pause.</p>
+
+<div id="memory">
+  <h2>Fiche d'apprentissage</h2>
+  <p class="hint">Transformez cette session en fiche que votre proche pourra suivre seul la prochaine fois.</p>
+  <button class="primary" id="makeLesson" type="button">Créer la fiche</button>
+
+  <div id="draft">
+    <input type="text" id="lessonTitle" placeholder="Titre de la fiche" aria-label="Titre de la fiche">
+    <ol id="steps"></ol>
+    <div class="row">
+      <button class="primary" id="approve" type="button">Valider et enregistrer</button>
+      <button class="ghost" id="redo" type="button">Refaire</button>
+    </div>
+  </div>
+  <div id="saved" role="status"></div>
+</div>
+
+<div id="toast" role="alert"></div>
+
+<script>
+const token = location.pathname.split('/').pop();
+const $ = id => document.getElementById(id);
+
+// Doit rester aligné sur FRAME_TTL_S (backend/sessions.py) : au-delà, le
+// serveur refuse le clic. Mieux vaut le dire avant de viser qu'après.
+const FRAME_TTL_S = 30;
+
+let ws = null, reconnectIn = 1000, closedForGood = false;
+let frameId = null, frameAt = 0, state = null;
+let armed = false, target = null, sending = false;
+
+/* ------------------------------------------------------------- connexion */
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/helper/${token}`);
+
+  ws.onopen = () => { reconnectIn = 1000; };
+  ws.onmessage = onMessage;
+
+  // Un téléphone passe en veille, change de réseau, perd la 4G dans un couloir.
+  // Sans reprise automatique, la page meurt silencieusement et le proche ne
+  // voit plus rien arriver sans comprendre pourquoi.
+  ws.onclose = () => {
+    if (closedForGood) return;
+    setBanner('Connexion perdue — reconnexion…', 'closed');
+    setTimeout(connect, reconnectIn);
+    reconnectIn = Math.min(reconnectIn * 2, 8000);
+  };
+}
+
+function send(o) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(o));
+  else toast('Pas de connexion au serveur.');
+}
+
+/* ------------------------------------------------------------- affichage */
+
+function setBanner(text, cls) {
+  $('bannerText').textContent = text;
+  $('banner').className = cls || '';
+}
+
+function toast(msg) {
+  $('toast').textContent = msg;
+  $('toast').style.display = 'block';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => $('toast').style.display = 'none', 4200);
+}
+
+const LABELS = {
+  waiting_consent: ["En attente de l'autorisation de votre proche", 'waiting'],
+  active:          ["L'assistance travaille sur le PC", 'active'],
+  awaiting_helper: ['Votre proche a besoin de vous', 'waiting'],
+  done:            ['Session terminée', 'closed'],
+  stopped:         ['Session arrêtée depuis le PC', 'closed'],
+};
+
+/* ------------------------------------------- fraîcheur de la capture */
+
+function frameAge() { return frameAt ? (Date.now() - frameAt) / 1000 : Infinity; }
+
+function tickFreshness() {
+  const show = armed && frameAt > 0;
+  $('freshness').hidden = !show;
+  if (!show) return;
+
+  const age = Math.floor(frameAge());
+  const stale = age >= FRAME_TTL_S;
+  $('freshness').classList.toggle('stale', stale);
+  $('freshText').textContent = stale
+    ? "Cette capture est trop ancienne : l'écran a pu changer."
+    : `Capture d'il y a ${age} s — valable ${FRAME_TTL_S - age} s encore.`;
+  $('confirm').disabled = !target || stale || sending;
+}
+setInterval(tickFreshness, 1000);
+
+/* ------------------------------------------------------- prendre la main */
+
+function setArmed(on) {
+  armed = on && state === 'awaiting_helper';
+  $('shot').classList.toggle('armed', armed);
+  $('arm').textContent = armed ? 'Annuler la prise en main' : 'Prendre la main';
+  $('aimbar').style.display = armed ? 'block' : 'none';
+  if (!armed) clearAim();
+  // On redemande une capture au moment où le proche va viser : sans ça, la
+  // dernière image date du dernier pas de l'agent et a déjà vieilli.
+  if (armed) requestRefresh();
+  tickFreshness();
+}
+
+function clearAim() {
+  target = null;
+  $('pin').style.display = 'none';
+  $('loupe').style.display = 'none';
+  $('confirm').disabled = true;
+  $('aimbar').classList.remove('ready');
+  $('aimText').textContent = "Touchez l'écran de votre proche à l'endroit où il faut cliquer.";
+}
+
+function requestRefresh() {
+  if (!['active', 'awaiting_helper'].includes(state)) return;
+  $('refresh').disabled = true;
+  $('refresh').textContent = 'Demande…';
+  send({ type: 'refresh' });
+  setTimeout(() => { $('refresh').disabled = false; $('refresh').textContent = 'Rafraîchir'; }, 2500);
+}
+
+// Viser, puis confirmer. Un clic part sur l'ordinateur de quelqu'un d'autre :
+// il ne doit jamais être le résultat d'un doigt posé par mégarde.
+function aimAt(clientX, clientY) {
+  const img = $('frame');
+  if (!armed || img.style.display === 'none') return;
+
+  const r = img.getBoundingClientRect();
+  const px = Math.min(Math.max(clientX - r.left, 0), r.width);
+  const py = Math.min(Math.max(clientY - r.top, 0), r.height);
+  target = { x: px / r.width, y: py / r.height };
+
+  const shotR = $('shot').getBoundingClientRect();
+  const ox = r.left - shotR.left, oy = r.top - shotR.top;
+
+  $('pin').style.left = (ox + px) + 'px';
+  $('pin').style.top = (oy + py) + 'px';
+  $('pin').style.display = 'block';
+
+  const Z = 3, L = 132;
+  const loupe = $('loupe');
+  loupe.style.backgroundImage = `url("${img.src}")`;
+  loupe.style.backgroundSize = `${r.width * Z}px ${r.height * Z}px`;
+  loupe.style.backgroundPosition = `${L / 2 - px * Z}px ${L / 2 - py * Z}px`;
+  let lx = Math.min(Math.max(ox + px - L / 2, 4), shotR.width - L - 4);
+  let ly = oy + py - L - 28;
+  if (ly < 4) ly = oy + py + 28;
+  loupe.style.left = lx + 'px';
+  loupe.style.top = Math.min(ly, shotR.height - L - 4) + 'px';
+  loupe.style.display = 'block';
+
+  $('aimbar').classList.add('ready');
+  $('aimText').textContent = 'Ajustez en gardant le doigt appuyé, puis confirmez.';
+  tickFreshness();
+}
+
+const shot = $('shot');
+shot.addEventListener('pointerdown', e => {
+  if (!armed) return;
+  e.preventDefault();
+  shot.setPointerCapture(e.pointerId);
+  aimAt(e.clientX, e.clientY);
+});
+shot.addEventListener('pointermove', e => {
+  if (armed && e.buttons !== 0) aimAt(e.clientX, e.clientY);
+});
+shot.addEventListener('pointerup', () => { $('loupe').style.display = 'none'; });
+shot.addEventListener('pointercancel', () => { $('loupe').style.display = 'none'; });
+
+/* --------------------------------------------------------- les messages */
+
+function onMessage(ev) {
+  const m = JSON.parse(ev.data);
+
+  if (m.type === 'status') {
+    state = m.state;
+    const [label, cls] = LABELS[m.state] || [m.state, ''];
+    setBanner(label, cls);
+    if (m.task) $('task').textContent = '« ' + m.task + ' »';
+
+    const open = ['waiting_consent', 'active', 'awaiting_helper'].includes(m.state);
+    $('pause').disabled = !open || m.state !== 'active';
+    $('arm').disabled = m.state !== 'awaiting_helper';
+    $('armNote').textContent = m.state === 'awaiting_helper'
+      ? 'Vous pouvez cliquer vous-même sur l’écran de votre proche.'
+      : "Vous pourrez cliquer vous-même quand l'assistance sera en pause.";
+    if (m.state !== 'awaiting_helper') { setArmed(false); $('question').style.display = 'none'; }
+    if (m.state === 'active') { $('pause').textContent = 'Mettre en pause'; }
+
+    // La fiche se rédige une fois la manipulation terminée.
+    $('memory').style.display = open ? 'none' : 'block';
+    tickFreshness();
+  }
+
+  else if (m.type === 'frame') {
+    frameId = m.frame_id;
+    frameAt = Date.now();
+    $('frame').src = 'data:image/png;base64,' + m.png_b64;
+    $('frame').style.display = 'block';
+    $('empty').style.display = 'none';
+    clearAim();
+    tickFreshness();
+  }
+
+  else if (m.type === 'question') {
+    $('qtext').textContent = m.question;
+    $('options').innerHTML = '';
+    (m.options || []).forEach(o => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = o;
+      b.onclick = () => send({ type: 'answer', text: o });
+      $('options').appendChild(b);
+    });
+    $('question').style.display = 'block';
+  }
+
+  else if (m.type === 'answer') {
+    setBanner(m.content, 'active');
+  }
+
+  else if (m.type === 'refused') {
+    toast(m.reason);
+    sending = false;
+    $('confirm').textContent = 'Cliquer ici';
+    tickFreshness();
+  }
+
+  else if (m.type === 'ack' && m.what === 'click') {
+    sending = false;
+    $('confirm').textContent = 'Cliquer ici';
+    toast('Clic transmis à l’ordinateur de votre proche.');
+    setArmed(false);
+  }
+
+  else if (m.type === 'ack' && m.what === 'pause') {
+    $('pause').disabled = true;
+    $('pause').textContent = 'Pause demandée…';
+  }
+
+  else if (m.type === 'lesson_pending') {
+    $('makeLesson').disabled = true;
+    $('makeLesson').textContent = 'Rédaction en cours…';
+  }
+
+  else if (m.type === 'lesson_draft') {
+    $('makeLesson').style.display = 'none';
+    $('lessonTitle').value = m.lesson.title || '';
+    $('steps').innerHTML = '';
+    (m.lesson.steps || []).forEach(s => {
+      const li = document.createElement('li');
+      const ta = document.createElement('textarea');
+      ta.rows = 2; ta.value = s.instruction || '';
+      ta.setAttribute('aria-label', 'Instruction de l’étape');
+      li.appendChild(ta);
+      if (s.checkpoint) {
+        const c = document.createElement('div');
+        c.className = 'check';
+        c.textContent = 'Vous devez voir : ' + s.checkpoint;
+        li.appendChild(c);
+      }
+      const b64 = m.preview && m.preview[s.frame];
+      if (b64) {
+        const img = document.createElement('img');
+        img.src = 'data:image/png;base64,' + b64;
+        img.alt = '';
+        li.appendChild(img);
+      }
+      $('steps').appendChild(li);
+    });
+    $('draft').style.display = 'block';
+  }
+
+  else if (m.type === 'lesson_saved') {
+    $('draft').style.display = 'none';
+    $('saved').textContent = '✓ Fiche « ' + m.lesson.title + ' » enregistrée.';
+    $('saved').style.display = 'block';
+  }
+}
+
+/* ----------------------------------------------------------- les actions */
+
+$('send').onclick = () => {
+  const t = $('reply').value.trim();
+  if (t) { send({ type: 'answer', text: t }); $('reply').value = ''; }
+};
+$('reply').addEventListener('keydown', e => { if (e.key === 'Enter') $('send').click(); });
+
+$('pause').onclick = () => {
+  send({ type: 'pause' });
+  $('pause').disabled = true;
+  $('pause').textContent = 'Pause demandée…';
+  toast("Pause demandée : l'action en cours se termine.");
+};
+
+$('arm').onclick = () => setArmed(!armed);
+$('cancelAim').onclick = () => setArmed(false);
+$('refresh').onclick = requestRefresh;
+
+// Le clic part en coordonnées normalisées relatives à l'image affichée, jamais
+// en pixels : le pont Windows les reprojette sur l'écran réel.
+$('confirm').onclick = () => {
+  if (!target || sending) return;
+  sending = true;
+  $('confirm').disabled = true;
+  $('confirm').textContent = 'Envoi…';
+  send({ type: 'click', frame_id: frameId, x: target.x, y: target.y });
+};
+
+// CareMemory : proposée seulement quand la session est finie — on ne rédige pas
+// une fiche sur une manipulation encore en cours.
+$('makeLesson').onclick = () => send({ type: 'draft_lesson' });
+$('redo').onclick = () => {
+  $('draft').style.display = 'none';
+  $('makeLesson').style.display = '';
+  $('makeLesson').disabled = false;
+  $('makeLesson').textContent = 'Créer la fiche';
+  send({ type: 'draft_lesson' });
+};
+$('approve').onclick = () => {
+  const steps = [...$('steps').querySelectorAll('textarea')]
+    .map(t => ({ instruction: t.value.trim() }));
+  send({ type: 'approve_lesson', lesson: { title: $('lessonTitle').value.trim(), steps } });
+};
+
+connect();
+</script>
+</body>
+</html>
