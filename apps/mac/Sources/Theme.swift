@@ -289,6 +289,7 @@ struct Mascotte: View {
     var anime = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var souffle = false
+    private var bouge: Bool { souffle && anime && !reduceMotion }
 
     var body: some View {
         Canvas { ctx, size in
@@ -298,11 +299,19 @@ struct Mascotte: View {
             MascotteDessin.dessiner(in: &ctx, humeur: humeur)
         }
         .aspectRatio(1, contentMode: .fit)
-        .scaleEffect(x: 1, y: souffle ? 1.025 : 1, anchor: .bottom)
-        .rotationEffect(.degrees(humeur == .ecoute && souffle ? -3 : 0), anchor: .bottom)
+        .scaleEffect(x: 1, y: bouge ? 1.025 : 1, anchor: .bottom)
+        .rotationEffect(.degrees(humeur == .ecoute && bouge ? -3 : 0), anchor: .bottom)
         .onAppear {
             guard anime, !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { souffle = true }
+        }
+        // « Réduire les animations » activé à chaud : la mascotte s'immobilise aussitôt.
+        .onChange(of: reduceMotion) { _, reduit in
+            if reduit {
+                withTransaction(Transaction(animation: nil)) { souffle = false }
+            } else if anime {
+                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { souffle = true }
+            }
         }
         .accessibilityHidden(true)
     }
