@@ -61,9 +61,9 @@ struct SessionView: View {
     private var title: String {
         switch state {
         case .planning: "Holo regarde votre écran…"
-        case .awaiting_approval: "Quentin vérifie le plan"
+        case .awaiting_approval: "\(model.HelperName) vérifie le plan"
         case .active: "Holo s'en occupe"
-        case .awaiting_helper: "Quentin vous aide"
+        case .awaiting_helper: "\(model.HelperName) vous aide"
         case .done: "C'est terminé"
         case .stopped: "L'assistance est arrêtée."
         }
@@ -74,7 +74,7 @@ struct SessionView: View {
         case .planning: "Un instant, je prépare ce qu'il faut faire."
         case .awaiting_approval: "Rien ne se passera sur votre écran avant son accord."
         case .active: model.currentAction ?? "Je regarde l'écran…"
-        case .awaiting_helper: model.question ?? "Quentin prend la main, restez là."
+        case .awaiting_helper: model.question ?? "\(model.HelperName) prend la main, restez là."
         case .done: nil
         case .stopped: "Votre écran n'est plus partagé."
         }

@@ -26,6 +26,9 @@ Envoie :
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
 - `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt ou action interdite.
 - `{"type":"automation_failed","title":"…","detail":"…"}` quand un automatisme ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
+- `{"type":"pair_start"}` pour ajouter un proche : le serveur répond `pair_code`.
+- `{"type":"remove_helper","id":"…"}` retire un proche.
+- `{"type":"remote_answer","accepted":false}` refus d'une session proposée par un proche. En cas d'accord, l'app envoie directement `help_request` avec `"requested_by":"Claire"`.
 
 Reçoit :
 - `{"type":"capture","req":R}`
@@ -33,6 +36,9 @@ Reçoit :
   `click`, `double_click` (`x`,`y`,`element`), `type_text` (`text`),
   `press_key` (`keys`, ex. `cmd+space`, `enter`, `esc`), `scroll` (`x`,`y`,`direction`).
 - `{"type":"session","id":…,"helper_url":…}`
+- `{"type":"helpers","helpers":[{"id","name","relation"}],"added":"Claire"?}` à chaque `hello` et après chaque ajout ou retrait.
+- `{"type":"pair_code","code":"482913","url":"http://…/p/482913","expires_in":600}` code à afficher et à mettre en QR.
+- `{"type":"remote_request","from":"Claire","task":"…"}` un proche propose une session : rien ne démarre sans l'accord de la personne aidée.
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
 
 ## App de l'aidant (iPhone) : `ws://SERVEUR/ws/aidant/CLÉ`
@@ -54,6 +60,7 @@ Envoie :
 - `{"type":"approve_plan"}` · `{"type":"refine_plan","text":"précision"}` · `{"type":"refuse_plan"}`
 - `{"type":"answer","text":"…"}` réponse à une question
 - `{"type":"pause"}` · `{"type":"refresh"}` · `{"type":"click","frame_id":"…","x":0..1,"y":0..1}` (seulement en `awaiting_helper`)
+- `{"type":"remote_request","text":"…","from":"Claire"}` proposer une session (seulement s'il n'y en a pas d'ouverte). Réponses : `ack` `remote_request`, puis `remote_refused` ou `remote_accepted`.
 - `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automatisme »
 
 ## Dictée de la demande
@@ -107,3 +114,10 @@ Consulter sa banque seule ne déclenche rien.
 que l'app rejoue **localement, sans modèle** : elle ouvre le dossier connu du système.
 Si le dossier n'existe plus, elle n'invente rien : `automation_failed`.
 `GET /lessons/{id}/{image}` sert les captures des étapes.
+
+## Proches
+
+La personne aidée affiche un code à 6 chiffres et son QR (`pair_code`). Le proche ouvre
+`/p/{code}` (ou `/p` pour taper le code), donne son prénom et son lien, et reçoit le lien
+de l'espace aidant. Le code sert une fois, expire en 10 minutes et tombe après 5 essais ratés.
+En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gardés dans `family.json`.

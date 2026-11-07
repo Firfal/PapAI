@@ -4,6 +4,17 @@ import SwiftUI
 
 enum AppScreen { case home, session, lesson }
 
+struct Helper: Identifiable, Equatable {
+    var id: String
+    var name: String
+    var relation: String
+}
+
+struct RemoteRequest: Equatable {
+    var from: String
+    var task: String
+}
+
 enum SessionState: String {
     case planning, awaiting_approval, active, awaiting_helper, done, stopped
     var isOpen: Bool { self != .done && self != .stopped }
@@ -28,6 +39,14 @@ final class AppModel {
     var permissionsDismissed = false
     var showSettings = false
     var captureError: String?
+    var onboarded = UserDefaults.standard.bool(forKey: "onboarded")
+    var textScale = TextScale.current
+    var helpers: [Helper] = []
+    var pairCode: String?
+    var pairURL: String?
+    var pairAdded: String?
+    var remoteRequest: RemoteRequest?
+    var showHelpers = false
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored let client = BridgeClient()
@@ -53,6 +72,65 @@ final class AppModel {
     var firstName: String {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
         return n.isEmpty ? "Jeanne" : n
+    }
+
+    /// Qui aide : toujours au singulier pour accorder le verbe qui suit.
+    var helperName: String {
+        switch helpers.count {
+        case 0: "votre proche"
+        case 1: helpers[0].name
+        case 2: "\(helpers[0].name) ou \(helpers[1].name)"
+        default: "l'un de vos proches"
+        }
+    }
+    var HelperName: String {
+        let n = helperName
+        return n.prefix(1).uppercased() + n.dropFirst()
+    }
+
+    // MARK: Accueil et proches
+
+    func setFirstName(_ name: String) {
+        UserDefaults.standard.set(name.trimmingCharacters(in: .whitespaces), forKey: "firstName")
+    }
+
+    func setTextScale(_ v: Double) {
+        TextScale.current = v
+        textScale = v
+    }
+
+    func finishOnboarding() {
+        UserDefaults.standard.set(true, forKey: "onboarded")
+        onboarded = true
+        permissionsDismissed = true
+        stopPairing()
+    }
+
+    func startPairing() {
+        pairAdded = nil
+        client.send(["type": "pair_start"])
+    }
+
+    func stopPairing() {
+        pairCode = nil
+        pairURL = nil
+    }
+
+    func removeHelper(_ h: Helper) {
+        client.send(["type": "remove_helper", "id": h.id])
+    }
+
+    /// Le proche propose une session : rien ne démarre sans ce clic.
+    func acceptRemote() {
+        guard let r = remoteRequest else { return }
+        remoteRequest = nil
+        let task = r.task.isEmpty ? "\(r.from) propose de m'aider sur l'ordinateur" : r.task
+        askHelp(task: task, requestedBy: r.from)
+    }
+
+    func refuseRemote() {
+        remoteRequest = nil
+        client.send(["type": "remote_answer", "accepted": false])
     }
 
     // MARK: Démarrage
@@ -83,6 +161,13 @@ final class AppModel {
         if let demo = ProcessInfo.processInfo.environment["PAPAI_DEMO"] {
             permissionsDismissed = true
             connected = true
+            if demo.hasPrefix("onboarding") { onboarded = false; return }
+            onboarded = true
+            helpers = [Helper(id: "1", name: "Claire", relation: "sa fille")]
+            if demo == "remote" {
+                remoteRequest = RemoteRequest(from: "Claire", task: "Mettre à jour votre ordinateur")
+                return
+            }
             let json = #"[{"id":"a","title":"Mes photos de Noël","shortcut":{"folder":"pictures"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes documents","shortcut":{"folder":"documents"}}]"#
             lessons = (try? JSONDecoder().decode([Lesson].self, from: Data(json.utf8))) ?? []
             if demo == "home" { return }
@@ -129,14 +214,16 @@ final class AppModel {
 
     // MARK: Demande d'aide
 
-    func askHelp(task: String) {
+    func askHelp(task: String, requestedBy: String? = nil) {
         gate.reset()
         self.task = task
         plan = []; question = nil; answer = nil; currentAction = nil
         state = .planning
         screen = .session
         applyLevel()
-        client.send(["type": "help_request", "task": task])
+        var msg: [String: Any] = ["type": "help_request", "task": task]
+        if let requestedBy { msg["requested_by"] = requestedBy }
+        client.send(msg)
     }
 
     /// Le verrou local passe d'abord, puis le serveur est prévenu.
@@ -168,6 +255,25 @@ final class AppModel {
             applyStatus(m)
         case "answer":
             answer = m["content"] as? String
+        case "helpers":
+            let list = (m["helpers"] as? [[String: Any]]) ?? []
+            helpers = list.compactMap { d in
+                guard let id = d["id"] as? String, let n = d["name"] as? String else { return nil }
+                return Helper(id: id, name: n, relation: d["relation"] as? String ?? "")
+            }
+            if let added = m["added"] as? String {
+                pairAdded = added
+                stopPairing()
+            }
+        case "pair_code":
+            pairCode = m["code"] as? String
+            pairURL = m["url"] as? String
+        case "remote_request":
+            guard !sessionOpen else { return }
+            remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre proche",
+                                          task: m["task"] as? String ?? "")
+            NSApp.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
         default:
             break
         }
@@ -231,7 +337,7 @@ final class AppModel {
         if r.ok {
             showNotice("C'est ouvert.")
         } else {
-            showNotice("Je ne retrouve pas ce dossier. Quentin est prévenu, il va s'en occuper.")
+            showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
             client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
         }
     }

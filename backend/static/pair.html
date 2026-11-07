@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#EEF0EE">
+<title>PapAI · Devenir aidant</title>
+<style>
+  :root { --bg:#EEF0EE; --card:#fff; --ink:#111312; --muted:#7A807C; --accent:#2E9E5B; --mint:#E2F2E7; --err:#C0392B; }
+  * { box-sizing: border-box; }
+  body { margin: 0 auto; max-width: 520px; background: var(--bg); color: var(--ink);
+         font: 18px/1.45 ui-rounded, system-ui, -apple-system, sans-serif;
+         padding: calc(24px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom)); }
+  .brand { font-weight: 600; font-size: 20px; margin-bottom: 18px; }
+  .card { background: var(--mint); border-radius: 32px; padding: 28px 22px; }
+  h1 { font-size: 30px; line-height: 1.15; margin: 0 0 10px; letter-spacing: -.4px; }
+  p { color: var(--muted); margin: 0 0 20px; }
+  label { display: block; font-size: 14px; font-weight: 600; color: var(--muted); margin: 16px 0 6px; }
+  input, select { width: 100%; font: inherit; color: var(--ink); background: var(--card); border: 0;
+                  border-radius: 18px; padding: 16px; outline: none; }
+  input:focus, select:focus { box-shadow: 0 0 0 2px var(--accent); }
+  #code { letter-spacing: 8px; text-align: center; font-size: 28px; font-weight: 600; }
+  button, .btn { display: block; width: 100%; margin-top: 24px; height: 60px; border: 0; border-radius: 30px;
+                 background: var(--ink); color: #fff; font: 600 19px ui-rounded, system-ui, sans-serif;
+                 text-align: center; line-height: 60px; text-decoration: none; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  .err { color: var(--err); font-weight: 600; margin-top: 14px; min-height: 1.4em; }
+  .ok { font-size: 56px; line-height: 1; margin-bottom: 10px; color: var(--accent); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="brand">PapAI</div>
+
+<form class="card" id="form">
+  <h1>Devenir aidant</h1>
+  <p>Vous serez prévenu quand votre proche demande de l'aide sur son ordinateur. Rien ne se passe sur son écran sans votre accord.</p>
+  <div id="codeRow" hidden>
+    <label for="code">Code affiché sur l'ordinateur</label>
+    <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000">
+  </div>
+  <label for="name">Votre prénom</label>
+  <input id="name" autocomplete="given-name" maxlength="40" placeholder="Claire" required>
+  <label for="relation">Votre lien avec la personne aidée</label>
+  <select id="relation">
+    <option value="sa fille">Je suis sa fille</option>
+    <option value="son fils">Je suis son fils</option>
+    <option value="sa petite-fille">Je suis sa petite-fille</option>
+    <option value="son petit-fils">Je suis son petit-fils</option>
+    <option value="un proche">Un ou une proche</option>
+    <option value="un voisin">Un voisin, une voisine</option>
+    <option value="">Autre</option>
+  </select>
+  <div class="err" id="err"></div>
+  <button id="go" type="submit">Valider</button>
+</form>
+
+<div class="card" id="done" hidden>
+  <div class="ok">✓</div>
+  <h1 id="doneTitle">C'est fait</h1>
+  <p>Votre prénom apparaît maintenant sur l'ordinateur de votre proche. Gardez la page aidant ouverte ou ajoutez-la à l'écran d'accueil de votre téléphone.</p>
+  <a class="btn" id="aidant" href="#">Ouvrir l'espace aidant</a>
+</div>
+
+<script>
+  // L'adresse finit par /p/123456 (QR) ou par /p (code tapé à la main).
+  const m = location.pathname.match(/^(.*)\/p(?:\/(\d{6}))?\/?$/);
+  const base = m ? m[1] : "";
+  let code = m && m[2] ? m[2] : "";
+  const $ = (id) => document.getElementById(id);
+  if (!code) $("codeRow").hidden = false;
+
+  $("form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("err").textContent = "";
+    const c = code || $("code").value.trim();
+    if (!/^\d{6}$/.test(c)) { $("err").textContent = "Le code fait 6 chiffres."; return; }
+    const name = $("name").value.trim();
+    if (!name) { $("err").textContent = "Indiquez votre prénom."; return; }
+    $("go").disabled = true;
+    try {
+      const r = await fetch(`${base}/p/${c}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, relation: $("relation").value }),
+      });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.error || "Impossible de valider.");
+      try { localStorage.setItem("papai_name", data.name); } catch (e) {}
+      $("doneTitle").textContent = `C'est fait, ${data.name} !`;
+      $("aidant").href = data.aidant_url;
+      $("form").hidden = true;
+      $("done").hidden = false;
+    } catch (err) {
+      $("err").textContent = err.message;
+    } finally {
+      $("go").disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

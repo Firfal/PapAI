@@ -25,7 +25,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Bonjour \(model.firstName)")
                 .font(rounded(52, .semibold)).tracking(-0.8)
-            Text("Un souci sur l'ordinateur ? Dites-le simplement, Quentin est prévenu.")
+            Text("Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à \(model.helperName).")
                 .font(rounded(21)).foregroundStyle(T.muted)
                 .fixedSize(horizontal: false, vertical: true)
             TextField("Par exemple : je ne retrouve pas mes photos", text: $request, axis: .vertical)
@@ -115,7 +115,7 @@ struct HomeView: View {
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { warning = "Dites en quelques mots ce qui ne va pas."; focused = true; return }
         if !consent { warning = "Cochez la case pour autoriser le partage de votre écran."; return }
-        if !model.connected { warning = "Je ne joins pas Quentin pour le moment. Réessayez dans un instant."; return }
+        if !model.connected { warning = "Je ne joins pas \(model.helperName) pour le moment. Réessayez dans un instant."; return }
         warning = nil
         model.askHelp(task: text)
         request = ""; consent = false
@@ -132,7 +132,7 @@ struct HomeView: View {
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
             }
             if model.lessons.isEmpty {
-                Text("Quentin ajoutera ici vos raccourcis.")
+                Text("\(model.HelperName) ajoutera ici vos raccourcis.")
                     .font(rounded(17)).foregroundStyle(T.muted)
                     .padding(22).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))

@@ -154,6 +154,14 @@
 
 <div id="banner" role="status" aria-live="polite"><span class="dot"></span><span id="bannerText">Connexion au serveur…</span></div>
 
+<div id="remote" hidden>
+  <p class="note" style="margin:0 0 8px">Pas de demande en cours. Vous pouvez proposer une session : votre proche devra l'accepter sur son ordinateur.</p>
+  <div class="row">
+    <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Pourquoi cette session">
+    <button class="primary" id="remoteSend" type="button" style="flex:0 0 auto">Proposer</button>
+  </div>
+</div>
+
 <div id="question">
   <p id="qtext"></p>
   <div class="options" id="options"></div>
@@ -224,7 +232,9 @@ let armed = false, target = null, sending = false;
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws/helper/${token}`);
+  // /a/{clé} : le lien permanent de l'aidant, qui suit toutes les demandes.
+  const permanent = /\/a\/[^/]+\/?$/.test(location.pathname);
+  ws = new WebSocket(`${proto}://${location.host}/ws/${permanent ? 'aidant' : 'helper'}/${token}`);
 
   ws.onopen = () => { reconnectIn = 1000; };
   ws.onmessage = onMessage;
@@ -376,6 +386,7 @@ function onMessage(ev) {
     if (m.task) $('task').textContent = '« ' + m.task + ' »';
 
     const open = ['waiting_consent', 'active', 'awaiting_helper'].includes(m.state);
+    $('remote').hidden = ['planning', 'awaiting_approval', 'active', 'awaiting_helper'].includes(m.state);
     $('pause').disabled = !open || m.state !== 'active';
     $('arm').disabled = m.state !== 'awaiting_helper';
     $('armNote').textContent = m.state === 'awaiting_helper'
@@ -410,6 +421,23 @@ function onMessage(ev) {
       $('options').appendChild(b);
     });
     $('question').style.display = 'block';
+  }
+
+  else if (m.type === 'hello') {
+    // Canal permanent : pas encore de demande, on peut en proposer une.
+    if (!state) { $('remote').hidden = false; setBanner(m.bridge ? 'Ordinateur connecté' : "L'ordinateur n'est pas connecté", m.bridge ? 'active' : 'closed'); }
+  }
+
+  else if (m.type === 'ack' && m.what === 'remote_request') {
+    toast('Proposition envoyée. Votre proche doit l’accepter sur son ordinateur.');
+  }
+
+  else if (m.type === 'remote_refused') {
+    toast('Votre proche a refusé la session pour le moment.');
+  }
+
+  else if (m.type === 'remote_accepted') {
+    toast('Votre proche a accepté. Holo prépare un plan.');
   }
 
   else if (m.type === 'answer') {
@@ -518,6 +546,13 @@ $('approve').onclick = () => {
   const steps = [...$('steps').querySelectorAll('textarea')]
     .map(t => ({ instruction: t.value.trim() }));
   send({ type: 'approve_lesson', lesson: { title: $('lessonTitle').value.trim(), steps } });
+};
+
+$('remoteSend').onclick = () => {
+  let from = '';
+  try { from = localStorage.getItem('papai_name') || ''; } catch (e) {}
+  send({ type: 'remote_request', text: $('remoteText').value.trim(), from });
+  $('remoteText').value = '';
 };
 
 connect();
