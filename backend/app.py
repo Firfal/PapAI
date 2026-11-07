@@ -843,11 +843,12 @@ def guard_contact() -> str:
     if not family.helpers:
         return "votre proche"
     h = next((h for h in family.helpers if h["id"] in _online_ids()), family.helpers[0])
-    relation = re.sub(r"^(mon|ma|mes|votre)\s+", "", h.get("relation", "").strip(), flags=re.I)
+    relation = re.sub(r"^(mon|ma|mes|son|sa|ses|votre)\s+", "", h.get("relation", "").strip(), flags=re.I)
     return f"votre {relation} {h['name']}" if relation else h["name"]
 
 
-async def publish_guard(alerte: guard.Alerte, source: str, session=None) -> None:
+async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
+                        senior_detail: str | None = None, helper_detail: str | None = None) -> None:
     global pending_alert
     for s in registry._by_id.values():
         if s.is_open:
@@ -860,13 +861,14 @@ async def publish_guard(alerte: guard.Alerte, source: str, session=None) -> None
     detail = f"Contactez {guard_contact()} avant d'aller plus loin. "
     detail += ("Rien n'a été exécuté pour cette demande." if source in ("request", "plan")
                else "L'assistance est arrêtée.")
-    senior = {**common, "title": "Attention, cette démarche peut être une arnaque.", "detail": detail}
+    senior = {**common, "title": "Attention, cette démarche peut être une arnaque.",
+              "detail": senior_detail or detail}
     who = family.senior or "Votre proche"
     detail = f"{who} a besoin de votre avis. {alerte.detail}"
     if session:
         detail += f"\nDemande : « {session.task} »"
     detail += "\nRappelez votre proche avant de poursuivre. Rejetez l'alerte uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
-    helper = {**common, "title": f"Arnaque possible : rappelez {who}", "detail": detail}
+    helper = {**common, "title": f"Arnaque possible : rappelez {who}", "detail": helper_detail or detail}
     pending_alert = {"senior": senior, "helper": helper}
     if bridge:
         await bridge.send(senior)
