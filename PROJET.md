@@ -11,16 +11,22 @@ Pour la vision produit et le plan 36 h, voir `carepilot_documentation.html`.*
 Une aide informatique à distance où l'IA agit sur le PC d'une personne âgée, le
 proche supervise depuis son téléphone, et la personne aidée garde le contrôle.
 
-**Promesse :** « TeamViewer permet de faire à la place de vos proches. CarePilot
-les aide aussi à apprendre à le faire eux-mêmes. »
+**Promesse :** aider tout de suite, sans faire attendre un proche disponible, et
+sans jamais lui retirer la main sur sa propre machine. L'IA agit ; quand elle
+hésite ou que l'action est sensible, elle s'arrête et demande.
+
+Les manipulations résolues sont mémorisées pour être refaites d'un bouton — et,
+pour qui le souhaite, réexpliquées pas à pas. Cette dimension pédagogique existe
+et fonctionne, mais elle n'est plus la promesse principale.
 
 ---
 
 ## Où en est-on
 
-Le spike H 0→6 est validé et le MVP tourne de bout en bout sur une vraie machine.
-CareMemory tourne également : une session devient une fiche validée par le
-proche, que la personne aidée peut ensuite suivre seule.
+Le spike H 0→6 est validé et le MVP tourne de bout en bout sur une vraie machine :
+la personne demande, l'agent agit, le proche arbitre quand il faut, et l'arrêt
+reste entre les mains de la personne aidée. La mémorisation des manipulations
+fonctionne par-dessus.
 
 | Brique | État |
 |---|---|
@@ -31,11 +37,11 @@ proche, que la personne aidée peut ensuite suivre seule.
 | Page web du proche, avec clic sur capture | ✅ page testée, clic distant jamais exercé |
 | Refus côté serveur (session, fraîcheur, consentement) | ✅ 13 contrôles passent |
 | Backend conteneurisé, prêt à héberger | ✅ image testée |
-| CareMemory : fiche générée et validée | ✅ testée de bout en bout |
-| CareMemory : rejeu guidé côté senior | ✅ testé, n'exécute aucun clic |
-| CareMemory : raccourci « faites-le pour moi » | ✅ testé, garde-fou vérifié |
-| Escalade `ask_helper` | ⬜ jamais déclenchée en vrai |
 | Déclenchement par le proche | ✅ 10 contrôles passent |
+| Mémoire : raccourci « faites-le pour moi » | ✅ testé, garde-fou vérifié |
+| Mémoire : fiche générée et validée | ✅ testée de bout en bout |
+| Mémoire : rejeu pas à pas (secondaire) | ✅ testé, n'exécute aucun clic |
+| Escalade `ask_helper` | ⬜ jamais déclenchée en vrai |
 | Notification push | ⬜ non commencé |
 
 ---
@@ -129,10 +135,17 @@ infructueux plutôt que de continuer à fouiller.
 
 ---
 
-## CareMemory
+## Mémoire des manipulations
 
-Une session terminée devient une fiche de 2 à 4 étapes, rédigée par le modèle à
-partir de la trajectoire **en texte** — ce que l'agent a visé, jamais où il a
+Une session terminée est mémorisée, pour deux usages d'importance inégale.
+
+**Le raccourci, d'abord** : rouvrir en un geste l'endroit déjà trouvé, sans
+relancer l'agent. C'est ce que la personne utilisera dix fois.
+
+**La fiche pas à pas, ensuite** : une explication de 2 à 4 étapes qu'elle peut
+suivre seule si elle veut apprendre. Proposée, jamais imposée.
+
+La fiche est rédigée par le modèle à partir de la trajectoire **en texte** — ce que l'agent a visé, jamais où il a
 cliqué. Pas de coordonnées dans une fiche : elle ne se périme pas quand une
 fenêtre change de taille. Les tâtonnements sont ignorés, seul le chemin qui a
 marché est retenu.
@@ -251,15 +264,20 @@ et un argument de crédibilité devant le jury.
 
 ## Reste à faire
 
-1. **Éprouver le clic distant** depuis un vrai téléphone.
-2. **Déclencher `ask_helper`** avec deux dossiers plausibles.
+1. **Éprouver le clic distant** depuis un vrai téléphone. C'est la fonctionnalité
+   la plus fragile, et un critère de la définition de terminé.
+2. **Déclencher `ask_helper`** avec deux dossiers plausibles (`Photos` et
+   `Photos vacances`) : c'est le moment clé de la démo, jamais obtenu en vrai.
 3. **Préparer une session Windows de démo** — barre latérale propre, dossiers
-   factices. Les captures partent chez H Company et bientôt sur le téléphone du
-   proche ; aucun dossier client ne doit s'y trouver.
-4. **Élargir les règles sensibles** du prompt aux documents d'identité. Testé :
-   « cherche la copie de ma carte d'identité » n'a déclenché aucun garde-fou.
+   factices. Les captures partent chez H Company et sur le téléphone du proche ;
+   aucun dossier client ne doit s'y trouver.
+4. **Élargir le raccourci au-delà des dossiers.** Aujourd'hui il ne couvre qu'un
+   seul type de résultat : « un dossier est ouvert ». C'est maintenant la
+   fonctionnalité principale de la mémoire, elle mérite de couvrir plus de cas.
+5. **Notification push** — un bot Telegram porteur de lien suffit.
 
----
+*Déprioritisé :* enrichir le rejeu pas à pas. Il fonctionne et reste proposé,
+mais il n'est plus ce qui porte le produit.
 
 ## Points de vigilance pour le pitch
 

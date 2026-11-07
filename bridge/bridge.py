@@ -493,11 +493,21 @@ class App:
                   command=self.ask_help).pack(fill="x", padx=24, pady=(18, 8), ipady=10)
 
         self.btn_lessons = tk.Button(
-            f, text="Mes fiches", font=self.mid, relief="flat",
+            f, text="Refaire quelque chose", font=self.mid, relief="flat",
             bg="#1a2029", fg="#e9eef5", activebackground="#2b3440", cursor="hand2",
             command=self.show_list,
         )
         self.btn_lessons.pack(fill="x", padx=24, ipady=8)
+
+        # Désactivé tant que le serveur n'a pas envoyé le lien permanent :
+        # c'est ce que `pump` réactive en recevant « pairing ».
+        self.btn_invite = tk.Button(
+            f, text="Inviter un proche", font=self.mid, relief="flat",
+            bg="#1a2029", fg="#e9eef5", activebackground="#2b3440", cursor="hand2",
+            disabledforeground="#7d8b9e", state="disabled",
+            command=self.show_pair,
+        )
+        self.btn_invite.pack(fill="x", padx=24, pady=(8, 0), ipady=8)
         tk.Frame(f, bg="#11151c").pack(expand=True)
 
     def _entry_focus(self, _event=None) -> None:
@@ -547,7 +557,7 @@ class App:
 
     def build_list(self) -> None:
         f = self.frame_list
-        tk.Label(f, text="Mes fiches", font=self.big,
+        tk.Label(f, text="Refaire quelque chose", font=self.big,
                  bg="#11151c", fg="#e9eef5").pack(pady=(20, 4))
         tk.Label(f, text="Des manipulations que vous avez déjà faites,\nexpliquées pas à pas.",
                  font=self.mid, bg="#11151c", fg="#93a1b3", justify="center").pack(pady=(0, 10))
@@ -657,7 +667,7 @@ class App:
                                     justify="center")
         self.choice_hint.pack(pady=(0, 18))
 
-        tk.Button(f, text="Montrez-moi comment faire", font=self.mid, relief="flat",
+        tk.Button(f, text="Ou montrez-moi comment faire", font=self.mid, relief="flat",
                   bg="#1a2029", fg="#e9eef5", activebackground="#2b3440",
                   command=lambda: self.goto_step(0)).pack(fill="x", padx=24, ipady=8)
 
@@ -779,21 +789,23 @@ class App:
     def build_invite(self) -> None:
         """Le proche propose, la personne aidée décide. Jamais l'inverse."""
         f = self.frame_invite
+        tk.Frame(f, bg="#11151c").pack(expand=True)
         tk.Label(f, text="Votre proche propose de vous aider",
                  font=self.big, bg="#11151c", fg="#e9eef5",
-                 wraplength=int(380 * self.scale), justify="center").pack(pady=(32, 10), padx=16)
+                 wraplength=int(380 * self.scale), justify="center").pack(pady=(0, 10), padx=16)
         self.invite_text = tk.Label(f, text="", font=self.mid, bg="#11151c", fg="#93a1b3",
                                     wraplength=int(360 * self.scale), justify="center")
         self.invite_text.pack(pady=(0, 6), padx=16)
         tk.Label(f, text="Si vous acceptez, il verra votre écran\njusqu'à ce que vous arrêtiez.",
-                 font=self.small, bg="#11151c", fg="#6b7a8d", justify="center").pack(pady=(0, 22))
+                 font=self.small, bg="#11151c", fg="#7d8b9e", justify="center").pack(pady=(0, 22))
 
         tk.Button(f, text="Accepter", font=self.big, relief="flat",
-                  bg="#4da3ff", fg="#04121f", activebackground="#7cbcff",
+                  bg="#4da3ff", fg="#04121f", activebackground="#7cbcff", cursor="hand2",
                   command=lambda: self.answer_invite(True)).pack(fill="x", padx=24, ipady=10)
         tk.Button(f, text="Non merci", font=self.mid, relief="flat",
-                  bg="#1a2029", fg="#93a1b3", activebackground="#2b3440",
+                  bg="#1a2029", fg="#93a1b3", activebackground="#2b3440", cursor="hand2",
                   command=lambda: self.answer_invite(False)).pack(fill="x", padx=24, pady=10, ipady=8)
+        tk.Frame(f, bg="#11151c").pack(expand=True)
 
     def answer_invite(self, accepted: bool) -> None:
         gate.reset()
@@ -811,8 +823,13 @@ class App:
         Il ne montre aucun écran : il permet seulement de proposer son aide.
         """
         f = self.frame_pair
+        tk.Button(f, text="Retour", font=self.mid, relief="flat", bg="#1a2029",
+                  fg="#93a1b3", activebackground="#2b3440", cursor="hand2",
+                  command=self.show_idle).pack(side="bottom", fill="x",
+                                               padx=24, pady=14, ipady=8)
+        tk.Frame(f, bg="#11151c").pack(expand=True)
         tk.Label(f, text="Inviter un proche", font=self.big,
-                 bg="#11151c", fg="#e9eef5").pack(pady=(24, 6))
+                 bg="#11151c", fg="#e9eef5").pack(pady=(0, 6))
         tk.Label(f, text="Montrez-lui ce code une fois.\nIl pourra ensuite vous proposer son aide,\nque vous resterez libre d'accepter ou non.",
                  font=self.mid, bg="#11151c", fg="#93a1b3", justify="center").pack(pady=(0, 14))
         self.pair_qr = tk.Label(f, bg="#11151c")
@@ -820,9 +837,7 @@ class App:
         self.pair_url = tk.Label(f, text="", font=self.small, bg="#11151c",
                                  fg="#4da3ff", wraplength=int(370 * self.scale))
         self.pair_url.pack(pady=8)
-        tk.Button(f, text="Retour", font=self.mid, relief="flat", bg="#1a2029",
-                  fg="#93a1b3", activebackground="#2b3440",
-                  command=self.show_idle).pack(fill="x", padx=24, pady=14, ipady=6)
+        tk.Frame(f, bg="#11151c").pack(expand=True)
 
     def show_pair(self) -> None:
         if not self.pairing_url:
