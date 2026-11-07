@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794086337-ios-dictee-suite` | iPhone : suite de la dictée (annuler avant le départ, clavier bloqué pendant l'écoute, bouton Annuler, indice du glisser) | `apps/ios/Sources/Dictation.swift`, `apps/ios/Sources/ApprovalView.swift`, carte de question de `apps/ios/Sources/LiveViews.swift` | 7 nov. soir |
 
 ## Journal
 
