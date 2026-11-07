@@ -27,6 +27,8 @@ struct RootView: View {
             Group {
                 if !model.onboarded {
                     OnboardingView()
+                } else if let p = model.pairRequest {
+                    PairRequestView(request: p)
                 } else if let r = model.remoteRequest {
                     RemoteRequestView(request: r)
                 } else if !(model.screenOK && model.axOK) && !model.permissionsDismissed && model.screen == .home {
