@@ -65,6 +65,9 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Réglages").font(rounded(30, .semibold))
+            if !model.orgName.isEmpty {
+                Text("Poste géré par \(model.orgName)").font(rounded(15)).foregroundStyle(T.muted)
+            }
             field("Prénom", text: $name, prompt: "Votre prénom")
             VStack(alignment: .leading, spacing: 8) {
                 Text("Taille du texte").font(rounded(15, .semibold)).foregroundStyle(T.muted)

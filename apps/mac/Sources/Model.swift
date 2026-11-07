@@ -108,6 +108,17 @@ final class AppModel {
     }
     /// Serveur PapAI officiel : sans réglage, le Mac y crée son espace au premier lancement.
     static let officialHTTP = "https://papai-450417131702.europe-west1.run.app"
+    /// Jeton d'inscription d'une organisation (service IT) : préférence gérée
+    /// (`defaults write … orgToken ins-…` ou profil MDM), ou PAPAI_ORG.
+    var orgToken: String {
+        let t = (ProcessInfo.processInfo.environment["PAPAI_ORG"]
+                 ?? UserDefaults.standard.string(forKey: "orgToken") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.hasPrefix("ins-") && t.count <= 100 ? t : ""
+    }
+    var orgName: String { UserDefaults.standard.string(forKey: "orgName") ?? "" }
+    private var machineName: String {
+        [NSFullUserName(), Host.current().localizedName ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
     var needsSpace: Bool {
         let stored = UserDefaults.standard.string(forKey: "server")?.trimmingCharacters(in: .whitespaces) ?? ""
         return stored.isEmpty && (ProcessInfo.processInfo.environment["PAPAI_SERVER"] ?? "").isEmpty
@@ -324,6 +335,26 @@ final class AppModel {
         }
         guard let url = URL(string: serverURL) else { return }
         client.start(url: url)
+        let tok = orgToken
+        if !tok.isEmpty, UserDefaults.standard.string(forKey: "orgJoined") != tok, serverURL.contains("/k/") {
+            Task { [weak self] in await self?.joinOrg(tok) }
+        }
+    }
+
+    /// Poste déjà installé : le jeton déposé par l'IT le rattache à son organisation.
+    private func joinOrg(_ tok: String) async {
+        guard let url = URL(string: httpBase + "/org") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["org": tok, "name": machineName])
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 10
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        UserDefaults.standard.set(tok, forKey: "orgJoined")
+        UserDefaults.standard.set(d["org"] as? String ?? "", forKey: "orgName")
+        await refreshLessons()
     }
 
     /// Premier lancement : `POST /spaces` donne l'adresse du pont, clé comprise. Rien à régler.
@@ -331,12 +362,18 @@ final class AppModel {
         guard let url = URL(string: Self.officialHTTP + "/spaces") else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.httpBody = Data("{}".utf8)
+        let tok = orgToken
+        req.httpBody = tok.isEmpty ? Data("{}".utf8)
+            : try? JSONSerialization.data(withJSONObject: ["org": tok, "name": machineName])
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 10
         if let (data, _) = try? await URLSession.shared.data(for: req),
            let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let b = d["bridge_url"] as? String, b.hasPrefix("wss://") || b.hasPrefix("ws://"), b.contains("/k/") {
+            if let org = d["org"] as? String, !tok.isEmpty {
+                UserDefaults.standard.set(tok, forKey: "orgJoined")
+                UserDefaults.standard.set(org, forKey: "orgName")
+            }
             UserDefaults.standard.set(b, forKey: "server")
             reconnect()
             return

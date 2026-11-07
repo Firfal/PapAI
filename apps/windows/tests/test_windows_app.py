@@ -422,8 +422,40 @@ def pairing() -> None:
         m._create_space(wait=lambda _: None)
         check(settings.load().get("server") == "ws://mon-serveur:8000/ws/bridge",
               "un serveur choisi pendant la création n'est pas écrasé")
+
+        # Poste d'entreprise : jeton d'inscription déposé par le service IT.
+        os.environ["PAPAI_ORG"] = "ins-jeton-de-test"
+        check(settings.org_token() == "ins-jeton-de-test", "jeton d'organisation lu dans PAPAI_ORG")
+        settings.save({"server": "", "orgJoined": "", "orgName": ""})
+        m = Model()
+
+        def inscrit():
+            m._org_name = "Acme"
+            return "wss://srv/k/cle-poste-acme/ws/bridge"
+        m._provision = inscrit
+        m._create_space(wait=lambda _: None)
+        check(m.prefs.get("orgJoined") == "ins-jeton-de-test" and m.snapshot()["orgName"] == "Acme",
+              "premier lancement avec jeton : le poste est inscrit dans l'organisation")
+        check(not m._org_pending(), "jeton déjà utilisé : rien de plus à faire")
+        settings.save({"server": "wss://srv/k/cle-poste-seul/ws/bridge", "orgJoined": "", "orgName": ""})
+        m = Model()
+        check(m._org_pending(), "poste déjà installé + jeton déposé : il doit rejoindre l'organisation")
+        essais, attentes = iter([None, "Acme"]), []
+        m._join = lambda tok: next(essais)
+        m._join_org(wait=attentes.append)
+        check(settings.load().get("orgName") == "Acme" and attentes == [5],
+              "hors ligne : le poste rejoint l'organisation au retour du réseau")
+        settings.save({"orgJoined": "", "orgName": ""})
+        m = Model()
+        m._join = lambda tok: ""
+        m._join_org(wait=lambda _: (_ for _ in ()).throw(AssertionError("ne doit pas réessayer")))
+        check(not settings.load().get("orgName"), "jeton refusé par le serveur : pas de nouvel essai")
+        os.environ["PAPAI_ORG"] = "pas-un-jeton"
+        check(settings.org_token() == "", "jeton mal formé ignoré")
+        os.environ.pop("PAPAI_ORG", None)
     finally:
-        settings.save({"server": ""})
+        os.environ.pop("PAPAI_ORG", None)
+        settings.save({"server": "", "orgJoined": "", "orgName": ""})
         if saved is not None:
             os.environ["PAPAI_SERVER"] = saved
 
