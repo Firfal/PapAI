@@ -74,13 +74,6 @@ class PairingPolicyTest {
         }
     }
 
-    @Test fun workingLinkRequiresExplicitConfirmation() {
-        assertTrue(PairingPolicy.needsConfirmation(hasWorkingLink = true))
-        assertFalse(PairingPolicy.needsConfirmation(hasWorkingLink = true, confirmed = true))
-        assertFalse(PairingPolicy.needsConfirmation(hasWorkingLink = false))
-        assertTrue(PairingPolicy.needsConfirmation(hasWorkingLink = true, confirmed = false))
-    }
-
     @Test fun responseCannotChangeOrigin() {
         val link = PairLink("https://trusted.example:8443/k/family", "123456")
         for (server in listOf(null, "", "https://evil.example", "http://trusted.example:8443", "https://trusted.example:9999", "not a url")) {

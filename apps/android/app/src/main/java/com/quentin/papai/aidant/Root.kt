@@ -7,8 +7,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +40,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import java.util.Calendar
 
 @Composable
@@ -56,6 +65,7 @@ fun Root() {
     Box(Modifier.fillMaxSize().background(Soin.bg)) {
         Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
             Header(m.helperName ?: "Support") { m.sheet = AppSheet.Settings }
+            if (m.isConfigured) PeopleRow()
             if (m.isConfigured && !m.connected) {
                 LostBanner(Modifier.padding(horizontal = 20.dp).padding(bottom = 10.dp))
             }
@@ -257,6 +267,58 @@ fun RequestCard(onThumb: (() -> Unit)? = null) {
                 Image(img, "Agrandir la dernière capture", Modifier.size(38.dp, 26.dp).clip(RoundedCornerShape(6.dp)),
                     contentScale = ContentScale.Crop)
                 T("Écran de ${m.senior}", 13.sp, FontWeight.Medium)
+            }
+        }
+    }
+}
+
+/** Mes personnes aidées : qui suivre en détail, qui demande une assistance, ajouter ou retirer. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun PeopleRow() {
+    val m = Helper
+    var forget by remember { mutableStateOf<Person?>(null) }
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        m.people.forEach { p ->
+            val here = m.isCurrent(p)
+            val asking = !here && m.othersAsking[p.key] == true
+            val name = p.name.ifEmpty { "Personne aidée" }
+            Row(
+                Modifier.clip(CircleShape).background(if (here) Soin.ink else Soin.card)
+                    .then(if (asking) Modifier.border(2.dp, Soin.danger, CircleShape) else Modifier)
+                    .combinedClickable(onClick = { m.switchTo(p) }, onLongClick = { forget = p })
+                    .padding(start = 6.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(Modifier.size(32.dp).clip(CircleShape).background(Soin.accentSoft), contentAlignment = Alignment.Center) {
+                    T(name.take(1).uppercase(), 15.sp, FontWeight.Bold, Soin.accent)
+                }
+                T(name, 15.sp, FontWeight.SemiBold, if (here) Color.White else Soin.ink, maxLines = 1)
+                if (!here) {
+                    Box(Modifier.size(8.dp).clip(CircleShape)
+                        .background(if (m.othersOnline[p.key] == true) Soin.accent else Soin.secondary))
+                    if (asking) T("demande une assistance", 12.sp, color = Soin.danger, maxLines = 1)
+                }
+            }
+        }
+        T("+ Ajouter une personne", 15.sp, FontWeight.SemiBold, Soin.accent,
+            Modifier.clip(CircleShape).background(Soin.card).clickable { m.sheet = AppSheet.Settings }
+                .padding(horizontal = 16.dp, vertical = 12.dp), maxLines = 1)
+    }
+    forget?.let { p ->
+        val who = p.name.ifEmpty { "cette personne" }
+        Dialog(onDismissRequest = { forget = null }) {
+            Column(Modifier.fillMaxWidth().soinCard().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                T("Retirer $who ?", 24.sp, FontWeight.Bold)
+                T("Ses demandes n'arriveront plus sur ce téléphone. Vous pourrez la rajouter avec un nouveau code.", 17.sp)
+                CapsuleButton("Retirer", fill = Soin.danger) { m.forget(p); forget = null }
+                TextLink("Annuler") { forget = null }
             }
         }
     }

@@ -83,8 +83,6 @@ object PairingPolicy {
             (ip[0] == 172 && ip[1] in 16..31) || (ip[0] == 192 && ip[1] == 168)
     }
 
-    fun needsConfirmation(hasWorkingLink: Boolean, confirmed: Boolean = false): Boolean = hasWorkingLink && !confirmed
-
     fun responseOrigin(link: PairLink, responseServer: String?): String = origin(link.base)
 }
 
