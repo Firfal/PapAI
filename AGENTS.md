@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794082375-android-aidant` | Correctifs sécurité Android (#25, relecture sécurité PR #23) | `apps/android/` | 7 nov. |
 
 ## Journal
 
