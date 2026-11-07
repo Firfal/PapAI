@@ -473,9 +473,18 @@ def install_templates(files: list[tuple[str, bytes]], dest: Path | None = None) 
                     n += 1
                     backup = dest / f"{stem} (avant PapAI {n}){ext}"
                 shutil.copy2(target, backup)
+            else:
+                backup = None
             tmp = dest / f".{name}.papai-tmp"
-            tmp.write_bytes(data)
-            os.replace(tmp, target)
+            try:
+                tmp.write_bytes(data)
+                os.replace(tmp, target)
+            except OSError:
+                # Modèle ouvert dans Word, disque plein… : rien ne reste derrière.
+                tmp.unlink(missing_ok=True)
+                if backup is not None:
+                    backup.unlink(missing_ok=True)
+                raise
     except OSError as e:
         return False, str(e)
     n = len(files)

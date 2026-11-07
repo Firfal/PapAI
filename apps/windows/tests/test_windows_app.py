@@ -225,6 +225,16 @@ def unit() -> None:
         core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04v3")], Path(d))
         check((Path(d) / "Lettre Acme (avant PapAI 2).dotx").read_bytes().endswith(b"v2"),
               "deux remplacements de suite : chaque ancienne version est gardée")
+        real_replace = core.os.replace
+        core.os.replace = lambda *a: (_ for _ in ()).throw(PermissionError("ouvert dans Word"))
+        try:
+            check(core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04v4")], Path(d))[0] is False,
+                  "échec d'installation remonté")
+        finally:
+            core.os.replace = real_replace
+        check(sorted(p.name for p in Path(d).iterdir()) == sorted(
+                  ["Lettre Acme.dotx", "Lettre Acme (avant PapAI).dotx", "Lettre Acme (avant PapAI 2).dotx"]),
+              "échec d'installation : ni fichier temporaire ni sauvegarde en trop")
     if not core.WINDOWS:
         check(not core.antivirus_scan()[0], "scan antivirus : seulement sous Windows")
     g.raise_stop()
