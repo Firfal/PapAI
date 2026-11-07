@@ -68,6 +68,7 @@ final class AppModel {
     var remoteRequest: RemoteRequest?
     var showHelpers = false
     var pendingTask = ""
+    var pendingAutomation: Lesson?
     var actions: [String] = []
     var guardAlert: GuardAlert?
 
@@ -248,14 +249,6 @@ final class AppModel {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }
-        if ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil {
-            Task {
-                while true {
-                    try? await Task.sleep(nanoseconds: GuardSignals.period)
-                    if connected { client.send(GuardSignals.collect(withURL: !sessionOpen)) }
-                }
-            }
-        }
         // Mode capture d'écran : PAPAI_DEMO=awaiting_approval etc.
         if let demo = ProcessInfo.processInfo.environment["PAPAI_DEMO"] {
             permissionsDismissed = true
@@ -420,6 +413,13 @@ final class AppModel {
     func giveConsent() {
         UserDefaults.standard.set(true, forKey: "screenConsent")
         screenConsent = true
+        if let a = pendingAutomation {
+            pendingAutomation = nil
+            pendingTask = ""
+            screen = .home
+            runAutomation(a)
+            return
+        }
         askHelp(task: pendingTask)
     }
 
@@ -430,6 +430,7 @@ final class AppModel {
 
     func cancelConsent() {
         pendingTask = ""
+        pendingAutomation = nil
         screen = .home
     }
 
@@ -600,6 +601,7 @@ final class AppModel {
     // MARK: Automatismes
 
     func runShortcut(_ l: Lesson) {
+        if !(l.actions ?? []).isEmpty { runAutomation(l); return }
         guard let sc = l.shortcut else { openLesson(l); return }
         let r = Shortcuts.open(sc)
         if r.ok {
@@ -607,6 +609,43 @@ final class AppModel {
         } else {
             showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
             client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+        }
+    }
+
+    /// Un automatisme importé par un support, lancé en un clic. Pas de
+    /// validation à chaque fois : le support l'a validé à l'import.
+    func runAutomation(_ l: Lesson) {
+        let acts = l.actions ?? []
+        if let p = l.platforms, !p.contains("mac") {
+            showNotice("Cet automatisme est prévu pour un autre ordinateur.")
+            return
+        }
+        let holo = acts.first { $0.kind == "holo" }
+        if holo != nil && !screenConsent {
+            pendingAutomation = l
+            pendingTask = l.title
+            screen = .consent
+            return
+        }
+        gate.reset()
+        showNotice("C'est parti : \(l.title)…")
+        Task {
+            let r = await Automations.play(l, base: httpBase, gate: gate)
+            if gate.isStopped { showNotice("Arrêté. Rien d'autre ne sera fait."); return }
+            guard r.ok else {
+                showNotice("« \(l.title) » n'a pas pu aller au bout. \(HelperName) a reçu un message pour s'en occuper.")
+                client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+                return
+            }
+            guard let holo else { showNotice(r.detail.isEmpty ? "C'est fait." : r.detail); return }
+            homeTimer?.cancel()
+            task = holo.goal ?? l.title
+            plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
+            sessionHelper = nil
+            state = .planning
+            screen = .session
+            applyLevel()
+            client.send(["type": "run_automation", "id": l.id])
         }
     }
 

@@ -105,7 +105,7 @@
           <span class="circle" style="width:56px;height:56px;background:var(--mint);color:var(--accent)">${icon(folderIcon((l.shortcut || {}).folder), 24)}</span>
           <span class="col grow" style="gap:3px">
             <span style="${f(20, 6)}">${esc(l.title)}</span>
-            <span class="muted" style="${f(15, 4)}">Un clic, sans attendre</span>
+            <span class="muted" style="${f(15, 4)}">${l.publisher ? esc('Fourni par ' + l.publisher) : 'Un clic, sans attendre'}</span>
           </span>
           <span class="circle" style="width:42px;height:42px;background:var(--ink)">${icon('play', 15, '#fff')}</span>
         </button>

@@ -17,7 +17,7 @@ from typing import Callable
 from . import apps as start_apps
 from . import settings
 from .bridge import Bridge
-from .core import StopGate, open_shortcut
+from .core import StopGate, open_shortcut, play_actions
 
 OPEN_STATES = ("planning", "awaiting_approval", "active", "awaiting_helper")
 STATES = OPEN_STATES + ("done", "stopped")
@@ -73,6 +73,7 @@ class Model:
         self.pair_added: str | None = None
         self.remote_request: dict | None = None
         self.pending_task = ""
+        self.pending_automation: str | None = None
         self.apps: list[dict] = []
         self.dictation = {"phase": "idle", "message": None}
         self.onboarded = bool(self.prefs.get("onboarded"))
@@ -318,6 +319,12 @@ class Model:
 
     def give_consent(self) -> None:
         self.save_prefs(screenConsent=True)
+        if self.pending_automation:
+            lesson_id, self.pending_automation = self.pending_automation, None
+            self.pending_task = ""
+            self.screen = "home"
+            self.run_automation(lesson_id)
+            return
         self.ask_help(self.pending_task)
 
     def revoke_consent(self) -> None:
@@ -326,6 +333,7 @@ class Model:
 
     def cancel_consent(self) -> None:
         self.pending_task = ""
+        self.pending_automation = None
         self.screen = "home"
         self.push()
 
@@ -451,6 +459,9 @@ class Model:
         lesson = self._find_lesson(lesson_id)
         if lesson is None:
             return
+        if lesson.get("actions"):
+            self.run_automation(lesson_id)
+            return
         if not lesson.get("shortcut"):
             self.open_lesson(lesson_id)
             return
@@ -463,6 +474,61 @@ class Model:
                              "a reçu un message pour s'en occuper.")
             self._send({"type": "automation_failed", "title": lesson.get("title") or "",
                         "detail": detail})
+
+    def run_automation(self, lesson_id: str) -> None:
+        """Un automatisme importé par un support, lancé en un clic. Pas de
+        validation à chaque fois : le support l'a validé à l'import."""
+        lesson = self._find_lesson(lesson_id)
+        if lesson is None or not lesson.get("actions"):
+            return
+        if "windows" not in (lesson.get("platforms") or ["windows"]):
+            self.show_notice("Cet automatisme est prévu pour un autre ordinateur.")
+            return
+        holo = any(a.get("do") == "holo" for a in lesson["actions"])
+        if holo and not self.screen_consent:
+            self.pending_automation = lesson_id
+            self.pending_task = str(lesson.get("title") or "")
+            self.screen = "consent"
+            self.push()
+            return
+        self.gate.reset()
+        self.show_notice(f"C'est parti : {lesson.get('title') or 'automatisme'}…")
+        threading.Thread(target=self._play_automation, args=(lesson, holo), daemon=True).start()
+
+    def _fetch_lesson_file(self, lesson_id: str, name: str) -> bytes:
+        from urllib.parse import quote
+        url = f"{self.http_base}/lessons/{quote(lesson_id)}/{quote(name)}"
+        with urllib.request.urlopen(url, timeout=20) as r:  # noqa: S310
+            return r.read(3_000_000)
+
+    def _play_automation(self, lesson: dict, holo: bool) -> None:
+        gate = self.gate
+        ok, detail = play_actions(lesson, lambda n: self._fetch_lesson_file(lesson["id"], n), gate)
+        if gate.is_stopped:
+            self.show_notice("Arrêté. Rien d'autre ne sera fait.")
+            return
+        if not ok:
+            hn = self.helper_name
+            self.show_notice(f"« {lesson.get('title') or 'Cet automatisme'} » n'a pas pu aller au bout. "
+                             f"{hn[:1].upper() + hn[1:]} a reçu un message pour s'en occuper.")
+            self._send({"type": "automation_failed", "title": lesson.get("title") or "",
+                        "detail": detail})
+            return
+        if not holo:
+            self.show_notice(detail or "C'est fait.")
+            return
+        goal = next(a.get("goal") for a in lesson["actions"] if a.get("do") == "holo")
+        self._cancel(self._home_timer)
+        with self._lock:
+            self.task = str(goal or lesson.get("title") or "")
+            self.plan, self.plan_step, self.question = [], None, None
+            self.answer, self.current_action, self.actions = None, None, []
+            self.state = "planning"
+            self.screen = "session"
+        self._level()
+        if self.bridge is not None:
+            self.bridge.run_automation(lesson["id"])
+        self.push()
 
     def open_lesson(self, lesson_id: str) -> None:
         lesson = self._find_lesson(lesson_id)

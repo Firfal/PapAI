@@ -1,0 +1,20 @@
+{
+  "papai": 1,
+  "title": "Ajouter l'imprimante de l'accueil",
+  "publisher": "Service IT Acme",
+  "description": "Ouvre la page des imprimantes, puis le guide pas à pas.",
+  "platforms": [
+    "windows"
+  ],
+  "actions": [
+    {
+      "do": "open_settings",
+      "page": "printers"
+    }
+  ],
+  "steps": [
+    "Cliquez sur « Ajouter un appareil ».",
+    "Choisissez « Accueil-2e » dans la liste.",
+    "Attendez « Prêt » à côté de son nom."
+  ]
+}

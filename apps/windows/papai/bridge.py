@@ -19,12 +19,11 @@ import time
 import uuid
 from typing import Callable
 
-from .core import (ProtectedZone, guard_signals, StopGate, Stopped, UnknownKey,
+from .core import (ProtectedZone, StopGate, Stopped, UnknownKey,
                    describe_action, run_action)
 
 RECONNECT_S = 3
 MAX_SIZE = 16 * 1024 * 1024
-GUARD_S = 8  # gardien : toutes les 5 à 10 s (PROTOCOL.md)
 STOPPED_TEXT = "Arrêt demandé par la personne aidée."
 
 
@@ -33,8 +32,7 @@ class Bridge:
                  on_message: Callable[[dict], None], on_connection: Callable[[bool], None],
                  on_action: Callable[[str], None], protected: Callable[[], tuple | None] = lambda: None,
                  capture_mask: Callable[[], tuple | None] = lambda: None,
-                 runner: Callable = run_action,
-                 guard: Callable[[], dict | None] = guard_signals) -> None:
+                 runner: Callable = run_action) -> None:
         self.url = url
         self.gate = gate
         self._screen_factory = screen_factory
@@ -45,7 +43,6 @@ class Bridge:
         self.protected = protected
         self.capture_mask = capture_mask
         self.runner = runner
-        self.guard = guard
         self.connected = False
         self.last_status: dict = {}
         self._ws = None
@@ -91,17 +88,13 @@ class Bridge:
                     self._ws = ws
                     await ws.send(json.dumps({"type": "hello", "os": "windows"}))
                     self._set_connected(True)
-                    watch = asyncio.create_task(self._guard_loop(ws))
-                    try:
-                        async for raw in ws:
-                            try:
-                                m = json.loads(raw)
-                            except ValueError:
-                                continue
-                            if isinstance(m, dict):
-                                await self._handle(ws, m)
-                    finally:
-                        watch.cancel()
+                    async for raw in ws:
+                        try:
+                            m = json.loads(raw)
+                        except ValueError:
+                            continue
+                        if isinstance(m, dict):
+                            await self._handle(ws, m)
             except asyncio.CancelledError:
                 self._ws = None
                 self._set_connected(False)
@@ -111,20 +104,6 @@ class Bridge:
             self._ws = None
             self._set_connected(False)
             await asyncio.sleep(RECONNECT_S)
-
-    async def _guard_loop(self, ws) -> None:
-        while True:
-            await asyncio.sleep(GUARD_S)
-            await self._send_guard(ws)
-
-    async def _send_guard(self, ws) -> None:
-        """Gardien anti-arnaque : trois signaux textuels, jamais l'écran."""
-        try:
-            sig = await asyncio.to_thread(self.guard)
-            if sig:
-                await ws.send(json.dumps(sig))
-        except Exception:  # noqa: BLE001 — la veille ne casse jamais la session
-            pass
 
     def send(self, payload: dict) -> None:
         """Appelable depuis n'importe quel fil. Sans connexion, le message est perdu
@@ -150,6 +129,12 @@ class Bridge:
         if requested_by:
             msg["requested_by"] = requested_by
         self.send(msg)
+
+    def run_automation(self, lesson_id: str) -> None:
+        """Automatisme importé : plan déjà validé par le support à l'import."""
+        self.gate.reset()
+        self.last_status = {}
+        self.send({"type": "run_automation", "id": lesson_id})
 
     def stop(self) -> None:
         """Le verrou local passe d'abord, puis le serveur est prévenu."""

@@ -1,0 +1,19 @@
+{
+  "papai": 1,
+  "title": "Lancer un scan antivirus",
+  "publisher": "Service IT Acme",
+  "description": "Analyse rapide avec Microsoft Defender. Le support est prévenu si une menace est trouvée.",
+  "platforms": [
+    "windows"
+  ],
+  "actions": [
+    {
+      "do": "antivirus_scan"
+    }
+  ],
+  "steps": [
+    "PapAI lance l'analyse rapide de Microsoft Defender.",
+    "Vous pouvez continuer à travailler pendant l'analyse.",
+    "Si une menace est trouvée, le service IT reçoit un message."
+  ]
+}

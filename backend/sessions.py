@@ -257,6 +257,19 @@ class Session:
         self._plan_decision = asyncio.get_running_loop().create_future()
         return self._plan_decision
 
+    def preapprove_plan(self, steps: list[str], by: str) -> None:
+        """Automatisme importé : le support a validé le plan à l'import.
+        La personne le lance seule ; Arrêter et les garde-fous restent les mêmes."""
+        self.require_open()
+        if not self.consented:
+            raise Refused("Partage d'écran non accordé.")
+        self.plan = steps
+        self.plan_approved = True
+        self.plan_step = 1 if steps else None
+        self.state = State.ACTIVE
+        self.owner = Owner.AGENT
+        self.log("plan_preapproved", by=by, steps=steps)
+
     def decide_plan(self, decision: str, note: str = "") -> None:
         """approve, refine (avec une précision) ou refuse. Revalidé côté serveur."""
         self.require_open()

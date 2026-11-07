@@ -2,8 +2,10 @@
 
 # PapAI
 
-Un agent qui aide votre grand-parent sur son ordinateur, **uniquement avec votre accord**.
-Ce que vous avez validé une fois, il peut ensuite le refaire seul en un clic.
+Le support informatique de premier niveau, automatisé. Un service IT, ou un proche,
+fournit et valide des automatismes ; chacun les lance seul, en un clic, sur son ordinateur.
+Exemple de cas d'usage : un grand-parent aidé par ses enfants. Autre exemple : les employés
+d'une entreprise (scan antivirus, imprimante, modèles Word, moteur de recherche).
 
 Hackathon H Company × 42 AI, 7-8 novembre 2026. Agent : **Holo** (H Company).
 
@@ -14,6 +16,7 @@ Hackathon H Company × 42 AI, 7-8 novembre 2026. Agent : **Holo** (H Company).
 3. **Valider** : l'aidant reçoit une notification sur son iPhone, puis valide, précise ou refuse. Rien ne bouge avant.
 4. **Exécuter** : Holo agit, la personne regarde, et peut tout arrêter à tout moment.
 5. **Garder** : la tâche devient un automatisme, une tuile que la personne relance seule.
+6. **Importer** : le support fournit un automatisme (fichier `.papai`, [exemples](automations/)) et le valide en l'important. Seulement des actions de premier niveau, jamais de commande ni de script. Format : [`PROTOCOL.md`](PROTOCOL.md#automatismes-importés-par-un-support-fichier-papai).
 
 > Ce qui reste à faire, par priorité : [`TODO.md`](TODO.md). Agents de l’équipe : lisez-le avant de coder.
 
@@ -40,7 +43,8 @@ Mac de la personne aidée         Serveur PapAI (Cloud Run)          H Company
 - **En ligne sur Cloud Run** (europe-west1). Toutes les routes passent par `/k/<clé famille>/…`. Sans la clé, rien ne répond. La clé n'est pas dans le dépôt.
 - **Garde-fous** :
   - le bouton Arrêter est un verrou local sur le Mac, valable même hors ligne ;
-  - aucune action sans plan validé ;
+  - aucune action sans plan validé, par l'aidant ou par le support à l'import ;
+  - pas de surveillance continue de l'ordinateur ;
   - la fenêtre PapAI est exclue des captures et des clics ;
   - toute demande de l'aidant est revalidée côté serveur.
 - **Windows** : `apps/windows`, mêmes écrans et même design que l'app Mac (Python + pywebview/WebView2, `install.bat` puis `run.bat`). Pas encore essayée sur un vrai Windows. L'ancien prototype reste dans la branche `archive/windows-7-nov`.
@@ -54,6 +58,7 @@ apps/mac/       app SwiftUI de la personne aidée (capture, clics, Arrêter, aut
 apps/ios/       app SwiftUI de l'aidant (validation, capture en direct, prise de main)
 brand/          logo et icônes (SVG)
 PROTOCOL.md     messages échangés entre le serveur et les apps
+automations/    exemples d'automatismes importables (.papai)
 ```
 
 ## Lancer
