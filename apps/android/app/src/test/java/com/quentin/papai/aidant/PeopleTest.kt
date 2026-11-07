@@ -39,7 +39,7 @@ class PeopleTest {
     @Test
     fun pasPlusDeCinquante() {
         var list = emptyList<Person>()
-        repeat(60) { list = People.upsert(list, Person("https://s/k/$it", "k$it")) }
+        repeat(People.MAX + 10) { list = People.upsert(list, Person("https://s/k/$it", "k$it")) }
         assertEquals(People.MAX, list.size)
     }
 
@@ -47,5 +47,19 @@ class PeopleTest {
     fun demandeEnAttente() {
         listOf("waiting_consent", "planning", "awaiting_approval", "awaiting_helper").forEach { assertTrue(People.isAsking(it)) }
         listOf("active", "done", "stopped", null).forEach { assertFalse(People.isAsking(it)) }
+    }
+
+    @Test fun orgLinks() {
+        val host = "papai.example"
+        val t = "sup-abcdefghijklmnop"
+        assertEquals(Org("https://$host", t), Orgs.parse(t, host))
+        assertEquals(Org("https://srv.fr", t), Orgs.parse("https://srv.fr/o/$t", host))
+        assertEquals(Org("http://10.0.2.2:8000", t), Orgs.parse("http://10.0.2.2:8000/o/$t/", host))
+        assertEquals(Org("https://srv.fr", t), Orgs.parse("papai://org?u=https%3A%2F%2Fsrv.fr%2F&t=$t", host))
+        assertEquals(null, Orgs.parse("ins-abcdefghijklmnop", host))
+        assertEquals(null, Orgs.parse("https://srv.fr/a/$t", host))
+        assertEquals(null, Orgs.parse("papai://org?u=javascript:x&t=$t", host))
+        val list = listOf(Org("https://a", t, "Acme"), Org("https://b", t), Org("https://c", "bad"))
+        assertEquals(listOf(Org("https://a", t, "Acme")), Orgs.decode(Orgs.encode(list)))
     }
 }

@@ -159,6 +159,61 @@ final class HelperModel {
         serverURL = UserDefaults.standard.string(forKey: "serverURL") ?? ""
         helperKey = UserDefaults.standard.string(forKey: "helperKey") ?? ""
         rememberCurrent()
+        Task { await refreshOrgs() }
+    }
+
+    // MARK: Organisations (service IT) : chaque poste inscrit devient une personne aidée, sans code.
+
+    var orgs: [Org] = Orgs.load()
+    var orgError: String?
+    var orgBusy = false
+
+    func addOrg(_ input: String) async -> Bool {
+        guard let o = Orgs.parse(input, officialHost: PairServer.officialHost) else {
+            orgError = "Lien d’organisation non reconnu."; return false
+        }
+        guard PairServer.allowed(o.server) else { orgError = PairServer.refusal; return false }
+        orgError = nil; orgBusy = true
+        defer { orgBusy = false }
+        return await fetchOrg(o, manual: true)
+    }
+
+    func refreshOrgs() async {
+        for o in orgs { await fetchOrg(o, manual: false) }
+    }
+
+    @discardableResult
+    private func fetchOrg(_ o: Org, manual: Bool) async -> Bool {
+        guard let url = URL(string: "\(o.server)/o/\(o.token)/spaces") else { return false }
+        do {
+            let (d, resp) = try await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 20))
+            let r = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
+            guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
+                if manual { orgError = r["error"] as? String ?? "Lien d’organisation invalide." }
+                return false
+            }
+            let name = r["org"] as? String ?? ""
+            var kept = o
+            if !name.isEmpty { kept.name = name }
+            orgs = orgs.filter { $0.token != o.token } + [kept]
+            Orgs.save(orgs)
+            let spaces = r["spaces"] as? [[String: Any]] ?? []
+            for s in spaces {
+                guard let k = s["key"] as? String, !k.isEmpty else { continue }
+                people = People.upsert(people, Person(server: "\(o.server)/k/\(k)", key: k, name: s["name"] as? String ?? ""))
+            }
+            People.save(people)
+            if !isConfigured, let first = people.first { switchTo(first) }
+            watchOthers()
+            if manual {
+                let n = spaces.count
+                showToast("\(n) poste\(n > 1 ? "s" : "") ajouté\(n > 1 ? "s" : "")" + (name.isEmpty ? "." : " (\(name))."))
+            }
+            return true
+        } catch {
+            if manual { orgError = "Le serveur ne répond pas." }
+            return false
+        }
     }
 
     var isConfigured: Bool { !serverURL.trimmingCharacters(in: .whitespaces).isEmpty && !helperKey.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -504,6 +559,7 @@ final class HelperModel {
 
     func open(url: URL) {
         if url.host == "open" { return }   // touché depuis la carte de l'écran verrouillé
+        if url.host == "org" { Task { _ = await addOrg(url.absoluteString) }; return }
         guard let link = PairLink.parse(url.absoluteString) else { showToast(PairServer.refusal); return }
         openPair(link)
     }
