@@ -24,6 +24,7 @@ WS = BASE.replace("https://", "wss://").replace("http://", "ws://")
 W, H = 1280, 800
 
 ok = fails = 0
+FUITES: list = []  # actions reçues par le Mac avec l'argument interne plan_step
 
 
 def check(label: str, cond: bool, detail: object = "") -> None:
@@ -85,6 +86,8 @@ async def mac(ws, actions: list, arret: asyncio.Event) -> None:
             elif m.get("type") == "execute":
                 a = m["action"]
                 actions.append(a["name"])
+                if "plan_step" in (a.get("args") or {}):
+                    FUITES.append(a)
                 await ws.send(json.dumps({
                     "type": "result", "req": m["req"],
                     "result": f"{a['name']} simulé", "refused": arret.is_set(),
@@ -146,6 +149,8 @@ async def main() -> None:
                     break
             check("une précision relance un nouveau plan", encore is not None)
             check("toujours aucune action après précision", actions == [], actions)
+            check("pas d'étape en cours avant validation",
+                  encore is not None and encore.get("plan_step") is None, encore and encore.get("plan_step"))
 
             # --- l'aidant valide : l'exécution commence
             await aidant.send(json.dumps({"type": "approve_plan"}))
@@ -153,6 +158,22 @@ async def main() -> None:
             check("l'exécution démarre après validation", actions != [], "aucune action")
             if actions:
                 print(f"          actions : {actions}")
+
+            # --- l'étape du plan en cours (status.plan_step, champ optionnel)
+            etapes = []
+            while True:
+                try:
+                    m = json.loads(await asyncio.wait_for(aidant.recv(), 0.5))
+                except asyncio.TimeoutError:
+                    break
+                if m.get("type") == "status" and m.get("state") == "active":
+                    etapes.append(m.get("plan_step"))
+            nb = len((encore or {}).get("plan") or [])
+            check("l'étape du plan en cours est indiquée",
+                  bool(etapes) and all(isinstance(e, int) and 1 <= e <= nb for e in etapes)
+                  and etapes == sorted(etapes), etapes)
+            print(f"          étapes : {etapes}")
+            check("plan_step ne descend pas jusqu'au Mac", FUITES == [], FUITES)
 
             # --- l'arrêt de la personne aidée coupe tout
             avant = len(actions)
