@@ -1,8 +1,8 @@
 import CoreImage
 import SwiftUI
 
-/// Premier lancement : bienvenue, prénom, autorisations, puis ajout d'un
-/// proche. La taille du texte se règle dans les réglages, pas ici. Une seule fois ; tout se modifie ensuite dans
+/// Premier lancement : bienvenue, prénom, autorisations.
+/// La taille du texte se règle dans les réglages, pas ici. Une seule fois ; tout se modifie ensuite dans
 /// les réglages.
 struct OnboardingView: View {
     @Environment(AppModel.self) private var model
@@ -13,7 +13,7 @@ struct OnboardingView: View {
     @State private var name = ""
     @FocusState private var nameFocused: Bool
 
-    private let count = 4
+    private let count = 3
 
     var body: some View {
         VStack(spacing: 18) {
@@ -23,8 +23,7 @@ struct OnboardingView: View {
                     switch step {
                     case 0: welcome
                     case 1: firstName
-                    case 2: permissions
-                    default: HelpersPanel(onboarding: true)
+                    default: permissions
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -47,16 +46,10 @@ struct OnboardingView: View {
         .onAppear {
             let n = UserDefaults.standard.string(forKey: "firstName") ?? ""
             name = n
-            // Captures d'écran : PAPAI_DEMO=onboarding4 ouvre directement l'étape 5.
+            // Captures d'écran : PAPAI_DEMO=onboarding2 ouvre directement l'étape 3.
             if let d = ProcessInfo.processInfo.environment["PAPAI_DEMO"], d.hasPrefix("onboarding"),
                let k = Int(d.dropFirst("onboarding".count)) {
                 step = min(k, count - 1)
-                if step == count - 1 {
-                    model.helpers = [Helper(id: "1", name: "Claire", relation: "sa fille")]
-                    model.pairCode = "482913"
-                    model.pairURL = "http://192.168.1.20:8000/p/482913"
-                    model.pairAppURL = AppModel.appPairingURL(model.pairURL!)
-                }
             }
         }
     }
@@ -64,8 +57,7 @@ struct OnboardingView: View {
     private var nextLabel: String {
         switch step {
         case 0: "Commencer"
-        case 2: model.screenOK && model.axOK ? "Continuer" : "Plus tard"
-        case count - 1: model.helpers.isEmpty ? "Plus tard" : "Terminer"
+        case count - 1: model.screenOK && model.axOK ? "Terminer" : "Plus tard"
         default: "Continuer"
         }
     }
@@ -185,16 +177,15 @@ struct OnboardingView: View {
 }
 
 /// Les proches : la liste, et l'ajout par QR code ou code à 6 chiffres.
-/// Sert à l'accueil et dans les réglages.
+/// Accessible dans les réglages.
 struct HelpersPanel: View {
     @Environment(AppModel.self) private var model
-    var onboarding = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 28) {
             VStack(alignment: .leading, spacing: 20) {
-                Text(onboarding ? "Qui va vous aider ?" : "Mes proches")
-                    .font(rounded(onboarding ? 44 : 34, .semibold)).tracking(-0.6)
+                Text("Mes proches")
+                    .font(rounded(34, .semibold)).tracking(-0.6)
                 Text("Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.")
                     .font(rounded(20)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 if let added = model.pairAdded {
@@ -214,13 +205,11 @@ struct HelpersPanel: View {
                             }
                         }
                         Spacer(minLength: 0)
-                        if !onboarding {
-                            Button { model.removeHelper(h) } label: {
-                                Image(systemName: "xmark").font(.system(size: 14, weight: .semibold))
-                                    .frame(width: 36, height: 36).background(Circle().fill(T.bg))
-                            }
-                            .buttonStyle(.plain).accessibilityLabel("Retirer \(h.name)")
+                        Button { model.removeHelper(h) } label: {
+                            Image(systemName: "xmark").font(.system(size: 14, weight: .semibold))
+                                .frame(width: 36, height: 36).background(Circle().fill(T.bg))
                         }
+                        .buttonStyle(.plain).accessibilityLabel("Retirer \(h.name)")
                     }
                     .padding(14)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))

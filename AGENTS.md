@@ -16,12 +16,13 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794094621-sans-qui-va-aider` | Retrait de la dernière étape du premier lancement | `apps/mac/Sources/OnboardingView.swift` ; `Model.swift` si nécessaire | 8 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 8 nov. | Devin | `devin/1794094621-sans-qui-va-aider` | Premier lancement Mac ramené à trois étapes ; autorisations puis Terminer (ou Plus tard). Ajout des proches conservé dans Réglages → Mes proches. Compilation CLI réussie, parcours 27/27 et gardien 14/14 ; captures 900×640, texte 1.18 et accès aux proches vérifiés. Projet Xcode existant incomplet (sources absentes), non modifié. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794089468-agent-navigateur` | Correctifs PR #38 : annulation du démarrage Chrome expiré, ignore des réponses tardives, capture aidant conservée pour le plan puis réinitialisée à l'entrée en web actif, textes webLive adaptés, arrêt Mac sans commande hors ligne et verrou local avant notification Stop ; sélection du Chrome principal avec `pgrep -o` et annulation H idempotente après arrêts répétés. `hai-agents` épinglé à 1.4.3. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794089468-agent-navigateur` | Correctifs PR #38, points 1–15 : validation avant démarrage Chrome, arrêt sur perte du navigateur/serveur, isolation des captures web et annulation protégée de création H ; présentation web cohérente dans les apps aidant, fermeture de Chrome, UUID strict, garde anti-pont local, dépendances et exemple de plan mis à jour. Réservation libérée. |
 | 7 nov. soir | Devin | `devin/1794089468-agent-navigateur` | Agent navigateur local de H (Agents API) pour les tâches web : `backend/web_agent.py` (SDK `hai_agents`, `HAI_AUTO_BRIDGE=0`, environnement `papai-chrome` user_device, consignes `WEB_AGENT_INSTRUCTIONS`), `where` web/desktop dans le plan, mode web seulement si le Mac annonce `web_agent` ; session H après validation, `ask_helper` sur `awaiting_helper`, pause/reprise, annulation sur arrêt/refus/alerte/déconnexion ; prise en main du bureau refusée en mode web. Mac : `WebAgent.swift` (Chrome PapAI, profil dédié, `holo local browser`, arrêt local `holo local stop`), script `install-agent-navigateur.sh`. Tests : faux Agents API 19 cas (3 passes), gardien 14, protocole 14, parcours 27, sécurité 35, demandes suspectes 22, profil 6, aidant OK, Windows 58 avec serveur. Build Mac zéro erreur. Pas d'essai réel : aucune clé H sur la VM (`holo doctor`). Fichiers libérés. |
