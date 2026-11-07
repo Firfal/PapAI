@@ -4,6 +4,7 @@ struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var request = ""
     @State private var warning: String?
+    @State private var largeurCarte: CGFloat = 600
     @FocusState private var focused: Bool
     @State private var dictation = Dictation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -32,25 +33,49 @@ struct HomeView: View {
         }
     }
 
+    /// La mascotte rapetisse puis s'efface si la fenêtre est petite ou le texte très grand :
+    /// le micro et « Écrire plutôt » doivent toujours rester visibles.
     private var helpCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        ViewThatFits(in: .vertical) {
+            if bullePossible(128 * CGFloat(model.textScale)) { helpContent(mascotte: 128 * CGFloat(model.textScale)) }
+            if bullePossible(72) { helpContent(mascotte: 72) }
+            helpContent(mascotte: nil)
+        }
+        .foregroundStyle(T.ink)
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
+        .background(GeometryReader { g in
+            Color.clear
+                .onAppear { largeurCarte = g.size.width }
+                .onChange(of: g.size.width) { _, w in largeurCarte = w }
+        })
+    }
+
+    /// La bulle doit garder au moins 240 pt de texte à côté de la mascotte.
+    private func bullePossible(_ taille: CGFloat) -> Bool {
+        largeurCarte - 64 - taille - (taille > 100 ? 26 : 18) - 44 >= 240
+    }
+
+    private func helpContent(mascotte taille: CGFloat?) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+          VStack(alignment: .leading, spacing: 16) {
             TimelineView(.everyMinute) { ctx in
                 let hello = Greeting.word(at: ctx.date)
                 Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName) !")
                     .font(rounded(44, .bold)).tracking(-0.8)
             }
-            HStack(alignment: .center, spacing: 26) {
-                Mascotte(humeur: humeur).frame(width: 128 * CGFloat(model.textScale), height: 128 * CGFloat(model.textScale))
-                Bulle {
-                    Text(raccourcis.microPresent
-                         ? "Un souci sur l'ordinateur ? Dites-le-moi simplement, je préviens \(model.helperName) tout de suite."
-                         : "Un souci sur l'ordinateur ? Écrivez-le-moi, je préviens \(model.helperName) tout de suite.")
-                        .font(rounded(19, .medium))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+            if let taille {
+                HStack(alignment: .center, spacing: taille > 100 ? 26 : 18) {
+                    Mascotte(humeur: humeur).frame(width: taille, height: taille)
+                    Bulle { invitation }
                 }
+            } else {
+                invitation
             }
-            Spacer(minLength: 0)
+          }
+          Spacer(minLength: 16)
+          VStack(alignment: .leading, spacing: 16) {
             if raccourcis.microPresent {
                 VStack(spacing: 12) {
                     micButton
@@ -92,12 +117,18 @@ struct HomeView: View {
                     .padding(.horizontal, 18).padding(.vertical, 12)
                     .background(Capsule().fill(T.card))
             }
-            Spacer(minLength: 0)
+          }
+          Spacer(minLength: 0)
         }
-        .foregroundStyle(T.ink)
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
+    }
+
+    private var invitation: some View {
+        Text(raccourcis.microPresent
+             ? "Un souci sur l'ordinateur ? Dites-le-moi simplement, je préviens \(model.helperName) tout de suite."
+             : "Un souci sur l'ordinateur ? Écrivez-le-moi, je préviens \(model.helperName) tout de suite.")
+            .font(rounded(19, .medium))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var micButton: some View {
