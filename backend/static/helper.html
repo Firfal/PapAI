@@ -611,6 +611,10 @@ function onMessage(ev) {
       if (prev === null || ['done', 'stopped'].includes(prev)) {
         refusedByMe = false; savedTitle = null; hasDraft = false; lessonBusy = false;
         $('qtext').textContent = '';
+        $('doneAnswer').textContent = 'Holo a terminé.';
+        frameId = null; frameAt = 0; frameSrc = '';
+        $('frame').removeAttribute('src'); $('frame').style.display = 'none';
+        $('empty').style.display = '';
       }
     }
     if (state !== 'stopped' && state !== 'awaiting_approval') planBusy = false;
