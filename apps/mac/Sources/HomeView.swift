@@ -39,7 +39,9 @@ struct HomeView: View {
                 Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName)")
                     .font(rounded(44, .semibold)).tracking(-0.8)
             }
-            Text("Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à \(model.helperName).")
+            Text(raccourcis.microPresent
+                 ? "Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à \(model.helperName)."
+                 : "Un souci sur l'ordinateur ? Écrivez ce dont vous avez besoin, un message part tout de suite à \(model.helperName).")
                 .font(rounded(18)).foregroundStyle(T.muted)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -59,16 +61,23 @@ struct HomeView: View {
                     TextField("Écrivez votre demande", text: $request)
                         .textFieldStyle(.plain).font(rounded(18)).focused($focused)
                         .onSubmit(submit)
-                    Button("Envoyer", action: submit).font(rounded(15, .semibold))
-                        .buttonStyle(.plain)
-                        .disabled(dictation.phase != .idle)
+                    Button(action: submit) {
+                        Text("Envoyer").font(rounded(15, .semibold)).foregroundStyle(.white)
+                            .padding(.horizontal, 18).frame(minHeight: 44)
+                            .background(Capsule().fill(T.ink))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(PressStyle())
+                    .disabled(dictation.phase != .idle)
                 }
                 .padding(18).background(RoundedRectangle(cornerRadius: 22).fill(T.card))
             } else if dictation.phase == .idle {
                 Button { writing = true; focused = true } label: {
                     Text("Écrire").font(rounded(15, .semibold))
                         .padding(.horizontal, 22).padding(.vertical, 10)
+                        .frame(minHeight: 44)
                         .background(Capsule().fill(T.card))
+                        .contentShape(Capsule())
                 }.buttonStyle(PressStyle()).frame(maxWidth: .infinity)
             }
             if let warning {
@@ -186,7 +195,9 @@ struct HomeView: View {
                     Text("Montrez-moi").font(rounded(15, .semibold)).foregroundStyle(T.accent)
                         .lineLimit(1).fixedSize(horizontal: true, vertical: false)
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 5).background(Capsule().fill(T.mint))
+                        .padding(.vertical, 5).frame(minHeight: 44)
+                        .background(Capsule().fill(T.mint))
+                        .contentShape(Capsule())
                 }
                 .buttonStyle(PressStyle())
             }
