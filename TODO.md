@@ -24,7 +24,7 @@ Mis à jour le 7 novembre à 16 h 30. Cochez au fur et à mesure et poussez.
 - [ ] **Bouton Arrêter** cliqué pendant une session active : vérifier qu'aucune action ne passe ensuite.
 - [ ] **Automatisme** : « Garder comme automatisme » sur l'iPhone, puis rejeu depuis la tuile du Mac.
 - [x] Fiche : des étapes renvoyées en simples chaînes ne font plus planter « Garder comme automatisme ». En cas d'échec, l'aidant reçoit `refused` et l'app iPhone libère le bouton. Faux Holo pour tester sans clé : `tests/faux_holo.py`.
-- [ ] Page web aidant (`helper.html`, réservée) : sur `refused`, réactiver le bouton « Garder comme automatisme » resté sur « Rédaction en cours… ».
+- [x] Page web aidant (`helper.html`) : sur `refused`, réactiver le bouton « Garder comme automatisme » resté sur « Rédaction en cours… ».
 - [ ] **Moment fort de la démo** : déplacer le dossier, rejouer, et vérifier que l'app s'arrête et que l'aidant reçoit l'alerte (`automation_failed`).
 - [ ] **App iPhone sur l'appareil** : gestes réels (valider, préciser, refuser, prendre la main avec la loupe), notifications acceptées.
 - [ ] Décider quel iPhone et quel Mac servent sur scène, et sur quel réseau. Garder l'app iPhone au premier plan : en arrière-plan, la connexion se coupe.
@@ -41,7 +41,7 @@ Mis à jour le 7 novembre à 16 h 30. Cochez au fur et à mesure et poussez.
 - [x] 7. Fin : « C'est fait ! », partage coupé, retour automatique à l'accueil.
 - [x] 8. « Mes tutoriels » rafraîchi dès que le proche valide une fiche (`lessons_changed`).
 - [x] « Quentin » n'est plus écrit en dur : l'app affiche le prénom du ou des proches ajoutés.
-- [ ] Page web aidant : valider, préciser ou refuser le plan (l'app iPhone le fait déjà).
+- [x] Page web aidant : valider, préciser ou refuser le plan (l'app iPhone le fait déjà).
 - [ ] Afficher quelle étape du plan est en cours (demande un champ côté serveur).
 - [x] Fusionner `parcours-onboarding` dans `main`.
 
@@ -51,7 +51,7 @@ Mis à jour le 7 novembre à 16 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Texte de soumission BuilderBase et Luma. Il faut se connecter soi-même.
 - [ ] Captures propres des deux apps pour les slides (fenêtre PapAI, iPhone en validation).
 - [ ] Logotype « papai » (papaye sur le i) dans les en-têtes des apps Mac et iPhone. Les sources sont dans `brand/` et le Figma.
-- [ ] Page web de secours de l'aidant (`backend/static/helper.html`) en design « Soin ». Elle est encore dans l'ancien thème sombre.
+- [x] Page web de secours de l'aidant (`backend/static/helper.html`) en design « Soin ».
 
 ## P2 — bonus, seulement si tout le P0 passe
 
