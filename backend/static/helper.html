@@ -403,7 +403,7 @@ let ws = null, reconnectIn = 1000, connected = false;
 let frameId = null, frameAt = 0, frameSrc = '', state = null, task = '';
 let armed = false, target = null, sending = false;
 let planBusy = false, refusedByMe = false, home = false, requestAt = 0;
-let sawStatus = false;
+let sawStatus = false, sessionId = null;
 let lessonBusy = false, savedTitle = null, hasDraft = false;
 
 /* ------------------------------------------------------------- l'aidant */
@@ -613,7 +613,8 @@ function onMessage(ev) {
     sawStatus = true;
     const prev = state;
     state = m.state;
-    if (m.task !== undefined && m.task !== task) { task = m.task || ''; requestAt = Date.now(); }
+    if (m.task !== undefined) task = m.task || '';
+    if (m.session !== sessionId) { sessionId = m.session; requestAt = Date.now(); }
     if (!requestAt) requestAt = Date.now();
     if (['waiting_consent', 'planning'].includes(state) && prev !== state) {
       home = false;
