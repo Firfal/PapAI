@@ -510,11 +510,17 @@ final class AppModel {
             pairExpires = m["expires_in"] as? Int ?? 600
         case "alert":
             // Le gardien a reconnu une situation : le proche est prévenu en même temps.
+            gate.raise()
+            InputLock.shared.set(false)
             guardAlert = GuardAlert(level: m["level"] as? String ?? "attention",
                                     title: m["title"] as? String ?? "",
-                                    detail: m["detail"] as? String ?? "")
+                                    detail: m["detail"] as? String ?? "",
+                                    id: m["alert_id"] as? String,
+                                    blocked: m["blocked"] as? Bool ?? false)
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
+        case "alert_cleared":
+            if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
         case "remote_request":
             guard !sessionOpen else { return }
             remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre proche",
@@ -575,7 +581,7 @@ final class AppModel {
         func reply(_ text: String, refused: Bool) {
             client.send(["type": "result", "req": req, "result": text, "refused": refused])
         }
-        if gate.isStopped { reply("Arrêt demandé par la personne aidée.", refused: true); return }
+        if gate.isStopped || guardAlert != nil { reply("Assistance arrêtée ou alerte du gardien en attente.", refused: true); return }
         let said = describeAction(name, args)
         currentAction = said
         if actions.last != said { actions.append(said) }

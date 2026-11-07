@@ -173,9 +173,8 @@ validation normale. Tant qu'une alerte reste ouverte, les nouvelles demandes
 sont arrêtées aussi. L'alerte est renvoyée aux aidants et au pont à la reconnexion
 (mémoire serveur uniquement, pas de persistance après redémarrage).
 
-Pour les situations visuelles (fausse alerte virus, page de paiement), le
-serveur demande **une** capture et fait décrire l'écran par Holo : le proche lit
-ce qui s'y trouve vraiment, pas un soupçon technique.
+Les alertes de veille partent immédiatement à partir des signaux textuels,
+sans attendre de capture ni de confirmation visuelle de Holo.
 
 Ce qui est reconnu aujourd'hui : un outil de prise en main qui tourne
 (AnyDesk, TeamViewer, UltraViewer…), une fausse alerte « votre ordinateur est

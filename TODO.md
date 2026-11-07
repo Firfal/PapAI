@@ -58,7 +58,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 ## P2 — bonus, seulement si tout le P0 passe
 
-- [ ] Gardien anti-arnaque : brancher la détection sur l'écran de l'aîné et l'alerte iPhone. Dans `main` : la logique (`backend/guard.py`, 14 contrôles), le message `guard` côté serveur (alerte envoyée à l'aidant et à l'écran de l'aîné, une fois par motif en 5 min) et l'envoi des signaux par l'app Mac (`apps/mac/Sources/Guard.swift`). Reste : le voir sonner sur le vrai Mac et l'iPhone.
+- [x] Gardien anti-arnaque : demandes et plans contrôlés avant exécution (règles + avis Holo si doute), alerte bloquante sur le Mac et texte pour le proche sur iPhone/web, notification locale et Live Activity. Vérifié sur Mac réel, iPhone simulé et web avec le virement de 10 000 euros en Afrique ; photos de Noël sans alerte. Entrée/Échap ne ferment pas l'alerte ; rejet par l'aidant sans reprise automatique. Tests et builds Mac/iPhone au vert. Branche `devin/1794084400-demandes-suspectes`, pas encore fusionnée. Reste : essai sur iPhone physique et reconnexion native, parcours normal complet sur le vrai Mac avec autorisation de capture (parcours simulé Python au vert). Android attend la fusion de #23.
 - [x] Voix : dicter la demande (micro de l'app Mac, Gladia puis secours Apple sur l'appareil). `GLADIA_API_KEY` est sur Cloud Run, transcription testée en ligne.
   - [ ] Essayer la dictée sur le vrai Mac (autorisation du micro).
   - [ ] Entendre ce que fait Holo (synthèse vocale) : rien n'est codé.

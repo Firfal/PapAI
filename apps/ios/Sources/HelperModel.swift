@@ -119,6 +119,8 @@ final class HelperModel {
 
     var toast: String?
     var lastAlert: (title: String, detail: String)?
+    var guardAlertId: String?
+    var guardTask = ""
 
     private var socket: URLSessionWebSocketTask?
     private var runTask: Task<Void, Never>?
@@ -499,9 +501,20 @@ final class HelperModel {
 
         case "alert":
             let t = m["title"] as? String ?? "Alerte", d = m["detail"] as? String ?? ""
+            let fresh = guardAlertId != m["alert_id"] as? String || lastAlert?.detail != d
             lastAlert = (t, d)
-            notifyLocal(title: t, body: d)
-            showToast(t)
+            guardAlertId = m["alert_id"] as? String
+            guardTask = m["task"] as? String ?? ""
+            if fresh { notifyLocal(title: t, body: d) }
+            if guardAlertId == nil { showToast(t) }
+            syncLive()
+
+        case "alert_cleared":
+            if let id = m["alert_id"] as? String, id == guardAlertId {
+                guardAlertId = nil; lastAlert = nil; guardTask = ""
+                syncLive()
+                showToast("Alerte rejetée. L'assistance reste arrêtée.")
+            }
 
         case "refused":
             showToast(m["reason"] as? String ?? "Refusé")
@@ -543,6 +556,12 @@ final class HelperModel {
 
     /// Met à jour la grande carte de l'écran verrouillé (voir `LiveAlert`).
     func syncLive() {
+        if guardAlertId != nil, let alert = lastAlert {
+            LiveAlert.shared.update(senior: seniorTitle, state: "awaiting_helper", task: guardTask,
+                                    question: alert.title, step: nil, steps: 0,
+                                    paused: true, linked: isConfigured)
+            return
+        }
         // Une question pour le proche n'appelle pas l'aidant.
         let st = (state == "awaiting_helper" && questionToSenior) ? "active" : state
         LiveAlert.shared.update(senior: seniorTitle, state: st, task: task,
@@ -570,6 +589,11 @@ final class HelperModel {
     }
 
     // MARK: Actions
+
+    func dismissGuardAlert() {
+        guard let id = guardAlertId else { return }
+        send(["type": "dismiss_alert", "alert_id": id])
+    }
 
     func approvePlan() { planBusy = true; send(["type": "approve_plan"]) }
     func refinePlan(_ text: String) { planBusy = true; send(["type": "refine_plan", "text": text]) }
