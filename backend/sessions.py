@@ -85,6 +85,8 @@ class Session:
     # l'a pas validé : c'est la règle « jamais sans aval ».
     plan: list[str] | None = None
     plan_approved: bool = False
+    # Numéro (à partir de 1) de l'étape du plan validé en cours d'exécution.
+    plan_step: int | None = None
 
     # Brouillon de fiche CareMemory, en attente de validation du proche.
     lesson: dict | None = None
@@ -235,6 +237,7 @@ class Session:
         self.require_open()
         self.plan = steps
         self.plan_approved = False
+        self.plan_step = None
         self.state = State.AWAITING_APPROVAL
         self.owner = Owner.NONE
         self.log("plan_proposed", steps=steps)
@@ -253,11 +256,28 @@ class Session:
         self.log("plan_decision", decision=decision, note=note)
         if decision == "approve":
             self.plan_approved = True
+            self.plan_step = 1 if self.plan else None
             self.state = State.ACTIVE
             self.owner = Owner.AGENT
         elif decision == "refine":
             self.state = State.PLANNING
         self._resolve_plan((decision, note))
+
+    def advance_plan(self, step) -> bool:
+        """Holo annonce l'étape du plan qu'il exécute. Jamais en arrière,
+        jamais hors du plan. True si l'étape affichée a changé."""
+        if not self.plan_approved or not self.plan or isinstance(step, bool):
+            return False
+        try:
+            n = int(step)
+        except (TypeError, ValueError):
+            return False
+        n = min(max(n, 1), len(self.plan))
+        if self.plan_step is not None and n <= self.plan_step:
+            return False
+        self.plan_step = n
+        self.log("plan_step", step=n)
+        return True
 
     def _resolve_plan(self, value) -> None:
         fut, self._plan_decision = self._plan_decision, None
@@ -291,6 +311,9 @@ class Session:
             "question": self.question,
             "plan": self.plan,
             "plan_approved": self.plan_approved,
+            "plan_step": self.plan_step
+            if self.plan_approved and self.state in (State.ACTIVE, State.AWAITING_HELPER)
+            else None,
             "usage": self.usage,
         }
 

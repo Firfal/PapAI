@@ -28,6 +28,8 @@ final class AppModel {
     var state: SessionState?
     var task = ""
     var plan: [String] = []
+    /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
+    var planStep: Int?
     var question: String?
     var answer: String?
     var currentAction: String?
@@ -178,6 +180,7 @@ final class AppModel {
             guard let s = SessionState(rawValue: demo) else { return }
             task = "Je ne retrouve plus mes photos de Noël"
             plan = ["Ouvrir le Finder", "Aller dans le dossier Images", "Ouvrir le dossier « Noël 2025 »"]
+            planStep = 2
             answer = "Vos photos de Noël sont ouvertes dans le dossier Images."
             currentAction = "Je clique sur l'icône du Finder"
             actions = ["J'ouvre la recherche du Mac", "J'écris « Finder »", "Je clique sur l'icône du Finder"]
@@ -236,7 +239,7 @@ final class AppModel {
         homeTimer?.cancel()
         self.task = task
         pendingTask = ""
-        plan = []; question = nil; answer = nil; currentAction = nil; actions = []
+        plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
         state = .planning
         screen = .session
         applyLevel()
@@ -312,6 +315,7 @@ final class AppModel {
         if state == .done, before != .done { scheduleHome() }
         if let t = m["task"] as? String, !t.isEmpty { task = t }
         plan = (m["plan"] as? [String]) ?? []
+        planStep = m["plan_step"] as? Int
         question = (m["question"] as? [String: Any])?["question"] as? String
         if state != .active { currentAction = nil }
         applyLevel()

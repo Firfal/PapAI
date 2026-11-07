@@ -127,11 +127,11 @@ struct SessionView: View {
     @ViewBuilder private var content: some View {
         switch state {
         case .awaiting_approval where !model.plan.isEmpty:
-            planList(done: nil)
+            planList(current: nil)
         case .active:
             VStack(alignment: .leading, spacing: 16) {
                 if !model.actions.isEmpty { history }
-                if !model.plan.isEmpty { planList(done: nil, compact: true) }
+                if !model.plan.isEmpty { planList(current: model.planStep, compact: true) }
             }
         case .awaiting_helper:
             if let q = model.question {
@@ -156,20 +156,39 @@ struct SessionView: View {
         }
     }
 
-    private func planList(done: Int?, compact: Bool = false) -> some View {
+    /// Le plan, avec l'étape en cours en vert et les précédentes cochées.
+    private func planList(current: Int?, compact: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: compact ? 8 : 12) {
-            if compact { Text("Le plan validé").font(rounded(16, .semibold)).foregroundStyle(T.muted) }
+            if compact {
+                Text(current.map { "Étape \($0) sur \(model.plan.count)" } ?? "Le plan validé")
+                    .font(rounded(16, .semibold)).foregroundStyle(T.muted)
+            }
             ForEach(Array(model.plan.enumerated()), id: \.offset) { i, step in
+                let past = current.map { i + 1 < $0 } ?? false
+                let now = current == i + 1
                 HStack(spacing: 16) {
-                    Text("\(i + 1)").font(rounded(compact ? 15 : 18, .semibold)).foregroundStyle(.white)
-                        .frame(width: compact ? 30 : 38, height: compact ? 30 : 38).background(Circle().fill(T.ink))
-                    Text(step).font(rounded(compact ? 18 : 20, .medium)).fixedSize(horizontal: false, vertical: true)
+                    ZStack {
+                        Circle().fill(past || now ? T.accent : T.ink)
+                        if past {
+                            Image(systemName: "checkmark").font(.system(size: compact ? 13 : 16, weight: .bold))
+                        } else {
+                            Text("\(i + 1)").font(rounded(compact ? 15 : 18, .semibold))
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .frame(width: compact ? 30 : 38, height: compact ? 30 : 38)
+                    Text(step).font(rounded(compact ? 18 : 20, now ? .semibold : .medium))
+                        .foregroundStyle(past ? T.muted : T.ink)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
                 .padding(compact ? 10 : 12)
                 .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(now ? "En cours : \(step)" : past ? "Fait : \(step)" : step)
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: current)
     }
 
     /// Ce que Holo a déjà fait, la dernière action en premier plan.
