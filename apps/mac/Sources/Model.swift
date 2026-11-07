@@ -54,6 +54,7 @@ final class AppModel {
     var showHelpers = false
     var pendingTask = ""
     var actions: [String] = []
+    var guardAlert: GuardAlert?
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored let client = BridgeClient()
@@ -165,6 +166,14 @@ final class AppModel {
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
             }
         }
+        if ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil {
+            Task {
+                while true {
+                    try? await Task.sleep(nanoseconds: GuardSignals.period)
+                    if connected { client.send(GuardSignals.collect(withURL: !sessionOpen)) }
+                }
+            }
+        }
         // Mode capture d'écran : PAPAI_DEMO=awaiting_approval etc.
         if let demo = ProcessInfo.processInfo.environment["PAPAI_DEMO"] {
             permissionsDismissed = true
@@ -179,6 +188,12 @@ final class AppModel {
             let json = #"[{"id":"a","title":"Mes photos de Noël","shortcut":{"folder":"pictures"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes documents","shortcut":{"folder":"documents"}}]"#
             lessons = (try? JSONDecoder().decode([Lesson].self, from: Data(json.utf8))) ?? []
             if demo == "home" { return }
+            if demo == "alert" {
+                guardAlert = GuardAlert(level: "danger",
+                                        title: "Quelqu'un est en train de prendre la main sur votre ordinateur",
+                                        detail: "Le logiciel « anydesk » est en marche. Il permet à une personne à distance de voir votre écran et de cliquer à votre place. Est-ce bien quelqu'un que vous connaissez ?")
+                return
+            }
             if demo == "consent" { pendingTask = "Je ne retrouve plus mes photos de Noël"; screen = .consent; return }
             guard let s = SessionState(rawValue: demo) else { return }
             task = "Je ne retrouve plus mes photos de Noël"
@@ -299,6 +314,13 @@ final class AppModel {
         case "pair_code":
             pairCode = m["code"] as? String
             pairURL = m["url"] as? String
+        case "alert":
+            // Le gardien a reconnu une situation : le proche est prévenu en même temps.
+            guardAlert = GuardAlert(level: m["level"] as? String ?? "attention",
+                                    title: m["title"] as? String ?? "",
+                                    detail: m["detail"] as? String ?? "")
+            NSApp.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
         case "remote_request":
             guard !sessionOpen else { return }
             remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre proche",
