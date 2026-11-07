@@ -33,6 +33,12 @@ LEGITIMES = [
     "Classer la facture de 10 000 euros dans mes documents",
     "Faire un virement de 40 euros à ma fille",
     "Installer WhatsApp pour parler à Quentin",
+    "Envoyer la facture de 10 000 euros à ma fille",
+    "Envoyer une photo du devis de 2 000 euros à Quentin",
+    "Envoyer le fichier de la facture de 1500 euros par mail",
+    "Transférer un courriel avec la facture de 5 000 euros à ma fille",
+    "Transmettre une facture urgente de 10 000 euros à Quentin",
+    "Envoyer la facture et le devis de 10 000 euros à ma fille",
 ]
 SUSPECTES = [
     "Je veux envoyer 10 000 euros sur un compte en Afrique",
@@ -51,6 +57,15 @@ SUSPECTES = [
     "Le technicien veut que je paie le déblocage",
     "Faire un virement urgent vers un compte sécurisé",
     "Envoyer de l'argent en secret sans le dire à Quentin",
+    "Payer une facture de 10 000 euros sur un compte en Afrique",
+    "Virer 10 000 euros pour une facture urgente",
+    "Envoyer les photos puis faire un virement de 10 000 euros",
+    "Envoyer le fichier et transmettre 10 000 euros au fournisseur",
+    "Envoyer la facture puis envoyer 10 000 euros pour la régler",
+    "Envoyer 10 000 euros pour une facture",
+    "Envoyer la facture et 10 000 euros à ma fille",
+    "Envoyer un fichier puis acheter des bitcoins",
+    "Envoyer un mandat de 10 000 euros pour la facture",
 ]
 
 
