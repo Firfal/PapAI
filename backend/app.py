@@ -233,7 +233,11 @@ async def _ws_bridge(ws: WebSocket) -> None:
             if kind == "guard":
                 # Le gardien du Mac a vu passer un signal. Il n'envoie que du
                 # texte — processus, titre de fenêtre, adresse — jamais l'écran.
-                await handle_guard(ws, msg)
+                # À part : la confirmation attend une capture que cette boucle
+                # doit pouvoir recevoir.
+                t = asyncio.create_task(handle_guard(ws, msg))
+                _guard_taches.add(t)
+                t.add_done_callback(_guard_taches.discard)
                 continue
 
             if kind == "stop":
@@ -625,6 +629,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
 # Une même situation ne doit pas sonner en boucle : on retient ce qui a déjà
 # été signalé, pour ne pas apprendre à la personne à ignorer les alertes.
 _guard_vu: dict[str, float] = {}
+_guard_taches: set[asyncio.Task] = set()
 GUARD_SILENCE_S = 300
 
 
