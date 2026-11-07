@@ -22,8 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
@@ -53,10 +52,8 @@ private val relations = listOf(
 fun rememberQrScanner(): () -> Unit {
     val launcher = rememberLauncherForActivityResult(ScanContract()) { r ->
         val text = r.contents ?: return@rememberLauncherForActivityResult
-        val link = PairLink.parse(text)
-        if (link == null) Helper.showToast("Ce QR n'est pas celui de PapAI.") else {
-            Helper.openPair(link)
-        }
+        if (PairingPolicy.invitationError(text, BuildConfig.DEBUG) != null) Helper.pairingRefused = true
+        else Helper.open(text)
     }
     return {
         launcher.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setBeepEnabled(false)
@@ -111,7 +108,29 @@ fun SettingsSheet() {
     }
 }
 
-/** « Rejoindre <prénom> » : prénom et lien, puis POST et réglage automatique. */
+@Composable
+fun PairingRefusal() {
+    val scan = rememberQrScanner()
+    Dialog(onDismissRequest = { Helper.pairingRefused = false }) {
+        Column(Modifier.fillMaxWidth().soinCard().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            T(PairingPolicy.refusal, 18.sp, FontWeight.SemiBold, Soin.danger)
+            CapsuleButton("Scanner le QR de l'ordinateur") { Helper.pairingRefused = false; scan() }
+            TextLink("Fermer") { Helper.pairingRefused = false }
+        }
+    }
+}
+
+@Composable
+private fun PairServerCard(link: PairLink) {
+    val official = PairingPolicy.isOfficial(link.base)
+    val copy = PairingPolicy.presentation(link)
+    Column(Modifier.fillMaxWidth().soinCard(if (official) Soin.accentSoft else Soin.danger.copy(alpha = 0.1f)).padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        T(copy.server, 19.sp, FontWeight.Bold, if (official) Soin.ink else Soin.danger)
+        T(copy.domain, 13.sp, color = Soin.secondary)
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PairSheet(link: PairLink) {
@@ -121,23 +140,22 @@ fun PairSheet(link: PairLink) {
     var code by rememberSaveable { mutableStateOf("") }
     var confirmReplacement by rememberSaveable(link) { mutableStateOf(false) }
     val policyError = PairingPolicy.error(link.base, BuildConfig.DEBUG)
+    val copy = PairingPolicy.presentation(link)
     if (confirmReplacement) {
-        AlertDialog(
-            onDismissRequest = { confirmReplacement = false },
-            title = { T("Remplacer la liaison ?", 24.sp, FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    T("Ceci remplacera votre liaison avec ${m.senior}", 18.sp, FontWeight.SemiBold)
-                    T("Ancien serveur : ${m.lastGood?.first?.let { runCatching { PairLink(it, null).host }.getOrDefault(it) }.orEmpty()}", 17.sp)
-                    T("Nouveau serveur : ${link.host}", 20.sp, FontWeight.Bold)
+        Dialog(onDismissRequest = { confirmReplacement = false }) {
+            Column(Modifier.fillMaxWidth().soinCard().verticalScroll(rememberScrollState()).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                T("Remplacer la liaison ?", 24.sp, FontWeight.Bold)
+                T("Ceci remplacera votre liaison ${if (m.connected) "active " else ""}avec ${m.senior}. Les demandes de ${m.senior} n'arriveront plus sur ce téléphone.", 18.sp)
+                T("Actuel : ${m.lastGood?.first?.let { runCatching { PairLink(it, null).host }.getOrDefault(it) }.orEmpty()} · Nouveau : ${link.host}", 13.sp, color = Soin.secondary)
+                PairServerCard(link)
+                CapsuleButton("Remplacer et rejoindre") {
+                    confirmReplacement = false
+                    m.submitPair(link, code, name, relation, confirmed = true)
                 }
-            },
-            confirmButton = { TextButton(onClick = {
-                confirmReplacement = false
-                m.submitPair(link, code, name, relation, confirmed = true)
-            }) { T("Remplacer et rejoindre", 16.sp, FontWeight.Bold) } },
-            dismissButton = { TextButton(onClick = { confirmReplacement = false }) { T("Annuler", 16.sp) } },
-        )
+                TextLink("Annuler") { confirmReplacement = false }
+            }
+        }
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
@@ -167,13 +185,10 @@ fun PairSheet(link: PairLink) {
             CapsuleButton("Terminer") { m.sheet = null }
             return@Column
         }
-        val targetSenior = link.senior?.takeIf { it.isNotBlank() } ?: "votre proche"
-        SheetTitle("Rejoindre $targetSenior")
-        FieldLabel("Serveur à rejoindre")
-        T(link.host, 28.sp, FontWeight.Bold)
-        T(link.origin, 15.sp, color = Soin.secondary)
+        SheetTitle(copy.title)
+        PairServerCard(link)
         policyError?.let { T(it, 16.sp, FontWeight.SemiBold, Soin.danger) }
-        T("Vous serez prévenu quand $targetSenior demande de l'aide sur son ordinateur. Rien ne bouge sans votre accord.",
+        T(copy.description,
             15.sp, color = Soin.secondary)
         if (link.code == null) {
             FieldLabel("Code affiché sur l'ordinateur")
@@ -183,7 +198,7 @@ fun PairSheet(link: PairLink) {
         }
         FieldLabel("Votre prénom")
         SoinField(name, { name = it }, "Claire", keyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Words))
-        FieldLabel("Votre lien avec $targetSenior")
+        FieldLabel(copy.relationLabel)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             relations.forEach { (label, value) ->
                 val on = relation == value

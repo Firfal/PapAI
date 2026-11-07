@@ -99,6 +99,7 @@ object Helper {
     var pairBusy by mutableStateOf(false)
     var pairError by mutableStateOf<String?>(null)
     var pairDone by mutableStateOf(false)
+    var pairingRefused by mutableStateOf(false)
 
     // Session
     var state by mutableStateOf<String?>(null)
@@ -344,13 +345,17 @@ object Helper {
     fun open(uri: String) {
         val u = android.net.Uri.parse(uri)
         if (u.host == "open") return
-        val link = PairLink.parse(uri) ?: run { showToast("Lien PapAI non reconnu."); return }
+        if (PairingPolicy.invitationError(uri, BuildConfig.DEBUG) != null) {
+            pairingRefused = true; return
+        }
+        val link = PairLink.parse(uri) ?: run { pairingRefused = true; return }
         openPair(link)
     }
 
     fun openPair(link: PairLink) {
         if (pairBusy) return
-        PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { showToast(it); return }
+        PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairingRefused = true; return }
+        pairingRefused = false
         pairDone = false; pairError = null; pairBusy = false
         sheet = AppSheet.Pair(link)
     }

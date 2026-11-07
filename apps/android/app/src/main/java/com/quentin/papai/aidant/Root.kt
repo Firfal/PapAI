@@ -85,6 +85,7 @@ fun Root() {
             is AppSheet.Pair -> Sheet(dismissable = !m.pairBusy) { PairSheet(s.link) }
             null -> {}
         }
+        if (m.pairingRefused) PairingRefusal()
     }
 }
 
