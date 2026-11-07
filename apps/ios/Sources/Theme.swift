@@ -1,0 +1,67 @@
+import SwiftUI
+
+enum Soin {
+    static let bg = Color(red: 0xEE/255, green: 0xF0/255, blue: 0xEE/255)
+    static let card = Color.white
+    static let ink = Color(red: 0x11/255, green: 0x13/255, blue: 0x12/255)
+    static let secondary = Color(red: 0x7A/255, green: 0x80/255, blue: 0x7C/255)
+    static let accent = Color(red: 0x2E/255, green: 0x9E/255, blue: 0x5B/255)
+    static let accentSoft = Color(red: 0xE2/255, green: 0xF2/255, blue: 0xE7/255)
+}
+
+extension View {
+    func soinCard(_ fill: Color = Soin.card, radius: CGFloat = 22) -> some View {
+        background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+    }
+}
+
+/// Bouton plein en capsule (ink par défaut).
+struct CapsuleButtonStyle: ButtonStyle {
+    var fill: Color = Soin.ink
+    var text: Color = .white
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 17, weight: .semibold, design: .rounded))
+            .foregroundStyle(text)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .background(fill, in: Capsule())
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.spring(duration: 0.25), value: configuration.isPressed)
+    }
+}
+
+struct RoundIconButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(width: 58, height: 58)
+            .background(Soin.card, in: Circle())
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .animation(.spring(duration: 0.25), value: configuration.isPressed)
+    }
+}
+
+/// Place les enfants côte à côte et passe à la ligne.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxW = proposal.width ?? .infinity
+        var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0, w: CGFloat = 0
+        for s in subviews {
+            let sz = s.sizeThatFits(.unspecified)
+            if x + sz.width > maxW, x > 0 { x = 0; y += rowH + spacing; rowH = 0 }
+            x += sz.width + spacing; rowH = max(rowH, sz.height); w = max(w, x - spacing)
+        }
+        return CGSize(width: w, height: y + rowH)
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX, y = bounds.minY, rowH: CGFloat = 0
+        for s in subviews {
+            let sz = s.sizeThatFits(.unspecified)
+            if x + sz.width > bounds.maxX, x > bounds.minX { x = bounds.minX; y += rowH + spacing; rowH = 0 }
+            s.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+            x += sz.width + spacing; rowH = max(rowH, sz.height)
+        }
+    }
+}
