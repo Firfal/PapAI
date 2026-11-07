@@ -34,8 +34,39 @@ extension HelperModel {
                     else if l == "scanner" { sheet = .scanner }
                     else if l == "manual", let link = manualPairLink() { openPair(link) }
                     else if l == "close" { sheet = nil }
+                    else if l.hasPrefix("snap:") { snapCards(to: String(l.dropFirst(5))) }
+                    else if l.hasPrefix("state:") {
+                        // state:awaiting_approval|tâche|question|étape|nb d'étapes
+                        let p = l.dropFirst(6).split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+                        state = p[0]; task = p.count > 1 ? p[1] : task
+                        question = p.count > 2 && !p[2].isEmpty ? (p[2], []) : nil
+                        planStep = p.count > 3 ? Int(p[3]) : nil
+                        plan = Array(repeating: "", count: p.count > 4 ? Int(p[4]) ?? 0 : 0)
+                        syncLive()
+                    }
                 }
             }
+        }
+    }
+}
+extension HelperModel {
+    /// Rendu des cartes de l'écran verrouillé, pour les vérifier sans verrouiller.
+    func snapCards(to dir: String) {
+        typealias S = HelpActivityAttributes.ContentState
+        let since = Date().addingTimeInterval(-90)
+        let cases: [(String, S)] = [
+            ("watching", S(phase: .watching, senior: "Sophie", task: "", detail: "", step: 0, steps: 0, since: since)),
+            ("request", S(phase: .request, senior: "Sophie", task: "Envoyer les photos de Noël à Léa", detail: "", step: 0, steps: 3, since: since)),
+            ("needsyou", S(phase: .needsYou, senior: "Sophie", task: "Envoyer les photos", detail: "Quel album faut-il ouvrir ?", step: 2, steps: 3, since: since)),
+            ("working", S(phase: .working, senior: "Sophie", task: "Envoyer les photos de Noël à Léa", detail: "", step: 2, steps: 3, since: since)),
+        ]
+        for (name, s) in cases {
+            let v = LockScreenCard(s: s)
+                .frame(width: 360)
+                .background(s.urgent ? PapColors.ink : PapColors.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .padding(20).background(Color(red: 0.35, green: 0.42, blue: 0.5))
+            let r = ImageRenderer(content: v); r.scale = 3
+            try? r.uiImage?.pngData()?.write(to: URL(fileURLWithPath: "\(dir)/card-\(name).png"))
         }
     }
 }

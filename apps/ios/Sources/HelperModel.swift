@@ -194,6 +194,7 @@ final class HelperModel {
 
     func start() {
         guard runTask == nil, isConfigured else { return }
+        syncLive()
         runTask = Task { await run() }
         Task { await loadLessons() }
     }
@@ -207,6 +208,7 @@ final class HelperModel {
     /// Retour au premier plan : on n'attend pas la fin du délai d'attente.
     func wakeUp() {
         guard isConfigured else { return }
+        LiveAlert.shared.resume()
         if !connected {
             // Connexion déjà en cours d'ouverture (lancement de l'app) : on la laisse finir.
             if runTask != nil, socket != nil, retryAt == nil, !keyRefused { return }
@@ -332,9 +334,11 @@ final class HelperModel {
         guard !n.isEmpty, n != seniorName else { return }
         seniorName = n
         UserDefaults.standard.set(n, forKey: "seniorName")
+        syncLive()
     }
 
     func open(url: URL) {
+        if url.host == "open" { return }   // touché depuis la carte de l'écran verrouillé
         if let n = URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?.first(where: { $0.name == "n" })?.value { setSenior(n) }
         guard let link = PairLink.parse(url.absoluteString) else { showToast("Lien PapAI non reconnu."); return }
@@ -463,6 +467,7 @@ final class HelperModel {
                 question = (t, q["options"] as? [String] ?? [])
                 questionToSenior = (q["to"] as? String) == "senior"
             } else if newState != "awaiting_helper" { question = nil }
+            syncLive()
 
         case "frame":
             if let b64 = m["png_b64"] as? String, let d = Data(base64Encoded: b64), let img = UIImage(data: d) {
@@ -520,7 +525,18 @@ final class HelperModel {
 
     // MARK: Notifications
 
+    /// Met à jour la grande carte de l'écran verrouillé (voir `LiveAlert`).
+    func syncLive() {
+        // Une question pour le proche n'appelle pas l'aidant.
+        let st = (state == "awaiting_helper" && questionToSenior) ? "active" : state
+        LiveAlert.shared.update(senior: seniorTitle, state: st, task: task,
+                                question: question?.text, step: planStep, steps: plan.count,
+                                paused: seniorPaused, linked: isConfigured)
+    }
+
     private func notify(_ s: String) {
+        // La grande carte de l'écran verrouillé s'en charge déjà (écran allumé, son).
+        if LiveAlert.shared.isRunning { UINotificationFeedbackGenerator().notificationOccurred(.warning); return }
         let who = seniorTitle
         if s == "awaiting_approval" {
             notifyLocal(title: "\(who) demande de l’aide", body: task.isEmpty ? "Un plan attend votre accord." : "« \(task) » : un plan attend votre accord.")
@@ -532,6 +548,7 @@ final class HelperModel {
     private func notifyLocal(title: String, body: String) {
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
         let c = UNMutableNotificationContent()
+        c.interruptionLevel = .timeSensitive
         c.title = title; c.body = body; c.sound = .default
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
     }

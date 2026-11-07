@@ -14,12 +14,20 @@ targets:
     platform: iOS
     sources:
       - Sources
+      - Shared
       - Resources
+    dependencies:
+      - target: PapAIWidget
     info:
       path: Sources/Info.plist
       properties:
         CFBundleDisplayName: PapAI
+        CFBundleDevelopmentRegion: fr
+        CFBundleLocalizations: [fr]
         UILaunchScreen: {}
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+        UIBackgroundModes: [audio]
         UIUserInterfaceStyle: Light
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSLocalNetworkUsageDescription: PapAI se connecte au serveur de démonstration sur votre réseau local.
@@ -39,3 +47,26 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
         ENABLE_HARDENED_RUNTIME: NO
+  PapAIWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - Widget
+      - Shared
+      - path: Resources/Assets.xcassets
+    info:
+      path: Widget/Info.plist
+      properties:
+        CFBundleDisplayName: PapAI
+        CFBundleDevelopmentRegion: fr
+        CFBundleLocalizations: [fr]
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.quentin.papai.aidant.widget
+        PRODUCT_NAME: PapAIWidget
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
