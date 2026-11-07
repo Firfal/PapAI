@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/aidant-web-soin` | Page web de l'aidant : design « Soin », valider / préciser / refuser le plan, alertes | `backend/static/helper.html` | 7 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -27,3 +27,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 3 à 8 : écran de consentement, actions expliquées en phrases simples avec historique, question du proche, écran de fin avec retour auto à l'accueil, « Mes tutoriels » rafraîchi quand le proche valide une fiche (`lessons_changed`). |
 | 7 nov. | Claude | `parcours-onboarding` | Branche remise à jour sur `main` : la dictée de l'équipe (Gladia) remplace la mienne, ma partie de ToDo est fusionnée dans le `TODO.md` de l'équipe. |
 | 7 nov. | Claude | `main` | Parcours des étapes 1 à 8 fusionné dans `main` (tests gardien 14/14, protocole 9/9). Fichiers libérés. |
+| 7 nov. | Devin | `devin/aidant-web-soin` | Page web de l'aidant (`helper.html`) en design « Soin » avec le logotype : carte du plan avec Valider, Préciser (champ de précision) et Refuser ; carte d'alerte (gardien, `automation_failed`) ; « Garder comme automatisme » seulement en fin de session. Essayée avec `faux_mac.py` et un faux Holo. Fichier libéré. |
