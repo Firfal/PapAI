@@ -604,6 +604,7 @@ function renderPlan(m) {
 }
 
 function decide(o) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) { toast('Pas de connexion au serveur.'); return; }
   planDeciding = true;
   ['planApprove', 'planRefine', 'planRefuse', 'refineSend'].forEach(id => $(id).disabled = true);
   send(o);
