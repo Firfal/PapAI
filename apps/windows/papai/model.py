@@ -91,6 +91,7 @@ class Model:
         self.pair_expires = 600
         self.pair_added: str | None = None
         self.remote_request: dict | None = None
+        self.pair_request: dict | None = None
         self.pending_task = ""
         self.pending_automation: str | None = None
         self.automation_running: str | None = None
@@ -177,6 +178,7 @@ class Model:
                 "pairURL": self.pair_url, "pairQR": qr_data_url(self.pair_app_url or self.pair_url or ""),
                 "pairLong": self.pair_long, "pairExpires": self.pair_expires,
                 "pairAdded": self.pair_added, "remoteRequest": self.remote_request,
+                "pairRequest": self.pair_request,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
 
@@ -240,9 +242,21 @@ class Model:
         self.bridge = factory(self.server_url, self.gate, screen_factory, self._handle,
                               self._connection, self._action, **bridge_kw)
         self.bridge.start()
+        if settings.needs_space(self.prefs):
+            threading.Thread(target=self._create_space, daemon=True).start()
         threading.Thread(target=self._load_apps, daemon=True).start()
         threading.Thread(target=self.refresh_lessons, daemon=True).start()
         self.push()
+
+    def _create_space(self) -> None:
+        """Premier lancement sans serveur réglé : l'espace est créé sur le serveur officiel."""
+        url = self._provision()
+        if url:
+            self.prefs = settings.save({"server": url})
+            self.reconnect()
+
+    def _provision(self) -> str | None:
+        return settings.provision()
 
     def _load_apps(self) -> None:
         try:
@@ -378,6 +392,15 @@ class Model:
         except Exception:  # noqa: BLE001 — pas de presse-papiers (aperçu, session distante)
             return False
         return True
+
+    def answer_pair(self, accept: bool) -> None:
+        """Quelqu'un a tapé le code à 6 chiffres : il ne devient support qu'avec ce clic."""
+        r = self.pair_request
+        if not r:
+            return
+        self.pair_request = None
+        self._send({"type": "pair_decision", "req": r["req"], "accept": bool(accept)})
+        self.push()
 
     def remove_helper(self, helper_id: str) -> None:
         self._send({"type": "remove_helper", "id": helper_id})
@@ -528,6 +551,12 @@ class Model:
                 self.pair_expires = int(m.get("expires_in") or 600)
             except (TypeError, ValueError):
                 self.pair_expires = 600
+        elif kind == "pair_confirm":
+            if m.get("req") is None:
+                return
+            self.pair_request = {"req": m["req"], "name": str(m.get("name") or "Quelqu'un")[:40],
+                                 "relation": str(m.get("relation") or "")[:60]}
+            self._on_remote()
         elif kind == "remote_request":
             if self.session_open:
                 return

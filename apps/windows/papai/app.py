@@ -76,6 +76,7 @@ class Api:
     def copy_invitation(self): return self._model.copy_invitation()
     def remove_helper(self, helper_id): self._model.remove_helper(helper_id)
     def accept_remote(self): self._model.accept_remote()
+    def answer_pair(self, accept): self._model.answer_pair(accept)
     def refuse_remote(self): self._model.refuse_remote()
     def dismiss_alert(self): self._model.dismiss_alert()
     def request_consent(self, task): self._model.request_consent(task)
