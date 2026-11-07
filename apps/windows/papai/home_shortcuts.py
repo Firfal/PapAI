@@ -123,7 +123,12 @@ class HomeShortcuts:
 
             def folder_tile(path, label=None, personal=None, symbol='folder'):
                 target = valid_folder(path) if path else None
-                if target is None or target in seen:
+                if target is None:
+                    if personal:
+                        self._tiles.append(dict(id=personal, label=Path(path).name or 'Dossier indisponible',
+                                                symbol=symbol, personal=True))
+                    return
+                if target in seen:
                     return
                 seen.add(target)
                 if not personal:

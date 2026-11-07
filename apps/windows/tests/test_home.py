@@ -96,6 +96,27 @@ class Folders(unittest.TestCase):
                                                            'downloads': 'Téléchargements'}[k], foreground=lambda: None)
         self.assertEqual([t['label'] for t in home.snapshot()], ['Images', 'Documents', 'Téléchargements', 'Noël 2025'])
 
+    def test_missing_personal_folder_stays_removable(self):
+        home = self.home()
+        folders = [self.root / str(i) for i in range(5)]
+        for folder in folders:
+            folder.mkdir()
+        for folder in folders[:4]:
+            self.assertTrue(home.add_folder(folder))
+        tid = next(t['id'] for t in home.snapshot() if t['label'] == '0')
+        folders[0].rename(self.root / 'deplace')
+        home.refresh()
+        self.assertTrue(any(t['id'] == tid and t.get('personal') for t in home.snapshot()))
+        loaded = self.home()
+        self.assertTrue(any(t['id'] == tid for t in loaded.snapshot()))
+        with patch('papai.home_shortcuts.subprocess.Popen') as launch:
+            self.assertFalse(loaded.open(tid)[0])
+            launch.assert_not_called()
+        self.assertFalse(loaded.add_folder(folders[4]))
+        loaded.remove(tid)
+        self.assertTrue(loaded.add_folder(folders[4]))
+        self.assertEqual(len([t for t in self.home().snapshot() if t.get('personal')]), 4)
+
     def test_usage_foreground_transitions_local_only(self):
         active = ['a']
         catalog = lambda: [dict(id=k, label=k, executable=k) for k in ['a', 'b', 'c', 'd']]
