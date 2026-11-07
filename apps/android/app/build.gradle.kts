@@ -47,6 +47,9 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            if (signingConfig == signingConfigs.getByName("debug")) {
+                logger.warn("ATTENTION — APK release signé avec la clé de DEBUG : configurez une clé de distribution avant diffusion.")
+            }
         }
     }
     compileOptions {
@@ -59,6 +62,7 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     val composeBom = platform("androidx.compose:compose-bom:2024.09.03")
     implementation(composeBom)
     implementation("androidx.core:core-ktx:1.13.1")
