@@ -201,16 +201,27 @@ struct IdleView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if model.lastAlert == nil && model.guardAlertId == nil {
-                HStack(alignment: .center, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Rien à signaler pour \(model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text("Vous serez prévenu dès qu’une demande d’aide arrive.").font(.system(size: 16)).foregroundStyle(Soin.secondary)
+                // Hors connexion, on ne sait rien : pas de « Rien à signaler » ni de mascotte sereine.
+                if model.connected {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Rien à signaler pour \(model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("Vous serez prévenu dès qu’une demande d’aide arrive.").font(.system(size: 16)).foregroundStyle(Soin.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Mascotte(humeur: .calme).frame(width: 84, height: 84)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    Mascotte(humeur: .calme).frame(width: 84, height: 84)
+                    .padding(22).soinCard(Soin.accentSoft, radius: 28)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Liaison interrompue").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
+                        Text("Impossible de recevoir les demandes d’aide de \(model.senior) pour le moment.")
+                            .font(.system(size: 17, weight: .medium)).foregroundStyle(Soin.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(radius: 28)
                 }
-                .padding(22).soinCard(Soin.accentSoft, radius: 28)
                 }
 
                 if let live = model.liveDictation {
