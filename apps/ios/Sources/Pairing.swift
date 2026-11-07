@@ -46,7 +46,10 @@ struct PairLink: Identifiable, Equatable {
     var code: String?
     var senior: String?
 
-    var host: String { URL(string: base)?.host ?? base }
+    var host: String {
+        guard let u = URL(string: base), let h = u.host else { return base }
+        return u.port.map { "\(h):\($0)" } ?? h
+    }
     var origin: String {
         guard let c = URLComponents(string: base), let s = c.scheme, let h = c.host else { return base }
         return "\(s)://\(h)" + (c.port.map { ":\($0)" } ?? "")
