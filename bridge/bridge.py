@@ -155,6 +155,31 @@ def fetch_image(lesson_id: str, name: str) -> bytes | None:
 RECONNECT_DELAY_S = 3
 
 
+def describe_action(name: str, args: dict) -> str:
+    """Ce que la personne aidée lit pendant que l'agent travaille.
+
+    « click — icône Explorateur » est le nom de l'outil du modèle, pas une
+    phrase. Le journal technique reste imprimé dans la console ; la fenêtre,
+    elle, s'adresse à quelqu'un qui veut juste savoir ce qui se passe sur son
+    écran.
+    """
+    cible = str(args.get("element") or "").strip()
+    if name in ("click", "double_click"):
+        verbe = "Double-clic" if name == "double_click" else "Clic"
+        return f"{verbe} sur {cible}" if cible else f"{verbe} sur l'écran"
+    if name == "type_text":
+        texte = str(args.get("text") or "").strip()
+        return f"Saisie de « {texte} »" if texte else "Saisie au clavier"
+    if name == "press_key":
+        touches = str(args.get("keys") or "").strip()
+        return f"Touche {touches}" if touches else "Appui sur une touche"
+    if name == "scroll":
+        return "Défilement de la page"
+    if name == "wait":
+        return "Un instant…"
+    return "Recherche en cours…"
+
+
 class StopGate:
     """Le verrou d'arrêt. Levé depuis l'interface, lu depuis la boucle réseau."""
 
@@ -255,8 +280,7 @@ async def handle(ws, screen: Screen, msg: dict) -> None:
             }))
             return
 
-        label = args.get("element") or args.get("keys") or args.get("text") or ""
-        to_ui.put(("action", f"{name} — {label}"))
+        to_ui.put(("action", describe_action(name, args)))
         print(f"[pont] {name} {args}", flush=True)
         try:
             result = await asyncio.to_thread(
@@ -474,8 +498,10 @@ class App:
                                bg="#ff5c5c", fg="#ffffff")
         self.banner.pack(fill="x", pady=(0, 10))
 
+        tk.Frame(f, bg="#11151c").pack(expand=True)
         self.doing = tk.Label(f, text="Recherche en cours…", font=self.mid,
-                              bg="#11151c", fg="#e9eef5", wraplength=370)
+                              bg="#11151c", fg="#e9eef5",
+                              wraplength=int(390 * self.scale))
         self.doing.pack(pady=4)
 
         # Le lien porte un jeton de 32 caractères : personne ne le recopie à la
@@ -494,6 +520,7 @@ class App:
 
         tk.Label(f, text="Vous pouvez arrêter à tout moment. Rien ne continuera.",
                  font=self.small, bg="#11151c", fg="#93a1b3").pack()
+        tk.Frame(f, bg="#11151c").pack(expand=True)
 
     # ------------------------------------------------- CareMemory : les fiches
 
@@ -508,7 +535,10 @@ class App:
         wrap = tk.Frame(f, bg="#11151c")
         wrap.pack(fill="both", expand=True, padx=24)
         self.list_canvas = tk.Canvas(wrap, bg="#11151c", highlightthickness=0, bd=0)
-        bar = tk.Scrollbar(wrap, orient="vertical", command=self.list_canvas.yview)
+        bar = tk.Scrollbar(wrap, orient="vertical", command=self.list_canvas.yview,
+                           bg="#2b3440", activebackground="#3a4654",
+                           troughcolor="#11151c", relief="flat", bd=0,
+                           elementborderwidth=0, highlightthickness=0, width=12)
         self.list_canvas.configure(yscrollcommand=bar.set)
         self.list_canvas.pack(side="left", fill="both", expand=True)
         bar.pack(side="right", fill="y")
