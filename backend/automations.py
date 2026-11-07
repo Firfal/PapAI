@@ -159,7 +159,8 @@ def validate(pack) -> tuple[dict, dict[str, bytes]]:
 def save(pack, by: str = "") -> dict:
     """Validation par le support = l'import. Rien n'est écrit si un point est refusé."""
     lesson, files = validate(pack)
-    lesson["approved_by"] = _text(by, "Importé par", 80, required=False) or lesson["publisher"]
+    # Qui a validé : l'importateur s'il se nomme, sinon le détenteur de la clé, jamais l'éditeur.
+    lesson["approved_by"] = _text(by, "Importé par", 80, required=False) or "import par la clé de la famille"
     lesson["approved_at"] = time.time()
     folder = LESSONS_DIR / lesson["id"]
     folder.mkdir(parents=True, exist_ok=True)
