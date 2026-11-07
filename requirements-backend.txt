@@ -6,6 +6,6 @@ fastapi>=0.115
 uvicorn[standard]>=0.30
 websockets>=13.0
 # Agent navigateur de H (backend/web_agent.py). HAI_AUTO_BRIDGE=0 forcé côté serveur.
-hai-agents>=1.2.2,<2
+hai-agents==1.4.3
 # Tests seulement (tests/test_protocole.py, tests/faux_mac.py) : images de test.
 Pillow>=10.0

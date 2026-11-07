@@ -7,7 +7,7 @@ set -euo pipefail
 
 SUPPORT="$HOME/Library/Application Support/PapAI"
 VENV="$SUPPORT/agent-navigateur/venv"
-PAQUET="hai-agents[cli,browser]>=1.2.2"
+PAQUET="hai-agents[cli,browser]==1.4.3"
 mkdir -p "$SUPPORT/agent-navigateur" "$SUPPORT/Chrome"
 
 if command -v uv >/dev/null 2>&1; then
