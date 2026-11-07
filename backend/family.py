@@ -111,6 +111,27 @@ class Family:
         self._save()
         return found
 
+    def restore(self, known: list) -> bool:
+        """L'ordinateur renvoie les proches qu'il connaît. Sur Cloud Run, le disque
+        repart à zéro à chaque mise en ligne : sans ça, « Mes proches » se viderait.
+        Vrai si au moins un proche a été rajouté."""
+        added = False
+        ids = {h["id"] for h in self.helpers}
+        for d in (known or [])[:20]:
+            if not isinstance(d, dict):
+                continue
+            hid = str(d.get("id", "")).strip()[:32]
+            name = str(d.get("name", "")).strip()[:40]
+            if not hid or not name or hid in ids:
+                continue
+            self.helpers.append({"id": hid, "name": name, "relation": str(d.get("relation", "")).strip()[:60],
+                                 "added": int(time.time())})
+            ids.add(hid)
+            added = True
+        if added:
+            self._save()
+        return added
+
     def public(self, online: set[str] | None = None) -> list[dict]:
         online = online or set()
         return [{"id": h["id"], "name": h["name"], "relation": h.get("relation", ""),

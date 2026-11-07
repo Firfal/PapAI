@@ -295,6 +295,9 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 # Le prénom saisi sur l'ordinateur, transmis aux aidants.
                 if family.set_senior(str(msg.get("name", ""))):
                     await broadcast_helper({"type": "senior", "name": family.senior})
+                # Les proches que l'ordinateur connaît : la liste survit aux redémarrages.
+                if isinstance(msg.get("known_helpers"), list) and family.restore(msg["known_helpers"]):
+                    await ws.send_json({"type": "helpers", "helpers": family.public(_online_ids())})
                 if kind == "profile":
                     continue
                 await ws.send_json({"type": "helpers", "helpers": family.public(_online_ids())})

@@ -137,8 +137,19 @@ final class AppModel {
     /// pour que l'aidant lise « Vous allez aider Sophie » et non un nom figé.
     func sendProfile() {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
-        if !n.isEmpty { client.send(["type": "profile", "name": n]) }
+        // Les proches connus voyagent avec le profil : le serveur les retrouve après un redémarrage.
+        let known = helpers.isEmpty ? Self.cachedHelpers() : helpers.map { ["id": $0.id, "name": $0.name, "relation": $0.relation] }
+        var msg: [String: Any] = ["type": "profile", "known_helpers": known]
+        if !n.isEmpty { msg["name"] = n }
+        client.send(msg)
     }
+
+    private static let helpersKey = "knownHelpers"
+    static func cachedHelpers() -> [[String: String]] {
+        UserDefaults.standard.array(forKey: helpersKey) as? [[String: String]] ?? []
+    }
+    /// Retire un proche aussi de la copie locale (sinon il reviendrait au prochain démarrage).
+    private var removing = false
 
     func setTextScale(_ v: Double) {
         TextScale.current = v
@@ -182,6 +193,7 @@ final class AppModel {
     }
 
     func removeHelper(_ h: Helper) {
+        removing = true
         client.send(["type": "remove_helper", "id": h.id])
     }
 
@@ -472,6 +484,14 @@ final class AppModel {
             helpers = list.compactMap { d in
                 guard let id = d["id"] as? String, let n = d["name"] as? String else { return nil }
                 return Helper(id: id, name: n, relation: d["relation"] as? String ?? "")
+            }
+            // Une liste vide d'un serveur qui vient de redémarrer n'efface pas la copie locale.
+            if !helpers.isEmpty || removing {
+                UserDefaults.standard.set(helpers.map { ["id": $0.id, "name": $0.name, "relation": $0.relation] },
+                                          forKey: Self.helpersKey)
+                removing = false
+            } else if !Self.cachedHelpers().isEmpty {
+                sendProfile()
             }
             if let added = m["added"] as? String {
                 pairAdded = added

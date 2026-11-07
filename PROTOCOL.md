@@ -183,3 +183,4 @@ En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gard�
 - `status` ajoute :
   - `helper_name` : le prénom de l'aidant qui a validé le plan, répondu ou cliqué. L'ordinateur affiche « Quentin s'en occupe ».
   - `doing` : une seule phrase sur ce que fait Holo, tirée de sa réflexion (si elle est en français) ou de l'action.
+- Ordinateur → serveur : `profile` porte `known_helpers` (la liste gardée sur le Mac). Le serveur rajoute ceux qui lui manquent (disque Cloud Run effacé à chaque mise en ligne) et renvoie `helpers`.
