@@ -127,6 +127,8 @@
   .shot { position: relative; border-radius: 22px; overflow: hidden; background: var(--card); }
   .shot img { display: block; width: 100%; height: auto; }
   .shot.armed { box-shadow: 0 0 0 2px var(--accent); cursor: crosshair; touch-action: none; }
+  .browser-label strong { display: block; font-size: 17px; font-weight: 600; }
+  .browser-label small { display: block; margin-top: 3px; font-size: 13px; color: var(--muted); }
   #empty { min-height: 180px; display: flex; align-items: center; justify-content: center;
            font-size: 15px; color: var(--muted); padding: 16px; text-align: center; }
   #pin { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px; display: none;
@@ -265,7 +267,7 @@
       </div>
       <p class="quote" id="task"></p>
       <button class="thumb" id="thumb" type="button" hidden aria-label="Agrandir la dernière capture">
-        <img id="thumbImg" alt=""><span>Son écran</span>
+        <img id="thumbImg" alt=""><span id="thumbTitle">Son écran</span>
       </button>
     </div>
     <div class="waiting" id="waiting"><div class="spinner"></div><span id="waitingText">Holo regarde l'écran…</span></div>
@@ -287,6 +289,10 @@
       </div>
     </div>
     <div id="loupe"></div>
+    <div id="browserLabel" class="browser-label" hidden>
+      <strong id="browserTitle"></strong>
+      <small>Holo agit seulement dans le navigateur. Répondez à ses questions ici.</small>
+    </div>
     <div class="shot" id="shot">
       <div id="empty">En attente de la première capture d'écran…</div>
       <img id="frame" alt="Écran de votre proche" style="display:none">
@@ -401,7 +407,7 @@ const FRAME_TTL_S = 30;
 const permanent = /\/a\/[^/]+\/?$/.test(location.pathname);
 
 let ws = null, reconnectIn = 1000, connected = false, guardAlertId = null;
-let frameId = null, frameAt = 0, frameSrc = '', state = null, task = '', stoppedBy = null, executionStarted = null;
+let frameId = null, frameAt = 0, frameSrc = '', state = null, sessionWhere = null, task = '', stoppedBy = null, executionStarted = null;
 let armed = false, target = null, sending = false;
 let planBusy = false, refusedByMe = false, home = false, requestAt = 0;
 let sawStatus = false, sessionId = null;
@@ -460,12 +466,21 @@ function screen() {
             active: 'active', awaiting_helper: 'helper', done: 'done', stopped: 'stopped' })[state] || 'idle';
 }
 
+function browserTitle() {
+  const firstName = seniorName.trim().split(/\s+/)[0];
+  return firstName ? `Chrome PapAI de ${firstName}` : 'Chrome PapAI';
+}
+
 function render() {
   const s = screen();
   $('allWell').hidden = !$('alert').hidden;
   $('v-idle').hidden = s !== 'idle';
   $('v-request').hidden = !['waiting', 'planning', 'approval'].includes(s);
   $('v-live').hidden = !['active', 'helper'].includes(s);
+  $('browserLabel').hidden = sessionWhere !== 'web' || !['active', 'helper'].includes(s);
+  $('browserTitle').textContent = browserTitle();
+  $('thumbTitle').textContent = sessionWhere === 'web' ? browserTitle() : 'Son écran';
+  $('frame').alt = sessionWhere === 'web' ? browserTitle() : 'Écran de votre proche';
   $('v-done').hidden = s !== 'done';
   $('v-stopped').hidden = s !== 'stopped';
   $('b-approval').hidden = s !== 'approval';
@@ -485,8 +500,8 @@ function render() {
   $('working').hidden = s !== 'active';
   $('workingTask').textContent = task ? `« ${task} »` : '';
   $('question').hidden = s !== 'helper' || armed || !$('qtext').textContent;
-  $('hand').hidden = s !== 'helper' || armed;
-  $('aimbar').hidden = !armed;
+  $('hand').hidden = s !== 'helper' || armed || sessionWhere === 'web';
+  $('aimbar').hidden = !armed || sessionWhere === 'web';
 
   $('doneTask').textContent = task ? `« ${task} »` : '';
   $('makeWrap').hidden = !!savedTitle || hasDraft;
@@ -619,6 +634,8 @@ function onMessage(ev) {
     sawStatus = true;
     const prev = state;
     state = m.state;
+    sessionWhere = typeof m.where === 'string' ? m.where : null;
+    if (sessionWhere === 'web' && armed) setArmed(false);
     stoppedBy = m.stopped_by || null;
     executionStarted = typeof m.execution_started === 'boolean' ? m.execution_started : null;
     if (m.task !== undefined) task = m.task || '';

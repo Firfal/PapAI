@@ -103,6 +103,7 @@ object Helper {
 
     // Session
     var state by mutableStateOf<String?>(null)
+    var sessionWhere by mutableStateOf<String?>(null)
     var task by mutableStateOf("")
     var plan by mutableStateOf<List<String>>(emptyList())
     var planStep by mutableStateOf<Int?>(null)
@@ -174,6 +175,8 @@ object Helper {
     val senior get() = seniorName.ifEmpty { "votre proche" }
     /** En début de phrase : « Sophie a besoin de vous ». */
     val seniorTitle get() = seniorName.ifEmpty { "Votre proche" }
+    val webBrowserTitle get() = seniorName.trim().split(Regex("\\s+")).firstOrNull()
+        ?.let { "Chrome PapAI de $it" } ?: "Chrome PapAI"
 
     val screen: Screen
         get() = when (state) {
@@ -481,15 +484,21 @@ object Helper {
 
             "status" -> {
                 val newState = m.text("state").ifEmpty { null }
+                val newWhere = m.text("where").ifEmpty { null }
                 val sid = m.text("session")
                 if (sid != sessionId) {
                     liveDictation = null
                     sessionId = sid; requestStart = System.currentTimeMillis(); iRefusedPlan = false
+                    sessionWhere = null
                     hasProposedPlan = false
                     doneAnswer = null; hasDraft = false; savedTitle = null; lessonBusy = false
                     pausing = false; doneFresh = false
                     frame = null; frameId = null; frameAt = null
                 }
+                if (newWhere == "web" && sessionWhere != "web") {
+                    aiming = false; target = null; sending = false
+                }
+                sessionWhere = newWhere
                 val q = m.optJSONObject("question")
                 val toSenior = q?.text("to") == "senior"
                 if (newState != state) {

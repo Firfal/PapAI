@@ -75,6 +75,7 @@ final class HelperModel {
 
     // Session
     var state: String?
+    var sessionWhere: String?
     var task = ""
     var plan: [String] = []
     /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
@@ -343,6 +344,10 @@ final class HelperModel {
     var senior: String { seniorName.isEmpty ? "votre proche" : seniorName }
     /// En début de phrase : « Sophie a besoin de vous », sinon « Votre proche… ».
     var seniorTitle: String { seniorName.isEmpty ? "Votre proche" : seniorName }
+    var webBrowserTitle: String {
+        let firstName = seniorName.split(whereSeparator: \.isWhitespace).first.map(String.init)
+        return firstName.map { "Chrome PapAI de \($0)" } ?? "Chrome PapAI"
+    }
 
     func setSenior(_ name: String?) {
         let n = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -482,9 +487,15 @@ final class HelperModel {
             if sid != sessionId {
                 liveDictation = nil
                 sessionId = sid; requestStart = Date(); iRefusedPlan = false
+                sessionWhere = nil
                 doneAnswer = nil; hasDraft = false; savedTitle = nil; lessonBusy = false
                 pausing = false; doneFresh = false
             }
+            let newWhere = m["where"] as? String
+            if newWhere == "web" && sessionWhere != "web" {
+                aiming = false; target = nil; sending = false
+            }
+            sessionWhere = newWhere
             if newState != state {
                 if newState == "awaiting_approval" || newState == "awaiting_helper" { notify(newState!) }
                 if newState == "done" { doneFresh = true; Task { await loadLessons() } }

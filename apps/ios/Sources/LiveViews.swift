@@ -83,6 +83,7 @@ struct CaptureView: View {
         if let img = model.frame {
             Image(uiImage: img).resizable().aspectRatio(img.size, contentMode: .fit)
                 .frame(maxWidth: .infinity)
+                .accessibilityLabel(model.sessionWhere == "web" ? model.webBrowserTitle : "Écran de \(model.senior)")
                 .overlay {
                     GeometryReader { g in
                         ZStack {
@@ -160,8 +161,17 @@ struct HelperView: View {
                 } else if let q = model.question {
                     questionCard(q)
                 }
+                if model.sessionWhere == "web" {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(model.webBrowserTitle).font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
+                        Text("Holo agit seulement dans le navigateur. Répondez à ses questions ici.")
+                            .font(.system(size: 13)).foregroundStyle(Soin.secondary)
+                    }
+                }
                 CaptureView(model: model)
-                if model.aiming { aimBar } else { handButton }
+                if model.sessionWhere != "web" {
+                    if model.aiming { aimBar } else { handButton }
+                }
             }
             .padding(.horizontal, 20).padding(.bottom, 24)
         }
