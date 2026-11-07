@@ -324,7 +324,9 @@ def pairing() -> None:
     m._handle({"type": "pair_code", "code": "111222", "url": "http://h:8000/p/111222"})
     check(m.pair_app_url == "papai://pair?u=http%3A%2F%2Fh%3A8000%2Fp%2F111222" and not m.pair_long,
           "ancien serveur sans app_url : lien papai:// construit")
-    check("valable 24 heures" in m.invitation_text, "texte d'invitation du Mac")
+    check("valable 10 minutes" in m.invitation_text, "code de 10 minutes : l'invitation le dit")
+    m.pair_long = True
+    check("valable 24 heures" in m.invitation_text, "invitation de 24 heures, texte du Mac")
     m.stop_pairing()
     check(m.pair_code is None and m.pair_app_url is None and not m.pair_long, "Annuler efface tout")
 

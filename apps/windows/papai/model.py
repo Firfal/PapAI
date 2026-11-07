@@ -364,7 +364,7 @@ class Model:
         n = str(self.prefs.get("firstName") or "").strip()
         who = n or "Votre proche"
         return (f"{who} aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre "
-                "téléphone pour vous relier (valable 24 heures) :")
+                f"téléphone pour vous relier (valable {'24 heures' if self.pair_long else '10 minutes'}) :")
 
     def copy_invitation(self) -> bool:
         """« Envoyer par SMS, WhatsApp… » : Windows n'a pas de ShareLink, l'invitation part dans le presse-papiers."""
