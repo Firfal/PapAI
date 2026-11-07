@@ -28,4 +28,10 @@ if [[ -d "$HOME/Applications/PapAI.app" ]]; then
   mv "$HOME/Applications/PapAI.app" "$ROOT/build/PapAI-previous-$(date +%Y%m%d-%H%M%S).app"
 fi
 ditto "$APP" "$HOME/Applications/PapAI.app"
+# Le Dock doit montrer la papaye : on oublie les anciennes copies et la copie de
+# compilation, et on enregistre celle qui est installée (sinon icône vide en cache).
+LS=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+for old in "$ROOT"/build/PapAI-previous-*.app "$APP"; do [[ -d "$old" ]] && "$LS" -u "$old" 2>/dev/null || true; done
+touch "$HOME/Applications/PapAI.app"
+"$LS" -f "$HOME/Applications/PapAI.app"
 echo "installé : $HOME/Applications/PapAI.app"
