@@ -96,6 +96,7 @@ class AgentRunner:
             brief += "\n\nPlan validé par le proche, à suivre :\n" + "\n".join(
                 f"{i}. {step}" for i, step in enumerate(self.s.plan, 1)
             )
+            brief += "\nÀ chaque action, indique dans plan_step le numéro de l'étape du plan que tu exécutes."
         for n in self.notes:
             brief += f"\nPrécision du proche : {n}"
         messages = [
@@ -145,6 +146,7 @@ class AgentRunner:
             for call in msg.tool_calls:
                 name = call.function.name
                 args = json.loads(call.function.arguments or "{}")
+                self.s.advance_plan(args.pop("plan_step", None))
                 # La capture est enregistrée avec l'action : c'est la matière
                 # première d'une fiche CareMemory.
                 self.s.log("tool_call", step=step, tool=name, args=args, frame=frame.frame_id)

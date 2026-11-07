@@ -42,7 +42,7 @@ Mis à jour le 7 novembre à 16 h 30. Cochez au fur et à mesure et poussez.
 - [x] 8. « Mes tutoriels » rafraîchi dès que le proche valide une fiche (`lessons_changed`).
 - [x] « Quentin » n'est plus écrit en dur : l'app affiche le prénom du ou des proches ajoutés.
 - [x] Page web aidant : valider, préciser ou refuser le plan (l'app iPhone le fait déjà).
-- [ ] Afficher quelle étape du plan est en cours (demande un champ côté serveur).
+- [x] Afficher quelle étape du plan est en cours : `status.plan_step` côté serveur, affiché sur le Mac et l'iPhone (Swift non compilé, à vérifier sur un Mac).
 - [x] Fusionner `parcours-onboarding` dans `main`.
 
 ## P1 — pitch et rendu (demain matin)

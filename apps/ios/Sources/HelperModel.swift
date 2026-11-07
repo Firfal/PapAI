@@ -47,6 +47,8 @@ final class HelperModel {
     var state: String?
     var task = ""
     var plan: [String] = []
+    /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
+    var planStep: Int?
     var question: (text: String, options: [String])?
     var sessionId = ""
     var requestStart = Date()
@@ -198,6 +200,7 @@ final class HelperModel {
             state = newState
             task = m["task"] as? String ?? task
             plan = m["plan"] as? [String] ?? []
+            planStep = m["plan_step"] as? Int
             if let q = m["question"] as? [String: Any], let t = q["question"] as? String {
                 question = (t, q["options"] as? [String] ?? [])
             } else if newState != "awaiting_helper" { question = nil }

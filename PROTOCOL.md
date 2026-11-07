@@ -17,6 +17,18 @@ aîné : stop (à tout moment) ────────────────�
 États (`status.state`) : `planning`, `awaiting_approval`, `active`,
 `awaiting_helper`, `done`, `stopped`.
 
+## Étape du plan en cours (`status.plan_step`)
+
+`plan_step` est le numéro (à partir de 1) de l'étape du plan validé que Holo
+exécute. Il vaut un entier entre 1 et `len(plan)` seulement si `plan_approved`
+est vrai et que l'état est `active` ou `awaiting_helper` ; sinon `null`.
+Il passe à 1 dès la validation, puis Holo l'annonce à chaque action (argument
+`plan_step` de ses outils, retiré avant l'envoi à l'app). Il ne recule jamais
+et ne sort jamais du plan. Le même `status` part vers le Mac et vers l'aidant.
+
+**Champ optionnel** : une app qui ne le connaît pas l'ignore, et une app qui le
+connaît doit accepter qu'il manque (ancien serveur) ou soit `null`.
+
 ## App de la personne aidée (Mac, puis Windows) : `ws://SERVEUR/ws/bridge`
 
 Envoie :
@@ -49,7 +61,7 @@ La clé est affichée au démarrage du serveur (`PAPAI_AIDANT_KEY` dans `.env` p
 
 Reçoit :
 - `{"type":"hello","bridge":true,"os":"macos"}`
-- `{"type":"status","session":id,"state":…,"task":"…","plan":["…"]|null,"plan_approved":bool,"question":{"question":"…","options":["…"]}|null,"usage":{…}}`
+- `{"type":"status","session":id,"state":…,"task":"…","plan":["…"]|null,"plan_approved":bool,"plan_step":2|null,"question":{"question":"…","options":["…"]}|null,"usage":{…}}`
 - `{"type":"frame","frame_id":"…","png_b64":"…"}` capture de l'écran de l'aîné
 - `{"type":"question","question":"…","options":["…"]}`
 - `{"type":"answer","content":"…"}` fin de tâche
