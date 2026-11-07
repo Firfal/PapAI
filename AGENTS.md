@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794089468-agent-navigateur` | Agent navigateur local de H (Agents API) pour les tâches web | `backend/web_agent.py` (nouveau), `backend/app.py` (hello `web_agent`, branchement après approve_plan, pause/stop), `papai_tools.py` (PLAN_PROMPT `where`, WEB_AGENT_INSTRUCTIONS), `requirements-backend.txt`, `PROTOCOL.md` (section agent navigateur), `apps/mac/Sources/WebAgent.swift` (nouveau), `apps/mac/Sources/Bridge.swift` (hello), `apps/mac/Sources/Model.swift` (stop seulement), `apps/mac/scripts/install-agent-navigateur.sh` (nouveau), `tests/faux_agents_api.py`, `tests/test_agent_navigateur.py` (nouveaux), `TODO.md` | 7 nov. soir |
 
 ## Journal
 
