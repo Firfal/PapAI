@@ -1,166 +1,135 @@
 import SwiftUI
 
+/// Accueil : une barre pour demander (avec un petit micro) et les AutoMates.
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var request = ""
     @State private var warning: String?
-    @State private var largeurCarte: CGFloat = 600
     @FocusState private var focused: Bool
     @State private var dictation = Dictation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
-    @State private var writing = false
-    private var raccourcis: MicPresence { .shared }
+    private var micro: MicPresence { .shared }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 24) {
-            helpCard
-            if !model.lessons.isEmpty || model.notice != nil {
-                ScrollView(showsIndicators: false) {
-                    shortcuts.padding(.bottom, 8)
+        VStack(alignment: .leading, spacing: 22) {
+            accueil
+            VStack(alignment: .leading, spacing: 10) {
+                barre
+                if let etat = etatDictee {
+                    Text(etat).font(rounded(17, .semibold)).foregroundStyle(T.leaf)
+                        .padding(.leading, 24)
                 }
-                .frame(width: 400)
+                if let warning {
+                    Label(warning, systemImage: "exclamationmark.circle")
+                        .font(rounded(17, .semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 18).padding(.vertical, 12)
+                        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(T.card))
+                }
             }
-        }
-        .onAppear { ouvrirDemande() }
-        .onChange(of: raccourcis.demande) { _, _ in ouvrirDemande() }
-    }
-
-    /// La mascotte rapetisse puis s'efface si la fenêtre est petite ou le texte très grand :
-    /// le micro et « Écrire plutôt » doivent toujours rester visibles.
-    private var helpCard: some View {
-        ViewThatFits(in: .vertical) {
-            if bullePossible(128 * CGFloat(model.textScale)) { helpContent(mascotte: 128 * CGFloat(model.textScale)) }
-            if bullePossible(72) { helpContent(mascotte: 72) }
-            helpContent(mascotte: nil)
-            helpContent(mascotte: nil, compact: true)
+            ScrollView(showsIndicators: false) {
+                automates.padding(.bottom, 8)
+            }
         }
         .foregroundStyle(T.ink)
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
-        .background(GeometryReader { g in
-            Color.clear
-                .onAppear { largeurCarte = g.size.width }
-                .onChange(of: g.size.width) { _, w in largeurCarte = w }
-        })
+        .frame(maxWidth: 860, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .onAppear { ouvrirDemande() }
+        .onChange(of: micro.demande) { _, _ in ouvrirDemande() }
+        .onChange(of: dictation.message) { _, m in if let m { warning = m; dictation.message = nil } }
     }
 
-    /// La bulle doit garder au moins 240 pt de texte à côté de la mascotte.
-    private func bullePossible(_ taille: CGFloat) -> Bool {
-        largeurCarte - 64 - taille - (taille > 100 ? 26 : 18) - 44 >= 240
-    }
+    // MARK: Demande
 
-    /// `compact` : micro réduit, quand le champ d'écriture et un avertissement s'ajoutent au micro.
-    private func helpContent(mascotte taille: CGFloat?, compact: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-          VStack(alignment: .leading, spacing: 16) {
-            TimelineView(.everyMinute) { ctx in
-                let hello = Greeting.word(at: ctx.date)
-                Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName) !")
-                    .font(rounded(44, .bold)).tracking(-0.8)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+    private var accueil: some View {
+        HStack(alignment: .center, spacing: 16) {
+            ViewThatFits(in: .horizontal) {
+                Mascotte(humeur: humeur).frame(width: Mascotte.Taille.accueil, height: Mascotte.Taille.accueil)
+                Mascotte(humeur: humeur).frame(width: Mascotte.Taille.accueilReduite, height: Mascotte.Taille.accueilReduite)
             }
-            if let taille {
-                HStack(alignment: .center, spacing: taille > 100 ? 26 : 18) {
-                    Mascotte(humeur: humeur).frame(width: taille, height: taille)
-                    Bulle { invitation }
+            VStack(alignment: .leading, spacing: 2) {
+                TimelineView(.everyMinute) { ctx in
+                    let hello = Greeting.word(at: ctx.date)
+                    Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName) !")
+                        .font(rounded(34, .bold)).tracking(-0.6)
+                        .lineLimit(1).minimumScaleFactor(0.7)
                 }
-            } else {
-                invitation
+                Text("Que voulez-vous faire ?").font(rounded(19, .medium)).foregroundStyle(T.muted)
             }
-          }
-          Spacer(minLength: 16)
-          VStack(alignment: .leading, spacing: 16) {
-            if raccourcis.microPresent {
-                VStack(spacing: 12) {
-                    if compact {
-                        micButton.scaleEffect(0.66).frame(width: 120, height: 120)
-                    } else {
-                        micButton
-                    }
-                    Text(dictation.phase == .listening ? "Je vous écoute…" :
-                         dictation.phase == .transcribing ? "Je note…" : "Parler à PapAI")
-                        .font(rounded(22, .bold))
-                    if !request.isEmpty && !writing {
-                        Text(request).font(rounded(18)).lineLimit(3)
-                    }
-                }.frame(maxWidth: .infinity)
-            }
-            if writing || !raccourcis.microPresent {
-                HStack(spacing: 10) {
-                    TextField("Écrivez votre demande", text: $request)
-                        .textFieldStyle(.plain).font(rounded(18)).focused($focused)
-                        .onSubmit(submit)
-                    Button(action: submit) {
-                        Text("Envoyer").font(rounded(15, .semibold)).foregroundStyle(.white)
-                            .padding(.horizontal, 18).frame(minHeight: 44)
-                            .background(Capsule().fill(T.ink))
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(PressStyle())
-                    .disabled(dictation.phase != .idle)
-                }
-                .padding(18).background(RoundedRectangle(cornerRadius: 22).fill(T.card))
-            } else if dictation.phase == .idle {
-                Button { writing = true; focused = true } label: {
-                    Label("Écrire plutôt", systemImage: "pencil").font(rounded(16, .semibold))
-                        .padding(.horizontal, 22).padding(.vertical, 10)
-                        .frame(minHeight: 44)
-                        .background(Capsule().fill(T.card))
-                        .contentShape(Capsule())
-                }.buttonStyle(PressStyle()).frame(maxWidth: .infinity)
-            }
-            if let warning {
-                Label(warning, systemImage: "exclamationmark.circle")
-                    .font(rounded(17, .semibold))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 18).padding(.vertical, 12)
-                    .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(T.card))
-            }
-          }
-          Spacer(minLength: 0)
         }
     }
 
-    private var invitation: some View {
-        Text(raccourcis.microPresent
-             ? "Un souci sur l'ordinateur ? Dites-le-moi simplement, je préviens \(model.helperName) tout de suite."
-             : "Un souci sur l'ordinateur ? Écrivez-le-moi, je préviens \(model.helperName) tout de suite.")
-            .font(rounded(19, .medium))
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    private var barre: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass").font(rounded(20, .semibold)).foregroundStyle(T.muted)
+                .accessibilityHidden(true)
+            TextField(micro.microPresent ? "Écrivez ou dites ce que vous voulez faire" : "Écrivez ce que vous voulez faire",
+                      text: $request)
+                .textFieldStyle(.plain).font(rounded(20)).focused($focused)
+                .focusEffectDisabled()
+                .onSubmit(submit)
+                .accessibilityLabel("Ma demande")
+            if micro.microPresent { micButton }
+            Button(action: submit) {
+                Text("Envoyer").font(rounded(16, .semibold)).foregroundStyle(.white)
+                    .lineLimit(1).fixedSize()
+                    .padding(.horizontal, 20).frame(minHeight: 48)
+                    .background(Capsule().fill(T.ink))
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(PressStyle())
+            .disabled(dictation.phase != .idle)
+        }
+        .padding(.leading, 24).padding(.trailing, 10).padding(.vertical, 10)
+        .frame(minHeight: 68)
+        .background {
+            // Bord dessiné par deux capsules pleines : un trait de Capsule laisse des traces sur les côtés.
+            let actif = focused || dictation.phase == .listening
+            ZStack {
+                Capsule().fill(actif ? T.papaya : T.ink.opacity(0.14))
+                Capsule().fill(T.card).padding(actif ? 2.5 : 1.5)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { focused = true }
     }
 
+    /// Petit micro dans la barre : la même dictée qu'avant, juste plus discrète.
     private var micButton: some View {
         let listening = dictation.phase == .listening
         return Button(action: dicter) {
-                ZStack {
-                    if listening {
-                        Circle().fill(T.accent.opacity(0.25))
-                            .frame(width: 166, height: 166)
-                            .scaleEffect(reduceMotion ? 1 : (pulse ? 1.08 : 0.94))
-                    }
-                    Circle().fill(listening ? T.accent : .white).frame(width: 148, height: 148)
-                        .overlay(Circle().strokeBorder(listening ? Color.clear : T.papaya, lineWidth: 6))
-                        .shadow(color: T.papaya.opacity(listening ? 0 : 0.25), radius: 14, y: 6)
-                    if dictation.phase == .transcribing {
-                        ProgressView()
-                    } else {
-                        Image(systemName: listening ? "stop.fill" : "mic.fill")
-                            .foregroundStyle(listening ? .white : T.ink).font(rounded(48))
-                    }
-                }.frame(width: 180, height: 180)
+            ZStack {
+                Circle().fill(listening ? T.accent : T.mint)
+                    .scaleEffect(listening && !reduceMotion && pulse ? 1.08 : 1)
+                if dictation.phase == .transcribing {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: listening ? "stop.fill" : "mic.fill")
+                        .font(rounded(19, .semibold))
+                        .foregroundStyle(listening ? .white : T.leaf)
+                }
+            }
+            .frame(width: 48, height: 48)
+            .contentShape(Circle())
         }
         .buttonStyle(PressStyle())
         .disabled(dictation.phase == .transcribing)
+        .help(listening ? "Arrêter la dictée" : "Dicter ma demande")
         .accessibilityLabel(listening ? "Arrêter la dictée" : "Dicter ma demande")
         .onChange(of: listening) { _, on in
             if on, !reduceMotion {
                 withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
             } else { withAnimation(.none) { pulse = false } }
         }
-        .onChange(of: dictation.message) { _, m in if let m { warning = m; dictation.message = nil } }
+    }
+
+    private var etatDictee: String? {
+        switch dictation.phase {
+        case .listening: "Je vous écoute… Touchez le carré quand vous avez fini."
+        case .transcribing: "Je note…"
+        case .idle: nil
+        }
     }
 
     private var humeur: Mascotte.Humeur {
@@ -172,11 +141,11 @@ struct HomeView: View {
     }
 
     private func ouvrirDemande() {
-        guard raccourcis.demande else { return }
-        raccourcis.demande = false
-        if raccourcis.microPresent {
+        guard micro.demande else { return }
+        micro.demande = false
+        if micro.microPresent {
             if dictation.phase == .idle { dicter() }
-        } else { writing = true; focused = true }
+        } else { focused = true }
     }
 
     private func dicter() {
@@ -197,7 +166,7 @@ struct HomeView: View {
     private func submit() {
         guard dictation.phase == .idle else { return }
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.isEmpty { warning = "Dites en quelques mots ce qui ne va pas."; focused = true; return }
+        if text.isEmpty { warning = "Dites en quelques mots ce que vous voulez faire."; focused = true; return }
         if !model.connected { warning = "Je ne joins pas \(model.helperName) pour le moment. Réessayez dans un instant."; return }
         warning = nil
         // L'accord de partage a été donné à l'inscription : la demande part directement.
@@ -205,45 +174,61 @@ struct HomeView: View {
         request = ""
     }
 
-    // MARK: Droite
+    // MARK: AutoMates
 
-    private var shortcuts: some View {
+    /// Les automatismes enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
+    private var automates: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let n = model.notice {
                 Text(n).font(rounded(17, .medium))
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
             }
-            if !model.lessons.isEmpty {
-                Text("Mes tutoriels").font(rounded(22, .bold))
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles").font(rounded(20, .semibold)).foregroundStyle(T.papaya)
+                    .accessibilityHidden(true)
+                Text("Mes AutoMates").font(rounded(22, .bold))
             }
-            ForEach(model.lessons) { l in tile(l) }
+            if model.lessons.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Aucun AutoMate pour l'instant.").font(rounded(18, .semibold))
+                    Text("Un AutoMate est une tâche toute prête. Quand \(model.helperName) en enregistre une pour vous, elle apparaît ici et se lance d'un clic.")
+                        .font(rounded(17)).foregroundStyle(T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: T.r, style: .continuous)
+                    .strokeBorder(T.muted.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5])))
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 340), spacing: 12)], spacing: 12) {
+                    ForEach(model.lessons) { l in tuile(l) }
+                }
+            }
         }
-        .foregroundStyle(T.ink)
     }
 
-    // Fiches héritées : la future tâche `.papi` les remplacera, on n'y investit pas.
-    private func tile(_ l: Lesson) -> some View {
+    private func tuile(_ l: Lesson) -> some View {
         HStack(spacing: 10) {
             Button { model.runShortcut(l) } label: {
-                HStack(spacing: 10) {
-                    Circle().fill(T.mint).frame(width: 36, height: 36)
+                HStack(spacing: 12) {
+                    Circle().fill(T.mint).frame(width: 40, height: 40)
                         .overlay(Image(systemName: Shortcuts.symbol(for: l.shortcut?.folder))
                             .font(rounded(18)).foregroundStyle(T.accent))
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(l.title).font(rounded(18, .semibold)).multilineTextAlignment(.leading)
-                    }
+                    Text(l.title).font(rounded(18, .semibold)).multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(PressStyle())
-            .accessibilityLabel(l.title)
+            .accessibilityLabel("Lancer \(l.title)")
             if !(l.steps ?? []).isEmpty {
                 Button { model.openLesson(l) } label: {
                     Text("Montrez-moi").font(rounded(15, .semibold)).foregroundStyle(T.leaf)
                         .lineLimit(1).fixedSize(horizontal: true, vertical: false)
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 12)
                         .padding(.vertical, 5).frame(minHeight: 44)
                         .background(Capsule().fill(T.mint))
                         .contentShape(Capsule())
@@ -252,10 +237,9 @@ struct HomeView: View {
             }
         }
         .padding(12)
+        .frame(maxWidth: .infinity)
         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
     }
-
-
 }
 
 struct PressStyle: ButtonStyle {
