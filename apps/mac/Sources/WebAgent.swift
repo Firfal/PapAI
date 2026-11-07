@@ -17,6 +17,7 @@ final class WebAgentHost {
     private var holo: Process?
     private var chromePID: pid_t?
     private var starting = false
+    private var generation = 0
 
     static var support: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -47,7 +48,11 @@ final class WebAgentHost {
     }
 
     private func launch(_ exe: URL) async {
+        let launchGeneration = generation
+        var startedChrome: Process?
+        var startedHolo: Process?
         if await Self.debuggerListening() {
+            if abortIfStopped(launchGeneration, chrome: startedChrome, holo: startedHolo) { return }
             // Un navigateur écoute déjà sur 9222 : seulement s'il utilise notre profil.
             guard let pid = Self.ourChromePID() else { return }
             chromePID = pid
@@ -60,11 +65,15 @@ final class WebAgentHost {
             p.standardOutput = FileHandle.nullDevice
             p.standardError = FileHandle.nullDevice
             do { try p.run() } catch { return }
+            startedChrome = p
             chromePID = p.processIdentifier
             var ready = false
             for _ in 0..<60 {
-                if await Self.debuggerListening() { ready = true; break }
+                let listening = await Self.debuggerListening()
+                if abortIfStopped(launchGeneration, chrome: startedChrome, holo: startedHolo) { return }
+                if listening { ready = true; break }
                 try? await Task.sleep(nanoseconds: 250_000_000)
+                if abortIfStopped(launchGeneration, chrome: startedChrome, holo: startedHolo) { return }
             }
             guard ready else { p.terminate(); chromePID = nil; return }
         }
@@ -78,11 +87,23 @@ final class WebAgentHost {
             Task { @MainActor in self?.holoEnded(ended) }
         }
         do { try h.run() } catch { return }
+        startedHolo = h
         holo = h
         try? await Task.sleep(nanoseconds: 1_500_000_000)
+        if abortIfStopped(launchGeneration, chrome: startedChrome, holo: startedHolo) { return }
         guard h.isRunning, holo === h else { return }
         sessionID = id
+        if abortIfStopped(launchGeneration, chrome: startedChrome, holo: startedHolo) { return }
         onChange?(id)
+    }
+
+    private func abortIfStopped(_ launchGeneration: Int, chrome: Process?, holo: Process?) -> Bool {
+        guard generation != launchGeneration else { return false }
+        if let holo, holo.isRunning { holo.terminate() }
+        if let holo, self.holo === holo { self.holo = nil }
+        if let chrome, chrome.isRunning { chrome.terminate() }
+        if let chrome, chromePID == chrome.processIdentifier { chromePID = nil }
+        return true
     }
 
     private func holoEnded(_ h: Process) {
@@ -98,6 +119,7 @@ final class WebAgentHost {
     /// Chrome PapAI reste ouvert pour que la personne voie la page, mais plus
     /// rien ne le pilote.
     func stopLocal() {
+        generation += 1
         let h = holo
         holo = nil
         if sessionID != nil {
