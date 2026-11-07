@@ -698,7 +698,7 @@ function onMessage(ev) {
 
   else if (m.type === 'refused') {
     toast(m.reason);
-    sending = false; planBusy = false;
+    sending = false; planBusy = false; lessonBusy = false;
     if (m.reason === 'Aucune demande en cours.') dropSession();
     render();
   }
