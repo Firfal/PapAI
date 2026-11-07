@@ -509,7 +509,7 @@ async function loadLessons() {
     const items = Array.isArray(list) ? list : (list.lessons || []);
     if (!items.length) return;
     $('lessons').innerHTML = '';
-    items.slice(-5).reverse().forEach(l => {
+    items.slice(0, 5).forEach(l => {
       const d = document.createElement('div');
       d.className = 'card lesson';
       d.innerHTML = '<span class="check"><svg class="i"><use href="#i-check"/></svg></span><div><strong></strong><small></small></div>';
