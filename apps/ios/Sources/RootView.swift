@@ -37,6 +37,9 @@ struct RootView: View {
             }
         }
         .onAppear { if !model.isConfigured && model.sheet == nil { model.sheet = .settings } }
+        .fullScreenCover(isPresented: Binding(get: { model.guardAlertId != nil }, set: { _ in })) {
+            GuardRequestView(model: model).interactiveDismissDisabled()
+        }
     }
 
     @ViewBuilder private var content: some View {

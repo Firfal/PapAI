@@ -236,6 +236,7 @@
   <div class="card alertcard" style="margin-bottom:16px" id="alert" hidden role="alert">
       <h3 id="alertTitle"></h3>
       <p id="alertDetail"></p>
+      <button class="capsule" id="alertCall" type="button" hidden>Rappeler mon proche</button>
       <button class="capsule light" style="background:var(--bg)" id="alertOk" type="button">J'ai compris</button>
     </div>
 
@@ -399,7 +400,7 @@ const FRAME_TTL_S = 30;
 // /a/{clé} : le lien permanent de l'aidant, qui suit toutes les demandes.
 const permanent = /\/a\/[^/]+\/?$/.test(location.pathname);
 
-let ws = null, reconnectIn = 1000, connected = false;
+let ws = null, reconnectIn = 1000, connected = false, guardAlertId = null;
 let frameId = null, frameAt = 0, frameSrc = '', state = null, task = '';
 let armed = false, target = null, sending = false;
 let planBusy = false, refusedByMe = false, home = false, requestAt = 0;
@@ -683,11 +684,20 @@ function onMessage(ev) {
   }
 
   else if (m.type === 'alert') {
+    guardAlertId = m.alert_id || null;
     $('alertTitle').textContent = m.title || 'Attention';
     $('alertDetail').textContent = m.detail || '';
+    $('alertCall').hidden = !guardAlertId;
+    $('alertOk').textContent = guardAlertId ? "Je connais cette démarche : rejeter l'alerte" : "J'ai compris";
     $('alert').hidden = false;
     $('alert').scrollIntoView({ behavior: 'smooth', block: 'start' });
     toast(m.title || 'Alerte');
+  }
+
+  else if (m.type === 'alert_cleared' && m.alert_id === guardAlertId) {
+    guardAlertId = null;
+    $('alert').hidden = true;
+    toast("Alerte rejetée. L'assistance reste arrêtée.");
   }
 
   else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. Votre proche doit l’accepter sur son ordinateur.');
@@ -797,7 +807,12 @@ $('refuseYes').onclick = () => {
 
 $('thumb').onclick = () => { $('zoom').hidden = false; };
 $('zoom').onclick = () => { $('zoom').hidden = true; };
-$('alertOk').onclick = () => { $('alert').hidden = true; };
+$('alertCall').onclick = () => toast('Rappelez votre proche à son numéro habituel dans Téléphone ou Contacts, jamais au numéro de la demande suspecte.');
+$('alertOk').onclick = () => {
+  if (guardAlertId) {
+    if (confirm("Vous connaissez cette démarche ? Rejeter l'alerte ne relancera pas l'assistance.")) send({type:'dismiss_alert', alert_id:guardAlertId});
+  } else $('alert').hidden = true;
+};
 document.querySelectorAll('[data-home]').forEach(b => b.onclick = () => { home = true; render(); window.scrollTo(0, 0); });
 
 /* ----------------------------------------------------------- les actions */
