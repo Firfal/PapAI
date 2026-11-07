@@ -17,6 +17,7 @@ RUN pip install --no-cache-dir -r requirements-backend.txt
 
 COPY papai_tools.py .
 COPY backend/ ./backend/
+COPY extension/sites_connus.json ./extension/sites_connus.json
 
 # L'hébergeur impose le port par $PORT ; 8000 en local.
 ENV PORT=8000

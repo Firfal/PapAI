@@ -24,7 +24,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import guard, voice
+from . import guard, voice, sites
 from .agent import AgentRunner, propose_plan
 from .family import CODE_TTL, INVITE_TTL, Family, PairingError
 from .caremamory import LESSONS_DIR, approve_and_save, draft_lesson, list_lessons
@@ -60,6 +60,7 @@ PUBLIC_URL = os.environ.get("PAPAI_PUBLIC_URL") or os.environ.get("CAREPILOT_PUB
 app = FastAPI(title="PapAI")
 registry = Registry()
 family = Family()
+liaison_extension = sites.Liaison()
 
 # Clé du lien permanent de l'aidant (app iPhone ou page /a/{clé}). Stable d'un
 # lancement à l'autre si on la fixe dans .env, sinon tirée au démarrage.
@@ -235,6 +236,71 @@ async def broadcast_helper(payload: dict) -> None:
         helper_sockets.discard(ws)
 
 
+# ---------------------------------------------------- extension de navigateur
+
+_sites_vus: dict[tuple[str, str], float] = {}
+
+
+@app.post("/ext/pair")
+async def ext_pair(request: Request):
+    try:
+        corps = await request.json()
+        code = corps.get("code") if isinstance(corps, dict) else None
+        if not isinstance(code, str) or not re.fullmatch(r"[0-9]{6}", code):
+            code = ""
+        return {"token": liaison_extension.pair(code)}
+    except (ValueError, PairingError) as erreur:
+        return JSONResponse({"error": str(erreur) if isinstance(erreur, PairingError) else "Code incorrect."}, status_code=400)
+
+
+@app.post("/ext/site")
+async def ext_site(request: Request):
+    import time
+
+    autorisation = request.headers.get("authorization", "")
+    jeton = autorisation[7:] if autorisation.startswith("Bearer ") else ""
+    statut = liaison_extension.autoriser(jeton)
+    if statut != 200:
+        return JSONResponse({"error": "Trop de signalements." if statut == 429 else "Jeton inconnu."}, status_code=statut)
+    try:
+        corps = await request.json()
+        if not isinstance(corps, dict) or any(not isinstance(corps.get(k, ""), str) for k in ("domain", "title", "text")):
+            raise ValueError
+        if any(len(corps.get(k, "")) > n for k, n in (("domain", 253), ("title", 300), ("text", 2000))):
+            raise ValueError
+        domaine = sites.normaliser(corps.get("domain", ""))
+        if not domaine or len(domaine) > 253 or not re.fullmatch(r"[a-z0-9.-]+", domaine):
+            raise ValueError
+    except (ValueError, UnicodeError):
+        return JSONResponse({"error": "Adresse ou texte invalide ou trop long."}, status_code=400)
+    avis = sites.evaluer(domaine, corps.get("title", ""), corps.get("text", ""))
+    if avis.hesite:
+        avis = await sites.avis_holo(domaine, corps.get("title", ""), corps.get("text", ""))
+    aide, aidant, proche = sites.textes(family, domaine, avis)
+    print(f"[site] {domaine} {avis.verdict}", flush=True)
+    maintenant = time.time()
+    for cle, date in list(_sites_vus.items()):
+        if maintenant - date >= 300:
+            del _sites_vus[cle]
+    cle = (domaine, avis.verdict)
+    if avis.verdict != "sur" and cle not in _sites_vus:
+        _sites_vus[cle] = maintenant
+        charge = {"type": "alert", "source": "environment", "level": "danger" if avis.verdict == "arnaque" else "attention",
+                  "title": "Site à vérifier", "detail": aidant}
+        if avis.verdict == "arnaque" and "publish_guard" in globals():
+            alerte = guard.Alerte("danger", "Site à vérifier", aide, "site:" + domaine, False)
+            await globals()["publish_guard"](alerte, source="environment", senior_detail=aide, helper_detail=aidant)
+        else:
+            if avis.verdict == "arnaque" and bridge is not None:
+                await bridge.send({**charge, "detail": aide})
+            for ws in list(helper_sockets):
+                try:
+                    await ws.send_json(charge)
+                except Exception:
+                    helper_sockets.discard(ws)
+    return {"verdict": avis.verdict, "raison": avis.raison, "proche": proche}
+
+
 # ------------------------------------------------------------------ pont
 
 
@@ -301,6 +367,11 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if kind == "profile":
                     continue
                 await ws.send_json({"type": "helpers", "helpers": family.public(_online_ids())})
+                continue
+
+            if kind == "ext_pair_start":
+                await ws.send_json({"type": "ext_pair_code", "code": liaison_extension.new_code(),
+                                    "expires_in": 600, "server": PUBLIC_URL})
                 continue
 
             if kind == "pair_start":
