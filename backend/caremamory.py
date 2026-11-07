@@ -157,7 +157,9 @@ async def draft_lesson(session: Session) -> dict:
 
     raw_steps = data.get("steps")
     steps = []
-    for s in (raw_steps if isinstance(raw_steps, list) else [])[:4]:
+    for s in raw_steps if isinstance(raw_steps, list) else []:
+        if len(steps) == 4:
+            break
         # Le modèle renvoie parfois de simples phrases au lieu d'objets.
         if isinstance(s, str):
             s = {"instruction": s}
