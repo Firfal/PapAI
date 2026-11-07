@@ -428,8 +428,8 @@
     const sel = focusId && a.setSelectionRange ? [a.selectionStart, a.selectionEnd] : null;
     document.getElementById('root').innerHTML = header() + `<div class="main">${body()}</div>`;
     document.getElementById('sheet').innerHTML =
-      ui.sheet === 'settings' ? settingsSheet() : ui.sheet === 'helpers' ? helpersSheet()
-        : S.alert ? alertSheet() : '';
+      S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
+        : ui.sheet === 'helpers' ? helpersSheet() : '';
     const req = document.getElementById('req');
     if (req) autosize(req);
     if (focusId) {
