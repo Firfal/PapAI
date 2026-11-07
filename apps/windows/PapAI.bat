@@ -8,9 +8,11 @@ set "PYDIR=%~dp0.python"
 set "PY=%PYDIR%\python.exe"
 set "PYURL=https://www.python.org/ftp/python/3.12.8/python-3.12.8-embed-amd64.zip"
 
-if not exist "%PY%" (
+rem Le fichier "pret" n'est ecrit qu'a la fin : une preparation interrompue est reprise de zero.
+if not exist "%PYDIR%\pret" (
   echo Premier lancement : preparation de PapAI, une minute environ...
-  if not exist "%PYDIR%" mkdir "%PYDIR%"
+  if exist "%PYDIR%" rmdir /s /q "%PYDIR%"
+  mkdir "%PYDIR%"
   curl.exe -fsSL -o "%PYDIR%\python.zip" "%PYURL%" || goto :erreur
   tar.exe -xf "%PYDIR%\python.zip" -C "%PYDIR%" || goto :erreur
   del "%PYDIR%\python.zip"
@@ -19,6 +21,7 @@ if not exist "%PY%" (
   curl.exe -fsSL -o "%PYDIR%\get-pip.py" https://bootstrap.pypa.io/get-pip.py || goto :erreur
   "%PY%" "%PYDIR%\get-pip.py" -q --no-warn-script-location || goto :erreur
   "%PY%" -m pip install -q --no-warn-script-location setuptools wheel || goto :erreur
+  echo ok> "%PYDIR%\pret"
 )
 
 rem Dependances : reinstallees seulement quand requirements.txt change.
