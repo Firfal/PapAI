@@ -52,6 +52,12 @@ class LinkService : Service() {
                 PendingIntent.FLAG_IMMUTABLE,
             )
             return NotificationCompat.Builder(ctx, PapAIApp.CHANNEL_LINK)
+                .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+                .setPublicVersion(NotificationCompat.Builder(ctx, PapAIApp.CHANNEL_LINK)
+                    .setSmallIcon(R.drawable.ic_notif)
+                    .setContentTitle("PapAI est relié")
+                    .setContentIntent(open)
+                    .build())
                 .setSmallIcon(R.drawable.ic_notif)
                 .setContentTitle("Relié à ${Helper.senior}")
                 .setContentText("Vous serez prévenu dès qu'une demande d'aide arrive.")
@@ -60,6 +66,13 @@ class LinkService : Service() {
                 .setPriority(NotificationCompat.PRIORITY_MIN)
                 .setContentIntent(open)
                 .build()
+        }
+
+        fun refresh(ctx: Context) {
+            val manager = ctx.getSystemService(android.app.NotificationManager::class.java)
+            if (manager.activeNotifications.any { it.id == NOTIF_ID }) {
+                manager.notify(NOTIF_ID, notification(ctx))
+            }
         }
     }
 }
