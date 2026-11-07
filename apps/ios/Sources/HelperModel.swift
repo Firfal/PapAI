@@ -457,8 +457,8 @@ final class HelperModel {
         switch type {
         case "hello":
             setSenior(m["senior"] as? String)
-            // On se présente : l'ordinateur doit voir ce proche dans sa liste.
-            send(["type": "helper_hello", "id": helperId, "name": helperName ?? "La personne aidée",
+            // On se présente : l'ordinateur doit voir ce support dans sa liste.
+            send(["type": "helper_hello", "id": helperId, "name": helperName ?? "Support",
                   "relation": helperRelation])
 
         case "helper_id":

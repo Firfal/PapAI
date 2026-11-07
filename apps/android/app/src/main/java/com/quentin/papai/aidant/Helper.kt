@@ -461,7 +461,7 @@ object Helper {
                 // sans session (serveur redémarré), il ne reste rien de l'ancienne demande.
                 state = null; frame = null; frameId = null; frameAt = null
                 // On se présente : l'ordinateur doit voir ce proche dans sa liste.
-                send("type" to "helper_hello", "id" to helperId, "name" to (helperName ?: "La personne aidée"),
+                send("type" to "helper_hello", "id" to helperId, "name" to (helperName ?: "Support"),
                     "relation" to helperRelation)
             }
 
