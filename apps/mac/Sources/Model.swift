@@ -341,33 +341,54 @@ final class AppModel {
         }
     }
 
+    @ObservationIgnored private var joiningOrg = false
+
     /// Poste déjà installé : le jeton déposé par l'IT le rattache à son organisation.
+    /// Hors ligne, on réessaie ; un refus du serveur (jeton inconnu, autre organisation) est définitif.
     private func joinOrg(_ tok: String) async {
-        guard let url = URL(string: httpBase + "/org") else { return }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["org": tok, "name": machineName])
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.timeoutInterval = 10
-        guard let (data, resp) = try? await URLSession.shared.data(for: req),
-              (resp as? HTTPURLResponse)?.statusCode == 200,
-              let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-        UserDefaults.standard.set(tok, forKey: "orgJoined")
-        UserDefaults.standard.set(d["org"] as? String ?? "", forKey: "orgName")
-        await refreshLessons()
+        guard !joiningOrg else { return }
+        joiningOrg = true
+        defer { joiningOrg = false }
+        var delay = 5.0
+        while orgToken == tok, UserDefaults.standard.string(forKey: "orgJoined") != tok {
+            guard let url = URL(string: httpBase + "/org") else { return }
+            var req = URLRequest(url: url)
+            req.httpMethod = "POST"
+            req.httpBody = try? JSONSerialization.data(withJSONObject: ["org": tok, "name": machineName])
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.timeoutInterval = 10
+            let r = try? await URLSession.shared.data(for: req)
+            let status = (r?.1 as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 200, let data = r?.0,
+               let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                UserDefaults.standard.set(tok, forKey: "orgJoined")
+                UserDefaults.standard.set(d["org"] as? String ?? "", forKey: "orgName")
+                await refreshLessons()
+                return
+            }
+            if (400..<500).contains(status) && status != 429 { return }
+            try? await Task.sleep(for: .seconds(delay))
+            delay = min(delay * 2, 60)
+        }
     }
 
     /// Premier lancement : `POST /spaces` donne l'adresse du pont, clé comprise. Rien à régler.
-    private func createSpace() async {
+    private func createSpace(withOrg: Bool = true) async {
         guard let url = URL(string: Self.officialHTTP + "/spaces") else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        let tok = orgToken
+        let tok = withOrg ? orgToken : ""
         req.httpBody = tok.isEmpty ? Data("{}".utf8)
             : try? JSONSerialization.data(withJSONObject: ["org": tok, "name": machineName])
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 10
-        if let (data, _) = try? await URLSession.shared.data(for: req),
+        let r = try? await URLSession.shared.data(for: req)
+        if !tok.isEmpty, (r?.1 as? HTTPURLResponse)?.statusCode == 403 {
+            // Jeton refusé : le poste a quand même son espace, hors organisation.
+            await createSpace(withOrg: false)
+            return
+        }
+        if let data = r?.0,
            let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let b = d["bridge_url"] as? String, b.hasPrefix("wss://") || b.hasPrefix("ws://"), b.contains("/k/") {
             if let org = d["org"] as? String, !tok.isEmpty {
