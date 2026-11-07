@@ -93,7 +93,7 @@ def provision(base: str = OFFICIAL_HTTP, timeout: float = 10, org: str = "",
     st, d = _post(base.rstrip("/") + "/spaces", body, timeout)
     url = str(d.get("bridge_url") or "") if st == 200 else ""
     if info is not None:
-        info.update(d)
+        info.update(d, status=st)
     return url if url.startswith(("wss://", "ws://")) and "/k/" in url else None
 
 

@@ -450,6 +450,22 @@ def pairing() -> None:
         m._join = lambda tok: ""
         m._join_org(wait=lambda _: (_ for _ in ()).throw(AssertionError("ne doit pas réessayer")))
         check(not settings.load().get("orgName"), "jeton refusé par le serveur : pas de nouvel essai")
+        m = Model()
+        reel, envois = settings.provision, []
+
+        def refuse(org="", info=None, **_):
+            envois.append(org)
+            if org:
+                info.update({"error": "Jeton d'organisation inconnu.", "status": 403})
+                return None
+            return "wss://srv/k/cle-hors-org/ws/bridge"
+        settings.provision = refuse
+        try:
+            url = m._provision()
+        finally:
+            settings.provision = reel
+        check(url == "wss://srv/k/cle-hors-org/ws/bridge" and envois == ["ins-jeton-de-test", ""] and not m._org_name,
+              "jeton refusé à l'inscription : le poste a quand même son espace, hors organisation")
         os.environ["PAPAI_ORG"] = "pas-un-jeton"
         check(settings.org_token() == "", "jeton mal formé ignoré")
         os.environ.pop("PAPAI_ORG", None)

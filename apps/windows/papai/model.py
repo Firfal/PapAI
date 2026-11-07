@@ -272,7 +272,12 @@ class Model:
 
     def _provision(self) -> str | None:
         info: dict = {}
-        url = settings.provision(org=settings.org_token(), info=info)
+        tok = settings.org_token()
+        url = settings.provision(org=tok, info=info)
+        if url is None and tok and info.get("status") == 403:
+            # Jeton refusé : le poste a quand même son espace, hors organisation.
+            info = {}
+            url = settings.provision(info=info)
         self._org_name = str(info.get("org") or "")
         return url
 
