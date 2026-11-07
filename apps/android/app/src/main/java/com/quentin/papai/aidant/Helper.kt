@@ -337,6 +337,7 @@ object Helper {
                                     m.text("task").ifEmpty { "Ouvrez PapAI pour voir la demande." }, otherNotificationId(p.key))
                             }
                         }
+                        "alert_cleared" -> othersAsking[p.key] = false
                         "alert" -> {
                             othersAsking[p.key] = true
                             notifyLocal("$who : ${m.text("title").ifEmpty { "alerte" }}", m.text("detail"), otherNotificationId(p.key))

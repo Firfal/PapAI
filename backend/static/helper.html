@@ -501,6 +501,7 @@ function watchPeople() {
             if (navigator.vibrate) navigator.vibrate(200);
           }
         }
+        else if (m.type === 'alert_cleared') { w.asking = false; }
         else if (m.type === 'alert') { w.asking = true; toast(`${p.name || 'Une personne aidée'} : ${m.title || 'alerte'}`); }
         renderPeople();
       };

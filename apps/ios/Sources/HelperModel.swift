@@ -332,6 +332,8 @@ final class HelperModel {
                 let t = (m["task"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 notifyLocal(title: "\(who) demande une assistance", body: t.isEmpty ? "Ouvrez PapAI pour voir la demande." : "« \(t) »")
             }
+        case "alert_cleared":
+            othersAsking[key] = false
         case "alert":
             othersAsking[key] = true
             notifyLocal(title: "\(who) : \(m["title"] as? String ?? "alerte")", body: m["detail"] as? String ?? "")
