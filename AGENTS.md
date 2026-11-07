@@ -16,12 +16,13 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794084400-demandes-suspectes` | Corrections PR #28 après revue | `backend/app.py`, `backend/guard.py`, `tests/test_demandes_suspectes.py`, `tests/test_securite.py`, `PROTOCOL.md`, `apps/windows/papai/bridge.py`, `apps/windows/papai/model.py`, `apps/windows/tests/test_windows_app.py`, `AGENTS.md`, `TODO.md` | 7 nov. soir |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 7 nov. soir | Devin | `devin/1794084400-demandes-suspectes` | Corrections revue PR #28 : diffusion/reconnexion/rejet du gardien limités à la clé famille ou au jeton de la session concernée (même arrêtée), ancien jeton refusé. Windows : danger ou blocked lève StopGate, annule les execute en cours et conserve leur verrou malgré reset. Tests des vrais gestes click/type_text avec pyautogui simulé : aucune suite après alerte. Documents ≠ argent : 23 légitimes et 27 suspectes, dont 9 nouveaux cas légitimes et 11 adverses ; pas de dispense via le mot facture. Régressions : demandes/orchestration 15, Windows 44 (sur macOS, sans écran Windows), sécurité 35, gardien 14, protocole 14, parcours 27, profil 6, transcribe OK. Pas de nouveau Swift, builds précédents inchangés. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794084400-demandes-suspectes` | Demandes et plans vérifiés avant exécution : règles déterministes (14 légitimes, 16 suspectes) + avis Holo textuel en cas de doute, indisponibilité bloquante. Alerte Mac non fermable au clavier et verrou local ; texte distinct pour le proche ; notifications et Live Activity iPhone, rejet confirmé iPhone/web sans reprise. Contrat `alert_id`/`dismiss_alert`/`alert_cleared`, point d'entrée `publish_guard` réutilisable. Tests : nouvelles règles/orchestration 12, gardien 14, protocole 14, parcours 27, sécurité 35, profil 6, aidant 5, transcribe OK. Builds Mac/iPhone zéro erreur (avertissements iOS existants). UI Mac réel/iPhone 17 simulé/web : blocage, rappel, rejets synchronisés, notification et Dynamic Island vérifiés, captures et vidéo. Parcours normal natif non terminé (capture non autorisée), injection locale execute et reconnexion native non essayées. Android #23 encore ouverte, hors de cette branche. Ni fusion ni déploiement. Fichiers libérés. |
 | 7 nov. | Claude | `parcours-onboarding` | Lancement sur Mac sans Xcode : `run_backend_mac.sh`, `apps/mac/scripts/build-mac-cli.sh` (swiftc + bundle + signature ad hoc). |
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 1-2 : accueil en 5 écrans (bienvenue, prénom, taille du texte, autorisations, proches), ajout d'un proche par QR ou code à 6 chiffres (`backend/family.py`, `/p/{code}`, `pair.html`), session proposée par le proche à accepter sur le Mac (`remote_request`). |
