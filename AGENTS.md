@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794069197-fiche-etapes-chaines` | Fiche : étapes en chaînes, erreur renvoyée à l'aidant | `backend/caremamory.py`, `backend/app.py` (branche `draft_lesson`), `apps/ios/Sources/HelperModel.swift` (cas `refused`), `tests/test_protocole.py`, `tests/faux_holo.py` | 7 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -27,3 +27,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 3 à 8 : écran de consentement, actions expliquées en phrases simples avec historique, question du proche, écran de fin avec retour auto à l'accueil, « Mes tutoriels » rafraîchi quand le proche valide une fiche (`lessons_changed`). |
 | 7 nov. | Claude | `parcours-onboarding` | Branche remise à jour sur `main` : la dictée de l'équipe (Gladia) remplace la mienne, ma partie de ToDo est fusionnée dans le `TODO.md` de l'équipe. |
 | 7 nov. | Claude | `main` | Parcours des étapes 1 à 8 fusionné dans `main` (tests gardien 14/14, protocole 9/9). Fichiers libérés. |
+| 7 nov. | Devin | `devin/1794069197-fiche-etapes-chaines` | Fiche : `draft_lesson()` accepte des étapes en chaînes ; en cas d'échec l'aidant reçoit `refused` (iPhone : bouton libéré). Faux Holo `tests/faux_holo.py`, contrôle « la fiche est rédigée » (protocole 10/10, gardien 14/14). Reste `helper.html` (réservé ailleurs) : gérer `refused` pendant la rédaction. Fichiers libérés. |
