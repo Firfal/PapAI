@@ -69,6 +69,7 @@ Reçoit :
 - `{"type":"answer","content":"…"}` fin de tâche
 - `{"type":"alert","title":"…","detail":"…"}` un automatisme a échoué
 - `{"type":"lesson_pending"}`, `{"type":"lesson_draft","lesson":{…},"preview":{frame_id:png_b64}}`, `{"type":"lesson_saved","lesson":{…}}`
+  Chaque étape du brouillon a un `frame` : une vraie capture de la session, présente dans `preview`. Jamais d'image fabriquée. Sans aucune capture, le serveur répond `refused`.
 - `{"type":"refused","reason":"…"}`, `{"type":"ack","what":"pause|click"}`
 
 Envoie :

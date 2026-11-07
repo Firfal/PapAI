@@ -13,6 +13,8 @@ Rien de ce scénario n'a encore été fait en entier sur le vrai Mac : **faire l
       **aucune fenêtre d'autorisation macOS** à l'écran (c'est un humain qui y répond, avant la démo, jamais Holo).
 - [ ] **PapAI ouverte** à l'accueil, relancée après le dernier déploiement, prénom « Jeanne », serveur en ligne réglé.
       Autorisations déjà données : Enregistrement de l'écran, Accessibilité, Micro, Reconnaissance vocale (faire une dictée d'essai avant).
+- [ ] **Gardien** : aucun outil de prise en main ouvert (AnyDesk, TeamViewer…), sinon une alerte s'affiche par-dessus tout entre deux sessions.
+      Si macOS demande d'autoriser PapAI à contrôler un navigateur (lecture de l'adresse), répondre avant la démo.
 - [ ] **Dossier** `~/Pictures/Noël 2025` présent avec ses 4 images ; aucun autre dossier « Noël 2025 » ailleurs (Bureau compris).
 - [ ] **iPhone** : app PapAI **au premier plan** et connectée, Verrouillage auto sur Jamais, Ne pas déranger, batterie chargée.
       En arrière-plan, la connexion se coupe et le plan n'arrive pas.
