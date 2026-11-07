@@ -412,6 +412,16 @@ def pairing() -> None:
         m._create_space(wait=attentes.append)
         check(m.server_url == "wss://srv/k/cle-apres-coupure/ws/bridge" and attentes == [5, 10],
               "hors ligne au premier lancement : l'espace est créé au retour du réseau")
+        settings.save({"server": ""})
+        m = Model()
+
+        def choisi_pendant():
+            settings.save({"server": "ws://mon-serveur:8000/ws/bridge"})
+            return "wss://srv/k/cle-officielle/ws/bridge"
+        m._provision = choisi_pendant
+        m._create_space(wait=lambda _: None)
+        check(settings.load().get("server") == "ws://mon-serveur:8000/ws/bridge",
+              "un serveur choisi pendant la création n'est pas écrasé")
     finally:
         settings.save({"server": ""})
         if saved is not None:

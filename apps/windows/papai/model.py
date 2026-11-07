@@ -254,8 +254,10 @@ class Model:
 
         Hors ligne, on réessaie jusqu'au retour du réseau, sans redémarrer l'app."""
         delay = 5
-        while settings.needs_space(self.prefs):
+        while settings.needs_space():
             url = self._provision()
+            if not settings.needs_space():
+                return  # un serveur a été choisi entre-temps : on n'y touche pas
             if url:
                 self.prefs = settings.save({"server": url})
                 self.reconnect()
