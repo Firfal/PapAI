@@ -85,9 +85,9 @@
       <button class="press" data-act="mic" ${ph === 'transcribing' || ph === 'starting' ? 'disabled' : ''}
         aria-label="${listening ? 'Arrêter la dictée' : 'Dicter ma demande'}"
         style="flex:none">
-      <span style="position:relative;width:180px;height:180px;display:flex;align-items:center;justify-content:center">
+      <span class="microFrame" style="position:relative;width:180px;height:180px;display:flex;align-items:center;justify-content:center">
         ${listening ? '<span class="micRing"></span>' : ''}
-        <span class="circle" style="position:relative;width:148px;height:148px;background:${listening ? 'var(--accent)' : '#fff'}">${inner}</span>
+        <span class="circle microDisc" style="position:relative;width:148px;height:148px;background:${listening ? 'var(--accent)' : '#fff'}">${inner}</span>
       </span></button><span style="${f(20, 6)}">${label}</span>
       ${ui.request && !ui.writing ? `<span style="${f(18, 5)}">${esc(ui.request)}</span>` : ''}</div>`;
   }
