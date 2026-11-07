@@ -49,7 +49,7 @@ Mac de la personne aidée         Serveur PapAI (Cloud Run)          H Company
 
 ```
 backend/        serveur FastAPI : sessions, plan, boucle agent Holo, garde-fous
-carepilot_tools.py  contrat avec Holo : outils, prompts Mac et Windows
+papai_tools.py  contrat avec Holo : outils, prompts Mac et Windows
 apps/mac/       app SwiftUI de la personne aidée (capture, clics, Arrêter, automatismes)
 apps/ios/       app SwiftUI de l'aidant (validation, capture en direct, prise de main)
 brand/          logo et icônes (SVG)

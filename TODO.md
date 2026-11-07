@@ -8,7 +8,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - **Avant de commencer, réservez vos fichiers dans [`AGENTS.md`](AGENTS.md)** (une branche par chantier), et notez-y ce que vous avez fait en finissant. C'est ce qui évite que deux agents modifient le même fichier.
 - Le contrat serveur ↔ apps est dans [`PROTOCOL.md`](PROTOCOL.md). Un changement de message se fait là d'abord.
 - **Règle produit, non négociable : rien ne bouge sur l'ordinateur sans plan validé par l'aidant.** Le bouton Arrêter du Mac coupe tout, même hors ligne.
-- Holo ne doit jamais cliquer dans une fenêtre d'autorisation du système ni dans les Réglages (`carepilot_tools.py`).
+- Holo ne doit jamais cliquer dans une fenêtre d'autorisation du système ni dans les Réglages (`papai_tools.py`).
 - Avant de pousser du code serveur, lancez les tests. Les deux doivent passer. Sans clé H Company : `python tests/faux_holo.py`, puis lancez le serveur avec `HOLO_BASE_URL=http://127.0.0.1:8999/v1/ HAI_API_KEY=stub-key`.
   - `python tests/test_gardien.py`
   - `python tests/test_protocole.py http://127.0.0.1:8000 demo` (avec un serveur local lancé)
@@ -65,7 +65,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).
 - [x] Version Windows de l'app de la personne aidée, design « Soin » de l'app Mac (`apps/windows`). Reste : l'essayer sur un vrai Windows (capture, clics, accents, exclusion de la fenêtre, dictée).
 - [ ] Plusieurs aidants : plusieurs proches s'ajoutent déjà et reçoivent tous la demande. Reste à éprouver « le premier disponible valide » avec deux aidants connectés.
-- [ ] Renommer `carepilot_tools.py` en `papai_tools.py` : en cours, pas fusionné, branche `devin/1794070613-renommer-carepilot`.
+- [x] Renommer `carepilot_tools.py` en `papai_tools.py` (fusionné le 7 novembre au soir).
 
 ## Fait
 

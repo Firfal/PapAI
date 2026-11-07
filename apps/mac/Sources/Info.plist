@@ -29,6 +29,8 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>PapAI lit l'adresse de la page ouverte dans votre navigateur pour repérer les sites d'arnaque et prévenir vos proches.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>PapAI écoute votre voix uniquement quand vous touchez le micro, pour écrire votre demande à votre place.</string>
 	<key>NSScreenCaptureUsageDescription</key>

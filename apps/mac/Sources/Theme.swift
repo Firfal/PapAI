@@ -14,6 +14,7 @@ enum T {
     static let muted = Color(hex: 0x7A807C)
     static let accent = Color(hex: 0x2E9E5B)
     static let mint = Color(hex: 0xE2F2E7)
+    static let danger = Color(hex: 0xC8442F)
     static let r: CGFloat = 28
     static let rBig: CGFloat = 36
 }
