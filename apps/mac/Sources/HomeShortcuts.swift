@@ -118,7 +118,7 @@ final class HomeShortcuts {
     }
 
     private func ajouter(_ tuile: Tuile) -> Bool {
-        if ajoutes.contains(where: { $0.cible == tuile.cible }) { return true }
+        if tuiles.contains(where: { $0.cible == tuile.cible }) { return true }
         guard ajoutes.count < 4 else { return false }
         ajoutes.append(tuile)
         enregistrer()
