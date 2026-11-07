@@ -41,6 +41,8 @@ final class Dictation {
     private var voiceAt: Date?
     private var feeder: Task<Void, Never>?
     private var watch: Task<Void, Never>?
+    /// Feuille fermée pendant l'écoute : l'enregistrement est effacé sans être envoyé.
+    private var discarding = false
 
     var listening: Bool { phase == .listening }
 
@@ -72,6 +74,7 @@ final class Dictation {
 
     private func start(endpoint: URL?, onLive: @escaping (String) -> Void, onText: @escaping (String) -> Void) async {
         message = nil
+        discarding = false
         #if DEBUG
         // Vérification sur simulateur sans micro : `-dictationFile /chemin/audio.wav`
         // ou la variable PAPAI_DICTATION_FILE (`SIMCTL_CHILD_PAPAI_DICTATION_FILE=…`).
@@ -242,10 +245,10 @@ final class Dictation {
         Task {
             var text: String?
             if let url = fileURL {
-                text = await viaServeur(url)
+                if !discarding { text = await viaServeur(url) }
                 try? FileManager.default.removeItem(at: url)
             }
-            if text?.isEmpty ?? true {
+            if !discarding, text?.isEmpty ?? true {
                 // Sans Gladia : le texte de l'iPhone, une fois ses derniers mots arrivés.
                 for _ in 0..<20 where !liveFinal { try? await Task.sleep(for: .milliseconds(100)) }
                 text = live.isEmpty ? nil : live
@@ -253,6 +256,7 @@ final class Dictation {
             recognition?.cancel(); recognition = nil; request = nil
             phase = .idle
             live = ""
+            if discarding { onText = nil; onLive = nil; return }
             if let text, !text.isEmpty { onText?(text) }
             else if message == nil { message = "Je n’ai rien entendu. Appuyez sur le micro et parlez." }
             onText = nil; onLive = nil
@@ -262,6 +266,7 @@ final class Dictation {
     /// Fermeture de la feuille : on coupe sans rien renvoyer.
     func cancel() {
         onText = nil; onLive = nil
+        discarding = true
         stop()
     }
 
