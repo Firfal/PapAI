@@ -12,6 +12,14 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 6. Avant de pousser, `git fetch` puis remettre sa branche à jour sur `main` : un autre agent a peut-être touché aux mêmes fichiers.
 5. Le contrat entre le serveur et les apps est `PROTOCOL.md` : tout nouveau message y est décrit.
 
+## Branches gelées
+
+Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande explicite de Quentin.
+
+| Branche | Pourquoi |
+|---|---|
+| `devin/1794084917-extension-gardien` | Extension navigateur anti-arnaque retirée du produit (PR #32 fermée sans fusion). Code conservé tel quel. |
+
 ## En cours
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
