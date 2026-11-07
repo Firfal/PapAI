@@ -93,39 +93,67 @@ struct OnboardingView: View {
 
     // MARK: Étapes
 
+    /// Le décor cède la place avant le texte : mascotte réduite, promesses sans carte, puis mascotte masquée.
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        let s = CGFloat(model.textScale)
+        return ViewThatFits(in: .vertical) {
+            welcome(mascotte: 190 * s)
+            welcome(mascotte: 110)
+            welcome(mascotte: 110, cartes: false)
+            welcome(mascotte: nil, cartes: false)
+            welcome(mascotte: nil, cartes: false, titre: 44)
+            ScrollView { welcome(mascotte: nil, cartes: false, titre: 44) }
+        }
+    }
+
+    private func welcome(mascotte taille: CGFloat?, cartes: Bool = true, titre: CGFloat = 52) -> some View {
+        VStack(alignment: .leading, spacing: cartes ? 22 : titre < 52 ? 10 : 12) {
             HStack(alignment: .center, spacing: 28) {
-                VStack(alignment: .leading, spacing: 18) {
-                    Text("Bienvenue sur PapAI").font(rounded(52, .bold)).tracking(-0.8)
+                VStack(alignment: .leading, spacing: cartes ? 18 : titre < 52 ? 10 : 12) {
+                    Text("Bienvenue sur PapAI").font(rounded(titre, .bold)).tracking(-0.8)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
                         .font(rounded(23)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                Mascotte(humeur: .joyeuse).frame(width: 190 * CGFloat(model.textScale), height: 190 * CGFloat(model.textScale))
+                if let taille {
+                    Mascotte(humeur: .joyeuse).frame(width: taille, height: taille)
+                }
             }
-            promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre support.")
-            promise("stop.circle.fill", "Vous pouvez tout arrêter à tout moment.")
-            promise("lock.fill", "Votre écran n'est partagé que quand vous le demandez.")
+            promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre support.", carte: cartes)
+            promise("stop.circle.fill", "Vous pouvez tout arrêter à tout moment.", carte: cartes)
+            promise("lock.fill", "Votre écran n'est partagé que quand vous le demandez.", carte: cartes)
         }
     }
 
-    private func promise(_ symbol: String, _ text: String) -> some View {
+    private func promise(_ symbol: String, _ text: String, carte: Bool = true) -> some View {
         HStack(spacing: 16) {
             Image(systemName: symbol).font(.system(size: 22)).foregroundStyle(T.leaf).frame(width: 34)
             Text(text).font(rounded(20, .medium)).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 18).padding(.vertical, 12)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(T.card.opacity(0.8)))
+        .padding(.horizontal, carte ? 18 : 0).padding(.vertical, carte ? 12 : 0)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(carte ? T.card.opacity(0.8) : .clear))
     }
 
     private var firstName: some View {
+        let s = CGFloat(model.textScale)
+        return ViewThatFits(in: .vertical) {
+            firstName(mascotte: 120 * s)
+            firstName(mascotte: 72)
+            firstName(mascotte: nil)
+        }
+    }
+
+    private func firstName(mascotte taille: CGFloat?) -> some View {
         VStack(alignment: .leading, spacing: 22) {
             HStack(alignment: .center, spacing: 24) {
-                Mascotte(humeur: .ecoute).frame(width: 120 * CGFloat(model.textScale), height: 120 * CGFloat(model.textScale))
+                if let taille {
+                    Mascotte(humeur: .ecoute).frame(width: taille, height: taille)
+                }
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Comment vous appelez-vous ?").font(rounded(44, .bold)).tracking(-0.6)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("Votre prénom suffit. C'est ainsi que PapAI vous dira bonjour.")
                         .font(rounded(21)).foregroundStyle(T.muted)
                 }
