@@ -60,14 +60,12 @@ struct PermissionRow: View {
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    @State private var server = ""
     @State private var name = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Réglages").font(rounded(30, .semibold))
-            field("Prénom", text: $name, prompt: "Jeanne")
-            field("Serveur", text: $server, prompt: "ws://localhost:8000/ws/bridge")
+            field("Prénom", text: $name, prompt: "Votre prénom")
             VStack(alignment: .leading, spacing: 8) {
                 Text("Taille du texte").font(rounded(15, .semibold)).foregroundStyle(T.muted)
                 Picker("", selection: Binding(get: { model.textScale }, set: { model.setTextScale($0) })) {
@@ -90,18 +88,16 @@ struct SettingsView: View {
                 Spacer()
                 Button("Annuler") { dismiss() }.buttonStyle(PillStyle(filled: false, height: 50))
                 Button("Enregistrer") {
-                    UserDefaults.standard.set(server, forKey: "server")
+                    // L'adresse du serveur ne se règle plus ici : elle vient de l'installation.
                     UserDefaults.standard.set(name, forKey: "firstName")
                     model.sendProfile()
-                    model.reconnect()
-                    Task { await model.refreshLessons() }
                     dismiss()
                 }.buttonStyle(PillStyle(height: 50))
             }
         }
         .foregroundStyle(T.ink)
         .padding(32).frame(width: 520).background(T.bg)
-        .onAppear { server = model.serverURL; name = model.firstName }
+        .onAppear { name = model.firstName }
     }
 
     private func field(_ label: String, text: Binding<String>, prompt: String) -> some View {
