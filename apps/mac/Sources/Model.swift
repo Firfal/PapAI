@@ -469,8 +469,8 @@ final class AppModel {
     /// Le verrou local passe d'abord, puis le serveur est prévenu.
     func stop() {
         gate.raise()
-        client.send(["type": "stop"])
         webHost.stopLocal(notifyServer: false)
+        client.send(["type": "stop"])
         state = .stopped
         currentAction = nil
         applyLevel()
