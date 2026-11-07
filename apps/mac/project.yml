@@ -1,0 +1,35 @@
+name: PapAI
+options:
+  bundleIdPrefix: com.quentin
+  deploymentTarget:
+    macOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  PapAI:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: PapAI
+        CFBundleName: PapAI
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: "15.0"
+        NSScreenCaptureUsageDescription: "PapAI partage votre écran avec Quentin et Holo uniquement quand vous demandez de l'aide."
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.quentin.papai
+        PRODUCT_NAME: PapAI
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Sources/Info.plist
+        ENABLE_HARDENED_RUNTIME: NO
+        CODE_SIGN_STYLE: Manual
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
