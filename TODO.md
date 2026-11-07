@@ -45,8 +45,8 @@ Mis à jour le 7 novembre à 16 h 30. Cochez au fur et à mesure et poussez.
 
 ## P1 — pitch et rendu (demain matin)
 
-- [ ] Script du pitch (2 à 3 min) et vidéo de 2 min.
-- [ ] Texte de soumission BuilderBase et Luma. Il faut se connecter soi-même.
+- [x] Script du pitch (2 à 3 min) et vidéo de 2 min : [`docs/pitch.md`](docs/pitch.md). Reste à tourner et monter la vidéo après la répétition P0.
+- [x] Texte de soumission BuilderBase et Luma : [`docs/soumission.md`](docs/soumission.md). Reste à compléter l'équipe et les liens, puis à coller soi-même sur les plateformes.
 - [ ] Captures propres des deux apps pour les slides (fenêtre PapAI, iPhone en validation).
 - [ ] Logotype « papai » (papaye sur le i) dans les en-têtes des apps Mac et iPhone. Les sources sont dans `brand/` et le Figma.
 - [x] Page web de secours de l'aidant (`backend/static/helper.html`) en design « Soin ».
