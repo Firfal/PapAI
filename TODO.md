@@ -79,6 +79,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).
 - [x] App Windows au niveau du Mac pendant l'aide : Pause/Reprendre, question de Holo à la personne, avancement en 3 étapes, encart en bas à droite pendant que Holo agit, fin du gardien adaptée à l'aidé, dictée transmise à l'aidant. Reste : l'essayer sur un vrai Windows ; verrou souris/clavier pendant que Holo agit (`InputLock` du Mac) pas porté.
 - [x] Version Windows de l'app de la personne aidée, design « Soin » de l'app Mac (`apps/windows`) : accueil voix d'abord, micro détecté à chaud, envoi après silence, logotype et raccourcis locaux sécurisés (4 dossiers personnels). Tests Windows app/serveur + faux Holo et rendu Chrome/Linux comparé au Mac vérifiés. Reste : l'essayer sur un vrai Windows (capture, clics, accents, exclusion de la fenêtre, dictée et branchement du micro).
+- [x] Plusieurs espaces sur un même serveur : un par ordinateur aidé, créé au premier lancement (`POST /spaces`), code à 6 chiffres sans clé accepté sur l'ordinateur (`pair_confirm`). Tests : `tests/test_appairage_code.py`.
+- [ ] Apps du support : liste « Mes personnes aidées » (une clé par espace), puis organisation IT.
 - [ ] Plusieurs aidants : plusieurs proches s'ajoutent déjà et reçoivent tous la demande. Reste à éprouver « le premier disponible valide » avec deux aidants connectés.
 - [x] Renommer `carepilot_tools.py` en `papai_tools.py` (fusionné le 7 novembre au soir).
 

@@ -901,7 +901,8 @@ async def aidant_page(key: str):
 
 @app.websocket("/k/{fam}/ws/aidant/{key}")
 async def ws_aidant_keyed(ws: WebSocket, fam: str, key: str) -> None:
-    if not _key_ok(fam):
+    # Les deux clés désignent le même espace : pas de mélange entre espaces.
+    if not (_key_ok(fam) and secrets.compare_digest(fam, key)):
         await ws.close(code=4403)
         return
     await ws_aidant(ws, key)

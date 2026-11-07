@@ -120,6 +120,28 @@ async def parcours(base: str) -> None:
         st0, r0 = http(f"{base}/k/{b['key']}/lessons")
         check("chaque espace a ses propres fiches", st == 200 and st0 == 200)
 
+        async def drain(w, t=1.0):
+            out = []
+            try:
+                while True:
+                    out.append(json.loads(await asyncio.wait_for(w.recv(), t)))
+            except asyncio.TimeoutError:
+                return out
+        async with websockets.connect(f"{wsb}/k/{a['key']}/ws/aidant/{a['key']}") as ha, \
+                websockets.connect(f"{wsb}/k/{b['key']}/ws/aidant/{b['key']}") as hb:
+            await drain(ha), await drain(hb)
+            await wb.send(json.dumps({"type": "help_request", "task": "Imprimer un document"}))
+            vus_a, vus_b2 = await asyncio.gather(drain(ha, 1.5), drain(hb, 1.5))
+            check("une demande n'arrive qu'aux supports de son espace",
+                  any(m.get("task") == "Imprimer un document" for m in vus_b2)
+                  and not any("Imprimer" in json.dumps(m, ensure_ascii=False) for m in vus_a))
+        try:
+            async with websockets.connect(f"{wsb}/k/{a['key']}/ws/aidant/{b['key']}") as hx:
+                m = json.loads(await asyncio.wait_for(hx.recv(), 5))
+            check("la clé d'un espace n'ouvre pas un autre espace", m.get("type") == "refused")
+        except Exception:  # noqa: BLE001
+            check("la clé d'un espace n'ouvre pas un autre espace", True)
+
         codes = []
         for _ in range(12):
             codes.append(http(f"{base}/p/000001", {"name": "X", "relation": ""})[0])

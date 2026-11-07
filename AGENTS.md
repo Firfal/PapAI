@@ -16,6 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| 8 nov. | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces (`backend/space.py`) : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), Windows et Mac créent leur espace au premier lancement. |
 | _(personne pour l'instant)_ | | | | |
 
 ## Journal
