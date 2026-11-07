@@ -16,6 +16,7 @@ final class WebAgentHost {
 
     private var holo: Process?
     private var chromePID: pid_t?
+    private var chromeProcess: Process?
     private var starting = false
     private var generation = 0
 
@@ -56,6 +57,7 @@ final class WebAgentHost {
             // Un navigateur écoute déjà sur 9222 : seulement s'il utilise notre profil.
             guard let pid = Self.ourChromePID() else { return }
             chromePID = pid
+            chromeProcess = nil
         } else {
             try? FileManager.default.createDirectory(at: Self.profile, withIntermediateDirectories: true)
             let p = Process()
@@ -67,6 +69,7 @@ final class WebAgentHost {
             do { try p.run() } catch { return }
             startedChrome = p
             chromePID = p.processIdentifier
+            chromeProcess = p
             var ready = false
             for _ in 0..<60 {
                 let listening = await Self.debuggerListening()
@@ -75,7 +78,7 @@ final class WebAgentHost {
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 if abortIfStopped(launchGeneration, chrome: startedChrome, holo: startedHolo) { return }
             }
-            guard ready else { p.terminate(); chromePID = nil; return }
+            guard ready else { p.terminate(); chromePID = nil; chromeProcess = nil; return }
         }
         let id = UUID().uuidString.lowercased()
         let h = Process()
@@ -102,7 +105,10 @@ final class WebAgentHost {
         if let holo, holo.isRunning { holo.terminate() }
         if let holo, self.holo === holo { self.holo = nil }
         if let chrome, chrome.isRunning { chrome.terminate() }
-        if let chrome, chromePID == chrome.processIdentifier { chromePID = nil }
+        if let chrome, chromePID == chrome.processIdentifier {
+            chromePID = nil
+            chromeProcess = nil
+        }
         return true
     }
 
@@ -116,17 +122,30 @@ final class WebAgentHost {
     }
 
     /// Arrêter, fin de session ou alerte : marche hors ligne, sans le serveur.
-    /// Chrome PapAI reste ouvert pour que la personne voie la page, mais plus
-    /// rien ne le pilote.
-    func stopLocal() {
+    func stopLocal(notifyServer: Bool = true) {
         generation += 1
         let h = holo
         holo = nil
         if sessionID != nil {
             sessionID = nil
-            onChange?(nil)
+            if notifyServer { onChange?(nil) }
         }
         h?.terminate()
+        let chrome = chromePID
+        let ownedChrome = chromeProcess
+        chromePID = nil
+        chromeProcess = nil
+        if let chrome {
+            NSRunningApplication(processIdentifier: chrome)?.terminate()
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                if let ownedChrome {
+                    if ownedChrome.isRunning { kill(chrome, SIGKILL) }
+                } else if Self.ourChromePID() == chrome {
+                    kill(chrome, SIGKILL)
+                }
+            }
+        }
         if Self.isInstalled {
             let s = Process()
             s.executableURL = Self.holoBinary
