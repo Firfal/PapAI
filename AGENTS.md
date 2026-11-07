@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/etape-du-plan` | Étape du plan en cours (`plan_step` dans `status`) | `PROTOCOL.md`, `backend/sessions.py`, `backend/agent.py`, `carepilot_tools.py` (outils), `tests/test_protocole.py`, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/SessionView.swift`, `apps/ios/Sources/HelperModel.swift`, `apps/ios/Sources/LiveViews.swift` | 7 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -29,3 +29,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | 7 nov. | Claude | `main` | Parcours des étapes 1 à 8 fusionné dans `main` (tests gardien 14/14, protocole 9/9). Fichiers libérés. |
 | 7 nov. | Devin | `devin/aidant-web-soin` | Page web de l'aidant (`helper.html`) en design « Soin » avec le logotype : carte du plan avec Valider, Préciser (champ de précision) et Refuser ; carte d'alerte (gardien, `automation_failed`) ; « Garder comme automatisme » seulement en fin de session. Essayée avec `faux_mac.py` et un faux Holo. Fichier libéré. |
 | 7 nov. | Devin | `devin/aidant-web-soin` | Page aidant refaite sur le modèle des apps macOS/iPhone : en-tête, carte de demande menthe, plan en cartes numérotées, barre Valider / Préciser / Refuser en bas, feuilles de précision et de refus, écran en direct avec pause et prise en main (loupe ×3), fin de session et automatisme. Alertes visibles sur tous les écrans. Fichier libéré. |
+| 7 nov. | Devin | `devin/etape-du-plan` | Étape du plan en cours : champ optionnel `plan_step` dans `status` (`PROTOCOL.md`, `backend/sessions.py`, `backend/agent.py`, argument `plan_step` des outils dans `carepilot_tools.py`, retiré avant l'envoi au Mac), affiché sur le Mac (`SessionView.swift`) et l'iPhone (`LiveViews.swift`). Swift non compilé (VM Linux). Tests gardien 14/14, protocole 12/12 avec un faux Holo. Fichiers libérés. |
