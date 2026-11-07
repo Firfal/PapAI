@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794094621-sans-qui-va-aider` | Retrait de la dernière étape du premier lancement | `apps/mac/Sources/OnboardingView.swift` ; `Model.swift` si nécessaire | 8 nov. |
 
 ## Journal
 
