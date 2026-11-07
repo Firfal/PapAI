@@ -93,22 +93,10 @@ jamais le serveur. Erreurs : 404 mauvaise clé, 503 `{"error":"gladia_absent"}`
 
 ## Gardien anti-arnaque
 
-L'app de la personne aidée observe en continu **trois signaux textuels**, et
-n'envoie que ceux-là. Jamais de capture, jamais d'appel au modèle à ce stade :
-
-```json
-{"type":"guard",
- "processes":["Safari","AnyDesk"],
- "window":"Votre ordinateur est infecté",
- "url":"https://mabanque.exemple.fr"}
-```
-
-Fréquence conseillée : toutes les 5 à 10 secondes. Le serveur évalue
-(`backend/guard.py`) et ne répond que s'il reconnaît une situation. Une même
-situation ne resonne pas avant 5 minutes — une alerte qui se répète est une
-alerte qu'on apprend à ignorer.
-
-Quand ça se déclenche, l'aidant **et** la personne aidée reçoivent :
+Les apps n'envoient plus de signaux en continu : PapAI n'est plus un outil de
+surveillance, il exécute des automatismes fournis par un support. Le serveur
+sait toujours traiter un message `guard` (`backend/guard.py`) si une app en
+envoie un ponctuellement, et répond alors par :
 
 ```json
 {"type":"alert","level":"danger|attention|info","title":"…","detail":"…"}
@@ -233,6 +221,60 @@ Consulter sa banque seule ne déclenche rien.
 que l'app rejoue **localement, sans modèle** : elle ouvre le dossier connu du système.
 Si le dossier n'existe plus, elle n'invente rien : `automation_failed`.
 `GET /lessons/{id}/{image}` sert les captures des étapes.
+
+### Automatismes importés par un support (fichier `.papai`)
+
+Un service IT ou un proche fournit un automatisme ; **l'importer, c'est le
+valider**. La personne le lance ensuite seule, en un clic, sans attendre
+l'accord d'un aidant. Exemples dans [`automations/`](automations/).
+
+```json
+{"papai": 1,
+ "title": "Lancer un scan antivirus",
+ "publisher": "Service IT Acme",
+ "description": "…",
+ "platforms": ["windows"],
+ "actions": [{"do": "antivirus_scan"}],
+ "steps": ["Texte du mode « Montre-moi »", "…"]}
+```
+
+Uniquement des **actions de premier niveau**, connues de l'app. **Jamais de
+commande, de script (PowerShell, shell), d'exécutable ni de chemin libre** :
+toute autre valeur de `do` est refusée à l'import.
+
+| `do` | Paramètres | Effet |
+|---|---|---|
+| `open_folder` | `folder` (pictures, documents, downloads, desktop, videos, music), `subfolder` (un nom) | Ouvre le dossier. |
+| `open_settings` | `page` : printers, default_apps, updates, antivirus, wifi, bluetooth, sound, display | Ouvre la page des Réglages (`ms-settings:` sur Windows, `x-apple.systempreferences:` sur Mac). |
+| `open_url` | `url` en `https://`, sans identifiant | Ouvre le lien dans le navigateur. |
+| `install_templates` | `files` : 1 à 5 `{"name":"Lettre.dotx","data":"<base64>"}`, `.dotx`/`.potx`/`.xltx` (sans macros) | Copie les modèles dans le dossier des modèles personnels de Word. |
+| `antivirus_scan` | — (Windows seulement) | Scan rapide Microsoft Defender : `MpCmdRun.exe -Scan -ScanType 1`, exécutable et arguments fixes, sans shell. Menace trouvée : `automation_failed`. |
+| `holo` | `goal`, `steps` (≤ 12) — une seule, en dernier | Holo fait la tâche à l'écran, avec ce plan déjà validé. |
+
+Routes (protégées par la clé, ou depuis la machine du serveur sans `/k/CLÉ`) :
+
+- `POST /k/CLÉ/automations` (corps : le fichier `.papai`) : `200` et la fiche
+  enregistrée (`id` en `imp-…`, `source:"import"`, `approved_by`,
+  `approved_at`), ou `422 {"error":"…"}` qui dit en clair ce qui est refusé.
+  Les modèles sont rangés à part et servis par `GET /lessons/{id}/{nom}`.
+  L'ordinateur reçoit `lessons_changed`.
+- `DELETE /k/CLÉ/automations/{id}` : retire un automatisme importé.
+- La page aidant (`/a/CLÉ`) a un bouton « Importer un automatisme ».
+
+Lancement, côté app :
+
+1. Vérifier que `platforms` contient le système ; sinon ne rien faire.
+2. Jouer les actions locales dans l'ordre, en relisant le verrou Arrêter avant
+   chacune. Un échec : `automation_failed` et on s'arrête.
+3. S'il y a une action `holo` : la première fois, l'accord de partage d'écran ;
+   puis `{"type":"run_automation","id":"imp-…"}` sur `/ws/bridge`.
+   Le serveur ouvre une session dont le plan est déjà validé
+   (`plan_approved:true`, journal `plan_preapproved` avec `by`), répond
+   `{"type":"session","id":"…","helper_url":"…","automation":"imp-…"}` et
+   l'agent agit aussitôt. Arrêter, les actions sensibles bloquées et
+   l'exclusion de la fenêtre PapAI s'appliquent comme pour une demande.
+   Automatisme inconnu, sans `holo` ou d'une autre plateforme :
+   `{"type":"automation_refused","id":"…","reason":"…"}`.
 
 ## Proches
 

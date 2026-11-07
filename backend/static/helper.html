@@ -254,6 +254,12 @@
     </div>
     <h3 class="section-title">Derniers automatismes</h3>
     <div id="lessons" class="stack"><p class="muted" style="font-size:15px">Aucun automatisme pour l'instant.</p></div>
+    <div class="card stack" id="importCard" hidden>
+      <h3 class="section-title">Importer un automatisme</h3>
+      <p>Un fichier <code>.papai</code> fourni par un support informatique ou préparé par vous. En l'important, vous le validez : votre proche pourra le lancer seul, en un clic.</p>
+      <input type="file" id="importFile" accept=".papai,application/json" aria-label="Fichier d'automatisme">
+      <p class="muted" id="importMsg" role="status" style="font-size:15px"></p>
+    </div>
   </section>
 
   <!-- Carte de la demande, commune à l'attente, au plan et à la validation -->
@@ -516,24 +522,55 @@ setInterval(tickSince, 20000);
 
 async function loadLessons() {
   if (!permanent) return;
+  $('importCard').hidden = false;
   try {
     const r = await fetch(`/k/${encodeURIComponent(token)}/lessons`);
     if (!r.ok) return;
     const list = await r.json();
     const items = Array.isArray(list) ? list : (list.lessons || []);
-    if (!items.length) return;
-    $('lessons').innerHTML = '';
-    items.slice(0, 5).forEach(l => {
+    $('lessons').innerHTML = items.length ? '' :
+      '<p class="muted" style="font-size:15px">Aucun automatisme pour l\'instant.</p>';
+    items.slice(0, 8).forEach(l => {
       const d = document.createElement('div');
       d.className = 'card lesson';
       d.innerHTML = '<span class="check"><svg class="i"><use href="#i-check"/></svg></span><div><strong></strong><small></small></div>';
       d.querySelector('strong').textContent = l.title || 'Automatisme';
-      const n = (l.steps || []).length;
-      d.querySelector('small').textContent = `${n} étape${n > 1 ? 's' : ''}`;
+      const n = (l.steps || []).length, a = (l.actions || []).length;
+      d.querySelector('small').textContent = l.source === 'import'
+        ? `Fourni par ${l.publisher || '?'} · ${a} action${a > 1 ? 's' : ''}`
+        : `${n} étape${n > 1 ? 's' : ''}`;
+      if (l.source === 'import') {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'capsule'; b.textContent = 'Retirer';
+        b.style.marginLeft = 'auto';
+        b.onclick = async () => {
+          await fetch(`/k/${encodeURIComponent(token)}/automations/${encodeURIComponent(l.id)}`, { method: 'DELETE' });
+          loadLessons();
+        };
+        d.appendChild(b);
+      }
       $('lessons').appendChild(d);
     });
   } catch (e) {}
 }
+
+$('importFile').addEventListener('change', async (ev) => {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  $('importMsg').textContent = 'Import…';
+  try {
+    const r = await fetch(`/k/${encodeURIComponent(token)}/automations`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: await file.text() });
+    const j = await r.json().catch(() => ({}));
+    $('importMsg').textContent = r.ok
+      ? `« ${j.title} » est disponible sur l'ordinateur.`
+      : (j.error || 'Import refusé.');
+    if (r.ok) loadLessons();
+  } catch (e) {
+    $('importMsg').textContent = 'Le serveur ne répond pas.';
+  }
+  ev.target.value = '';
+});
 
 /* ------------------------------------------- fraîcheur de la capture */
 
@@ -622,9 +659,12 @@ function onMessage(ev) {
     stoppedBy = m.stopped_by || null;
     executionStarted = typeof m.execution_started === 'boolean' ? m.execution_started : null;
     if (m.task !== undefined) task = m.task || '';
-    if (m.session !== sessionId) { sessionId = m.session; requestAt = Date.now(); }
+    const nouvelle = m.session !== sessionId;
+    if (nouvelle) { sessionId = m.session; requestAt = Date.now(); }
     if (!requestAt) requestAt = Date.now();
-    if (['waiting_consent', 'planning'].includes(state) && prev !== state) {
+    // Un automatisme importé commence directement en `active` : plan déjà validé.
+    const debut = ['waiting_consent', 'planning'].includes(state) || (nouvelle && state === 'active');
+    if (debut && prev !== state) {
       home = false;
       if (prev === null || ['done', 'stopped'].includes(prev)) {
         refusedByMe = false; savedTitle = null; hasDraft = false; lessonBusy = false;

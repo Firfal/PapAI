@@ -7,10 +7,11 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 - **Avant de commencer, réservez vos fichiers dans [`AGENTS.md`](AGENTS.md)** (une branche par chantier), et notez-y ce que vous avez fait en finissant. C'est ce qui évite que deux agents modifient le même fichier.
 - Le contrat serveur ↔ apps est dans [`PROTOCOL.md`](PROTOCOL.md). Un changement de message se fait là d'abord.
-- **Règle produit, non négociable : rien ne bouge sur l'ordinateur sans plan validé par l'aidant.** Le bouton Arrêter du Mac coupe tout, même hors ligne.
+- **Règle produit, non négociable : rien ne bouge sur l'ordinateur sans plan validé par l'aidant, ou par le support quand il importe un automatisme.** Jamais de commande ni de script dans un automatisme. Le bouton Arrêter du Mac coupe tout, même hors ligne.
 - Holo ne doit jamais cliquer dans une fenêtre d'autorisation du système ni dans les Réglages (`papai_tools.py`).
 - Avant de pousser du code serveur, lancez les tests. Les deux doivent passer. Sans clé H Company : `python tests/faux_holo.py`, puis lancez le serveur avec `HOLO_BASE_URL=http://127.0.0.1:8999/v1/ HAI_API_KEY=stub-key`.
   - `python tests/test_gardien.py`
+  - `python tests/test_automatismes.py` (automatismes importés, Holo simulé)
   - `python tests/test_protocole.py http://127.0.0.1:8000 demo` (avec un serveur local lancé)
 - Serveur en ligne : Cloud Run, projet `papai-h42-ifiy5`, service `papai`, région `europe-west1`. Les routes passent par `/k/<clé famille>/…`. **La clé n'est jamais dans le dépôt** : demandez-la à Quentin.
 - Redéployer : `gcloud run deploy papai --source . --project papai-h42-ifiy5 --region europe-west1 --quiet`. Les variables d'environnement sont conservées.
@@ -51,6 +52,14 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Afficher quelle étape du plan est en cours : `status.plan_step` côté serveur, affiché sur le Mac et l'iPhone. Swift compilé sur macOS, pas encore lancé sur les appareils.
 - [x] Fusionner `parcours-onboarding` dans `main`.
 
+## Support informatique de niveau 1 (7 novembre au soir)
+
+- [x] Automatismes importés par un support (`.papai`) : import et retrait (page aidant, `POST /k/CLÉ/automations`), actions de premier niveau, lancement en un clic sans validation à chaque fois, 4 exemples dans `automations/`. Tests : `tests/test_automatismes.py` (40 contrôles) et `apps/windows/tests/test_windows_app.py`.
+- [x] Plus de surveillance continue : les apps Mac et Windows n'envoient plus les signaux du gardien toutes les 8 s.
+- [ ] Compiler et essayer sur un Mac (`Automations` dans `Core.swift`) : modèles Word, page Imprimantes, Google via Holo.
+- [ ] Essayer sur un vrai Windows : scan Defender (`MpCmdRun.exe`), modèles Word dans `%APPDATA%\Microsoft\Templates`, `ms-settings:printers`.
+- [ ] Pitch et soumission : passer au support niveau 1, garder les grands-parents comme exemple.
+
 ## P1 — pitch et rendu (demain matin)
 
 - [x] Script du pitch (2 à 3 min) et vidéo de 2 min : [`docs/pitch.md`](docs/pitch.md). Reste à tourner et monter la vidéo après la répétition P0.
@@ -61,7 +70,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 ## P2 — bonus, seulement si tout le P0 passe
 
-- [x] Gardien anti-arnaque : demandes/plans vérifiés, règles déterministes et avis Holo (si indisponible : attention au proche, plan à valider). Alerte Mac/iPhone/web et verrou Windows ; famille/session pour diffusion, accusé anonyme et rejet sans reprise. Fin Mac blanche avec consignes, lisible en Très grande ; fin web selon `execution_started` irréversible avant envoi d'action ; pas de Tout va bien sous alerte. Faux proche/téléphone perdu, factures habituelles ≤ 1 500 € sans autre signal, confirmation de virement sans montant, français/anglais/allemand, k€, codes et mots espacés/ponctués. 43 légitimes/70 suspectes, 22 tests règles/orchestration ; autres suites et 49 contrôles Windows simulés au vert. Builds Mac/iPhone après main : zéro erreur. UI Mac réel/iPhone simulé/web revérifiée ; après action = execute envoyé à un pont sûr simulé, sans geste OS. Captures/vidéo transmises. Branche `devin/1794084400-demandes-suspectes`, pas encore fusionnée. Reste : iPhone physique/reconnexion native, parcours normal natif avec capture, Windows natif, compatibilité ancien serveur en UI. Android attend la fusion de #23.
+- [x] Gardien anti-arnaque (sans surveillance continue depuis le 7 nov. au soir : plus d'envoi périodique par les apps) : demandes/plans vérifiés, règles déterministes et avis Holo (si indisponible : attention au proche, plan à valider). Alerte Mac/iPhone/web et verrou Windows ; famille/session pour diffusion, accusé anonyme et rejet sans reprise. Fin Mac blanche avec consignes, lisible en Très grande ; fin web selon `execution_started` irréversible avant envoi d'action ; pas de Tout va bien sous alerte. Faux proche/téléphone perdu, factures habituelles ≤ 1 500 € sans autre signal, confirmation de virement sans montant, français/anglais/allemand, k€, codes et mots espacés/ponctués. 43 légitimes/70 suspectes, 22 tests règles/orchestration ; autres suites et 49 contrôles Windows simulés au vert. Builds Mac/iPhone après main : zéro erreur. UI Mac réel/iPhone simulé/web revérifiée ; après action = execute envoyé à un pont sûr simulé, sans geste OS. Captures/vidéo transmises. Branche `devin/1794084400-demandes-suspectes`, pas encore fusionnée. Reste : iPhone physique/reconnexion native, parcours normal natif avec capture, Windows natif, compatibilité ancien serveur en UI. Android attend la fusion de #23.
 - [x] Voix : dicter la demande (micro de l'app Mac, Gladia puis secours Apple sur l'appareil). `GLADIA_API_KEY` est sur Cloud Run, transcription testée en ligne.
   - [ ] Essayer la dictée sur le vrai Mac (autorisation du micro).
   - [ ] Entendre ce que fait Holo (synthèse vocale) : rien n'est codé.

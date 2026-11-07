@@ -179,10 +179,13 @@ struct HomeView: View {
             Button { model.runShortcut(l) } label: {
                 HStack(spacing: 10) {
                     Circle().fill(T.mint).frame(width: 36, height: 36)
-                        .overlay(Image(systemName: Shortcuts.symbol(for: l.shortcut?.folder))
+                        .overlay(Image(systemName: l.shortcut == nil && !(l.actions ?? []).isEmpty ? "wand.and.stars" : Shortcuts.symbol(for: l.shortcut?.folder))
                             .font(rounded(18)).foregroundStyle(T.accent))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(l.title).font(rounded(18, .semibold)).multilineTextAlignment(.leading)
+                        if let p = l.publisher, !p.isEmpty {
+                            Text("Fourni par \(p)").font(rounded(14)).foregroundStyle(T.muted)
+                        }
                     }
                     Spacer(minLength: 0)
                 }

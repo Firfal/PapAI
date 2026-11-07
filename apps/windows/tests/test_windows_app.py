@@ -116,12 +116,6 @@ def unit() -> None:
     check(sent[3]["refused"] and len(calls) == 1, "execute refusé après Arrêter")
     check(len(sent) == 4, "aucune capture envoyée après Arrêter")
 
-    b.guard = lambda: {"type": "guard", "processes": ["AnyDesk"], "window": "Alerte", "url": ""}
-    asyncio.run(b._send_guard(WS()))
-    check(sent[-1]["type"] == "guard" and "png_b64" not in sent[-1], "gardien : signaux textuels seuls")
-    b.guard = lambda: 1 / 0
-    asyncio.run(b._send_guard(WS()))
-    check(len(sent) == 5, "gardien : une erreur ne casse rien")
     check(core.guard_signals() is None or core.guard_signals()["type"] == "guard", "guard_signals hors Windows")
 
     m = Model(demo="home")
@@ -210,6 +204,64 @@ def unit() -> None:
     m.back_home()
     m.request_consent("Mes photos")
     check(m.screen == "consent", "accord retiré dans Réglages : redemandé")
+
+    # Automatismes importés : actions de premier niveau, jamais de commande.
+    g = core.StopGate()
+    check(not core.play_actions({"actions": [{"do": "shell", "cmd": "del"}]}, bytes, g)[0],
+          "action inconnue (shell) refusée")
+    check(not core.open_https("http://exemple.fr")[0] and not core.open_https("https://a:b@x.fr")[0],
+          "lien : https seul, sans identifiant")
+    check(not core.open_settings("regedit")[0], "page de Réglages hors liste refusée")
+    check(not core.template_name_ok("../x.dotx") and not core.template_name_ok("macro.docm")
+          and core.template_name_ok("Lettre Acme.dotx"), "modèles : nom simple, sans macros")
+    with tempfile.TemporaryDirectory() as d:
+        ok, _ = core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04x")], Path(d))
+        check(ok and (Path(d) / "Lettre Acme.dotx").is_file(), "modèle Word copié")
+        check(not core.install_templates([("faux.dotx", b"MZ")], Path(d))[0], "fichier non Office refusé")
+        core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04v2")], Path(d))
+        check((Path(d) / "Lettre Acme.dotx").read_bytes().endswith(b"v2")
+              and (Path(d) / "Lettre Acme (avant PapAI).dotx").is_file(),
+              "modèle déjà présent : gardé à côté, jamais écrasé")
+        core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04v3")], Path(d))
+        check((Path(d) / "Lettre Acme (avant PapAI 2).dotx").read_bytes().endswith(b"v2"),
+              "deux remplacements de suite : chaque ancienne version est gardée")
+        real_replace = core.os.replace
+        core.os.replace = lambda *a: (_ for _ in ()).throw(PermissionError("ouvert dans Word"))
+        try:
+            check(core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04v4")], Path(d))[0] is False,
+                  "échec d'installation remonté")
+        finally:
+            core.os.replace = real_replace
+        check(sorted(p.name for p in Path(d).iterdir()) == sorted(
+                  ["Lettre Acme.dotx", "Lettre Acme (avant PapAI).dotx", "Lettre Acme (avant PapAI 2).dotx"]),
+              "échec d'installation : ni fichier temporaire ni sauvegarde en trop")
+    if not core.WINDOWS:
+        check(not core.antivirus_scan()[0], "scan antivirus : seulement sous Windows")
+    g.raise_stop()
+    check(core.play_actions({"actions": [{"do": "open_url", "url": "https://x.fr"}]}, bytes, g)
+          == (False, "Arrêté."), "Arrêter : aucune action d'automatisme jouée")
+
+    m = Model(demo="home")
+    m.revoke_consent()
+    m.lessons = [{"id": "imp-000000000001", "title": "Google", "platforms": ["windows"],
+                  "actions": [{"do": "holo", "goal": "Remettre Google", "steps": ["a"]}]},
+                 {"id": "imp-000000000002", "title": "Mac seul", "platforms": ["mac"],
+                  "actions": [{"do": "open_settings", "page": "printers"}]}]
+    m.run_shortcut("imp-000000000002")
+    check(m.screen == "home" and "autre ordinateur" in (m.notice or ""), "automatisme d'une autre plateforme refusé")
+    m.lessons.append({"id": "imp-000000000003", "title": "Long", "platforms": ["windows"],
+                      "actions": [{"do": "open_url", "url": "https://x.fr"}]})
+    m.automation_running = "Scan"
+    m.run_shortcut("imp-000000000003")
+    check(m.snapshot()["automationRunning"] == "Scan", "un seul automatisme à la fois, Arrêter visible")
+    m.stop()
+    check(m.gate.is_stopped, "Arrêter depuis l'accueil lève le verrou de l'automatisme")
+    m.automation_running = None
+    m.run_shortcut("imp-000000000001")
+    check(m.screen == "consent", "automatisme avec Holo : accord du partage d'abord")
+    m.give_consent()
+    check(wait_until(lambda: m.screen == "session" and m.task == "Remettre Google", 3),
+          "puis lancé en un clic, sans validation d'un aidant")
 
 
 def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
