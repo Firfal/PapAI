@@ -42,6 +42,20 @@
   textarea:focus, input:focus { outline: none; border-color: var(--accent); }
   textarea::placeholder { color: var(--faint); }
 
+  /* Dire plutôt qu'écrire : c'est le seul endroit du parcours où la personne
+     devait encore taper, et c'est celui où elle est le plus en difficulté. */
+  .voice {
+    margin-top: 10px; display: flex; align-items: center; justify-content: center;
+    gap: 12px; background: var(--panel); border: 1px solid var(--line);
+    font-size: 18px; padding: 18px;
+  }
+  .voice .mic-dot {
+    width: 14px; height: 14px; border-radius: 50%; background: var(--accent); flex: none;
+  }
+  .voice.rec { border-color: var(--stop); color: var(--stop); }
+  .voice.rec .mic-dot { background: var(--stop); animation: pulse 1.2s infinite; }
+  .voice.busy { opacity: .6; }
+
   .check {
     display: flex; gap: 12px; align-items: flex-start; cursor: pointer;
     padding: 14px; margin-top: 12px; border-radius: var(--r);
@@ -118,6 +132,11 @@
   <p class="sub">Expliquez en une phrase ce que vous cherchez.</p>
 
   <textarea id="task" rows="2" placeholder="Par exemple : je ne retrouve pas mes photos"></textarea>
+
+  <button class="voice" id="mic" style="display:none">
+    <span class="mic-dot"></span><span id="micLabel">Parlez, je vous écoute</span>
+  </button>
+  <div class="msg" id="micMsg"></div>
 
   <label class="check" id="consentBox">
     <input type="checkbox" id="consent">
@@ -314,6 +333,47 @@ $('toPair').onclick = async () => {
 };
 $('pairBack').onclick = () => show('home');
 
+/* --------------------------------------------------------------- la voix */
+let rec = null, chunks = [];
+
+async function initVoice() {
+  if (!(await api().voice_ready())) return;      // pas de clé : on n'affiche rien
+  if (!navigator.mediaDevices || !window.MediaRecorder) return;
+  $('mic').style.display = 'flex';
+}
+
+$('mic').onclick = async () => {
+  if (rec && rec.state === 'recording') { rec.stop(); return; }
+  try {
+    const flux = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = [];
+    rec = new MediaRecorder(flux);
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = async () => {
+      flux.getTracks().forEach(t => t.stop());
+      $('mic').classList.remove('rec');
+      $('mic').classList.add('busy');
+      $('micLabel').textContent = 'Un instant…';
+      const blob = new Blob(chunks, { type: 'audio/webm' });
+      const b64 = await new Promise(res => {
+        const fr = new FileReader();
+        fr.onloadend = () => res(fr.result);
+        fr.readAsDataURL(blob);
+      });
+      const r = await api().transcribe(b64);
+      $('mic').classList.remove('busy');
+      $('micLabel').textContent = 'Parlez, je vous écoute';
+      if (r.ok) { $('task').value = r.text; $('task').focus(); }
+      else msg($('micMsg'), r.text, false);
+    };
+    rec.start();
+    $('mic').classList.add('rec');
+    $('micLabel').textContent = "J'écoute… appuyez pour terminer";
+  } catch (e) {
+    msg($('micMsg'), "Le micro n'est pas accessible.", false);
+  }
+};
+
 /* ------------------------------ appelé depuis Python, jamais l'inverse */
 window.carepilot = {
   net(connected, label) {
@@ -345,8 +405,9 @@ window.carepilot = {
 /* `window.pywebview.api` n'existe pas encore au moment où ce script tourne :
    la vue est chargée avant que le pont ne soit injecté. Appeler l'API tout de
    suite laissait la grille vide, sans aucune erreur visible. */
-if (window.pywebview && window.pywebview.api) fillQuick();
-else window.addEventListener('pywebviewready', fillQuick);
+function boot() { fillQuick(); initVoice(); }
+if (window.pywebview && window.pywebview.api) boot();
+else window.addEventListener('pywebviewready', boot);
 </script>
 </body>
 </html>

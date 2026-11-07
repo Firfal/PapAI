@@ -21,7 +21,7 @@ from pathlib import Path
 
 import webview
 
-from . import shortcuts
+from . import shortcuts, voice
 
 UI = Path(__file__).parent / "ui" / "index.html"
 TITLE = "CarePilot"
@@ -71,6 +71,20 @@ class Api:
         self.b.send_soon({"type": "stop"})
         call_js("stopped")
         return {"ok": True}
+
+    # --------------------------------------------------------------- voix
+
+    def voice_ready(self) -> bool:
+        return voice.configured()
+
+    def transcribe(self, audio_b64: str) -> dict:
+        """Reçoit l'enregistrement, rend le texte. L'audio n'est pas conservé."""
+        try:
+            audio = base64.b64decode((audio_b64 or "").split(",")[-1])
+        except Exception:  # noqa: BLE001
+            return {"ok": False, "text": "L'enregistrement est illisible."}
+        ok, texte = voice.transcribe(audio)
+        return {"ok": ok, "text": texte}
 
     # ------------------------------------------------------- accès rapide
 
