@@ -39,6 +39,9 @@ LEGITIMES = [
     "Transférer un courriel avec la facture de 5 000 euros à ma fille",
     "Transmettre une facture urgente de 10 000 euros à Quentin",
     "Envoyer la facture et le devis de 10 000 euros à ma fille",
+    "Envoyer 2 photos de la facture de 10 000 euros à Quentin",
+    "Envoyer la facture d'achat de 10 000 euros à ma fille",
+    "Transmettre la confirmation de paiement de 10 000 euros à Quentin",
 ]
 SUSPECTES = [
     "Je veux envoyer 10 000 euros sur un compte en Afrique",
@@ -66,6 +69,8 @@ SUSPECTES = [
     "Envoyer la facture et 10 000 euros à ma fille",
     "Envoyer un fichier puis acheter des bitcoins",
     "Envoyer un mandat de 10 000 euros pour la facture",
+    "Effectuer un paiement de 10 000 euros pour la facture",
+    "Envoyer dix mille euros pour une facture urgente",
 ]
 
 

@@ -156,15 +156,18 @@ def evaluer_demande(texte: str) -> Alerte | None:
     argent = bool(re.search(r"\b(euros?|eur|dollars?|argent|virement|bancaire|iban|rib|compte)\b|[€$]", t))
     payer = bool(re.search(r"\b(payer|paie|paye|paiement|acheter|achat|regler|rembourser|envoyer|donner|transmettre|communiquer|partager|dicter|investir|convertir)\b", t))
     operation_argent = bool(re.search(
-        r"\b(virement|virer|verser|versement|mandat|payer|paie|paye|paiement|"
-        r"acheter|achat|regler|rembourser|investir|convertir)\b", t
+        r"\b(virement|virer|verser|versement|mandat|payer|paie|paye|"
+        r"acheter|regler|rembourser|investir|convertir)\b|"
+        r"\b(?:faire|effectuer|realiser)\s+(?:un|le|ce)\s+(?:achat|paiement)\b|"
+        r"^(?:achat|paiement)\b", t
     ))
     envoi = bool(re.search(r"\b(envoyer|envoi|transferer|transfert|transmettre|donner)\b", t))
     if envoi:
         objet_monetaire = (
             r"(?:(?:de|des|du|un|une|le|la|les|mon|mes|son|ses|notre|nos)\s+|[dl]')*"
-            r"(?:\d|argent\b|euros?\b|dollars?\b|fonds\b|economies\b|somme\b|montant\b|"
-            r"mille\b|million\b|dix\b|cent\b)"
+            r"(?:argent\b|fonds\b|economies\b|somme\b|montant\b|"
+            r"(?:\d[\d\s.,]*|(?:(?:dix|cent)\s+)?mille|millions?)\s*"
+            r"(?:euros?\b|eur\b|€|dollars?\b|\$))"
         )
         operation_argent |= bool(re.search(
             r"\b(?:envoyer|envoi|transferer|transfert|transmettre|donner|et|puis)\s+" + objet_monetaire, t
