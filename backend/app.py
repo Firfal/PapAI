@@ -56,6 +56,15 @@ registry = Registry()
 # lancement à l'autre si on la fixe dans .env, sinon tirée au démarrage.
 AIDANT_KEY = os.environ.get("PAPAI_AIDANT_KEY") or secrets.token_urlsafe(9)
 
+# En ligne, tout passe par /k/{clé de la famille}/… : sans la clé, personne ne
+# peut se faire passer pour le PC de la personne aidée, ni lire ses fiches.
+# Les routes sans clé ne restent ouvertes qu'en local (PAPAI_PUBLIC absent).
+PUBLIC_MODE = os.environ.get("PAPAI_PUBLIC", "") == "1"
+
+
+def _key_ok(fam: str) -> bool:
+    return secrets.compare_digest(fam or "", AIDANT_KEY)
+
 
 class BridgeLink:
     """Le pont Windows, vu du serveur. Un seul à la fois dans le MVP."""
@@ -134,8 +143,23 @@ async def broadcast_helper(payload: dict) -> None:
 # ------------------------------------------------------------------ pont
 
 
+@app.websocket("/k/{fam}/ws/bridge")
+async def ws_bridge_keyed(ws: WebSocket, fam: str) -> None:
+    if not _key_ok(fam):
+        await ws.close(code=4403)
+        return
+    await _ws_bridge(ws)
+
+
 @app.websocket("/ws/bridge")
 async def ws_bridge(ws: WebSocket) -> None:
+    if PUBLIC_MODE:
+        await ws.close(code=4403)
+        return
+    await _ws_bridge(ws)
+
+
+async def _ws_bridge(ws: WebSocket) -> None:
     global bridge, agent_task
     await ws.accept()
     bridge = BridgeLink(ws)
@@ -418,6 +442,14 @@ async def aidant_page(key: str):
     return FileResponse(STATIC / "helper.html")
 
 
+@app.websocket("/k/{fam}/ws/aidant/{key}")
+async def ws_aidant_keyed(ws: WebSocket, fam: str, key: str) -> None:
+    if not _key_ok(fam):
+        await ws.close(code=4403)
+        return
+    await ws_aidant(ws, key)
+
+
 @app.websocket("/ws/aidant/{key}")
 async def ws_aidant(ws: WebSocket, key: str) -> None:
     """Le canal de l'app iPhone : il suit toujours la dernière demande.
@@ -458,14 +490,36 @@ async def root():
     return {"service": "PapAI", "bridge": bridge is not None}
 
 
+@app.get("/k/{fam}/lessons")
+async def lessons_keyed(fam: str):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return list_lessons()
+
+
+@app.get("/k/{fam}/lessons/{lesson_id}/{filename}")
+async def lesson_file_keyed(fam: str, lesson_id: str, filename: str):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return _serve_lesson_file(lesson_id, filename)
+
+
 @app.get("/lessons")
 async def lessons():
+    if PUBLIC_MODE:
+        return JSONResponse({"error": "introuvable"}, status_code=404)
     """Les fiches validées par un proche. Les brouillons ne sortent jamais d'ici."""
     return list_lessons()
 
 
 @app.get("/lessons/{lesson_id}/{filename}")
 async def lesson_file(lesson_id: str, filename: str):
+    if PUBLIC_MODE:
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return _serve_lesson_file(lesson_id, filename)
+
+
+def _serve_lesson_file(lesson_id: str, filename: str):
     """Sert une capture de fiche. Chemins cloisonnés : pas de remontée possible."""
     safe = Path(filename).name
     path = (LESSONS_DIR / Path(lesson_id).name / safe).resolve()
@@ -478,8 +532,10 @@ async def lesson_file(lesson_id: str, filename: str):
 async def list_sessions():
     """Le journal des actions, lisible par la personne aidée (section 08).
 
-    Sert aussi de point d'observation pendant les essais.
+    Sert aussi de point d'observation pendant les essais. Fermé en ligne.
     """
+    if PUBLIC_MODE:
+        return JSONResponse({"error": "introuvable"}, status_code=404)
     return [
         {**s.status(), "journal": s.journal}
         for s in registry._by_id.values()
