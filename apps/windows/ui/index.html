@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>PapAI</title>
+<style>
+  /* Dessin « Soin », repris des jetons de apps/mac/Sources/Theme.swift :
+     mêmes couleurs, mêmes rayons, mêmes tailles. Les deux applications
+     doivent se ressembler, pas se citer. */
+  :root {
+    --bg: #EEF0EE; --card: #FFFFFF; --ink: #111312; --muted: #7A807C;
+    --accent: #2E9E5B; --mint: #E2F2E7;
+    --r: 28px; --rBig: 36px;
+    --ease: cubic-bezier(.16, 1, .3, 1);
+  }
+  * { box-sizing: border-box; }
+  html { color-scheme: light; -webkit-user-select: none; user-select: none; }
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-thumb { background: #D4D8D5; border-radius: 5px; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 17px/1.45 "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+    padding: 22px 26px 26px; height: 100vh; display: flex; flex-direction: column;
+  }
+
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; flex: none; }
+  header .nom { font-size: 22px; font-weight: 600; }
+  header .date { color: var(--muted); font-size: 18px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: var(--card); border-radius: 999px; padding: 11px 18px; font-size: 16px; font-weight: 500;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #BFC5C1; flex: none; }
+  .dot.on { background: var(--accent); }
+  .grow { flex: 1; }
+
+  main { flex: 1; min-height: 0; }
+  .screen { display: none; height: 100%; }
+  .screen.on { display: flex; gap: 24px; animation: in .3s var(--ease); }
+  @keyframes in { from { opacity: 0; transform: translateY(6px); } }
+
+  .mintcard { background: var(--mint); border-radius: var(--rBig); padding: 40px; }
+  .whitecard { background: var(--card); border-radius: var(--r); }
+
+  /* ---------------------------------------------------------- accueil */
+  #home > .left { flex: 1; display: flex; flex-direction: column; }
+  #home h1 { font-size: 52px; font-weight: 600; letter-spacing: -.8px; margin: 0 0 14px; }
+  #home .intro { font-size: 21px; color: var(--muted); margin: 0 0 24px; }
+  #task {
+    width: 100%; border: none; border-radius: var(--r); background: var(--card);
+    padding: 22px 24px; font: inherit; font-size: 22px; resize: none; outline: none;
+  }
+  .consent { display: flex; gap: 14px; align-items: flex-start; margin-top: 20px; cursor: pointer; font-size: 18px; }
+  .box {
+    width: 28px; height: 28px; border-radius: 8px; border: 2px solid var(--ink);
+    flex: none; display: grid; place-items: center; font-size: 18px; color: transparent;
+  }
+  .consent.ok .box { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #warn { display: none; margin-top: 18px; font-size: 17px; font-weight: 600; }
+  #warn.on { display: inline-flex; }
+  #ask {
+    margin-top: auto; width: 100%; height: 78px; border: none; border-radius: 999px;
+    background: var(--ink); color: #fff; font: inherit; font-size: 26px; font-weight: 600;
+    display: flex; align-items: center; gap: 18px; padding: 0 16px; cursor: pointer;
+    transition: transform .2s var(--ease);
+  }
+  #ask:active { transform: scale(.97); }
+  #ask .mic { width: 46px; height: 46px; border-radius: 50%; background: #fff; display: grid; place-items: center; flex: none; }
+
+  #home > .right { width: 400px; overflow-y: auto; }
+  h2 { font-size: 24px; font-weight: 600; margin: 0 0 14px; }
+  .section + .section { margin-top: 28px; }
+  .tile { padding: 18px; margin-bottom: 12px; }
+  .tile .row { display: flex; align-items: center; gap: 16px; cursor: pointer; }
+  .tile .ic { width: 56px; height: 56px; border-radius: 50%; background: var(--mint);
+              display: grid; place-items: center; font-size: 24px; flex: none; }
+  .tile .t { font-size: 20px; font-weight: 600; }
+  .tile .s { font-size: 15px; color: var(--muted); }
+  .tile .go { width: 42px; height: 42px; border-radius: 50%; background: var(--ink); color: #fff;
+              display: grid; place-items: center; margin-left: auto; flex: none; }
+  .tile .show {
+    display: block; width: 100%; margin-top: 12px; height: 40px; border: none;
+    border-radius: 999px; background: var(--mint); color: var(--accent);
+    font: inherit; font-size: 16px; font-weight: 600; cursor: pointer;
+  }
+  .empty { padding: 22px; color: var(--muted); font-size: 17px; }
+  #apps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 8px; }
+  #apps button { background: none; border: none; font: inherit; cursor: pointer; display: grid; gap: 8px; justify-items: center; }
+  #apps .ic { width: 88px; height: 88px; border-radius: 50%; background: var(--card);
+              display: grid; place-items: center; font-size: 34px; }
+  #apps .n { font-size: 15px; font-weight: 500; }
+
+  /* ---------------------------------------------------------- session */
+  #session { flex-direction: column; gap: 18px; }
+  #session .mintcard { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #sTitle { font-size: 40px; font-weight: 600; letter-spacing: -.6px; margin: 18px 0 0; }
+  #sSub { font-size: 22px; color: var(--muted); margin: 14px 0 0; }
+  #plan { margin-top: 20px; overflow-y: auto; }
+  #plan .step { display: flex; align-items: center; gap: 16px; padding: 12px;
+                background: var(--card); border-radius: var(--r); margin-bottom: 12px; }
+  #plan .n { width: 38px; height: 38px; border-radius: 50%; background: var(--ink); color: #fff;
+             display: grid; place-items: center; font-size: 18px; font-weight: 600; flex: none; }
+  #plan .x { font-size: 20px; font-weight: 500; }
+  #sAnswer { display: none; margin-top: 20px; padding: 28px; font-size: 24px; }
+  #sAnswer.on { display: block; }
+  #sTask { font-size: 16px; color: var(--muted); margin-top: auto; padding-top: 14px; }
+  .bigbtn {
+    width: 100%; height: 70px; border: none; border-radius: 999px; font: inherit;
+    font-size: 26px; font-weight: 600; cursor: pointer; flex: none;
+    transition: transform .2s var(--ease);
+  }
+  .bigbtn:active { transform: scale(.98); }
+  .bigbtn.dark { background: var(--ink); color: #fff; }
+  .bigbtn.light { background: var(--card); color: var(--ink); }
+
+  /* ----------------------------------------------------------- fiche */
+  #lesson { flex-direction: column; gap: 18px; }
+  #lesson .mintcard { flex: 1; min-height: 0; overflow-y: auto; }
+  #lTitle { font-size: 18px; font-weight: 600; color: var(--muted); }
+  #lStep { font-size: 18px; font-weight: 600; color: var(--accent); margin-top: 18px; }
+  #lText { font-size: 36px; font-weight: 600; letter-spacing: -.4px; margin: 10px 0 0; }
+  #lCheck { display: none; margin-top: 18px; padding: 18px; font-size: 19px; }
+  #lCheck.on { display: block; }
+  #lImg { display: none; width: 100%; margin-top: 18px; border-radius: var(--r); }
+  #lImg.on { display: block; }
+  .row3 { display: flex; gap: 14px; }
+  .row3 .bigbtn { height: 72px; font-size: 22px; }
+
+  /* ---------------------------------------------------------- alerte */
+  #alert {
+    display: none; position: fixed; inset: 0; background: rgba(17,19,18,.55);
+    place-items: center; padding: 40px; z-index: 10;
+  }
+  #alert.on { display: grid; }
+  #alert .box2 {
+    background: var(--card); border-radius: var(--rBig); padding: 40px; max-width: 620px;
+    border-top: 10px solid var(--accent);
+  }
+  #alert.danger .box2 { border-top-color: #C8442F; }
+  #alert h3 { font-size: 30px; font-weight: 600; margin: 0 0 16px; }
+  #alert p { font-size: 20px; margin: 0 0 26px; white-space: pre-line; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="nom">PapAI</span>
+  <span class="date" id="date"></span>
+  <span class="grow"></span>
+  <span class="pill"><span class="dot" id="netDot"></span><span id="netText">…</span></span>
+</header>
+
+<main>
+  <!-- ------------------------------------------------------- accueil -->
+  <section id="home" class="screen on">
+    <div class="left mintcard">
+      <h1 id="hello">Bonjour</h1>
+      <p class="intro" id="intro"></p>
+      <textarea id="task" rows="2" placeholder="Par exemple : je ne retrouve pas mes photos"></textarea>
+      <label class="consent" id="consentRow">
+        <span class="box" id="box">✓</span>
+        <span>J'autorise le partage de mon écran pendant cette demande</span>
+      </label>
+      <span class="pill" id="warn"></span>
+      <button id="ask"><span class="mic">🎙</span><span>J'ai besoin d'aide</span></button>
+    </div>
+
+    <div class="right">
+      <div class="section">
+        <h2>Mes raccourcis</h2>
+        <div id="notice" class="mintcard" style="display:none;padding:18px;font-size:17px;margin-bottom:12px"></div>
+        <div id="lessons"></div>
+      </div>
+      <div class="section">
+        <h2>Mes applications</h2>
+        <div id="apps"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------- session -->
+  <section id="session" class="screen">
+    <div class="mintcard">
+      <span class="pill" id="shared"><span class="dot on"></span>Écran partagé</span>
+      <h2 id="sTitle" style="font-size:40px"></h2>
+      <p id="sSub"></p>
+      <div id="plan"></div>
+      <div id="sAnswer" class="whitecard"></div>
+      <p id="sTask"></p>
+    </div>
+    <button class="bigbtn dark" id="stop">⏹  Arrêter</button>
+    <button class="bigbtn light" id="back" style="display:none">Retour</button>
+  </section>
+
+  <!-- --------------------------------------------------------- fiche -->
+  <section id="lesson" class="screen">
+    <div class="mintcard">
+      <div id="lTitle"></div>
+      <div id="lStep"></div>
+      <div id="lText"></div>
+      <div id="lCheck" class="whitecard"></div>
+      <img id="lImg" alt="">
+    </div>
+    <div class="row3">
+      <button class="bigbtn light" id="lClose">Fermer</button>
+      <button class="bigbtn light" id="lPrev">Précédent</button>
+      <button class="bigbtn dark" id="lNext" style="flex:1">Suivant</button>
+    </div>
+  </section>
+</main>
+
+<div id="alert"><div class="box2">
+  <h3 id="aTitle"></h3><p id="aDetail"></p>
+  <button class="bigbtn dark" id="aOk">J'ai compris</button>
+</div></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const api = () => window.pywebview.api;
+let ctx = { prenom: 'Jeanne', aidant: 'Quentin' };
+let fiches = [], fiche = null, pas = 0, etat = null;
+
+const SYMBOLES = { pictures:'🖼', documents:'📄', downloads:'⬇', desktop:'🖥', videos:'🎬', music:'🎵' };
+const APPICONS = { 'Courrier':'✉', 'Photos':'🖼', 'Internet':'🌐', 'Visio':'📹', 'Explorateur':'📁', 'Calendrier':'📅' };
+
+function ecran(nom) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === nom));
+}
+
+/* ------------------------------------------------------------ accueil */
+$('date').textContent = new Date().toLocaleDateString('fr-FR',
+  { weekday: 'long', day: 'numeric', month: 'long' });
+
+$('consentRow').onclick = () => {
+  $('consentRow').classList.toggle('ok');
+  $('warn').classList.remove('on');
+};
+
+$('ask').onclick = async () => {
+  const t = $('task').value.trim();
+  if (!t) { avertir("Dites en quelques mots ce qui ne va pas."); $('task').focus(); return; }
+  if (!$('consentRow').classList.contains('ok')) {
+    avertir("Cochez la case pour autoriser le partage de votre écran."); return;
+  }
+  if (!$('netDot').classList.contains('on')) {
+    avertir(`Je ne joins pas ${ctx.aidant} pour le moment. Réessayez dans un instant.`); return;
+  }
+  $('warn').classList.remove('on');
+  await api().ask_help(t);
+  $('task').value = ''; $('consentRow').classList.remove('ok');
+};
+function avertir(t) { $('warn').textContent = '⚠  ' + t; $('warn').classList.add('on'); }
+
+function peindreRaccourcis(liste) {
+  fiches = liste || [];
+  $('lessons').innerHTML = '';
+  if (!fiches.length) {
+    $('lessons').innerHTML =
+      `<div class="whitecard empty">${ctx.aidant} ajoutera ici vos raccourcis.</div>`;
+    return;
+  }
+  fiches.forEach(f => {
+    const el = document.createElement('div');
+    el.className = 'tile whitecard';
+    const sym = SYMBOLES[(f.shortcut || {}).folder] || '🔢';
+    el.innerHTML =
+      `<div class="row"><div class="ic">${sym}</div>
+         <div><div class="t"></div><div class="s">Un clic, sans attendre</div></div>
+         <div class="go">▶</div></div>`;
+    el.querySelector('.t').textContent = f.title || '';
+    el.querySelector('.row').onclick = async () => {
+      const r = await api().run_shortcut({ ...(f.shortcut || {}), title: f.title });
+      annoncer(r.ok ? `${f.title} est ouvert.` : r.detail);
+    };
+    if ((f.steps || []).length) {
+      const b = document.createElement('button');
+      b.className = 'show'; b.textContent = 'Montrez-moi';
+      b.onclick = () => ouvrirFiche(f);
+      el.appendChild(b);
+    }
+    $('lessons').appendChild(el);
+  });
+}
+
+function annoncer(t) {
+  $('notice').textContent = t;
+  $('notice').style.display = 'block';
+  clearTimeout(annoncer._t);
+  annoncer._t = setTimeout(() => { $('notice').style.display = 'none'; }, 6000);
+}
+
+function peindreApps(dossiers, apps) {
+  $('apps').innerHTML = '';
+  dossiers.slice(0, 3).forEach(d => ajouterApp(SYMBOLES[d.key] || '📁', d.label,
+    () => api().open_folder(d.key)));
+  apps.slice(0, 3).forEach(a => ajouterApp(APPICONS[a.label] || '▫', a.label,
+    () => api().open_app(a.path)));
+}
+
+function ajouterApp(sym, nom, action) {
+  const b = document.createElement('button');
+  b.innerHTML = `<div class="ic">${sym}</div><div class="n"></div>`;
+  b.querySelector('.n').textContent = nom;
+  b.onclick = async () => { const r = await action(); if (r && !r.ok) annoncer(r.detail); };
+  $('apps').appendChild(b);
+}
+
+/* ------------------------------------------------------------ session */
+const TITRES = {
+  planning: ["Holo regarde votre écran…", "Un instant, je prépare ce qu'il faut faire."],
+  awaiting_approval: ["@ vérifie le plan", "Rien ne se passera sur votre écran avant son accord."],
+  active: ["Holo s'en occupe", null],
+  awaiting_helper: ["@ vous aide", "@ prend la main, restez là."],
+  done: ["C'est terminé", null],
+  stopped: ["L'assistance est arrêtée.", "Votre écran n'est plus partagé."],
+};
+
+function peindreSession(m) {
+  etat = m.state;
+  const [titre, sous] = TITRES[etat] || ["", null];
+  $('sTitle').textContent = (titre || '').replaceAll('@', ctx.aidant);
+  let s = sous;
+  if (etat === 'active') s = peindreSession._action || "Je regarde l'écran…";
+  if (etat === 'awaiting_helper' && m.question) s = m.question.question || s;
+  $('sSub').textContent = (s || '').replaceAll('@', ctx.aidant);
+
+  const ouverte = !['done', 'stopped'].includes(etat);
+  $('shared').style.display = ouverte ? '' : 'none';
+  $('stop').style.display = ouverte ? '' : 'none';
+  $('back').style.display = ouverte ? 'none' : '';
+
+  $('plan').innerHTML = '';
+  if (etat === 'awaiting_approval' && (m.plan || []).length) {
+    m.plan.forEach((e, i) => {
+      const d = document.createElement('div');
+      d.className = 'step';
+      d.innerHTML = `<div class="n">${i + 1}</div><div class="x"></div>`;
+      d.querySelector('.x').textContent = e;
+      $('plan').appendChild(d);
+    });
+  }
+  $('sTask').textContent = (m.task && !['stopped', 'awaiting_approval'].includes(etat))
+    ? 'Votre demande : ' + m.task : '';
+  ecran('session');
+}
+
+$('stop').onclick = async () => { await api().stop(); };
+$('back').onclick = () => { ecran('home'); api().refresh(); };
+
+/* -------------------------------------------------------------- fiche */
+function ouvrirFiche(f) { fiche = f; pas = 0; peindreFiche(); }
+
+function peindreFiche() {
+  const etapes = fiche.steps || [];
+  $('lTitle').textContent = fiche.title || '';
+  if (!etapes.length) { $('lText').textContent = "Pas de pas à pas pour ce raccourci."; }
+  else {
+    const e = etapes[Math.min(pas, etapes.length - 1)];
+    $('lStep').textContent = `Étape ${pas + 1} sur ${etapes.length}`;
+    $('lText').textContent = e.instruction || '';
+    $('lCheck').textContent = e.checkpoint ? 'Vous devriez voir : ' + e.checkpoint : '';
+    $('lCheck').classList.toggle('on', !!e.checkpoint);
+    $('lImg').classList.toggle('on', !!e.image_data);
+    if (e.image_data) $('lImg').src = 'data:image/png;base64,' + e.image_data;
+  }
+  $('lPrev').style.display = pas > 0 ? '' : 'none';
+  $('lNext').textContent = pas >= etapes.length - 1 ? 'Terminé' : 'Suivant';
+  ecran('lesson');
+}
+$('lClose').onclick = () => ecran('home');
+$('lPrev').onclick = () => { pas = Math.max(0, pas - 1); peindreFiche(); };
+$('lNext').onclick = () => {
+  const n = (fiche.steps || []).length;
+  if (pas >= n - 1) { ecran('home'); } else { pas += 1; peindreFiche(); }
+};
+
+/* ------------------------------------------- appelé depuis Python seul */
+window.papai = {
+  connexion(ok) {
+    $('netDot').classList.toggle('on', ok);
+    $('netText').textContent = ok ? `${ctx.aidant} est disponible` : `${ctx.aidant} n'est pas joignable`;
+  },
+  etat(m) { peindreSession(m); },
+  action(t) { peindreSession._action = t; if (etat === 'active') $('sSub').textContent = t; },
+  reponse(t) {
+    $('sAnswer').textContent = t || "Voilà, c'est fait.";
+    $('sAnswer').classList.add('on');
+  },
+  raccourcis(liste) { peindreRaccourcis(liste); },
+  applications(dossiers, apps) { peindreApps(dossiers, apps); },
+  alerte(m) {
+    $('aTitle').textContent = m.title || '';
+    $('aDetail').textContent = m.detail || '';
+    $('alert').className = 'on ' + (m.level === 'danger' ? 'danger' : '');
+  },
+};
+$('aOk').onclick = () => { $('alert').className = ''; };
+
+async function demarrer() {
+  try {
+    ctx = await api().contexte();
+    $('hello').textContent = 'Bonjour ' + ctx.prenom;
+    $('intro').textContent = `Un souci sur l'ordinateur ? Dites-le simplement, ${ctx.aidant} est prévenu.`;
+    window.papai.connexion(!!ctx.connected);
+    api().refresh();
+  } catch (e) {
+    // Sans ça, une erreur de démarrage laissait les deux colonnes vides et
+    // muettes : rien à l'écran, rien dans la console du lanceur.
+    annoncer('Démarrage incomplet : ' + (e && e.message ? e.message : e));
+    console.error(e);
+  }
+}
+if (window.pywebview && window.pywebview.api) demarrer();
+else window.addEventListener('pywebviewready', demarrer);
+</script>
+</body>
+</html>
