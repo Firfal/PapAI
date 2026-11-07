@@ -169,6 +169,9 @@ struct SessionView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 endNote("lock.fill", "Votre écran n'est plus partagé.")
+                if model.sessionWhere == "web" {
+                    endNote("globe", "Holo a fermé sa fenêtre Chrome.")
+                }
                 endNote("book.fill", "\(model.HelperName) peut en faire un tutoriel. Vous le retrouverez dans « Mes tutoriels » pour le refaire sans aide.")
             }
         case .stopped where guardStopped:
@@ -178,10 +181,17 @@ struct SessionView: View {
                 if model.guardAcknowledged {
                     Text("Un proche a vu l'alerte et s'en occupe")
                 }
+                if model.sessionWhere == "web" {
+                    Text("Holo a fermé sa fenêtre Chrome.")
+                }
             }
             .font(rounded(23, .medium))
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
+        case .stopped:
+            if model.sessionWhere == "web" {
+                endNote("globe", "Holo a fermé sa fenêtre Chrome.")
+            }
         default:
             EmptyView()
         }
