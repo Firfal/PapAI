@@ -118,6 +118,14 @@ final class AppModel {
         return n.prefix(1).uppercased() + n.dropFirst()
     }
 
+    /// L'aidant qui a validé le plan, envoyé par le serveur pendant la session.
+    var sessionHelper: String?
+    /// Qui s'occupe de la demande, au singulier : « Quentin s'en occupe ».
+    var carer: String {
+        if let n = sessionHelper, !n.isEmpty { return n }
+        return helpers.count == 1 ? helpers[0].name : "Votre proche"
+    }
+
     // MARK: Accueil et proches
 
     func setFirstName(_ name: String) {
@@ -418,6 +426,8 @@ final class AppModel {
         self.task = task
         pendingTask = ""
         plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
+        sessionHelper = nil
+        AppUsage.shared.noteRequest(task)
         state = .planning
         screen = .session
         applyLevel()
@@ -506,6 +516,7 @@ final class AppModel {
         plan = (m["plan"] as? [String]) ?? []
         planStep = m["plan_step"] as? Int
         paused = m["paused"] as? Bool ?? false
+        if let h = m["helper_name"] as? String, !h.isEmpty { sessionHelper = h }
         let q = m["question"] as? [String: Any]
         question = q?["question"] as? String
         questionForMe = (q?["to"] as? String) == "senior"

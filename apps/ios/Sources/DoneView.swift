@@ -1,7 +1,13 @@
 import SwiftUI
 
+struct ZoomedImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
 struct DoneView: View {
     @Bindable var model: HelperModel
+    @State private var zoom: ZoomedImage?
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -32,6 +38,7 @@ struct DoneView: View {
                 }
             }.padding(.horizontal, 20).padding(.bottom, 24)
         }.scrollDismissesKeyboard(.interactively)
+        .fullScreenCover(item: $zoom) { z in ZoomView(image: z.image) }
     }
 
     private var draft: some View {
@@ -55,7 +62,19 @@ struct DoneView: View {
                         .font(.system(size: 16)).foregroundStyle(Soin.ink)
                     if let c = s.checkpoint { Text("\(model.seniorTitle) doit voir : \(c)").font(.system(size: 13)).foregroundStyle(Soin.secondary) }
                     if let p = s.preview {
-                        Image(uiImage: p).resizable().scaledToFit().clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        // Toute la largeur, et un appui l'ouvre en plein écran.
+                        Button { zoom = ZoomedImage(image: p) } label: {
+                            Image(uiImage: p).resizable().scaledToFit()
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(alignment: .bottomTrailing) {
+                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                        .font(.system(size: 13, weight: .bold)).foregroundStyle(Soin.ink)
+                                        .frame(width: 34, height: 34).background(Soin.card, in: Circle()).padding(8)
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, -8)
+                        .accessibilityLabel("Agrandir la capture")
                     }
                 }.padding(16).frame(maxWidth: .infinity, alignment: .leading).soinCard()
             }

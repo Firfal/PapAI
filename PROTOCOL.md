@@ -173,3 +173,13 @@ En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gard�
 
 - App de la personne aidée → serveur : `{"type":"pause"}` / `{"type":"resume"}`. Le serveur met `status.paused` à vrai ou faux et le transmet à tous. Holo n'agit pas tant que `paused` est vrai.
 - Pendant que Holo agit (`active`, `awaiting_helper`, hors pause), l'app Mac bloque la souris et le clavier de la personne aidée hors de sa fenêtre. Échap arrête tout. Le verrou se lève à la pause, à l'arrêt, à la fin, si la connexion tombe, ou après 45 s sans message du serveur.
+
+## Aidant connecté, nom de l'aidant, phrase de Holo (7 nov.)
+
+- iPhone → serveur, juste après `hello` : `{"type": "helper_hello", "id": "<id ou vide>", "name": "Quentin", "relation": "son fils"}`.
+  Le serveur l'ajoute à la famille s'il n'y est pas (même id, ou même prénom), et répond `{"type": "helper_id", "id": "…"}` que l'app garde.
+- Serveur → ordinateur : `helpers` porte maintenant `online` (true tant que l'app de cet aidant est ouverte). Renvoyé à chaque connexion et déconnexion d'un aidant.
+- Réponse de `POST /p/{code}` : ajoute `id`.
+- `status` ajoute :
+  - `helper_name` : le prénom de l'aidant qui a validé le plan, répondu ou cliqué. L'ordinateur affiche « Quentin s'en occupe ».
+  - `doing` : une seule phrase sur ce que fait Holo, tirée de sa réflexion (si elle est en français) ou de l'action.

@@ -173,16 +173,15 @@ struct HomeView: View {
         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
     }
 
-    private static let apps: [(String, String)] = [
-        ("Mail", "com.apple.mail"), ("Photos", "com.apple.Photos"), ("Safari", "com.apple.Safari"),
-        ("FaceTime", "com.apple.FaceTime"), ("Finder", "com.apple.finder"), ("Calendrier", "com.apple.iCal"),
-    ]
+    /// Les plus utilisées et les plus demandées en aide (voir `AppUsage`).
+    private var usage: AppUsage { AppUsage.shared }
 
     private var apps: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Mes applications").font(rounded(24, .semibold))
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 14) {
-                ForEach(Self.apps, id: \.1) { name, bundle in
+                ForEach(usage.top) { app in
+                    let name = app.name, bundle = app.bundle
                     Button { openApp(bundle) } label: {
                         VStack(spacing: 8) {
                             Circle().fill(T.card).frame(width: 88, height: 88)

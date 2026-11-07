@@ -206,6 +206,22 @@ agent_task: asyncio.Task | None = None
 BRIDGE_TYPES = {"status", "answer", "alert"}
 
 
+# Qui est derrière chaque app d'aidant ouverte : son prénom et son identifiant.
+helper_who: dict[WebSocket, dict] = {}
+
+
+def _online_ids() -> set[str]:
+    return {w["id"] for w in helper_who.values() if w.get("id")}
+
+
+async def _send_helpers_to_bridge() -> None:
+    if bridge is not None:
+        try:
+            await bridge.send({"type": "helpers", "helpers": family.public(_online_ids())})
+        except Exception:  # noqa: BLE001
+            pass
+
+
 async def broadcast_helper(payload: dict) -> None:
     if bridge is not None and payload.get("type") in BRIDGE_TYPES:
         await bridge.send(payload)
@@ -281,7 +297,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     await broadcast_helper({"type": "senior", "name": family.senior})
                 if kind == "profile":
                     continue
-                await ws.send_json({"type": "helpers", "helpers": family.public()})
+                await ws.send_json({"type": "helpers", "helpers": family.public(_online_ids())})
                 continue
 
             if kind == "pair_start":
@@ -296,7 +312,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
 
             if kind == "remove_helper":
                 family.remove(str(msg.get("id", "")))
-                await ws.send_json({"type": "helpers", "helpers": family.public()})
+                await ws.send_json({"type": "helpers", "helpers": family.public(_online_ids())})
                 continue
 
             if kind == "remote_answer":
@@ -482,6 +498,9 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             return
 
     try:
+        who = helper_who.get(ws, {}).get("name", "")
+        if who and kind in ("approve_plan", "answer", "click"):
+            session.helper_name = who
         if kind in ("approve_plan", "refine_plan", "refuse_plan"):
             session.decide_plan(kind.split("_")[0], str(msg.get("text", "")).strip())
             await broadcast_helper(session.status())
@@ -643,8 +662,8 @@ async def _pair_submit(code: str, request: Request):
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
     print("[proches] un proche ajouté")
     if bridge is not None:
-        await bridge.send({"type": "helpers", "helpers": family.public(), "added": helper["name"]})
-    return {"ok": True, "name": helper["name"], "senior": family.senior or None,
+        await bridge.send({"type": "helpers", "helpers": family.public(_online_ids()), "added": helper["name"]})
+    return {"ok": True, "name": helper["name"], "id": helper["id"], "senior": family.senior or None,
             "aidant_url": aidant_url(),
             "server": PUBLIC_URL, "key": AIDANT_KEY}
 
@@ -761,6 +780,15 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
             if msg.get("type") == "remote_request":
                 await handle_remote_request(msg, ws)
                 continue
+            if msg.get("type") == "helper_hello":
+                # L'app se présente : elle apparaît dans « Mes proches » sur l'ordinateur.
+                h = family.connect(str(msg.get("id", "")), str(msg.get("name", "")),
+                                   str(msg.get("relation", "")))
+                if h is not None:
+                    helper_who[ws] = {"id": h["id"], "name": h["name"]}
+                    await ws.send_json({"type": "helper_id", "id": h["id"]})
+                    await _send_helpers_to_bridge()
+                continue
             s = current_session()
             if s is None:
                 await ws.send_json({"type": "refused", "reason": "Aucune demande en cours."})
@@ -770,6 +798,8 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         pass
     finally:
         helper_sockets.discard(ws)
+        if helper_who.pop(ws, None) is not None:
+            await _send_helpers_to_bridge()
 
 
 # Une même situation ne doit pas sonner en boucle : on retient ce qui a déjà

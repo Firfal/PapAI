@@ -97,6 +97,11 @@ class Session:
     # Posé par le proche, lu par la boucle entre deux étapes : on ne coupe
     # jamais une action en cours, on refuse la suivante.
     pause_requested: bool = False
+    # Le prénom de l'aidant qui a validé le plan : la personne aidée lit
+    # « Quentin s'en occupe » plutôt que le nom de l'agent.
+    helper_name: str = ""
+    # Une seule phrase pour l'aidant : ce que Holo est en train de faire.
+    doing: str = ""
 
     # Pause demandée par la personne aidée depuis son écran : Holo n'agit plus,
     # elle reprend la main sur sa souris et son clavier, jusqu'à « Reprendre ».
@@ -320,6 +325,8 @@ class Session:
             "plan": self.plan,
             "plan_approved": self.plan_approved,
             "paused": self.paused,
+            "helper_name": self.helper_name or None,
+            "doing": self.doing or None,
             "plan_step": self.plan_step
             if self.plan_approved and self.state in (State.ACTIVE, State.AWAITING_HELPER)
             else None,

@@ -75,24 +75,40 @@ struct RefineSheet: View {
     let model: HelperModel
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
+    @State private var voice = VoiceInput()
     @FocusState private var focused: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Préciser le plan").font(.system(size: 24, weight: .bold)).foregroundStyle(Soin.ink)
-            Text("Dites à Holo ce qu’il doit changer. Il proposera un nouveau plan.")
+            Text("Dites ou écrivez à Holo ce qu’il doit changer. Il proposera un nouveau plan.")
                 .font(.system(size: 15)).foregroundStyle(Soin.secondary)
-            TextField("Par exemple : les photos sont dans Images > Noël 2025", text: $text, axis: .vertical)
-                .lineLimit(3...6).focused($focused)
-                .font(.system(size: 17)).padding(16).soinCard(radius: 18)
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField("Par exemple : les photos sont dans Images > Noël 2025", text: $text, axis: .vertical)
+                    .lineLimit(3...6).focused($focused)
+                    .font(.system(size: 17)).padding(16).soinCard(radius: 18)
+                MicButton(voice: voice) {
+                    focused = false
+                    let base = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    voice.toggle(base: base) { text = $0 }
+                }
+            }
+            if voice.listening {
+                Label("Je vous écoute… l’envoi reste manuel.", systemImage: "waveform")
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Soin.accent)
+            } else if let e = voice.error {
+                Text(e).font(.system(size: 14)).foregroundStyle(Soin.ink)
+            }
             Spacer()
             Button("Envoyer à Holo") {
                 let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                voice.stop()
                 if !t.isEmpty { model.refinePlan(t); dismiss() }
             }
             .buttonStyle(CapsuleButtonStyle()).disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
         }
         .padding(24).background(Soin.bg.ignoresSafeArea())
-        .presentationDetents([.medium]).onAppear { focused = true }
+        .presentationDetents([.medium, .large]).onAppear { focused = true }
+        .onDisappear { voice.stop() }
     }
 }
 

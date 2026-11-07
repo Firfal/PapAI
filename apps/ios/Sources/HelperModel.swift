@@ -54,6 +54,9 @@ final class HelperModel {
     var serverURL: String
     var helperKey: String
     var helperName: String? = UserDefaults.standard.string(forKey: "helperName")
+    /// Identifiant de cet aidant chez le serveur : il apparaît dans « Mes proches » sur l'ordinateur.
+    private var helperId: String = UserDefaults.standard.string(forKey: "helperId") ?? ""
+    private var helperRelation: String = UserDefaults.standard.string(forKey: "helperRelation") ?? ""
 
     // Connexion
     var connected = false
@@ -76,6 +79,8 @@ final class HelperModel {
     var plan: [String] = []
     /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
     var planStep: Int?
+    /// Ce que Holo est en train de faire, en une phrase (envoyée par le serveur).
+    var doing: String?
     var question: (text: String, options: [String])?
     /// Vrai quand Holo pose la question à la personne aidée (`to: senior`).
     var questionToSenior = false
@@ -385,6 +390,8 @@ final class HelperModel {
             setSenior(r["senior"] as? String)
             helperName = r["name"] as? String ?? n
             UserDefaults.standard.set(helperName, forKey: "helperName")
+            if let id = r["id"] as? String { helperId = id; UserDefaults.standard.set(id, forKey: "helperId") }
+            helperRelation = relation; UserDefaults.standard.set(relation, forKey: "helperRelation")
             log.info("appairé avec \(server, privacy: .public)")
             pairDone = true
             applySettings(server: server + "/k/" + key, key: key)
@@ -431,6 +438,14 @@ final class HelperModel {
         switch type {
         case "hello":
             setSenior(m["senior"] as? String)
+            // On se présente : l'ordinateur doit voir ce proche dans sa liste.
+            send(["type": "helper_hello", "id": helperId, "name": helperName ?? "Votre proche",
+                  "relation": helperRelation])
+
+        case "helper_id":
+            if let id = m["id"] as? String, !id.isEmpty {
+                helperId = id; UserDefaults.standard.set(id, forKey: "helperId")
+            }
 
         case "dictation":
             let t = (m["text"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -462,6 +477,7 @@ final class HelperModel {
             task = m["task"] as? String ?? task
             plan = m["plan"] as? [String] ?? []
             planStep = m["plan_step"] as? Int
+            doing = m["doing"] as? String
             seniorPaused = m["paused"] as? Bool ?? false
             if let q = m["question"] as? [String: Any], let t = q["question"] as? String {
                 question = (t, q["options"] as? [String] ?? [])

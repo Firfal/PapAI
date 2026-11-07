@@ -6,36 +6,65 @@ struct LessonView: View {
     let lesson: Lesson
     @State private var i = 0
     @State private var image: NSImage?
+    @State private var zoomed = false
 
     private var steps: [Lesson.Step] { lesson.steps ?? [] }
 
     var body: some View {
         VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 20) {
-                Text(lesson.title).font(rounded(18, .semibold)).foregroundStyle(T.muted)
-                if steps.isEmpty {
-                    Text("Pas de pas à pas pour ce raccourci.").font(rounded(30, .semibold))
-                } else {
-                    let step = steps[min(i, steps.count - 1)]
-                    Text("Étape \(i + 1) sur \(steps.count)").font(rounded(18, .semibold)).foregroundStyle(T.accent)
-                    Text(step.instruction ?? "").font(rounded(36, .semibold)).tracking(-0.4)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let c = step.checkpoint, !c.isEmpty {
-                        Text("Vous devriez voir : \(c)").font(rounded(19))
-                            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-                            .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
-                    }
-                    if let image {
+            // La capture prend toute la place : c'est elle qui montre où cliquer.
+            // Le texte tient dans une colonne à droite.
+            HStack(alignment: .top, spacing: 28) {
+                if let image {
+                    Button { zoomed = true } label: {
                         Image(nsImage: image).resizable().scaledToFit()
                             .clipShape(RoundedRectangle(cornerRadius: T.r, style: .continuous))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else { Spacer(minLength: 0) }
+                            .overlay(alignment: .bottomTrailing) {
+                                Label("Agrandir", systemImage: "arrow.up.left.and.arrow.down.right")
+                                    .font(rounded(14, .semibold)).foregroundStyle(T.ink)
+                                    .padding(.horizontal, 12).padding(.vertical, 8)
+                                    .background(Capsule().fill(T.card)).padding(12)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityLabel("Agrandir la capture")
                 }
+                VStack(alignment: .leading, spacing: 18) {
+                    Text(lesson.title).font(rounded(18, .semibold)).foregroundStyle(T.muted)
+                    if steps.isEmpty {
+                        Text("Pas de pas à pas pour ce raccourci.").font(rounded(30, .semibold))
+                    } else {
+                        let step = steps[min(i, steps.count - 1)]
+                        Text("Étape \(i + 1) sur \(steps.count)").font(rounded(18, .semibold)).foregroundStyle(T.accent)
+                        Text(step.instruction ?? "").font(rounded(image == nil ? 36 : 28, .semibold)).tracking(-0.4)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let c = step.checkpoint, !c.isEmpty {
+                            Text("Vous devriez voir : \(c)").font(rounded(18))
+                                .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                                .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(width: image == nil ? nil : 300, alignment: .topLeading)
+                .frame(maxWidth: image == nil ? .infinity : 300, alignment: .topLeading)
             }
             .foregroundStyle(T.ink)
-            .padding(40)
+            .padding(28)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
+            .overlay {
+                if zoomed, let image {
+                    ZStack(alignment: .topTrailing) {
+                        RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.ink)
+                        Image(nsImage: image).resizable().scaledToFit().padding(16)
+                        Button("Fermer") { zoomed = false }.buttonStyle(PillStyle(filled: false, height: 52))
+                            .frame(width: 140).padding(20)
+                    }
+                    .onTapGesture { zoomed = false }
+                }
+            }
 
             HStack(spacing: 14) {
                 Button("Fermer") { model.screen = .home }.buttonStyle(PillStyle(filled: false, height: 72))
@@ -51,7 +80,7 @@ struct LessonView: View {
                 .buttonStyle(PillStyle(height: 72)).keyboardShortcut(.defaultAction)
             }
         }
-        .task(id: i) { await loadImage() }
+        .task(id: i) { zoomed = false; await loadImage() }
     }
 
     private func loadImage() async {

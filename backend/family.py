@@ -89,8 +89,32 @@ class Family:
         self._save()
         return True
 
-    def public(self) -> list[dict]:
-        return [{"id": h["id"], "name": h["name"], "relation": h.get("relation", "")}
+    def connect(self, helper_id: str, name: str, relation: str = "") -> dict | None:
+        """Un aidant ouvre l'app. S'il n'est pas encore dans la liste (lié avant
+        que la liste existe, ou serveur redémarré), on l'y ajoute : un proche
+        connecté doit toujours apparaître dans « Mes proches »."""
+        name = (name or "").strip()[:40]
+        relation = (relation or "").strip()[:60]
+        helper_id = (helper_id or "").strip()[:32]
+        if not name:
+            return None
+        found = next((h for h in self.helpers if helper_id and h["id"] == helper_id), None) \
+            or next((h for h in self.helpers if h["name"].casefold() == name.casefold()), None)
+        if found is None:
+            found = {"id": helper_id or secrets.token_hex(4), "name": name, "relation": relation,
+                     "added": int(time.time())}
+            self.helpers.append(found)
+        else:
+            found["name"] = name
+            if relation:
+                found["relation"] = relation
+        self._save()
+        return found
+
+    def public(self, online: set[str] | None = None) -> list[dict]:
+        online = online or set()
+        return [{"id": h["id"], "name": h["name"], "relation": h.get("relation", ""),
+                 "online": h["id"] in online}
                 for h in self.helpers]
 
     def _save(self) -> None:

@@ -122,7 +122,7 @@ struct SessionView: View {
         switch state {
         case .planning: return "Holo regarde votre écran…"
         case .awaiting_approval: return "\(model.HelperName) vérifie votre demande"
-        case .active: return "Holo s'en occupe"
+        case .active: return "\(model.carer) s'en occupe"
         case .awaiting_helper: return "\(model.HelperName) vous aide"
         case .done: return "C'est fait !"
         case .stopped: return "L'assistance est arrêtée."
@@ -148,12 +148,12 @@ struct SessionView: View {
     @ViewBuilder private var content: some View {
         switch state {
         case .planning, .awaiting_approval, .active:
-            Progress(fraction: fraction, phase: phase, helper: model.HelperName)
+            Progress(fraction: fraction, phase: phase, helper: model.HelperName, carer: model.carer)
         case .awaiting_helper:
             if model.questionForMe, let q = model.question {
                 SeniorQuestion(question: q, options: model.questionOptions) { model.answerSenior($0) }
             } else {
-                Progress(fraction: fraction, phase: 2, helper: model.HelperName)
+                Progress(fraction: fraction, phase: 2, helper: model.HelperName, carer: model.carer)
             }
         case .done:
             VStack(alignment: .leading, spacing: 16) {
@@ -206,6 +206,7 @@ private struct Progress: View {
     let fraction: Double
     let phase: Int
     let helper: String
+    let carer: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -223,7 +224,7 @@ private struct Progress: View {
 
             step(0, "Holo regarde votre écran et prépare la suite")
             step(1, "\(helper) vérifie et donne son accord")
-            step(2, "Holo s'en occupe")
+            step(2, "\(carer) s'en occupe, avec Holo")
         }
         .padding(24)
         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card.opacity(0.55)))

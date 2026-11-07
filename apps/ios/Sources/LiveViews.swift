@@ -2,26 +2,30 @@ import SwiftUI
 
 struct ActiveView: View {
     let model: HelperModel
+
+    private var caption: String {
+        if model.seniorPaused { return "Aide en pause" }
+        if let n = model.planStep, !model.plan.isEmpty { return "Étape \(min(n, model.plan.count)) sur \(model.plan.count)" }
+        return "Holo agit"
+    }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 CaptureView(model: model)
-                if model.seniorPaused {
-                    Label("\(model.seniorTitle) a mis l’aide en pause. Holo attend la reprise.", systemImage: "pause.circle.fill")
-                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.ink)
-                        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                        .soinCard(Soin.accentSoft, radius: 18)
-                }
-                HStack(spacing: 12) {
-                    if model.seniorPaused { Image(systemName: "pause.fill").foregroundStyle(Soin.secondary) }
-                    else { ProgressView().tint(Soin.accent) }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(model.seniorPaused ? "Aide en pause" : "Holo travaille sur l’ordinateur de \(model.senior)").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.ink)
-                        if !model.task.isEmpty { Text("« \(model.task) »").font(.system(size: 14)).foregroundStyle(Soin.secondary) }
+                // Un seul message : ce que fait Holo, maintenant.
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        if model.seniorPaused { Image(systemName: "pause.fill").foregroundStyle(Soin.secondary) }
+                        else { ProgressView().tint(Soin.accent).controlSize(.small) }
+                        Text(caption).font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.secondary)
                     }
-                    Spacer(minLength: 0)
-                }.padding(16).frame(maxWidth: .infinity, alignment: .leading).soinCard()
-                if !model.plan.isEmpty { PlanProgress(plan: model.plan, current: model.planStep) }
+                    Text(model.seniorPaused ? "\(model.seniorTitle) a mis l’aide en pause. Holo attend la reprise." : (model.doing ?? "Holo regarde l’écran de \(model.senior)…"))
+                        .font(.system(size: 19, weight: .semibold)).foregroundStyle(Soin.ink)
+                        .lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                        .contentTransition(.opacity)
+                        .animation(.easeInOut(duration: 0.25), value: model.doing)
+                }
+                .padding(18).frame(maxWidth: .infinity, alignment: .leading).soinCard()
             }.padding(.horizontal, 20)
         }
         .safeAreaInset(edge: .bottom) {

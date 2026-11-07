@@ -64,6 +64,49 @@ async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> l
     return steps[:5] or [f"Faire : {session.task}"]
 
 
+_FR = re.compile(r"\b(je|le|la|les|de|du|des|un|une|sur|pour|dans|est|il|vais)\b", re.I)
+
+
+def describe_doing(thought: str, name: str, args: dict) -> str:
+    """Une seule phrase pour l'aidant : ce que Holo fait, d'après ce qu'il pense.
+
+    Holo écrit parfois sa réflexion avant d'agir : on en garde la première
+    phrase, si elle est en français. Sinon on décrit l'action elle-même.
+    """
+    t = re.sub(r"\s+", " ", (thought or "")).strip()
+    t = re.sub(r"^(thought|pensée|réflexion)\s*:\s*", "", t, flags=re.I)
+    if t and len(_FR.findall(t)) >= 2:
+        first = re.split(r"(?<=[.!?])\s", t, maxsplit=1)[0].strip()
+        if len(first) > 120:
+            first = first[:117].rsplit(" ", 1)[0] + "…"
+        if len(first) >= 12:
+            return first[0].upper() + first[1:]
+    cible = str(args.get("element", "")).strip()
+    if name == "click":
+        return f"Holo clique sur {cible}" if cible else "Holo clique sur l'écran"
+    if name == "double_click":
+        return f"Holo ouvre {cible}" if cible else "Holo ouvre un élément"
+    if name == "type_text":
+        txt = str(args.get("text", "")).strip()
+        return f"Holo écrit « {txt[:60]} »" if txt else "Holo écrit au clavier"
+    if name == "press_key":
+        k = str(args.get("keys", "")).strip().lower()
+        return {"enter": "Holo valide avec Entrée", "return": "Holo valide avec Entrée",
+                "esc": "Holo ferme avec Échap", "escape": "Holo ferme avec Échap",
+                "cmd+space": "Holo ouvre la recherche du Mac"}.get(k, f"Holo appuie sur {k}" if k else "Holo appuie sur une touche")
+    if name == "scroll":
+        return "Holo fait défiler la page"
+    if name == "wait":
+        return "Holo attend que l'ordinateur réponde"
+    if name == "ask_helper":
+        return "Holo vous pose une question"
+    if name == "ask_senior":
+        return "Holo pose une question à votre proche"
+    if name == "answer":
+        return "Holo termine"
+    return "Holo regarde l'écran"
+
+
 class AgentRunner:
     """Pilote une session du premier screenshot jusqu'à `answer` ou l'arrêt."""
 
@@ -154,6 +197,7 @@ class AgentRunner:
                 name = call.function.name
                 args = json.loads(call.function.arguments or "{}")
                 self.s.advance_plan(args.pop("plan_step", None))
+                self.s.doing = describe_doing(msg.content or "", name, args)
                 # La capture est enregistrée avec l'action : c'est la matière
                 # première d'une fiche CareMemory.
                 self.s.log("tool_call", step=step, tool=name, args=args, frame=frame.frame_id)

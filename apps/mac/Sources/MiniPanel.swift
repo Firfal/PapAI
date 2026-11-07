@@ -122,7 +122,7 @@ private struct MiniView: View {
         switch model.state {
         case .planning: return "Holo prépare la suite…"
         case .awaiting_approval: return "\(model.HelperName) vérifie"
-        case .active: return "Holo s'en occupe"
+        case .active: return "\(model.carer) s'en occupe"
         case .awaiting_helper: return "\(model.HelperName) vous aide"
         case .done: return "C'est fait !"
         default: return "PapAI"

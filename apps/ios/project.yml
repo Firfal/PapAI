@@ -31,6 +31,8 @@ targets:
         UIUserInterfaceStyle: Light
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSLocalNetworkUsageDescription: PapAI se connecte au serveur de démonstration sur votre réseau local.
+        NSMicrophoneUsageDescription: PapAI utilise le micro pour que vous dictiez vos consignes à Holo.
+        NSSpeechRecognitionUsageDescription: PapAI transcrit votre voix en texte, sur l’iPhone, pour préciser le plan de Holo.
         NSCameraUsageDescription: PapAI utilise l’appareil photo pour scanner le QR affiché sur l’ordinateur de votre proche.
         CFBundleURLTypes:
           - CFBundleURLName: com.quentin.papai.aidant
