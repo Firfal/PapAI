@@ -17,7 +17,7 @@ struct HomeView: View {
         HStack(alignment: .top, spacing: 24) {
             helpCard
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: 16) {
                     if !model.lessons.isEmpty || model.notice != nil { shortcuts }
                     apps
                 }
@@ -166,19 +166,16 @@ struct HomeView: View {
     }
 
     private func tile(_ l: Lesson) -> some View {
-        VStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button { model.runShortcut(l) } label: {
-                HStack(spacing: 16) {
-                    Circle().fill(T.mint).frame(width: 56, height: 56)
+                HStack(spacing: 10) {
+                    Circle().fill(T.mint).frame(width: 36, height: 36)
                         .overlay(Image(systemName: Shortcuts.symbol(for: l.shortcut?.folder))
-                            .font(rounded(22)).foregroundStyle(T.accent))
+                            .font(rounded(18)).foregroundStyle(T.accent))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(l.title).font(rounded(20, .semibold)).multilineTextAlignment(.leading)
-                        Text("Un clic, sans attendre").font(rounded(15)).foregroundStyle(T.muted)
+                        Text(l.title).font(rounded(18, .semibold)).multilineTextAlignment(.leading)
                     }
                     Spacer(minLength: 0)
-                    Circle().fill(T.ink).frame(width: 42, height: 42)
-                        .overlay(Image(systemName: "play.fill").font(rounded(15)).foregroundStyle(.white))
                 }
                 .contentShape(Rectangle())
             }
@@ -186,36 +183,36 @@ struct HomeView: View {
             .accessibilityLabel(l.title)
             if !(l.steps ?? []).isEmpty {
                 Button { model.openLesson(l) } label: {
-                    Text("Montrez-moi").font(rounded(16, .semibold)).foregroundStyle(T.accent)
-                        .frame(maxWidth: .infinity).frame(height: 40)
-                        .background(Capsule().fill(T.mint))
+                    Text("Montrez-moi").font(rounded(15, .semibold)).foregroundStyle(T.accent)
+                        .multilineTextAlignment(.center).frame(width: 84)
+                        .padding(.vertical, 5).background(Capsule().fill(T.mint))
                 }
                 .buttonStyle(PressStyle())
             }
         }
-        .padding(18)
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
     }
 
     private var apps: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Mes raccourcis").font(rounded(21, .semibold))
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 12) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(favoris.tuiles) { tuile in
                     Button { favoris.ouvrir(tuile, notice: model.showNotice) } label: {
-                        VStack(spacing: 6) {
-                            Circle().fill(T.card).frame(width: 68, height: 68)
+                        VStack(spacing: 4) {
+                            Circle().fill(T.card).frame(width: 54, height: 54)
                                 .overlay {
                                     if case .application(let bundle) = tuile.cible,
                                        ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil {
-                                        Image(nsImage: icon(bundle)).resizable().frame(width: 42, height: 42)
+                                        Image(nsImage: icon(bundle)).resizable().frame(width: 36, height: 36)
                                     } else {
-                                        Image(systemName: symbole(tuile)).font(rounded(28))
+                                        Image(systemName: symbole(tuile)).font(rounded(24))
                                             .foregroundStyle(T.accent)
                                     }
                                 }
                             Text(tuile.titre).font(rounded(15)).multilineTextAlignment(.center)
-                                .lineLimit(2).frame(height: 38, alignment: .top)
+                                .lineLimit(2).frame(height: 44, alignment: .top)
                         }.frame(maxWidth: .infinity)
                     }
                     .buttonStyle(PressStyle())
@@ -225,10 +222,10 @@ struct HomeView: View {
                     }
                 }
                 Button { ajoutVisible = true } label: {
-                    VStack(spacing: 6) {
-                        Circle().fill(T.card).frame(width: 68, height: 68)
-                            .overlay(Image(systemName: "plus").font(rounded(28)).foregroundStyle(T.muted))
-                        Text("Ajouter").font(rounded(15)).frame(height: 38, alignment: .top)
+                    VStack(spacing: 4) {
+                        Circle().fill(T.card).frame(width: 54, height: 54)
+                            .overlay(Image(systemName: "plus").font(rounded(24)).foregroundStyle(T.muted))
+                        Text("Ajouter").font(rounded(15)).frame(height: 44, alignment: .top)
                     }.frame(maxWidth: .infinity)
                 }
                     .buttonStyle(PressStyle())
@@ -268,6 +265,7 @@ private struct AjouterRaccourci: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Ajouter un raccourci").font(rounded(26, .semibold))
+            Text("Jusqu'à 4 raccourcis personnels, gardés sur ce Mac.").font(rounded(16))
             Button {
                 let panneau = NSOpenPanel()
                 panneau.canChooseDirectories = true
@@ -277,7 +275,7 @@ private struct AjouterRaccourci: View {
                 panneau.prompt = "Ajouter"
                 if panneau.runModal() == .OK, let url = panneau.url {
                     if favoris.ajouterDossier(url) { fermer() }
-                    else { erreur = "Choisissez un dossier ordinaire, pas une application ni un paquet." }
+                    else { erreur = "Choisissez un dossier ordinaire. Si vous avez déjà 4 raccourcis personnels, retirez-en un d'abord." }
                 }
             } label: { Label("Un dossier", systemImage: "folder") }
                 .buttonStyle(PillStyle(filled: false, height: 50))
@@ -299,7 +297,7 @@ private struct AjouterRaccourci: View {
 
     private func ajouterAlbum() {
         if favoris.ajouterAlbum(nom) { fermer() }
-        else { erreur = "Écrivez le nom de l'album à ajouter." }
+        else { erreur = "Écrivez le nom de l'album. Si vous avez déjà 4 raccourcis personnels, retirez-en un d'abord." }
     }
 }
 

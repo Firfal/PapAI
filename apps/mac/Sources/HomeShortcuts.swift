@@ -38,17 +38,18 @@ final class HomeShortcuts {
     private var groupes: [Tuile] = []
     private let defaults: UserDefaults
     private let demo: Bool
+    private var retiresDemo: Set<String> = []
     private static let cle = "raccourcisAccueil.v1"
 
     init(defaults: UserDefaults = .standard, demo: Bool = ProcessInfo.processInfo.environment["PAPAI_DEMO"] != nil) {
         self.defaults = defaults
         self.demo = demo
-        ajoutes = defaults.data(forKey: Self.cle).flatMap { try? JSONDecoder().decode([Tuile].self, from: $0) } ?? []
+        ajoutes = demo ? [] : defaults.data(forKey: Self.cle).flatMap { try? JSONDecoder().decode([Tuile].self, from: $0) } ?? []
     }
 
     var tuiles: [Tuile] {
         if demo {
-            return [
+            let base = [
                 application("Mail", "com.apple.mail"), application("Photos", "com.apple.Photos"),
                 application("Safari", "com.apple.Safari"),
                 Tuile(id: "images", titre: "Images", symbole: "folder", cible: .dossier("/Users/demo/Pictures")),
@@ -56,6 +57,8 @@ final class HomeShortcuts {
                 Tuile(id: "album", titre: "Petits-enfants", symbole: "rectangle.stack", cible: .album("Petits-enfants"), ajoutee: true),
                 nouveauMessage
             ]
+            return Array((Array(base.prefix(3)) + ajoutes + base.dropFirst(3))
+                .filter { !retiresDemo.contains($0.id) }.prefix(8))
         }
         let apps = AppUsage.shared.top.prefix(3).map { application($0.name, $0.bundle) }
         let mail = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.mail") == nil ? [] : [nouveauMessage]
@@ -104,25 +107,27 @@ final class HomeShortcuts {
     @discardableResult
     func ajouterDossier(_ url: URL) -> Bool {
         guard let cible = DossierRaccourci.valider(url) else { return false }
-        ajouter(Tuile(id: UUID().uuidString, titre: cible.lastPathComponent, symbole: "folder", cible: .dossier(cible.path), ajoutee: true))
-        return true
+        return ajouter(Tuile(id: UUID().uuidString, titre: cible.lastPathComponent, symbole: "folder", cible: .dossier(cible.path), ajoutee: true))
     }
 
     @discardableResult
     func ajouterAlbum(_ nom: String) -> Bool {
         let titre = nom.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !titre.isEmpty else { return false }
-        ajouter(Tuile(id: UUID().uuidString, titre: titre, symbole: "rectangle.stack", cible: .album(titre), ajoutee: true))
+        return ajouter(Tuile(id: UUID().uuidString, titre: titre, symbole: "rectangle.stack", cible: .album(titre), ajoutee: true))
+    }
+
+    private func ajouter(_ tuile: Tuile) -> Bool {
+        if ajoutes.contains(where: { $0.cible == tuile.cible }) { return true }
+        guard ajoutes.count < 4 else { return false }
+        ajoutes.append(tuile)
+        enregistrer()
         return true
     }
 
-    private func ajouter(_ tuile: Tuile) {
-        guard !ajoutes.contains(where: { $0.cible == tuile.cible }) else { return }
-        ajoutes.append(tuile)
-        enregistrer()
-    }
-
     func retirer(_ tuile: Tuile) {
+        guard tuile.ajoutee else { return }
+        if demo { retiresDemo.insert(tuile.id) }
         ajoutes.removeAll { $0.id == tuile.id }
         enregistrer()
     }
