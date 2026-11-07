@@ -15,6 +15,8 @@ from pathlib import Path
 
 from .core import exclude_from_capture, window_rect
 from .dictation import Dictation
+from .home_shortcuts import HomeShortcuts
+from .mic_presence import MicPresence
 from .model import Model
 
 UI = Path(__file__).resolve().parent.parent / "ui" / "index.html"
@@ -27,10 +29,39 @@ class Api:
         self._model = model
         self._dictation = dictation
         self._ready = threading.Event()
+        self._closed = threading.Event()
+        self._shortcuts = HomeShortcuts(demo=bool(model.demo))
+        self._micro = MicPresence(self._micro_changed)
+
+    def _micro_changed(self, present):
+        if not present:
+            self._dictation.cancel()
+        self._model.push()
+
+    def snapshot(self, snap=None):
+        data = dict(snap if snap is not None else self._model.snapshot())
+        data.update(microPresent=self._micro.present, homeShortcuts=self._shortcuts.snapshot())
+        return data
+
+    def start(self):
+        self._micro.start()
+        threading.Thread(target=self._watch_shortcuts, daemon=True, name='papai-raccourcis').start()
+
+    def _watch_shortcuts(self):
+        while not self._closed.wait(5):
+            before = self._shortcuts.snapshot()
+            self._shortcuts.refresh()
+            if before != self._shortcuts.snapshot():
+                self._model.push()
+
+    def close(self):
+        self._closed.set()
+        self._micro.close()
+        self._dictation.close()
 
     def ready(self):
         self._ready.set()
-        return self._model.snapshot()
+        return self.snapshot()
 
     def set_first_name(self, name): self._model.set_first_name(name)
     def set_text_scale(self, v): self._model.set_text_scale(v)
@@ -54,8 +85,29 @@ class Api:
     def run_shortcut(self, lesson_id): self._model.run_shortcut(lesson_id)
     def open_lesson(self, lesson_id): self._model.open_lesson(lesson_id)
     def close_lesson(self): self._model.close_lesson()
-    def open_app(self, path): self._model.open_app(path)
-    def dictation_toggle(self): self._dictation.toggle(self._model.http_base)
+    def open_home_shortcut(self, shortcut_id):
+        ok, message = self._shortcuts.open(shortcut_id)
+        if not ok:
+            self._model.show_notice(message)
+
+    def remove_home_shortcut(self, shortcut_id):
+        self._shortcuts.remove(shortcut_id)
+        self._model.push()
+
+    def add_home_folder(self):
+        import webview
+        window = webview.windows[0]
+        chosen = window.create_file_dialog(webview.FileDialog.FOLDER)
+        if not chosen:
+            return {'ok': False}
+        ok = self._shortcuts.add_folder(chosen[0])
+        self._model.push()
+        return {'ok': ok, 'message': None if ok else "Choisissez un dossier ordinaire. Si vous avez déjà 4 raccourcis personnels, retirez-en un d'abord."}
+
+    def dictation_toggle(self):
+        snap = self._model.snapshot()
+        if self._micro.refresh() and snap['screen'] == 'home' and not snap['remoteRequest'] and not snap['alert']:
+            self._dictation.toggle(self._model.http_base)
 
 
 def main() -> None:
@@ -67,6 +119,10 @@ def main() -> None:
         w, api = state["window"], state["api"]
         if w is None or api is None or not api._ready.is_set():
             return
+        if snap['screen'] != 'home' or snap['remoteRequest'] or snap['alert']:
+            if api._dictation.phase != 'idle':
+                api._dictation.cancel()
+        snap = api.snapshot(snap)
         try:
             w.evaluate_js(f"window.PapAI && PapAI.update({json.dumps(snap, ensure_ascii=False)})")
         except Exception:  # noqa: BLE001 — fenêtre en cours de fermeture
@@ -98,7 +154,7 @@ def main() -> None:
     def push_text(text: str) -> None:
         w = state["window"]
         if w is not None:
-            w.evaluate_js(f"window.PapAI && PapAI.dictated({json.dumps(text, ensure_ascii=False)})")
+            w.evaluate_js(f"window.PapAI && PapAI.dictated({json.dumps(text, ensure_ascii=False)}, {dictation.run_id})")
 
     api = Api(model, dictation)
     state["api"] = api
@@ -126,10 +182,12 @@ def main() -> None:
             state["excluded"] = exclude_from_capture(hwnd)
 
     def on_closing() -> None:
+        api.close()
         model.shutdown()
 
     window.events.shown += on_shown
     window.events.closing += on_closing
+    api.start()
     model.start(protected=protected, capture_mask=capture_mask)
     webview.start(gui="edgechromium" if sys.platform == "win32" else None,
                   debug=bool(__import__("os").environ.get("PAPAI_DEBUG")))

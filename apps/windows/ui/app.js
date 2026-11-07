@@ -6,12 +6,13 @@
   let S = null;
   let api = null;
   const ui = { request: '', warning: null, lessonId: null, lessonIndex: 0, name: null,
-               sheet: null, settings: { name: '', server: '' }, lastDictMsg: null };
+               sheet: null, settings: { name: '', server: '' }, lastDictMsg: null,
+               writing: false, dictating: false, lastDictation: null, submitting: false, editingShortcuts: false };
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   // rounded(size, weight) de Theme.swift : 4 regular, 5 medium, 6 semibold, 7 bold
-  const f = (size, w) => `font-size:calc(${size}px * var(--ts));font-weight:${(w || 5) * 100};`;
+  const f = (size, w) => `font-size:max(15px, calc(${size}px * var(--ts)));font-weight:${(w || 5) * 100};`;
   const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
   function call(name, ...args) {
@@ -35,11 +36,8 @@
 
   // ------------------------------------------------------------------ Header
   function header() {
-    const date = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
     return `<div class="hdr">
-      <span style="${f(22, 6)}">PapAI</span>
-      <span class="muted">·</span>
-      <span class="muted" style="${f(18, 5)}">${esc(date)}</span>
+      <img class="logotype" src="logotype-papai.svg" alt="papai">
       <div class="spacer"></div>
       ${S.connected ? '' : `<div class="pillChip" style="gap:10px;padding:11px 18px">
         <span class="dot" style="background:rgba(122,128,124,.5)"></span>
@@ -55,41 +53,43 @@
     return `<div class="row" style="align-items:stretch;gap:24px;flex:1;min-height:0">
       ${helpCard()}
       <div class="scroll" style="width:400px;flex:none">
-        <div class="col" style="gap:28px;padding-bottom:8px">${tutorials()}${appsGrid()}</div>
+        <div class="col" style="gap:16px;padding-bottom:8px">${tutorials()}${appsGrid()}</div>
       </div></div>`;
   }
 
   function helpCard() {
+    const mic = S.microPresent;
+    const busy = ui.dictating || S.dictation.phase !== 'idle';
     const warn = ui.warning ? `<div class="pillChip" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
         ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '';
-    return `<div class="mintCard" style="padding:40px;gap:20px">
-      <div style="${f(52, 6)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())} ${esc(S.firstName)}</div>
-      <div class="muted" style="${f(21, 5)}">Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à ${esc(S.helperName)}.</div>
-      <textarea id="req" class="field" rows="1" placeholder="Par exemple : je ne retrouve pas mes photos"
-        style="margin-top:8px;padding:22px 24px;${f(22, 5)};line-height:1.3">${esc(ui.request)}</textarea>
-      ${warn}
+    return `<div class="mintCard homeCard" style="padding:32px;gap:16px">
+      <div style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) : ''}</div>
+      <div class="muted" style="${f(18, 5)}">Un souci sur l'ordinateur ? ${mic ? 'Dites-le simplement' : 'Écrivez ce dont vous avez besoin'}, un message part tout de suite à ${esc(S.helperName)}.</div>
       <div class="spacer"></div>
-      <div class="row" style="gap:14px">
-        ${micButton()}
-        <button class="press grow" data-act="submit"
-          style="height:78px;border-radius:999px;background:var(--ink);color:#fff;padding:0 28px;${f(26, 6)}">J'ai besoin d'aide</button>
-      </div></div>`;
+      ${mic ? micButton() : ''}
+      ${ui.writing || !mic ? `<div class="requestRow">
+        <textarea id="req" rows="1" placeholder="Écrivez votre demande" aria-label="Écrivez votre demande"
+          style="${f(18, 5)};line-height:1.3">${esc(ui.request)}</textarea>
+        <button class="pill filled" data-act="submit" ${busy || ui.submitting ? 'disabled' : ''} style="height:44px;padding:0 18px;${f(15, 6)}">Envoyer</button>
+      </div>` : S.dictation.phase === 'idle' ? `<button class="pillChip press writeButton" data-act="write" style="${f(15, 6)}">Écrire</button>` : ''}
+      ${warn}<div class="spacer"></div></div>`;
   }
 
   function micButton() {
     const ph = S.dictation.phase;
     const listening = ph === 'listening';
     const inner = ph === 'transcribing' ? '<div class="spinner"></div>'
-      : icon(listening ? 'stop' : 'mic', 26, listening ? '#fff' : 'var(--ink)');
-    const label = listening ? `<span class="accent" style="${f(20, 6)}">Je vous écoute…</span>`
-      : ph === 'transcribing' ? `<span class="muted" style="${f(20, 6)}">Je note…</span>` : '';
-    return `<button class="row press" data-act="mic" ${ph === 'transcribing' ? 'disabled' : ''}
+      : icon(listening ? 'stop' : 'mic', 48, listening ? '#fff' : 'var(--ink)');
+    const label = listening ? 'Je vous écoute…' : ph === 'transcribing' || ph === 'starting' ? 'Je note…' : 'Parler à PapAI';
+    return `<div class="col" style="align-items:center;gap:12px">
+      <button class="press" data-act="mic" ${ph === 'transcribing' || ph === 'starting' ? 'disabled' : ''}
         aria-label="${listening ? 'Arrêter la dictée' : 'Dicter ma demande'}"
-        style="gap:12px;padding-right:${ph === 'idle' ? 0 : 14}px;flex:none">
-      <span style="position:relative;width:78px;height:78px;display:flex;align-items:center;justify-content:center">
+        style="flex:none">
+      <span class="microFrame" style="position:relative;width:180px;height:180px;display:flex;align-items:center;justify-content:center">
         ${listening ? '<span class="micRing"></span>' : ''}
-        <span class="circle" style="position:relative;width:62px;height:62px;background:${listening ? 'var(--accent)' : '#fff'}">${inner}</span>
-      </span>${label}</button>`;
+        <span class="circle microDisc" style="position:relative;width:148px;height:148px;background:${listening ? 'var(--accent)' : '#fff'}">${inner}</span>
+      </span></button><span style="${f(20, 6)}">${label}</span>
+      ${ui.request && !ui.writing ? `<span style="${f(18, 5)}">${esc(ui.request)}</span>` : ''}</div>`;
   }
 
   const folderIcon = (folder) => ({ pictures: 'photo', documents: 'doc', downloads: 'download',
@@ -97,20 +97,15 @@
 
   function tutorials() {
     const notice = S.notice ? `<div style="background:var(--mint);border-radius:var(--r);padding:18px;${f(17, 5)}">${esc(S.notice)}</div>` : '';
-    const empty = S.lessons.length ? '' : `<div class="card muted" style="padding:22px;${f(17, 4)}">${esc(S.HelperName)} pourra ajouter ici ce que vous avez fait ensemble, pour le refaire sans aide.</div>`;
     const tiles = S.lessons.map((l) => {
       const steps = (l.steps || []).length;
-      return `<div class="card col" style="padding:18px;gap:12px">
-        <button class="row press" data-act="shortcut" data-arg="${esc(l.id)}" aria-label="${esc(l.title)}" style="gap:16px;text-align:left">
-          <span class="circle" style="width:56px;height:56px;background:var(--mint);color:var(--accent)">${icon(folderIcon((l.shortcut || {}).folder), 24)}</span>
-          <span class="col grow" style="gap:3px">
-            <span style="${f(20, 6)}">${esc(l.title)}</span>
-            <span class="muted" style="${f(15, 4)}">${l.publisher ? esc('Fourni par ' + l.publisher) : 'Un clic, sans attendre'}</span>
-          </span>
-          <span class="circle" style="width:42px;height:42px;background:var(--ink)">${icon('play', 15, '#fff')}</span>
+      return `<div class="card row" style="padding:12px;gap:10px">
+        <button class="row press grow" data-act="shortcut" data-arg="${esc(l.id)}" aria-label="${esc(l.title)}" style="gap:10px;text-align:left;min-height:36px">
+          <span class="circle" style="width:36px;height:36px;background:var(--mint);color:var(--accent)">${icon(folderIcon((l.shortcut || {}).folder), 19)}</span>
+          <span class="col" style="gap:2px"><span style="${f(18, 6)}">${esc(l.title)}</span>${l.publisher ? `<span class="muted" style="${f(14, 4)}">${esc('Fourni par ' + l.publisher)}</span>` : ''}</span>
         </button>
         ${steps ? `<button class="press accent" data-act="lesson" data-arg="${esc(l.id)}"
-          style="height:40px;border-radius:999px;background:var(--mint);${f(16, 6)}">Montrez-moi</button>` : ''}
+          style="white-space:nowrap;min-height:44px;padding:5px 10px;border-radius:999px;background:var(--mint);${f(15, 6)}">Montrez-moi</button>` : ''}
       </div>`;
     }).join('');
     const running = S.automationRunning ? `<div class="card row" style="padding:18px;gap:14px;align-items:center">
@@ -118,7 +113,8 @@
         <button class="row press" data-act="stop" aria-label="Arrêter l'automatisme (Échap)"
           style="gap:10px;height:52px;padding:0 20px;border-radius:999px;background:var(--ink);color:#fff">
           ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
-    return `<div class="col" style="gap:14px"><div style="${f(24, 6)}">Mes tutoriels</div>${running}${notice}${empty}${tiles}</div>`;
+    if (!S.lessons.length && !notice && !running) return '';
+    return `<div class="col" style="gap:14px">${running}${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes tutoriels</div>` : ''}${tiles}</div>`;
   }
 
   const APP_STYLE = {
@@ -131,17 +127,31 @@
   };
 
   function appsGrid() {
-    if (!S.apps.length) return '';
-    const items = S.apps.map((a) => {
-      const st = APP_STYLE[a.label] || ['app', 'linear-gradient(180deg,#9AA19C,#6F7671)'];
-      const img = a.icon ? `<img src="${a.icon}" alt="" style="width:52px;height:52px">`
-        : `<span class="appIcon" style="background:${st[1]}">${icon(st[0], 30, '#fff')}</span>`;
-      return `<button class="col press" data-act="app" data-arg="${esc(a.path)}" aria-label="Ouvrir ${esc(a.label)}"
-          style="gap:8px;align-items:center">
-        <span class="circle" style="width:88px;height:88px;background:var(--card)">${img}</span>
-        <span style="${f(15, 5)}">${esc(a.label)}</span></button>`;
+    const items = (S.homeShortcuts || []).map((a) => {
+      const img = a.icon && a.icon.startsWith('data:image/png;base64,') ? `<img src="${esc(a.icon)}" alt="" width="36" height="36">`
+        : icon(a.symbol || (APP_STYLE[a.label] || ['app'])[0], 24, 'var(--accent)');
+      return `<div class="col" style="position:relative"><button class="col press" data-act="homeShortcut" data-arg="${esc(a.id)}" aria-label="Ouvrir ${esc(a.label)}"
+          style="gap:4px;align-items:center">
+        <span class="circle" style="width:54px;height:54px;background:var(--card)">${img}</span>
+        <span style="${f(15, 5)};min-height:24px;text-align:center">${esc(a.label)}</span></button>
+        ${a.personal && ui.editingShortcuts ? `<button class="removeShortcut" data-act="removeShortcut" data-arg="${esc(a.id)}" aria-label="Retirer ${esc(a.label)}" style="${f(15, 6)}">Retirer</button>` : ''}</div>`;
     }).join('');
-    return `<div class="col" style="gap:14px"><div style="${f(24, 6)}">Mes applications</div><div class="grid3">${items}</div></div>`;
+    return `<div class="col" style="gap:12px"><div class="row" style="gap:10px;justify-content:space-between">
+      <div style="${f(21, 7)}">Mes raccourcis</div>
+      ${(S.homeShortcuts || []).some(a => a.personal) ? `<button class="press" data-act="editShortcuts" aria-pressed="${ui.editingShortcuts}" style="min-height:44px;${f(15, 6)}">${ui.editingShortcuts ? 'Terminer' : 'Modifier'}</button>` : ''}
+      </div><div class="grid3 homeGrid">${items}
+      <button class="col press" data-act="addShortcut" style="gap:4px;align-items:center">
+        <span class="circle" style="width:54px;height:54px;background:var(--card)">${icon('plus', 24, 'var(--muted)')}</span>
+        <span style="${f(15, 5)};min-height:24px">Ajouter</span></button></div></div>`;
+  }
+
+  function addShortcutSheet() {
+    return `<div class="sheet card col" style="width:540px;padding:32px;gap:20px">
+      <div style="${f(26, 6)}">Ajouter un raccourci</div>
+      <div style="${f(16, 5)}">Jusqu'à 4 raccourcis personnels, gardés sur cet ordinateur.</div>
+      ${pill('Un dossier', 'chooseFolder', { filled: false, height: 50 })}
+      ${ui.warning ? `<div role="status" style="${f(17, 5)}">${esc(ui.warning)}</div>` : ''}
+      ${pill('Fermer', 'closeSheet', { height: 50 })}</div>`;
   }
 
   // ----------------------------------------------------------------- Consent
@@ -438,7 +448,7 @@
     document.getElementById('root').innerHTML = header() + `<div class="main">${body()}</div>`;
     document.getElementById('sheet').innerHTML =
       S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
-        : ui.sheet === 'helpers' ? helpersSheet() : '';
+        : ui.sheet === 'helpers' ? helpersSheet() : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
     const req = document.getElementById('req');
     if (req) autosize(req);
     if (focusId) {
@@ -449,12 +459,17 @@
 
   // ----------------------------------------------------------------- gestes
   function submit() {
+    if (S.dictation.phase !== 'idle' || ui.dictating || ui.submitting || S.screen !== 'home' || S.remoteRequest || S.alert) return;
     const t = ui.request.trim();
     if (!t) { ui.warning = 'Dites en quelques mots ce qui ne va pas.'; render(); focus('req'); return; }
     if (!S.connected) { ui.warning = `Je ne joins pas ${S.helperName} pour le moment. Réessayez dans un instant.`; render(); return; }
     ui.warning = null;
+    ui.submitting = true;
     ui.request = '';
-    call('request_consent', t);
+    render();
+    Promise.resolve(call('request_consent', t)).catch(() => {
+      ui.submitting = false; ui.request = t; ui.warning = "La demande n'est pas partie. Réessayez."; render();
+    });
   }
   function focus(id) { const el = document.getElementById(id); if (el) el.focus(); }
   function setStep(n) { S.onboardingStep = n; render(); call('set_onboarding_step', n); }
@@ -474,7 +489,23 @@
   }
 
   const acts = {
-    submit, mic: () => { ui.warning = null; render(); call('dictation_toggle'); },
+    submit, mic: () => {
+      if (!S.microPresent || S.dictation.phase === 'starting' || S.dictation.phase === 'transcribing') return;
+      if (S.dictation.phase === 'idle' && ui.dictating) return;
+      ui.warning = null; ui.dictating = true; render();
+      Promise.resolve(call('dictation_toggle')).catch(() => { ui.dictating = false; render(); });
+    },
+    write: () => { ui.writing = true; render(); focus('req'); },
+    homeShortcut: (id) => call('open_home_shortcut', id),
+    editShortcuts: () => { ui.editingShortcuts = !ui.editingShortcuts; render(); },
+    removeShortcut: (id) => call('remove_home_shortcut', id),
+    addShortcut: () => { ui.warning = null; ui.sheet = 'addShortcut'; render(); },
+    chooseFolder: async () => {
+      const result = await call('add_home_folder');
+      if (result && result.ok) { ui.sheet = null; ui.warning = null; }
+      else if (result && result.message) ui.warning = result.message;
+      render();
+    },
     openSettings: () => { ui.settings = { name: S.storedFirstName || S.firstName, server: S.server }; ui.sheet = 'settings'; render(); },
     closeSheet: () => { ui.sheet = null; render(); },
     dismissAlert: () => { if (!S.alert?.blocked) { S.alert = null; render(); call('dismiss_alert'); } },
@@ -485,7 +516,6 @@
     scale: (v) => { S.textScale = parseFloat(v); render(); call('set_text_scale', parseFloat(v)); },
     shortcut: (id) => call('run_shortcut', id),
     lesson: (id) => call('open_lesson', id),
-    app: (p) => call('open_app', p),
     cancelConsent: () => call('cancel_consent'),
     share: () => call('give_consent'),
     revokeConsent: () => { S.screenConsent = false; render(); call('revoke_consent'); },
@@ -545,15 +575,24 @@
     update(snap) {
       const was = S && S.screen;
       S = snap;
+      if (!(S.homeShortcuts || []).some(a => a.personal)) ui.editingShortcuts = false;
       const m = S.dictation && S.dictation.message;
       if (m && m !== ui.lastDictMsg) ui.warning = m;
+      if (m && S.dictation.phase === 'idle') ui.dictating = false;
       ui.lastDictMsg = m || null;
       if (S.onboarded) ui.name = null;
-      if (was && was !== S.screen && S.screen === 'home') ui.warning = null;
+      if (was && was !== S.screen && S.screen === 'home') {
+        ui.warning = null; ui.submitting = false; ui.dictating = false;
+      }
       render();
     },
-    dictated(text) {
-      ui.request = ui.request ? ui.request + ' ' + text : text;
+    dictated(text, id) {
+      if (id === ui.lastDictation) return;
+      ui.lastDictation = id;
+      ui.dictating = false;
+      if (!text.trim() || S.screen !== 'home' || S.remoteRequest || S.alert) { render(); return; }
+      ui.request = ui.request.trim() ? ui.request.trim() + ' ' + text.trim() : text.trim();
+      submit();
       render();
     },
   };
@@ -561,15 +600,16 @@
   // Aperçu dans un navigateur (python -m papai.preview) : l'état de démo vient
   // de Model en mode démonstration ; les gestes ne font que naviguer.
   const preview = {
-    request_consent: (t) => { S.pendingTask = t; S.screen = 'consent'; render(); },
+    request_consent: (t) => { S.pendingTask = t; S.screen = 'session'; S.state = 'planning'; render(); },
     cancel_consent: () => { S.screen = 'home'; render(); },
     give_consent: () => { S.screenConsent = true; S.screen = 'session'; S.state = 'planning'; render(); },
     revoke_consent: () => {},
     open_lesson: (id) => { S.lesson = S.lessons.find((l) => l.id === id); S.screen = 'lesson'; render(); },
     close_lesson: () => { S.screen = 'home'; render(); },
-    back_home: () => { S.screen = 'home'; S.state = null; render(); },
+    back_home: () => { S.screen = 'home'; S.state = null; ui.submitting = false; render(); },
     stop: () => { S.state = 'stopped'; S.sessionOpen = false; render(); },
     finish_onboarding: () => { S.onboarded = true; render(); },
+    add_home_folder: () => ({ ok: false, message: "Le choix d'un dossier se fait dans l'app Windows." }),
   };
 
   function boot() {
@@ -580,7 +620,7 @@
     }
     const q = new URLSearchParams(location.search);
     if (q.has('demo')) {
-      fetch('state.json?demo=' + encodeURIComponent(q.get('demo'))).then((r) => r.json()).then((snap) => {
+      fetch('state.json?' + q.toString()).then((r) => r.json()).then((snap) => {
         if (q.get('sheet')) {
           ui.sheet = q.get('sheet');
           ui.settings = { name: snap.firstName, server: snap.server };

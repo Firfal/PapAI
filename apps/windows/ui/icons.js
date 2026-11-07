@@ -6,6 +6,8 @@
     hand: '<path d="M21.5 6.5V18c0 2.5-2 4.5-4.5 4.5h-5.6c-1.1 0-2.1-.4-2.9-1.2L3 15.8s1.1-1.1 1.2-1.1c.2-.2.5-.3.8-.3.2 0 .4.1.6.2l3.4 1.9V5.2c0-.8.7-1.5 1.5-1.5s1.5.7 1.5 1.5v6h.8V3c0-.8.7-1.5 1.5-1.5S16 2.2 16 3v8.2h.8V4.3c0-.8.7-1.5 1.5-1.5s1.5.7 1.5 1.5v6.9h.4V6.5c0-.8.4-1.3 1-1.3s.3 0 .3 1.3Z"/>',
     stopCircle: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4 14H8V8h8v8z"/>',
     stop: '<rect x="5" y="5" width="14" height="14" rx="2.5"/>',
+    plus: '<path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M12 4v16M4 12h16"/>',
+    compose: '<path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M11 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-6M14 5l4-4 5 5-4 4-9 9-5 1 1-5 9-9M18 1l5 5"/>',
     lock: '<path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>',
     book: '<path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>',
     check: '<path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>',
@@ -46,7 +48,7 @@
       pts.join(' L') + 'Z"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/>';
   })();
   window.icon = function (name, size, color) {
-    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="' + (color || 'currentColor') +
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" color="' + (color || 'inherit') + '" fill="' + (color || 'currentColor') +
       '" aria-hidden="true">' + (P[name] || P.app) + '</svg>';
   };
 })();

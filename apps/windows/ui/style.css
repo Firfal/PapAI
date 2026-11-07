@@ -28,7 +28,21 @@ input::placeholder, textarea::placeholder { color: rgba(17,19,18,.32); }
 svg { display: block; flex: none; }
 
 #root { height: 100vh; display: flex; flex-direction: column; gap: 22px; padding: 0 28px 28px; }
-.hdr { display: flex; align-items: center; gap: 14px; padding-top: 24px; flex: none; }
+.hdr { display: flex; align-items: center; gap: 14px; padding-top: 56px; flex: none; }
+.logotype { width: 84px; height: 36px; object-fit: contain; }
+.mintCard.homeCard { overflow-y: auto; }
+.homeCard > .spacer { flex-basis: auto; }
+@media (max-width: 960px), (max-height: 680px) {
+  .homeCard { padding: 24px !important; gap: 12px !important; }
+  .homeCard > .spacer { display: none; }
+  .homeCard .microFrame { width: 148px !important; height: 148px !important; }
+  .homeCard .microDisc { width: 128px !important; height: 128px !important; }
+}
+.requestRow { display: flex; align-items: center; gap: 10px; padding: 18px; border-radius: 22px; background: var(--card); }
+.requestRow textarea { flex: 1; min-width: 0; width: 100%; resize: none; }
+.writeButton { align-self: center; min-height: 44px; padding: 10px 22px; }
+.homeGrid { row-gap: 8px; }
+.removeShortcut { align-self: center; min-height: 44px; color: var(--muted); }
 .spacer { flex: 1 1 0; min-width: 0; min-height: 0; }
 .main { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 
@@ -87,6 +101,6 @@ svg { display: block; flex: none; }
 .sheet { border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.25), 0 0 0 .5px rgba(0,0,0,.12);
   max-height: calc(100vh - 56px); overflow: auto; }
 .seg { display: flex; background: rgba(17,19,18,.07); border-radius: 8px; padding: 2px; }
-.seg button { flex: 1; height: 26px; border-radius: 6px; font-size: 13px; font-weight: 500;
+.seg button { flex: 1; min-height: 30px; border-radius: 6px; font-size: 15px; font-weight: 500;
   font-family: "Segoe UI", system-ui, sans-serif; }
 .seg button.on { background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.15); }

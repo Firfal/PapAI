@@ -53,7 +53,7 @@ Puis lancer l'app Windows, et ouvrir la page aidant `http://<serveur>:8000/a/dem
 | `Model.swift` | `papai/model.py` |
 | `Bridge.swift` | `papai/bridge.py` |
 | `Core.swift` (StopGate, capture, actions, raccourcis) | `papai/core.py` |
-| `Dictation.swift` | `papai/dictation.py` (MCI de Windows, transcription par le serveur) |
+| `Dictation.swift` | `papai/dictation.py` (PortAudio, silence, transcription par le serveur) |
 | `PAPAI_DEMO`, `PAPAI_AUTOTASK` | identiques |
 
 Différences assumées :
@@ -61,13 +61,34 @@ Différences assumées :
 - **Autorisations** : Windows n'en demande pas pour voir l'écran ni pour la
   souris. L'étape 4 de l'accueil garde les mêmes engagements, déjà cochés ;
   l'écran d'autorisations du Mac n'apparaît jamais.
-- **Applications** : six raccourcis du menu Démarrer (Mail, Photos, Internet,
-  Visio, Explorateur, Calendrier) au lieu des identifiants de paquets du Mac ;
-  jamais un raccourci de désinstallation.
+- **Mes raccourcis** : les trois applications connues les plus utilisées (passages
+  au premier plan comptés localement), Images, Documents, Téléchargements, le
+  dernier dossier de photos, et jusqu'à quatre dossiers personnels. « Ajouter »
+  ouvre le sélecteur natif ; « Retirer » libère une place. Compteurs et choix dans
+  `%APPDATA%/PapAI/home-shortcuts.json`, jamais envoyés au serveur.
+- **Applications connues** : Photos, Outlook, Edge, Chrome, Firefox, Thunderbird,
+  Word, Excel, Explorateur, seulement si installées. Les exécutables sont résolus
+  à nouveau à l'ouverture dans Program Files ou Windows ; Photos passe par son
+  URI connue. Aucun `.lnk` du menu Démarrer n'est exécuté.
 - **Touches** : le modèle connaît surtout le Mac ; `cmd` devient `ctrl`, et
   `cmd+space` (recherche du Mac) devient la touche Windows.
 - **Dictée** : sans réponse du serveur (Gladia), pas de secours local ; l'app
-  invite à écrire.
+  invite à écrire. Sounddevice/PortAudio enregistre en mémoire (WAV mono 16 kHz),
+  coupe après 1,8 s de silence, 8 s sans voix ou 30 s maximum. Une seule demande
+  part après transcription, rien si le micro est muet. WinMM détecte les entrées
+  audio toutes les 2 s, y compris après branchement/débranchement ; sans micro,
+  le champ s'affiche d'office et le bouton micro disparaît.
+
+La tuile **Nouveau message** ouvre seulement l'URL fixe `mailto:` avec la
+messagerie par défaut, sans destinataire ni donnée fournie par l'interface.
+Les boutons **Retirer** n'apparaissent qu'après **Modifier**, puis disparaissent
+avec **Terminer**.
+
+Les dossiers sont validés à l'ajout **et à chaque ouverture**, après résolution
+des liens et jonctions, puis ouverts explicitement dans l'Explorateur. Fichiers,
+chemins relatifs/réseau et dossiers déguisés en `.exe`, `.bat`, `.cmd`, `.ps1`,
+`.lnk`, `.vbs`, `.msi`, `.scr` (entre autres) sont refusés. Aucun fichier trouvé
+dans un dossier ne sert de raccourci d'application.
 
 ## Sécurité
 
@@ -107,14 +128,20 @@ Deux branches ont porté l'app Windows le même jour ; celle-ci les réunit.
 cd apps/windows && python -m papai.preview      # http://127.0.0.1:8765/?demo=home
 ```
 
-États : `home`, `consent`, `planning`, `awaiting_approval`, `active`,
+États : `home`, `home_empty`, `home_shortcuts`, `consent`, `planning`, `awaiting_approval`, `active`,
 `awaiting_helper`, `done`, `stopped`, `lesson`, `remote`, `onboarding0` à
 `onboarding4` (et `&sheet=settings`). Les captures de `screenshots/` en viennent :
 ce sont des écrans de démonstration, aucune capture réelle.
 
+Accueil avec micro : `/?demo=home&mic=1` ; sans micro : `/?demo=home&mic=0` ;
+sans tutoriel : `/?demo=home_empty` ; avec ajouts personnels : `/?demo=home_shortcuts`.
+L'aperçu simule la présence audio : il n'ouvre pas le micro du navigateur.
+
 ```bash
 python apps/windows/tests/test_windows_app.py             # verrou, refus, raccourcis
 python apps/windows/tests/test_windows_app.py --serveur   # parcours complet contre le serveur local + faux Holo
+python -m unittest discover -s apps/windows/tests -p test_home.py -v  # raccourcis, micro, silence
+node --test apps/windows/tests/test_home_ui.js             # bascule et envoi unique, sans dépendance npm
 ```
 
 Icônes : tracés Material Icons (Apache 2.0). Police : Nunito (SIL OFL, `ui/fonts/OFL.txt`).

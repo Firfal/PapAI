@@ -1,16 +1,11 @@
-"""Les applications de la personne, trouvées dans le menu Démarrer.
-
-L'app Mac affiche six applications par identifiant de paquet (Mail, Photos,
-Safari, FaceTime, Finder, Calendrier). Windows n'a pas d'équivalent stable :
-on cherche dans les raccourcis du menu Démarrer, ce que la personne voit
-elle-même. Repris du prototype (`archive/windows-7-nov`), avec les icônes.
-"""
+"""Applications connues, résolues dans Program Files ou Windows, jamais par .lnk."""
 
 from __future__ import annotations
 
 import base64
 import io
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -67,18 +62,102 @@ def match(noms: list[tuple[str, str]]) -> list[dict]:
 
 
 def installed() -> list[dict]:
-    noms: list[tuple[str, str]] = []
-    for racine in menus():
-        if not racine.is_dir():
-            continue
+    if sys.platform != 'win32':
+        return []
+    out = []
+    for app_id, label, relative in CATALOG:
+        path = program_path(relative)
+        if path:
+            out.append({"id": app_id, "path": app_id, "label": label,
+                        "executable": str(path), "icon": icon_data_url(str(path))})
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, 'ms-photos'):
+            out.insert(0, {"id": "photos", "path": "photos", "label": "Photos", "icon": None})
+    except OSError:
+        pass
+    return out
+
+
+# Identifiants fermés, jamais un chemin fourni par une tuile ou un fichier .lnk.
+CATALOG = (
+    ('outlook', 'Mail', 'Microsoft Office/root/Office16/OUTLOOK.EXE'),
+    ('edge', 'Microsoft Edge', 'Microsoft/Edge/Application/msedge.exe'),
+    ('chrome', 'Google Chrome', 'Google/Chrome/Application/chrome.exe'),
+    ('firefox', 'Firefox', 'Mozilla Firefox/firefox.exe'),
+    ('thunderbird', 'Mail', 'Mozilla Thunderbird/thunderbird.exe'),
+    ('word', 'Word', 'Microsoft Office/root/Office16/WINWORD.EXE'),
+    ('excel', 'Excel', 'Microsoft Office/root/Office16/EXCEL.EXE'),
+    ('explorer', 'Explorateur', '@windows/explorer.exe'),
+)
+
+
+def windows_directory() -> Path:
+    import ctypes
+    buf = ctypes.create_unicode_buffer(32768)
+    if not ctypes.windll.kernel32.GetWindowsDirectoryW(buf, len(buf)):
+        raise OSError('Dossier Windows introuvable')
+    return Path(buf.value)
+
+
+def program_path(relative: str) -> Path | None:
+    if relative.startswith('@windows/'):
+        roots, relative = [windows_directory()], relative.removeprefix('@windows/')
+    else:
+        roots = [Path(os.environ[v]) for v in ('ProgramW6432', 'ProgramFiles', 'ProgramFiles(x86)') if os.environ.get(v)]
+    for root in roots:
         try:
-            noms += [(p.stem.lower(), str(p)) for p in racine.rglob("*.lnk")]
-        except OSError:
+            path = root / relative
+            resolved = path.resolve(strict=True)
+            if path.is_file() and resolved == root.resolve() / relative:
+                return resolved
+        except (OSError, RuntimeError):
             continue
-    apps = match(noms)
-    for a in apps:
-        a["icon"] = icon_data_url(a["path"])
-    return apps
+    return None
+
+
+def foreground_executable() -> str | None:
+    if sys.platform != 'win32':
+        return None
+    import ctypes
+    from ctypes import wintypes
+    user, kernel = ctypes.windll.user32, ctypes.windll.kernel32
+    user.GetForegroundWindow.restype = wintypes.HWND
+    user.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    pid = wintypes.DWORD()
+    user.GetWindowThreadProcessId(user.GetForegroundWindow(), ctypes.byref(pid))
+    handle = kernel.OpenProcess(0x1000, False, pid.value)
+    if not handle:
+        return None
+    try:
+        buf, n = ctypes.create_unicode_buffer(32768), wintypes.DWORD(32768)
+        return buf.value if kernel.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(n)) else None
+    finally:
+        kernel.CloseHandle(handle)
+
+
+def foreground_id(catalog: list[dict], active: str | None) -> str | None:
+    if not active:
+        return None
+    for app in catalog:
+        if app.get('executable') and os.path.normcase(app['executable']) == os.path.normcase(active):
+            return app['id']
+    if sys.platform == 'win32' and any(a['id'] == 'photos' for a in catalog):
+        try:
+            path = Path(active).resolve(strict=True)
+            for variable in ('ProgramW6432', 'ProgramFiles'):
+                if not os.environ.get(variable):
+                    continue
+                relative = path.relative_to(Path(os.environ[variable]).resolve() / 'WindowsApps')
+                if relative.parts[0].startswith('Microsoft.Windows.Photos_') and path.name.lower() in ('photos.exe', 'microsoft.photos.exe'):
+                    return 'photos'
+        except (OSError, ValueError, RuntimeError):
+            pass
+    return None
 
 
 def icon_data_url(path: str) -> str | None:
@@ -106,6 +185,23 @@ def icon_data_url(path: str) -> str | None:
                         ("biClrImportant", wintypes.DWORD)]
 
         shell32, user32, gdi32 = ctypes.windll.shell32, ctypes.windll.user32, ctypes.windll.gdi32
+        shell32.SHGetFileInfoW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(SHFILEINFOW), wintypes.UINT, wintypes.UINT]
+        shell32.SHGetFileInfoW.restype = ctypes.c_size_t
+        user32.GetDC.argtypes = [wintypes.HWND]
+        user32.GetDC.restype = wintypes.HDC
+        user32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
+        user32.DestroyIcon.argtypes = [wintypes.HICON]
+        user32.DrawIconEx.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, wintypes.HICON,
+                                     ctypes.c_int, ctypes.c_int, wintypes.UINT, wintypes.HBRUSH, wintypes.UINT]
+        gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+        gdi32.CreateCompatibleDC.restype = wintypes.HDC
+        gdi32.CreateDIBSection.argtypes = [wintypes.HDC, ctypes.c_void_p, wintypes.UINT,
+                                         ctypes.POINTER(ctypes.c_void_p), wintypes.HANDLE, wintypes.DWORD]
+        gdi32.CreateDIBSection.restype = wintypes.HANDLE
+        gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HANDLE]
+        gdi32.SelectObject.restype = wintypes.HANDLE
+        gdi32.DeleteObject.argtypes = [wintypes.HANDLE]
+        gdi32.DeleteDC.argtypes = [wintypes.HDC]
         info = SHFILEINFOW()
         if not shell32.SHGetFileInfoW(path, 0, ctypes.byref(info), ctypes.sizeof(info), 0x100):
             return None  # SHGFI_ICON (grande icône, 32 px)
@@ -132,14 +228,15 @@ def icon_data_url(path: str) -> str | None:
 
 
 def launch(path: str) -> tuple[bool, str]:
-    """N'ouvre qu'un raccourci du menu Démarrer, jamais un exécutable quelconque."""
-    cible = Path(path or "")
-    if cible.suffix.lower() != ".lnk" or not cible.is_file():
-        return False, "Cette application n'est plus installée."
-    if not any(str(cible).lower().startswith(str(r).lower()) for r in menus()):
-        return False, "Raccourci hors du menu Démarrer."
+    """Résout de nouveau un identifiant du catalogue avant chaque ouverture."""
+    app = next((a for a in installed() if a['id'] == path), None)
+    if app is None:
+        return False, "Cette application n'est pas disponible sur cet ordinateur."
     try:
-        os.startfile(str(cible))  # noqa: S606 — raccourci du menu Démarrer
-    except OSError as e:
-        return False, str(e)
-    return True, str(cible)
+        if app['id'] == 'photos':
+            os.startfile('ms-photos:')
+        else:
+            subprocess.Popen([app['executable']], shell=False)
+    except OSError:
+        return False, "Je n'arrive pas à ouvrir cette application."
+    return True, app['label']
