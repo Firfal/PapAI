@@ -1,3 +1,5 @@
+<p align="center"><img src="brand/papai-mascotte-pastel.svg" width="120" alt="PapAI"></p>
+
 # PapAI
 
 Un agent qui aide votre grand-parent sur son ordinateur, **uniquement avec votre accord**.
@@ -12,6 +14,12 @@ Hackathon H Company × 42 AI, 7-8 novembre 2026. Agent : **Holo** (H Company).
 3. **Valider** : l'aidant reçoit une notification sur son iPhone, puis valide, précise ou refuse. Rien ne bouge avant.
 4. **Exécuter** : Holo agit, la personne regarde, et peut tout arrêter à tout moment.
 5. **Garder** : la tâche devient un automatisme, une tuile que la personne relance seule.
+
+## Aperçu
+
+| Personne aidée (Mac) | Aidant (iPhone) |
+|---|---|
+| <img src="apps/mac/screenshots/02-awaiting_approval.png" width="520"> | <img src="apps/ios/screenshots/awaiting_approval.png" width="240"> |
 
 ## Architecture
 
@@ -33,7 +41,18 @@ Mac de la personne aidée         Serveur PapAI (Cloud Run)          H Company
   - aucune action sans plan validé ;
   - la fenêtre PapAI est exclue des captures et des clics ;
   - toute demande de l'aidant est revalidée côté serveur.
-- **Windows** : l'ancienne version Python/Tk est dans `bridge/`. La branche `archive/windows-7-nov` garde le travail Windows du 7 novembre au matin.
+- **Windows** : prévu après le Mac. Le prototype Windows (Python/Tk, saisie vocale) est gardé dans la branche `archive/windows-7-nov`.
+
+## Structure
+
+```
+backend/        serveur FastAPI : sessions, plan, boucle agent Holo, garde-fous
+carepilot_tools.py  contrat avec Holo : outils, prompts Mac et Windows
+apps/mac/       app SwiftUI de la personne aidée (capture, clics, Arrêter, automatismes)
+apps/ios/       app SwiftUI de l'aidant (validation, capture en direct, prise de main)
+brand/          logo et icônes (SVG)
+PROTOCOL.md     messages échangés entre le serveur et les apps
+```
 
 ## Lancer
 
