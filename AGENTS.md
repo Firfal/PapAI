@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794091852-appairage-code-seul` | Relier un support avec le seul code à 6 chiffres (sans adresse de serveur) | `backend/app.py` (routes `/p`), `apps/android/…/Helper.kt`, `apps/ios/Sources/HelperModel.swift`, `PROTOCOL.md`, `tests/test_appairage_code.py` | 7 nov. |
 
 ## Journal
 
