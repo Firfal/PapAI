@@ -56,6 +56,7 @@ struct OnboardingView: View {
                     model.helpers = [Helper(id: "1", name: "Claire", relation: "sa fille")]
                     model.pairCode = "482913"
                     model.pairURL = "http://192.168.1.20:8000/p/482913"
+                    model.pairAppURL = AppModel.appPairingURL(model.pairURL!)
                 }
             }
         }
@@ -221,14 +222,14 @@ struct HelpersPanel: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if let code = model.pairCode {
-                pairCard(code: code, url: model.pairURL ?? "")
+                pairCard(code: code, qr: model.pairAppURL ?? model.pairURL ?? "", url: model.pairURL ?? "")
             }
         }
     }
 
-    private func pairCard(code: String, url: String) -> some View {
+    private func pairCard(code: String, qr qrText: String, url: String) -> some View {
         VStack(spacing: 10) {
-            if let qr = QRCode.image(url) {
+            if let qr = QRCode.image(qrText) {
                 Image(nsImage: qr).interpolation(.none).resizable()
                     .frame(width: 170, height: 170)
                     .accessibilityLabel("QR code à scanner par votre proche")
@@ -239,6 +240,12 @@ struct HelpersPanel: View {
                 .monospacedDigit().tracking(4)
                 .textSelection(.enabled)
             Text("Valable 10 minutes").font(rounded(15)).foregroundStyle(T.muted)
+            if !url.isEmpty {
+                Text("Sans l'app PapAI : \(url)")
+                    .font(rounded(13)).foregroundStyle(T.muted)
+                    .multilineTextAlignment(.center).textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Button("Annuler") { model.stopPairing() }.buttonStyle(.plain).font(rounded(17, .semibold)).foregroundStyle(T.muted)
         }
         .foregroundStyle(T.ink)

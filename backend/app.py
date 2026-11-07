@@ -15,6 +15,7 @@ import os
 import re
 import secrets
 from pathlib import Path
+from urllib.parse import quote
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -188,7 +189,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 # Ajout d'un proche : un code à 6 chiffres et son lien (QR).
                 code = family.new_code()
                 await ws.send_json({"type": "pair_code", "code": code, "url": pairing_url(code),
-                                    "expires_in": 600})
+                                    "app_url": app_pairing_url(code), "expires_in": 600})
                 continue
 
             if kind == "remove_helper":
@@ -478,6 +479,11 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
 def pairing_url(code: str) -> str:
     base = f"{PUBLIC_URL}/k/{AIDANT_KEY}" if PUBLIC_MODE else PUBLIC_URL
     return f"{base}/p/{code}"
+
+
+def app_pairing_url(code: str) -> str:
+    """Le lien du QR : ouvre l'app iPhone, qui fait elle-même le POST sur `url`."""
+    return "papai://pair?u=" + quote(pairing_url(code), safe="")
 
 
 def aidant_url() -> str:

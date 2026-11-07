@@ -23,6 +23,10 @@ targets:
         UIUserInterfaceStyle: Light
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSLocalNetworkUsageDescription: PapAI se connecte au serveur de démonstration sur votre réseau local.
+        NSCameraUsageDescription: PapAI utilise l’appareil photo pour scanner le QR affiché sur l’ordinateur de votre proche.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.quentin.papai.aidant
+            CFBundleURLSchemes: [papai]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSAllowsArbitraryLoads: true

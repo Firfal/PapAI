@@ -39,6 +39,14 @@ struct DoneView: View {
             Text("Brouillon de l’automatisme").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
             TextField("Titre", text: $model.draftTitle)
                 .font(.system(size: 18, weight: .semibold)).padding(16).soinCard(radius: 18)
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "folder").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.accent)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("La tuile ouvrira").font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.secondary)
+                    Text(model.draftTarget ?? "Aucun dossier : Jeanne aura seulement le pas à pas.")
+                        .font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.ink)
+                }
+            }.padding(16).frame(maxWidth: .infinity, alignment: .leading).soinCard()
             ForEach($model.draftSteps) { $s in
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Étape \((model.draftSteps.firstIndex { $0.id == s.id } ?? 0) + 1)")
