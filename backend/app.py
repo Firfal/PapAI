@@ -904,6 +904,9 @@ WRONG_CODES_MAX = 10
 SPACES_PER_HOUR = 5
 _wrong_codes: dict[str, list[float]] = {}
 _space_creations: dict[str, list[float]] = {}
+# Postes d'une même organisation (souvent derrière la même adresse IP) : plafond par organisation.
+ORG_ENROLLS_PER_HOUR = int(os.environ.get("PAPAI_ORG_ENROLLS_PER_HOUR", "200"))
+_org_enrolls: dict[str, list[float]] = {}
 
 
 def _client_ip(request: HTTPConnection) -> str:
@@ -962,6 +965,8 @@ async def create_space(request: Request):
         org = orgs.by_enroll(str(body["org"]))
         if org is None:
             return JSONResponse({"error": "Jeton d'organisation inconnu."}, status_code=403)
+        if not _rate_ok(_org_enrolls, org.id, ORG_ENROLLS_PER_HOUR, 3600):
+            return JSONResponse({"error": "Trop d'inscriptions. Réessayez plus tard."}, status_code=429)
     elif not _rate_ok(_space_creations, _client_ip(request), SPACES_PER_HOUR, 3600):
         return JSONResponse({"error": "Trop de créations. Réessayez plus tard."}, status_code=429)
     sp = spaces.create(org=org.id if org else "", label=_label(body))

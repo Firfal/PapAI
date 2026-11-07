@@ -76,6 +76,8 @@ async def parcours(base: str) -> None:
     st, o2 = http(f"{base}/orgs", {"name": "Autre"})
     st, _ = http(f"{base}/k/{seul['key']}/org", {"org": o2["enroll_token"]})
     check("un poste ne change pas d'organisation en douce", st == 409)
+    codes = [http(f"{base}/spaces", {"org": o2["enroll_token"]})[0] for _ in range(6)]
+    check("inscriptions plafonnées par organisation", codes[:5] == [200] * 5 and codes[5] == 429)
     st, _ = http(f"{base}/k/{base_test.CLE}/org", {"org": o["enroll_token"]})
     check("l'espace historique reste seul", st == 409)
 
@@ -90,5 +92,6 @@ async def parcours(base: str) -> None:
 
 
 if __name__ == "__main__":
+    __import__("os").environ["PAPAI_ORG_ENROLLS_PER_HOUR"] = "5"
     base_test.parcours = parcours
     base_test.main()
