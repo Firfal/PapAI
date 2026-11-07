@@ -48,8 +48,8 @@ struct PairLink: Identifiable, Equatable {
     var senior: String?
 
     var isOfficial: Bool {
-        guard let url = URL(string: base) else { return false }
-        return url.scheme?.lowercased() == "https" && host.lowercased() == PairServer.officialHost
+        guard let url = URL(string: base), let h = url.host?.lowercased() else { return false }
+        return url.scheme?.lowercased() == "https" && h == PairServer.officialHost && (url.port == nil || url.port == 443)
     }
 
     var host: String {
