@@ -41,7 +41,7 @@ enum GuardSignals {
         let window = front.map { frontWindowTitle(pid: $0.processIdentifier) } ?? ""
         var url = ""
         if withURL, let id = front?.bundleIdentifier, let source = browsers[id] {
-            url = browserURL(source)
+            url = siteOnly(browserURL(source))
         }
         return ["type": "guard", "processes": names, "window": window, "url": url]
     }
@@ -56,6 +56,13 @@ enum GuardSignals {
             if let name = w[kCGWindowName as String] as? String, !name.isEmpty { return name }
         }
         return ""
+    }
+
+    /// Le gardien ne juge que le site : chemin et paramètres, qui peuvent
+    /// porter des jetons, restent sur le Mac.
+    private static func siteOnly(_ address: String) -> String {
+        guard let c = URLComponents(string: address), let host = c.host, !host.isEmpty else { return "" }
+        return "\(c.scheme ?? "https")://\(host)"
     }
 
     private static func browserURL(_ command: String) -> String {
