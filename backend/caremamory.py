@@ -2,8 +2,10 @@
 
 Le point du produit n'est pas de rejouer des clics, c'est d'expliquer la logique
 d'une manipulation à quelqu'un qui devra la refaire seul. On donne donc au modèle
-la trajectoire en texte — ce qu'il a visé, pas où il a cliqué — et on lui demande
-une fiche courte, dans des mots que la personne aidée comprend.
+la trajectoire en texte — ce qu'il a visé, pas où il a cliqué — et les vraies
+captures d'écran de la session, et on lui demande une fiche courte, dans des mots
+que la personne aidée comprend. Chaque étape est illustrée par une de ces captures,
+jamais par une image fabriquée.
 
 Rien n'est écrit sur disque avant qu'un proche ait validé la fiche.
 """
@@ -24,8 +26,13 @@ LESSONS_DIR = Path(__file__).parent.parent / "lessons"
 
 client = make_client()
 
-PROMPT = """Tu rédiges une fiche pour une personne âgée peu à l'aise avec Windows,
+# Holo accepte 5 images par requête.
+MAX_LESSON_FRAMES = 4
+
+PROMPT = """Tu rédiges une fiche pour une personne âgée peu à l'aise avec l'informatique,
 à partir d'une manipulation qu'un assistant vient de réussir sur son ordinateur.
+Tu reçois la liste des actions et de vraies captures de son écran, prises pendant
+la manipulation.
 
 Objectif : qu'elle puisse refaire la manipulation SEULE la prochaine fois.
 
@@ -37,7 +44,7 @@ Règles de rédaction :
 - Pas de coordonnées, pas de pixels, pas de vocabulaire technique.
 - Vouvoie. Phrases courtes. Une seule action par étape.
 - Pour chaque étape, donne un repère visuel : ce qu'elle doit voir à l'écran une
-  fois l'étape réussie.
+  fois l'étape réussie. Prends-le dans les captures, n'invente rien.
 - Ignore les tâtonnements de l'assistant : ne garde que le chemin qui a marché.
 - Écris dans un français simple et entièrement correct. Aucun mot anglais :
   écris « ouvrir » et non « opening », « intitulé » et non « labeled ».
@@ -46,11 +53,10 @@ Réponds UNIQUEMENT par un objet JSON, sans texte autour :
 {"title": "...", "steps": [{"instruction": "...", "checkpoint": "...", "frame": "..."}]}
 
 `title` commence par un verbe à l'infinitif, par exemple « Retrouver mes photos ».
-`frame` reprend un identifiant de capture de la liste fournie, celui qui illustre
-le mieux l'étape."""
+`frame` reprend l'identifiant de la capture jointe qui montre le mieux l'étape."""
 
 
-def _trajectory(session: Session) -> str:
+def _trajectory(session: Session, ids: list[str]) -> str:
     """La trajectoire réussie, en texte, telle qu'on la donne au modèle."""
     lines = [f"Demande de la personne : « {session.task} »", "", "Ce que l'assistant a fait :"]
     for e in session.journal:
@@ -64,10 +70,48 @@ def _trajectory(session: Session) -> str:
         elif e["kind"] == "answer":
             lines.append(f"\nRésultat annoncé : {e.get('content','')}")
 
-    ids = [fid for fid in session.frames]
     lines.append("")
-    lines.append("Identifiants de capture disponibles : " + ", ".join(ids))
+    lines.append("Captures jointes : " + ", ".join(ids))
     return "\n".join(lines)
+
+
+def _session_frames(session: Session) -> list[str]:
+    """Les captures de la session encore en mémoire, dans l'ordre des actions.
+
+    La dernière capture (l'écran à la fin) est toujours incluse : c'est souvent
+    elle qui montre le résultat que la personne doit retrouver.
+    """
+    ids: list[str] = []
+    for e in session.journal:
+        f = e.get("frame") if e["kind"] == "tool_call" else None
+        if f and f in session.frames and f not in ids:
+            ids.append(f)
+    if session.frames:
+        last = next(reversed(session.frames))
+        if last not in ids:
+            ids.append(last)
+    return ids
+
+
+def _spread(ids: list[str], n: int) -> list[str]:
+    """n identifiants répartis sur toute la session, le dernier toujours gardé."""
+    if n <= 0 or not ids:
+        return []
+    if len(ids) <= n:
+        return list(ids)
+    if n == 1:
+        return [ids[-1]]
+    return [ids[round(i * (len(ids) - 1) / (n - 1))] for i in range(n)]
+
+
+def _with_frames(text: str, ids: list[str], session: Session) -> dict:
+    content: list[dict] = [{"type": "text", "text": text}]
+    for fid in ids:
+        content.append({"type": "text", "text": f"\nCapture {fid} :"})
+        content.append(
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{session.frames[fid]}"}}
+        )
+    return {"role": "user", "content": content}
 
 
 SHORTCUT_PROMPT = """Regarde cette capture d'écran Windows, prise à la fin d'une manipulation réussie.
@@ -144,12 +188,17 @@ async def draft_lesson(session: Session) -> dict:
     """Produit un brouillon de fiche. Non validé, non écrit sur disque."""
     import asyncio
 
+    available = _session_frames(session)
+    if not available:
+        raise ValueError("aucune capture d'écran dans la session")
+    shown = _spread(available, MAX_LESSON_FRAMES)
+
     resp = await asyncio.to_thread(
         client.chat.completions.create,
         model=MODEL,
         messages=[
             {"role": "system", "content": PROMPT},
-            {"role": "user", "content": _trajectory(session)},
+            _with_frames(_trajectory(session, shown), shown, session),
         ],
         temperature=TEMPERATURE,
     )
@@ -180,6 +229,12 @@ async def draft_lesson(session: Session) -> dict:
         )
     if not steps:
         raise ValueError("fiche sans étape exploitable")
+    # Toute étape a sa capture : si Holo n'en a pas choisi une valable, on prend
+    # celle qui correspond à sa place dans la session (la dernière pour la fin).
+    fallback = _spread(available, len(steps))
+    for i, step in enumerate(steps):
+        if not step["frame"]:
+            step["frame"] = fallback[min(i, len(fallback) - 1)]
 
     lesson = {
         "id": f"lesson-{int(time.time())}",

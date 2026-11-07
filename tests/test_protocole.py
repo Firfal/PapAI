@@ -201,6 +201,10 @@ async def main() -> None:
                   fiche is not None and fiche.get("type") == "lesson_draft"
                   and all(isinstance(e, dict) and e.get("instruction") for e in etapes)
                   and etapes != [], fiche)
+            apercu = (fiche or {}).get("preview") or {}
+            check("chaque étape de la fiche a une vraie capture de la session",
+                  etapes != [] and all(apercu.get(e.get("frame")) for e in etapes),
+                  [e.get("frame") for e in etapes])
 
         service.cancel()
 

@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794072473-fiche-captures` | Fiches : chaque étape illustrée par une vraie capture de la session | `backend/caremamory.py`, `tests/test_protocole.py`, `tests/faux_holo.py` | 7 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -42,3 +42,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | 7 nov. | Devin | `devin/1794070934-windows-vers-main` | Fusion dans `main` de l'app Windows de cyp-cor (branche `windows`, `apps/windows/`), éprouvée sur un vrai écran Windows. Manques connus par rapport au Mac actuel : accueil en 5 écrans, proches (`pair_start`, `remove_helper`), `remote_request`, dictée, `lessons_changed`, `plan_step`. `TODO.md` et `README.md` non touchés (réservés par `devin/windows-soin`). |
 | 7 nov. | Devin | `devin/windows-soin` | App Windows de la personne aidée refaite dans le design « Soin » de l'app Mac (`apps/windows`, Python + pywebview/WebView2) : mêmes écrans (accueil, consentement, session et ses 6 états, tutoriel, accueil en 5 étapes, proches + QR, proposition d'un proche, réglages), même protocole (`hello` os=windows), capture et clics repris du prototype. Refus local de tout `execute` sans plan validé, verrou d'arrêt hors ligne, fenêtre exclue de la capture et des clics. Fusion de `devin/1794070934-windows-vers-main` : gardien (`guard`, `alert`) et gestes éprouvés sur Windows repris, son `main.py` remplacé. Tests Linux 31/31 avec faux Holo (gardien 14/14, protocole 13/13, parcours 26/26) ; l'ensemble pas essayé sur un vrai Windows. Fichiers libérés. |
 | 7 nov. | Devin | `devin/1794071404-todo-notion-etat` | `TODO.md` et Notion : le gardien sur le Mac est dans `main`, la ligne « pas fusionné » est corrigée. Fichier libéré. |
+| 7 nov. | Devin | `devin/1794072473-fiche-captures` | Fiches : `draft_lesson()` envoie à Holo jusqu'à 4 vraies captures de la session (réparties, la dernière toujours incluse) avec la trajectoire ; chaque étape reçoit une capture réelle, celle choisie par Holo ou à défaut celle de sa place dans la session ; sans capture, `refused`. Contrôle ajouté dans `test_protocole.py` (14/14), parcours 26/26, gardien 14/14. |
