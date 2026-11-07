@@ -124,7 +124,7 @@ Indique aussi où se fait la tâche : "web" si tout se passe dans un navigateur
 (un site, une page internet, un webmail), sinon "desktop".
 
 Réponds UNIQUEMENT par un objet JSON, sans texte autour :
-{{"steps": ["...", "..."], "where": "web"}}"""
+{{"steps": ["...", "..."], "where": "desktop"}}"""
 
 
 # Consignes de l'agent navigateur de H (backend/web_agent.py), mot pour mot.
