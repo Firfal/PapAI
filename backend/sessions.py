@@ -24,6 +24,8 @@ FRAME_TTL_S = 30
 
 class State(str, Enum):
     WAITING_CONSENT = "waiting_consent"   # aide demandée, partage pas encore accordé
+    PLANNING = "planning"                 # Holo regarde l'écran et prépare un plan
+    AWAITING_APPROVAL = "awaiting_approval"  # plan envoyé, le proche doit valider
     ACTIVE = "active"                     # l'agent travaille
     AWAITING_HELPER = "awaiting_helper"   # agent suspendu, question posée au proche
     DONE = "done"
@@ -38,7 +40,10 @@ class Owner(str, Enum):
     HELPER = "helper"
 
 
-OPEN_STATES = {State.WAITING_CONSENT, State.ACTIVE, State.AWAITING_HELPER}
+OPEN_STATES = {
+    State.WAITING_CONSENT, State.PLANNING, State.AWAITING_APPROVAL,
+    State.ACTIVE, State.AWAITING_HELPER,
+}
 TERMINAL_STATES = {State.DONE, State.STOPPED}
 
 
@@ -76,6 +81,11 @@ class Session:
 
     question: dict | None = None
 
+    # Le plan proposé par Holo. Rien ne bouge sur le PC tant que le proche ne
+    # l'a pas validé : c'est la règle « jamais sans aval ».
+    plan: list[str] | None = None
+    plan_approved: bool = False
+
     # Brouillon de fiche CareMemory, en attente de validation du proche.
     lesson: dict | None = None
     journal: list[dict] = field(default_factory=list)
@@ -97,6 +107,7 @@ class Session:
 
     # Rempli par le proche, attendu par la boucle agent.
     _helper_reply: asyncio.Future | None = field(default=None, repr=False)
+    _plan_decision: asyncio.Future | None = field(default=None, repr=False)
 
     # ---------------------------------------------------------------- journal
 
@@ -126,8 +137,10 @@ class Session:
     def grant_consent(self) -> None:
         self.require_open()
         self.consented = True
-        self.state = State.ACTIVE
-        self.owner = Owner.AGENT
+        # Le partage d'écran est accordé, mais l'agent n'a pas encore la main :
+        # il doit d'abord faire valider un plan par le proche.
+        self.state = State.PLANNING
+        self.owner = Owner.NONE
         self.log("consent", granted=True)
 
     def stop(self, by: str = "senior") -> None:
@@ -139,6 +152,7 @@ class Session:
         self.owner = Owner.NONE
         self.log("stop", by=by)
         self._resolve_reply(None)
+        self._resolve_plan(None)
 
     def finish(self, message: str) -> None:
         self.require_open()
@@ -214,6 +228,42 @@ class Session:
         if fut is not None and not fut.done():
             fut.set_result(value)
 
+    # ------------------------------------------------------------ plan
+
+    def propose_plan(self, steps: list[str]) -> asyncio.Future:
+        """Le plan part chez le proche. L'agent attend sa décision, les mains libres."""
+        self.require_open()
+        self.plan = steps
+        self.plan_approved = False
+        self.state = State.AWAITING_APPROVAL
+        self.owner = Owner.NONE
+        self.log("plan_proposed", steps=steps)
+        self._plan_decision = asyncio.get_running_loop().create_future()
+        return self._plan_decision
+
+    def decide_plan(self, decision: str, note: str = "") -> None:
+        """approve, refine (avec une précision) ou refuse. Revalidé côté serveur."""
+        self.require_open()
+        if self.state is not State.AWAITING_APPROVAL:
+            raise Refused("Aucun plan n'attend votre validation.")
+        if decision not in ("approve", "refine", "refuse"):
+            raise Refused("Décision inconnue.")
+        if decision == "refine" and not note:
+            raise Refused("Écrivez la précision à donner à Holo.")
+        self.log("plan_decision", decision=decision, note=note)
+        if decision == "approve":
+            self.plan_approved = True
+            self.state = State.ACTIVE
+            self.owner = Owner.AGENT
+        elif decision == "refine":
+            self.state = State.PLANNING
+        self._resolve_plan((decision, note))
+
+    def _resolve_plan(self, value) -> None:
+        fut, self._plan_decision = self._plan_decision, None
+        if fut is not None and not fut.done():
+            fut.set_result(value)
+
     # ------------------------------------------------------------ vue publique
 
     def record_usage(self, usage) -> dict:
@@ -239,6 +289,8 @@ class Session:
             "consented": self.consented,
             "task": self.task,
             "question": self.question,
+            "plan": self.plan,
+            "plan_approved": self.plan_approved,
             "usage": self.usage,
         }
 

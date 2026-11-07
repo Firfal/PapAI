@@ -19,7 +19,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 
-from .agent import AgentRunner
+from .agent import AgentRunner, propose_plan
 from .caremamory import LESSONS_DIR, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
 
@@ -49,8 +49,12 @@ def _lan_ip() -> str:
 # En production, CAREPILOT_PUBLIC_URL porte l'URL publique du service hébergé.
 PUBLIC_URL = os.environ.get("CAREPILOT_PUBLIC_URL") or f"http://{_lan_ip()}:{os.environ.get('PORT', '8000')}"
 
-app = FastAPI(title="CarePilot")
+app = FastAPI(title="PapAI")
 registry = Registry()
+
+# Clé du lien permanent de l'aidant (app iPhone ou page /a/{clé}). Stable d'un
+# lancement à l'autre si on la fixe dans .env, sinon tirée au démarrage.
+AIDANT_KEY = os.environ.get("PAPAI_AIDANT_KEY") or secrets.token_urlsafe(9)
 
 
 class BridgeLink:
@@ -59,6 +63,7 @@ class BridgeLink:
     def __init__(self, ws: WebSocket) -> None:
         self.ws = ws
         self._pending: dict[str, asyncio.Future] = {}
+        self.os = "windows"  # annoncé par le pont dans son message hello
 
     async def _request(self, payload: dict, timeout: float = 20.0):
         req = secrets.token_hex(6)
@@ -108,7 +113,14 @@ helper_sockets: set[WebSocket] = set()
 agent_task: asyncio.Task | None = None
 
 
+# Ce que la personne aidée doit aussi voir : l'état de la session, le plan en
+# attente, la réponse finale. Jamais les captures, qu'elle a sous les yeux.
+BRIDGE_TYPES = {"status", "answer", "alert"}
+
+
 async def broadcast_helper(payload: dict) -> None:
+    if bridge is not None and payload.get("type") in BRIDGE_TYPES:
+        await bridge.send(payload)
     dead = []
     for ws in helper_sockets:
         try:
@@ -137,6 +149,11 @@ async def ws_bridge(ws: WebSocket) -> None:
                 bridge.resolve(msg.get("req", ""), msg)
                 continue
 
+            if kind == "hello":
+                bridge.os = str(msg.get("os", "windows")).lower()
+                print(f"[pont] système : {bridge.os}")
+                continue
+
             if kind == "help_request":
                 session = registry.create(msg.get("task", "").strip())
                 session.grant_consent()  # le consentement est donné dans la même fenêtre
@@ -148,9 +165,17 @@ async def ws_bridge(ws: WebSocket) -> None:
 
                 if agent_task and not agent_task.done():
                     agent_task.cancel()
-                agent_task = asyncio.create_task(
-                    AgentRunner(session, bridge, broadcast_helper).run()
-                )
+                agent_task = asyncio.create_task(run_session(session, bridge))
+                continue
+
+            if kind == "automation_failed":
+                # Un automatisme n'a pas pu se rejouer : l'écran ou le dossier a
+                # changé. On ne tente rien à l'aveugle, on prévient l'aidant.
+                await broadcast_helper({
+                    "type": "alert",
+                    "title": str(msg.get("title", "Un raccourci")),
+                    "detail": str(msg.get("detail", "")),
+                })
                 continue
 
             if kind == "stop":
@@ -171,6 +196,35 @@ async def ws_bridge(ws: WebSocket) -> None:
             if s.is_open:
                 s.stop(by="pont déconnecté")
                 await broadcast_helper(s.status())
+
+
+async def run_session(session, link: "BridgeLink") -> None:
+    """Plan d'abord, validé par l'aidant ; l'agent n'agit qu'ensuite."""
+    notes: list[str] = []
+    try:
+        while True:
+            await broadcast_helper(session.status())
+            steps = await propose_plan(session, link, broadcast_helper, " ; ".join(notes))
+            if not session.is_open:
+                return
+            decision = session.propose_plan(steps)
+            await broadcast_helper(session.status())
+            print(f"[session {session.id}] plan proposé : {steps}")
+            result = await decision
+            if result is None or not session.is_open:
+                return
+            kind, note = result
+            if kind == "approve":
+                break
+            if kind == "refuse":
+                session.stop(by="proche")
+                await broadcast_helper(session.status())
+                return
+            notes.append(note)  # refine : on refait un plan avec la précision
+        await AgentRunner(session, link, broadcast_helper, notes).run()
+    except asyncio.CancelledError:
+        session.stop(by="annulation")
+        raise
 
 
 # ------------------------------------------------------------------ proche
@@ -210,80 +264,88 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
     try:
         while True:
             msg = await ws.receive_json()
-            kind = msg.get("type")
-
-            # Le jeton identifie la session, mais la session a pu se fermer
-            # depuis que la page est ouverte : on revérifie avant toute action
-            # sur le PC. Rédiger une fiche, en revanche, se fait APRÈS la
-            # session — c'est même le seul moment où ça a un sens.
-            if kind in ("answer", "pause", "click", "refresh"):
-                try:
-                    session.require_open()
-                except Refused as e:
-                    await ws.send_json({"type": "refused", "reason": str(e)})
-                    await ws.send_json(session.status())
-                    continue
-
-            try:
-                if kind == "answer":
-                    session.answer_from_helper(str(msg.get("text", "")).strip())
-                    await broadcast_helper(session.status())
-
-                elif kind == "pause":
-                    session.pause_requested = True
-                    session.log("helper_pause")
-                    await ws.send_json({"type": "ack", "what": "pause"})
-
-                elif kind == "refresh":
-                    # Le proche demande une capture fraîche avant de viser.
-                    # Pendant `awaiting_helper` l'agent est suspendu : sans ça,
-                    # la dernière image date de son dernier pas et dépasse le
-                    # délai de fraîcheur avant même qu'il ait pu pointer.
-                    await handle_helper_refresh(session, ws)
-
-                elif kind == "click":
-                    await handle_helper_click(session, msg, ws)
-
-                elif kind == "draft_lesson":
-                    await ws.send_json({"type": "lesson_pending"})
-                    lesson = await draft_lesson(session)
-                    session.lesson = lesson
-                    # Aperçu : les captures voyagent avec le brouillon, mais
-                    # ne sont écrites nulle part tant que rien n'est validé.
-                    preview = {
-                        s["frame"]: session.frames.get(s["frame"], "")
-                        for s in lesson["steps"] if s.get("frame")
-                    }
-                    await ws.send_json(
-                        {"type": "lesson_draft", "lesson": lesson, "preview": preview}
-                    )
-
-                elif kind == "approve_lesson":
-                    if not session.lesson:
-                        raise Refused("Aucune fiche à valider.")
-                    # Le proche a pu corriger le texte : on reprend le sien.
-                    edited = msg.get("lesson") or {}
-                    for i, step in enumerate(session.lesson["steps"]):
-                        if i < len(edited.get("steps", [])):
-                            step["instruction"] = str(
-                                edited["steps"][i].get("instruction", step["instruction"])
-                            ).strip()
-                    session.lesson["title"] = str(
-                        edited.get("title", session.lesson["title"])
-                    ).strip()
-                    saved = approve_and_save(session.lesson, session)
-                    await ws.send_json({"type": "lesson_saved", "lesson": saved})
-
-                else:
-                    await ws.send_json({"type": "refused", "reason": "Message inconnu."})
-
-            except Refused as e:
-                await ws.send_json({"type": "refused", "reason": str(e)})
-
+            await handle_helper_msg(session, msg, ws)
     except WebSocketDisconnect:
         pass
     finally:
         helper_sockets.discard(ws)
+
+
+async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
+    """Un message de l'aidant, page web ou app iPhone. Tout est revalidé ici."""
+    kind = msg.get("type")
+    # Le jeton identifie la session, mais la session a pu se fermer
+    # depuis que la page est ouverte : on revérifie avant toute action
+    # sur le PC. Rédiger une fiche, en revanche, se fait APRÈS la
+    # session — c'est même le seul moment où ça a un sens.
+    if kind in ("answer", "pause", "click", "refresh"):
+        try:
+            session.require_open()
+        except Refused as e:
+            await ws.send_json({"type": "refused", "reason": str(e)})
+            await ws.send_json(session.status())
+            return
+
+    try:
+        if kind in ("approve_plan", "refine_plan", "refuse_plan"):
+            session.decide_plan(kind.split("_")[0], str(msg.get("text", "")).strip())
+            await broadcast_helper(session.status())
+
+        elif kind == "answer":
+            session.answer_from_helper(str(msg.get("text", "")).strip())
+            await broadcast_helper(session.status())
+
+        elif kind == "pause":
+            session.pause_requested = True
+            session.log("helper_pause")
+            await ws.send_json({"type": "ack", "what": "pause"})
+
+        elif kind == "refresh":
+            # Le proche demande une capture fraîche avant de viser.
+            # Pendant `awaiting_helper` l'agent est suspendu : sans ça,
+            # la dernière image date de son dernier pas et dépasse le
+            # délai de fraîcheur avant même qu'il ait pu pointer.
+            await handle_helper_refresh(session, ws)
+
+        elif kind == "click":
+            await handle_helper_click(session, msg, ws)
+
+        elif kind == "draft_lesson":
+            await ws.send_json({"type": "lesson_pending"})
+            lesson = await draft_lesson(session)
+            session.lesson = lesson
+            # Aperçu : les captures voyagent avec le brouillon, mais
+            # ne sont écrites nulle part tant que rien n'est validé.
+            preview = {
+                s["frame"]: session.frames.get(s["frame"], "")
+                for s in lesson["steps"] if s.get("frame")
+            }
+            await ws.send_json(
+                {"type": "lesson_draft", "lesson": lesson, "preview": preview}
+            )
+
+        elif kind == "approve_lesson":
+            if not session.lesson:
+                raise Refused("Aucune fiche à valider.")
+            # Le proche a pu corriger le texte : on reprend le sien.
+            edited = msg.get("lesson") or {}
+            for i, step in enumerate(session.lesson["steps"]):
+                if i < len(edited.get("steps", [])):
+                    step["instruction"] = str(
+                        edited["steps"][i].get("instruction", step["instruction"])
+                    ).strip()
+            session.lesson["title"] = str(
+                edited.get("title", session.lesson["title"])
+            ).strip()
+            saved = approve_and_save(session.lesson, session)
+            await ws.send_json({"type": "lesson_saved", "lesson": saved})
+
+        else:
+            await ws.send_json({"type": "refused", "reason": "Message inconnu."})
+
+    except Refused as e:
+        await ws.send_json({"type": "refused", "reason": str(e)})
+
 
 
 async def handle_helper_refresh(session, ws: WebSocket) -> None:
@@ -340,9 +402,60 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
     await broadcast_helper(session.status())
 
 
+# ------------------------------------------------------------------ aidant permanent
+
+
+def current_session():
+    """La session la plus récente : c'est celle que suit l'aidant."""
+    sessions = list(registry._by_id.values())
+    return sessions[-1] if sessions else None
+
+
+@app.get("/a/{key}")
+async def aidant_page(key: str):
+    if not secrets.compare_digest(key, AIDANT_KEY):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return FileResponse(STATIC / "helper.html")
+
+
+@app.websocket("/ws/aidant/{key}")
+async def ws_aidant(ws: WebSocket, key: str) -> None:
+    """Le canal de l'app iPhone : il suit toujours la dernière demande.
+
+    Contrairement au lien par session, il reste ouvert entre deux demandes :
+    c'est lui qui « sonne » quand la personne aidée appuie sur le bouton.
+    """
+    await ws.accept()
+    if not secrets.compare_digest(key, AIDANT_KEY):
+        await ws.send_json({"type": "refused", "reason": "Lien invalide."})
+        await ws.close()
+        return
+    helper_sockets.add(ws)
+    await ws.send_json({"type": "hello", "bridge": bridge is not None,
+                        "os": bridge.os if bridge else None})
+    s = current_session()
+    if s is not None:
+        await ws.send_json(s.status())
+        if s.last_frame:
+            await ws.send_json({"type": "frame", "frame_id": s.last_frame.frame_id,
+                                "png_b64": s.last_frame.png_b64})
+    try:
+        while True:
+            msg = await ws.receive_json()
+            s = current_session()
+            if s is None:
+                await ws.send_json({"type": "refused", "reason": "Aucune demande en cours."})
+                continue
+            await handle_helper_msg(s, msg, ws)
+    except WebSocketDisconnect:
+        pass
+    finally:
+        helper_sockets.discard(ws)
+
+
 @app.get("/")
 async def root():
-    return {"service": "CarePilot", "bridge": bridge is not None}
+    return {"service": "PapAI", "bridge": bridge is not None}
 
 
 @app.get("/lessons")
@@ -377,4 +490,6 @@ if __name__ == "__main__":
     STATIC.mkdir(exist_ok=True)
     # Les hébergeurs imposent le port par la variable PORT.
     port = int(os.environ.get("PORT", "8000"))
+    print(f"[aidant] lien permanent : {PUBLIC_URL}/a/{AIDANT_KEY}")
+    print(f"[aidant] app iPhone : serveur {PUBLIC_URL}  clé {AIDANT_KEY}")
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")

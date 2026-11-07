@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 
 from carepilot_tools import (
     MIN_SECONDS_PER_STEP,
-    SYSTEM_PROMPT,
+    PLAN_PROMPT,
+    system_prompt,
     TEMPERATURE,
     TOOLS,
     ACTUATING_TOOLS,
@@ -34,17 +36,49 @@ MAX_STEPS = int(os.environ.get("CAREPILOT_MAX_STEPS", "25"))
 client = make_client()
 
 
+async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> list[str]:
+    """Une capture, un appel à Holo, aucune action : un plan à faire valider."""
+    frame = await bridge.capture()
+    messages = [
+        {"role": "system", "content": PLAN_PROMPT.format(os="Mac" if bridge.os == "macos" else "Windows")},
+        {"role": "user", "content": f"Demande de la personne : « {session.task} »"
+            + (f"\nPrécision de son proche : {note}" if note else "")},
+    ]
+    if frame is not None:
+        session.set_frame(frame)
+        await broadcast({"type": "frame", "frame_id": frame.frame_id, "png_b64": frame.png_b64})
+        messages.append(observation(frame.png_b64))
+    try:
+        resp = await asyncio.to_thread(
+            client.chat.completions.create,
+            model=MODEL, messages=messages, temperature=TEMPERATURE,
+        )
+        session.record_usage(getattr(resp, "usage", None))
+        raw = resp.choices[0].message.content or ""
+        m = re.search(r"\{.*\}", raw, re.S)
+        steps = [str(x).strip() for x in json.loads(m.group(0)).get("steps", []) if str(x).strip()]
+    except Exception as e:  # noqa: BLE001 — un plan minimal vaut mieux qu'une session bloquée
+        session.log("plan_failed", error=f"{type(e).__name__}: {e}")
+        steps = []
+    return steps[:5] or [f"Faire : {session.task}"]
+
+
 class AgentRunner:
     """Pilote une session du premier screenshot jusqu'à `answer` ou l'arrêt."""
 
-    def __init__(self, session: Session, bridge, broadcast) -> None:
+    def __init__(self, session: Session, bridge, broadcast, notes: list[str] | None = None) -> None:
         self.s = session
         self.bridge = bridge
         self.broadcast = broadcast  # async (dict) -> None, vers le proche
+        self.notes = notes or []
 
     async def run(self) -> None:
         try:
             await self._loop()
+            if self.s.is_open:
+                # Sortie de boucle sans réponse : le pont a refusé ou n'a plus
+                # répondu. Une session ne reste jamais ouverte sans pilote.
+                self.s.stop(by="pont")
         except Refused as e:
             self.s.log("refused", reason=str(e))
         except asyncio.CancelledError:
@@ -57,9 +91,16 @@ class AgentRunner:
             await self.broadcast(self.s.status())
 
     async def _loop(self) -> None:
+        brief = self.s.task
+        if self.s.plan:
+            brief += "\n\nPlan validé par le proche, à suivre :\n" + "\n".join(
+                f"{i}. {step}" for i, step in enumerate(self.s.plan, 1)
+            )
+        for n in self.notes:
+            brief += f"\nPrécision du proche : {n}"
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": self.s.task},
+            {"role": "system", "content": system_prompt(self.bridge.os)},
+            {"role": "user", "content": brief},
         ]
 
         for step in range(1, MAX_STEPS + 1):
