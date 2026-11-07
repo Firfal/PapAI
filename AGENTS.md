@@ -16,12 +16,13 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794082375-android-aidant` | Correctifs sécurité Android (#25, relecture sécurité PR #23) | `apps/android/` | 7 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 7 nov. soir | Devin | `devin/1794082375-android-aidant` | Appairage sûr (#25) : HTTPS seul, HTTP local en debug uniquement, domaine affiché, confirmation de remplacement, `server` de la réponse ignoré, prénom enregistré après succès. Sauvegardes désactivées (`allowBackup`), notifications privées, `FLAG_SECURE`, avertissement de signature debug et checksum du wrapper. Prénom « null » et capsule « Envoyer à Holo » corrigés, réglages, nouveau plan et couleurs améliorés. Vérifié sur émulateur Android 14. Fichiers libérés. |
 | 7 nov. | Claude | `parcours-onboarding` | Lancement sur Mac sans Xcode : `run_backend_mac.sh`, `apps/mac/scripts/build-mac-cli.sh` (swiftc + bundle + signature ad hoc). |
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 1-2 : accueil en 5 écrans (bienvenue, prénom, taille du texte, autorisations, proches), ajout d'un proche par QR ou code à 6 chiffres (`backend/family.py`, `/p/{code}`, `pair.html`), session proposée par le proche à accepter sur le Mac (`remote_request`). |
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 3 à 8 : écran de consentement, actions expliquées en phrases simples avec historique, question du proche, écran de fin avec retour auto à l'accueil, « Mes tutoriels » rafraîchi quand le proche valide une fiche (`lessons_changed`). |
