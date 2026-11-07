@@ -9,7 +9,7 @@ struct GuardAlert: Equatable {
     var detail: String
     var id: String? = nil
     var blocked: Bool = false
-    var acknowledgedBy: String? = nil
+    var acknowledged: Bool = false
     var isDanger: Bool { level == "danger" }
 }
 
@@ -101,8 +101,8 @@ struct GuardAlertView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxHeight: 260)
-                if let who = alert.acknowledgedBy {
-                    Text("\(who) a vu l'alerte, il va vous appeler")
+                if alert.acknowledged {
+                    Text("Un proche a vu l'alerte et s'en occupe")
                         .font(rounded(22, .semibold)).fixedSize(horizontal: false, vertical: true)
                 }
                 Text(alert.blocked ? "Votre proche a été prévenu. Attendez de lui avoir parlé." : "Ne faites rien d'autre et appelez \(model.helperName).")

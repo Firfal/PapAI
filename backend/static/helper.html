@@ -242,7 +242,7 @@
 
   <!-- Rien en cours -->
   <section id="v-idle" class="stack">
-    <div class="mint idle-hero">
+    <div class="mint idle-hero" id="allWell">
       <h1>Tout va bien</h1>
       <p id="idleSub">Vous serez prévenu dès que votre proche demande de l'aide.</p>
     </div>
@@ -340,7 +340,7 @@
   <section id="v-stopped" class="stopped" hidden>
     <div class="round" style="width:64px;height:64px"><svg class="i" style="width:24px;height:24px"><use id="stoppedIcon" href="#i-pause"/></svg></div>
     <h2 id="stoppedTitle">Votre proche a arrêté l'assistance</h2>
-    <p>Rien n'a été fait sur son ordinateur.</p>
+    <p id="stoppedDetail">L'assistance est arrêtée. Vérifiez avec votre proche ce qui a été fait.</p>
     <button class="back" data-home type="button">Retour à l'accueil</button>
   </section>
 
@@ -401,10 +401,11 @@ const FRAME_TTL_S = 30;
 const permanent = /\/a\/[^/]+\/?$/.test(location.pathname);
 
 let ws = null, reconnectIn = 1000, connected = false, guardAlertId = null;
-let frameId = null, frameAt = 0, frameSrc = '', state = null, task = '', stoppedBy = null;
+let frameId = null, frameAt = 0, frameSrc = '', state = null, task = '', stoppedBy = null, executionStarted = null;
 let armed = false, target = null, sending = false;
 let planBusy = false, refusedByMe = false, home = false, requestAt = 0;
 let sawStatus = false, sessionId = null;
+let seniorName = '';
 let lessonBusy = false, savedTitle = null, hasDraft = false;
 
 /* ------------------------------------------------------------- l'aidant */
@@ -461,6 +462,7 @@ function screen() {
 
 function render() {
   const s = screen();
+  $('allWell').hidden = !$('alert').hidden;
   $('v-idle').hidden = s !== 'idle';
   $('v-request').hidden = !['waiting', 'planning', 'approval'].includes(s);
   $('v-live').hidden = !['active', 'helper'].includes(s);
@@ -496,6 +498,8 @@ function render() {
 
   $('stoppedTitle').textContent = stoppedBy === 'gardien' ? "PapAI a arrêté l'assistance : démarche suspecte"
     : refusedByMe ? 'Vous avez refusé le plan' : "Votre proche a arrêté l'assistance";
+  $('stoppedDetail').textContent = executionStarted === false ? "Rien n'a été fait sur son ordinateur."
+    : `L'assistance est arrêtée. Vérifiez avec ${seniorName || 'votre proche'} ce qui a été fait.`;
   $('stoppedIcon').setAttribute('href', refusedByMe ? '#i-x' : '#i-pause');
   $('remote').hidden = !!state && !['done', 'stopped'].includes(state);
   tickFreshness();
@@ -616,6 +620,7 @@ function onMessage(ev) {
     const prev = state;
     state = m.state;
     stoppedBy = m.stopped_by || null;
+    executionStarted = typeof m.execution_started === 'boolean' ? m.execution_started : null;
     if (m.task !== undefined) task = m.task || '';
     if (m.session !== sessionId) { sessionId = m.session; requestAt = Date.now(); }
     if (!requestAt) requestAt = Date.now();
@@ -675,6 +680,7 @@ function onMessage(ev) {
   else if (m.type === 'question') { showQuestion(m); render(); }
 
   else if (m.type === 'hello') {
+    seniorName = m.senior || '';
     if (!m.bridge) $('idleSub').textContent = "L'ordinateur de votre proche n'est pas connecté pour le moment.";
     else $('idleSub').textContent = "Vous serez prévenu dès que votre proche demande de l'aide.";
     loadLessons();
@@ -694,6 +700,7 @@ function onMessage(ev) {
       $('alert').hidden = false;
     }
     toast(m.title);
+    render();
   }
 
   else if (m.type === 'alert') {
@@ -701,16 +708,17 @@ function onMessage(ev) {
     $('alertTitle').textContent = m.title || 'Attention';
     $('alertDetail').textContent = m.detail || '';
     $('alertCall').hidden = !guardAlertId;
-    $('alertCall').textContent = m.acknowledged_by ? `${m.acknowledged_by} s'en occupe` : "Je m'en occupe";
-    $('alertCall').disabled = !!m.acknowledged_by;
+    $('alertCall').textContent = m.acknowledged || m.acknowledged_by ? "Un proche s'en occupe" : "Je m'en occupe";
+    $('alertCall').disabled = !!(m.acknowledged || m.acknowledged_by);
     $('alertOk').textContent = guardAlertId ? "C'est normal" : "J'ai compris";
     $('alert').hidden = false;
     $('alert').scrollIntoView({ behavior: 'smooth', block: 'start' });
     toast(m.title || 'Alerte');
+    render();
   }
 
   else if (m.type === 'alert_acknowledged' && m.alert_id === guardAlertId) {
-    $('alertCall').textContent = `${m.acknowledged_by} s'en occupe`;
+    $('alertCall').textContent = "Un proche s'en occupe";
     $('alertCall').disabled = true;
   }
 
@@ -718,7 +726,10 @@ function onMessage(ev) {
     guardAlertId = null;
     $('alert').hidden = true;
     toast("Alerte rejetée. L'assistance reste arrêtée.");
+    render();
   }
+
+  else if (m.type === 'senior') { seniorName = m.name || ''; render(); }
 
   else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. Votre proche doit l’accepter sur son ordinateur.');
   else if (m.type === 'remote_refused') toast('Votre proche a refusé la session pour le moment.');
@@ -831,7 +842,7 @@ $('alertCall').onclick = () => { if (guardAlertId) send({type:'ack_alert', alert
 $('alertOk').onclick = () => {
   if (guardAlertId) {
     if (confirm("Vous connaissez cette démarche ? Rejeter l'alerte ne relancera pas l'assistance.")) send({type:'dismiss_alert', alert_id:guardAlertId});
-  } else $('alert').hidden = true;
+  } else { $('alert').hidden = true; render(); }
 };
 document.querySelectorAll('[data-home]').forEach(b => b.onclick = () => { home = true; render(); window.scrollTo(0, 0); });
 

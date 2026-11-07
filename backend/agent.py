@@ -255,6 +255,7 @@ class AgentRunner:
         except Refused as e:
             return str(e)
 
+        self.s.execution_started = True
         result = await self.bridge.execute(name, args)
         self.s.log("action_result", tool=name, result=result)
         if result is None:

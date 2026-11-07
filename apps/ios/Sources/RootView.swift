@@ -195,11 +195,13 @@ struct IdleView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                if model.lastAlert == nil && model.guardAlertId == nil {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Tout va bien chez \(model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
                     Text("Vous serez prévenu dès qu’une demande d’aide arrive.").font(.system(size: 16)).foregroundStyle(Soin.secondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(Soin.accentSoft, radius: 28)
+                }
 
                 if let live = model.liveDictation {
                     VStack(alignment: .leading, spacing: 8) {
@@ -272,6 +274,9 @@ struct StoppedView: View {
                 .multilineTextAlignment(.center).padding(.horizontal, 24)
             Text("L'assistance reste arrêtée. Toute nouvelle aide demande votre accord.")
                 .font(.system(size: 15)).foregroundStyle(Soin.secondary)
+                .multilineTextAlignment(.center).padding(.horizontal, 24)
+            Text("Appelez \(model.senior) à son numéro habituel.")
+                .font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
                 .multilineTextAlignment(.center).padding(.horizontal, 24)
             Spacer(); Spacer()
         }.frame(maxWidth: .infinity)

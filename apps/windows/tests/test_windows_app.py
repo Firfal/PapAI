@@ -138,7 +138,7 @@ def unit() -> None:
     m.dismiss_alert()
     check(m.alert is not None, "alerte bloquante non fermable localement")
     m._handle({"type": "alert_acknowledged", "alert_id": "g1", "acknowledged_by": "Quentin"})
-    check(m.alert["acknowledgedBy"] == "Quentin", "prise en charge affichée pour la bonne alerte")
+    check(m.alert["acknowledged"] is True, "prise en charge anonyme affichée pour la bonne alerte")
     m._handle({"type": "alert_cleared", "alert_id": "autre"})
     check(m.alert is not None, "un effacement d'une autre alerte est ignoré")
     m._handle({"type": "alert_cleared", "alert_id": "g1"})

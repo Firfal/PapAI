@@ -121,7 +121,7 @@ final class HelperModel {
     var lastAlert: (title: String, detail: String)?
     var guardAlertId: String?
     var guardTask = ""
-    var guardAcknowledgedBy: String?
+    var guardAcknowledged = false
     var stoppedBy: String?
 
     private var socket: URLSessionWebSocketTask?
@@ -513,20 +513,20 @@ final class HelperModel {
             lastAlert = (t, d)
             guardAlertId = m["alert_id"] as? String
             guardTask = m["task"] as? String ?? ""
-            guardAcknowledgedBy = m["acknowledged_by"] as? String
+            guardAcknowledged = m["acknowledged"] as? Bool ?? (m["acknowledged_by"] as? String != nil)
             if fresh { notifyLocal(title: t, body: d) }
             if guardAlertId == nil { showToast(t) }
             syncLive()
 
         case "alert_acknowledged":
             if let id = m["alert_id"] as? String, id == guardAlertId {
-                guardAcknowledgedBy = m["acknowledged_by"] as? String
+                guardAcknowledged = true
             }
 
         case "alert_cleared":
             if let id = m["alert_id"] as? String, id == guardAlertId {
                 guardAlertId = nil; lastAlert = nil; guardTask = ""
-                guardAcknowledgedBy = nil
+                guardAcknowledged = false
                 syncLive()
                 showToast("Alerte rejetée. L'assistance reste arrêtée.")
             }

@@ -129,10 +129,13 @@ Les achats de cartes cadeaux offerts à un proche ne déclenchent pas seuls le
 gardien ; transmettre leurs codes ou les utiliser comme moyen de paiement
 suspect reste signalé. Un virement explicitement adressé à un membre de la
 famille, ou une facture d'un fournisseur habituel (EDF, Engie, Orange, SFR,
-Free, Bouygues, impôts, eau, loyer), n'est pas bloqué pour son seul montant.
+Free, Bouygues, impôts, eau, loyer) jusqu'à 1 500 € inclus, n'est pas bloqué
+pour son seul montant. La dispense facture ne vaut pas au-delà de 1 500 €.
 Étranger, urgence, compte/numéro nouveau ou inconnu, IBAN, code reçu ou support
-suspect annulent cette exception. Les montants `k€` et les demandes de
-transfert en anglais sont aussi analysés.
+suspect annulent cette exception. Un proche annonçant un téléphone perdu ou
+un nouveau numéro ne bénéficie pas de la dispense familiale. Les montants
+`k€`, les lettres espacées/ponctuées et les demandes en anglais/allemand
+sont aussi analysés. Confirmer un virement, même sans montant, est signalé.
 Une demande suspecte termine la session en `stopped`, sans `execute` ni plan à
 approuver. Les alertes de veille arrêtent aussi l'assistance en cours.
 
@@ -155,14 +158,16 @@ La première ne passe aucun appel et envoie :
 ```
 
 Même contrôle d'identité et de portée que le rejet ci-dessous. Le serveur
-envoie `{"type":"alert_acknowledged","alert_id":"…","session":"…","acknowledged_by":"Quentin"}`.
-Le prénom vient du proche authentifié, jamais du message. L'aidé lit
-« Quentin a vu l'alerte, il va vous appeler ». Cet accusé est conservé dans
-le champ optionnel `alert.acknowledged_by` et rejoué à la reconnexion.
+envoie `{"type":"alert_acknowledged","alert_id":"…","session":"…","acknowledged":true}`.
+L'aidé lit « Un proche a vu l'alerte et s'en occupe ». Aucun prénom n'est
+attribué : la clé famille n'authentifie pas une identité individuelle.
+Cet accusé est conservé dans le champ optionnel `alert.acknowledged` et
+rejoué à la reconnexion. Les clients peuvent lire l'ancien champ
+`acknowledged_by` uniquement comme présence d'un accusé, jamais l'afficher.
 Un client ignore l'accusé si son identifiant ne correspond plus à l'alerte
 affichée : un accusé tardif ne fait pas réapparaître une alerte rejetée.
-Il ne ferme rien et ne relance aucune action. Un deuxième accusé conserve le
-premier proche. Aucun bouton côté aidé ne prétend passer un appel.
+Il ne ferme rien et ne relance aucune action. Un deuxième accusé est
+idempotent. Aucun bouton côté aidé ne prétend passer un appel.
 
 « C'est normal » demande une confirmation puis envoie :
 
@@ -194,9 +199,20 @@ sont arrêtées aussi. L'alerte est renvoyée aux aidants et au pont à la recon
 Les alertes de veille partent immédiatement à partir des signaux textuels,
 sans attendre de capture ni de confirmation visuelle de Holo.
 `status.stopped_by` est optionnel (`null` hors arrêt explicite). La valeur
-`gardien` est conservée même après rejet de l'alerte : toutes les interfaces
-affichent « PapAI a arrêté l'assistance : démarche suspecte », sans attribuer
-l'arrêt à la personne aidée. Les autres causes d'arrêt restent inchangées.
+`gardien` est conservée même après rejet de l'alerte : l'iPhone, le web et
+Windows affichent « PapAI a arrêté l'assistance : démarche suspecte » ;
+la fin Mac adaptée à l'aidé est décrite ci-dessous. Aucun de ces écrans
+n'attribue l'arrêt à la personne aidée. Les autres causes restent inchangées.
+`status.execution_started` est un booléen irréversible dans une session, posé
+juste avant l'envoi d'une action Holo ou d'un clic du proche au pont. Il peut
+donc valoir `true` pour une action en cours, refusée ou sans résultat confirmé.
+Seule la valeur explicite `false` permet d'affirmer « Rien n'a été fait sur
+son ordinateur ». Si `true` ou absent (ancien serveur), l'aidant lit
+« L'assistance est arrêtée. Vérifiez avec Sophie ce qui a été fait. »
+`status.guard_acknowledged` conserve l'accusé anonyme après rejet de l'alerte.
+La fin Mac du gardien est une carte blanche : « PapAI a arrêté : cette démarche
+peut être une arnaque », sans paiement/code et appel du premier proche connu
+à son numéro habituel. Aucune carte « Tout va bien » ne coexiste avec une alerte.
 Sur Windows, `level: danger` ou `blocked: true` lève immédiatement le verrou
 local et annule les tâches `execute` engagées. Le fil d'exécution conserve le
 verrou de sa demande et le relit avant les gestes suivants, même si une nouvelle

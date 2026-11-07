@@ -16,7 +16,7 @@ from fastapi import WebSocketDisconnect
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("HAI_API_KEY", "stub-key")
 from backend import app, guard
-from backend.sessions import Refused, Registry, State
+from backend.sessions import Frame, Refused, Registry, State
 
 
 LEGITIMES = [
@@ -56,6 +56,13 @@ LEGITIMES = [
     "Payer mes impôts de 1200 euros",
     "Payer la facture d'eau de 1200 euros",
     "Payer mon loyer de 1200 euros",
+    "Payer ma facture EDF de 1500 euros",
+    "Payer ma facture EDF de 1 500,00 euros",
+    "Acheter une carte cadeau pour mon petit-fils qui a perdu son téléphone",
+    "Mon petit-fils a perdu son téléphone, retrouver son numéro dans Contacts",
+    "Ich brauche dringend Hilfe mit meinen Fotos",
+    "Einen Gutschein für meinen Enkel kaufen",
+    "Retrouver un article sur les v i r e m e n t s bancaires",
 ]
 SUSPECTES = [
     "Je veux envoyer 10 000 euros sur un compte en Afrique",
@@ -107,6 +114,27 @@ SUSPECTES = [
     "Payer ma facture EDF de 1200 euros sur un nouveau compte",
     "Payer ma facture EDF de 1200 euros avec le code reçu par SMS",
     "Payer ma facture EDF de 1200 euros puis virer 10000 euros au fournisseur",
+    "Virer 5000 € à mon petit-fils qui a perdu son téléphone",
+    "Virer 200 euros à mon fils qui a perdu son téléphone",
+    "Virer 200 euros à mon petit-fils sur son nouveau numéro en urgence",
+    "Payer ma facture EDF de 1500,01 euros",
+    "Payer ma facture EDF de 1 501 euros",
+    "Payer ma facture EDF de 1.500,01 euros",
+    "Payer ma facture EDF de 3000 euros",
+    "Payer ma facture EDF de 1200 euros IBAN FR76 3000 6000 0112 3456 7890 189",
+    "Payer ma facture EDF de 1200 euros sur un compte étranger",
+    "Confirmer le virement",
+    "Valider ce virement",
+    "Autoriser un virement",
+    "Eine Überweisung von 10000 Euro",
+    "10000 Euro dringend überweisen",
+    "Codes eines Gutscheins senden",
+    "Gutschein dringend kaufen",
+    "Faire un v i r e m e n t de 10000 euros",
+    "Confirmer le v.i.r.e.m.e.n.t",
+    "Envoyer le code d'une c.a.r.t.e c.a.d.e.a.u",
+    "Envoyer le c o d e reçu par s.m.s",
+    "Envoyer le code de la c.a.r.t.e.c.a.d.e.a.u",
 ]
 
 
@@ -323,7 +351,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         self.ws.send_json.assert_awaited_with(alert)
         self.link.send.assert_awaited_with(alert)
 
-    async def test_prise_en_charge_authentifiee_sans_fermeture_ni_reprise(self):
+    async def test_prise_en_charge_anonyme_sans_fermeture_ni_reprise(self):
         s = self.session(SUSPECTES[0])
         await app.check_request(s, s.task, "request")
         aid = app.pending_alert["helper"]["alert_id"]
@@ -337,18 +365,59 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("acknowledged_by", app.pending_alert["helper"])
             await app.acknowledge_guard({"alert_id": aid, "name": "Usurpation"}, self.ws)
             await app.acknowledge_guard({"alert_id": aid}, self.ws)
-        self.assertEqual(app.pending_alert["helper"]["acknowledged_by"], "Quentin")
-        self.assertEqual(app.pending_alert["senior"]["acknowledged_by"], "Quentin")
+        self.assertTrue(app.pending_alert["helper"]["acknowledged"])
+        self.assertTrue(app.pending_alert["senior"]["acknowledged"])
+        self.assertNotIn("acknowledged_by", app.pending_alert["senior"])
+        self.assertTrue(s.status()["guard_acknowledged"])
         self.assertEqual(s.status()["stopped_by"], "gardien")
         self.broadcast.assert_any_await({"type": "alert_acknowledged", "alert_id": aid,
-                                        "session": s.id, "acknowledged_by": "Quentin"})
+                                        "session": s.id, "acknowledged": True})
         await app.ws_helper(self.ws, s.helper_token)
-        self.assertTrue(any(c.args[0].get("acknowledged_by") == "Quentin"
+        self.assertTrue(any(c.args[0].get("acknowledged") is True
                             for c in self.ws.send_json.await_args_list))
         app.helper_alert_scopes[self.ws] = None
         await app.dismiss_guard({"alert_id": aid}, self.ws)
         self.assertIsNone(app.pending_alert)
         self.assertEqual(s.status()["stopped_by"], "gardien")
+
+    async def test_arret_avant_tout_geste_explicitement_signale(self):
+        s = self.session(SUSPECTES[0])
+        await app.check_request(s, s.task, "request")
+        self.assertIs(s.status()["execution_started"], False)
+        await app.dismiss_guard({"alert_id": app.pending_alert["helper"]["alert_id"]}, self.ws)
+        self.assertIs(s.status()["execution_started"], False)
+
+    async def test_action_holo_en_cours_comptee_meme_sans_resultat(self):
+        s = self.session()
+        s.state = State.ACTIVE
+        s.plan_approved = True
+        started, release = asyncio.Event(), asyncio.Event()
+        async def execute(name, args):
+            started.set()
+            await release.wait()
+            return None
+        link = SimpleNamespace(execute=execute)
+        task = asyncio.create_task(app.AgentRunner(s, link, self.broadcast)._act("click", {}))
+        try:
+            await asyncio.wait_for(started.wait(), 1)
+            self.assertIs(s.status()["execution_started"], True)
+            await app.check_request(s, SUSPECTES[0], "plan")
+            self.assertIs(s.status()["execution_started"], True)
+        finally:
+            release.set()
+            await task
+
+    async def test_clic_proche_compte_et_clic_refuse_non_compte(self):
+        s = self.session()
+        with self.assertRaises(Refused):
+            await app.handle_helper_click(s, {"frame_id": "f", "x": 0.5, "y": 0.5}, self.ws)
+        self.assertIs(s.status()["execution_started"], False)
+        s.state = State.AWAITING_HELPER
+        s.set_frame(Frame("f", "image", 100, 100))
+        with patch.object(app, "bridge", SimpleNamespace(execute=AsyncMock(return_value="clic"))):
+            await app.handle_helper_click(s, {"frame_id": "f", "x": 0.5, "y": 0.5}, self.ws)
+        s.stop(by="gardien")
+        self.assertIs(s.status()["execution_started"], True)
 
     async def test_nouvelle_demande_bloquee_tant_que_alerte(self):
         s = self.session(SUSPECTES[0])

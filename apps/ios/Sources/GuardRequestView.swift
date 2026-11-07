@@ -14,10 +14,14 @@ struct GuardRequestView: View {
                         .font(.system(size: 28, weight: .bold, design: .rounded)).foregroundStyle(Soin.ink)
                     Text("PapAI a arrêté l'assistance : démarche suspecte")
                         .font(.system(size: 18, weight: .semibold, design: .rounded)).foregroundStyle(Soin.ink)
-                    Text(model.lastAlert?.detail ?? "")
+                    if !model.guardTask.isEmpty {
+                        Text("« \(model.guardTask) »")
+                            .font(.system(size: 20, weight: .semibold, design: .rounded)).foregroundStyle(Soin.ink)
+                    }
+                    Text(instructions)
                         .font(.system(size: 17, design: .rounded)).foregroundStyle(Soin.secondary)
-                    if let who = model.guardAcknowledgedBy {
-                        Text("\(who) s'en occupe. Prenez contact avec votre proche à son numéro habituel.")
+                    if model.guardAcknowledged {
+                        Text("Un proche a vu l'alerte et s'en occupe")
                             .font(.system(size: 17, weight: .semibold, design: .rounded)).foregroundStyle(Soin.ink)
                     }
                 }
@@ -34,7 +38,7 @@ struct GuardRequestView: View {
                 } else {
                     Button("Je m'en occupe") { model.acknowledgeGuardAlert() }
                         .buttonStyle(CapsuleButtonStyle(fill: Soin.ink, text: Soin.card))
-                        .disabled(!model.connected || model.guardAcknowledgedBy != nil)
+                        .disabled(!model.connected || model.guardAcknowledged)
                     Button("C'est normal") { confirmDismiss = true }
                         .buttonStyle(CapsuleButtonStyle(fill: Soin.card, text: Soin.ink))
                         .disabled(!model.connected)
@@ -47,5 +51,11 @@ struct GuardRequestView: View {
             .padding(24).padding(.vertical, 20)
         }
         .background(Soin.bg)
+    }
+
+    private var instructions: String {
+        let detail = model.lastAlert?.detail ?? ""
+        guard !model.guardTask.isEmpty else { return detail }
+        return detail.replacingOccurrences(of: "\nDemande : « \(model.guardTask) »", with: "")
     }
 }

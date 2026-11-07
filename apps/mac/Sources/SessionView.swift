@@ -48,12 +48,13 @@ struct SessionView: View {
     @Environment(AppModel.self) private var model
 
     private var state: SessionState { model.state ?? .planning }
+    private var guardStopped: Bool { state == .stopped && model.stoppedBy == "gardien" }
 
     var body: some View {
         VStack(spacing: 18) {
             VStack(alignment: .leading, spacing: 18) {
                 if model.sessionOpen { sharedBanner }
-                Text(title).font(rounded(40, .semibold)).tracking(-0.6)
+                Text(title).font(rounded(guardStopped ? 34 : 40, .semibold)).tracking(-0.6)
                     .fixedSize(horizontal: false, vertical: true)
                 if let sub = subtitle {
                     Text(sub).font(rounded(24, .medium)).foregroundStyle(state == .active ? T.ink : T.muted)
@@ -70,7 +71,7 @@ struct SessionView: View {
             .foregroundStyle(T.ink)
             .padding(34)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
+            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(guardStopped ? T.card : T.mint))
 
             if model.sessionOpen {
                 HStack(spacing: 14) {
@@ -126,7 +127,7 @@ struct SessionView: View {
         case .awaiting_helper: return "\(model.HelperName) vous aide"
         case .done: return "C'est fait !"
         case .stopped: return model.stoppedBy == "gardien"
-            ? "PapAI a arrêté l'assistance : démarche suspecte" : "L'assistance est arrêtée."
+            ? "PapAI a arrêté : cette démarche peut être une arnaque" : "L'assistance est arrêtée."
         }
     }
 
@@ -142,7 +143,7 @@ struct SessionView: View {
             ? "J'ai besoin d'une information que vous seul connaissez."
             : "\(model.HelperName) répond à une question de Holo. Restez là, ne touchez à rien."
         case .done: return nil
-        case .stopped: return "Votre écran n'est plus partagé."
+        case .stopped: return guardStopped ? nil : "Votre écran n'est plus partagé."
         }
     }
 
@@ -165,6 +166,17 @@ struct SessionView: View {
                 endNote("lock.fill", "Votre écran n'est plus partagé.")
                 endNote("book.fill", "\(model.HelperName) peut en faire un tutoriel. Vous le retrouverez dans « Mes tutoriels » pour le refaire sans aide.")
             }
+        case .stopped where guardStopped:
+            VStack(alignment: .leading, spacing: 20) {
+                Text("Ne payez rien et ne donnez aucun code.")
+                Text("Appelez \(model.helpers.first?.name ?? "votre proche") à son numéro habituel.")
+                if model.guardAcknowledged {
+                    Text("Un proche a vu l'alerte et s'en occupe")
+                }
+            }
+            .font(rounded(23, .medium))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
         default:
             EmptyView()
         }

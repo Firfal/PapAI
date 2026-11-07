@@ -397,10 +397,10 @@ class Model:
                 self.current_action = None
             self.alert = {"level": str(m.get("level") or "info"), "title": str(m.get("title") or ""),
                           "detail": str(m.get("detail") or ""), "id": m.get("alert_id"),
-                          "blocked": bool(m.get("blocked")), "acknowledgedBy": m.get("acknowledged_by")}
+                          "blocked": bool(m.get("blocked")), "acknowledged": bool(m.get("acknowledged") or m.get("acknowledged_by"))}
         elif kind == "alert_acknowledged":
             if self.alert and m.get("alert_id") and m["alert_id"] == self.alert.get("id"):
-                self.alert["acknowledgedBy"] = m.get("acknowledged_by")
+                self.alert["acknowledged"] = True
         elif kind == "alert_cleared":
             if self.alert and m.get("alert_id") and m["alert_id"] == self.alert.get("id"):
                 self.alert = None

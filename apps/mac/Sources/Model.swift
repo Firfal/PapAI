@@ -71,6 +71,7 @@ final class AppModel {
     var actions: [String] = []
     var guardAlert: GuardAlert?
     var stoppedBy: String?
+    var guardAcknowledged = false
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored let client = BridgeClient()
@@ -438,6 +439,7 @@ final class AppModel {
         guard guardAlert == nil else { return }
         gate.reset()
         stoppedBy = nil
+        guardAcknowledged = false
         homeTimer?.cancel()
         self.task = task
         pendingTask = ""
@@ -522,12 +524,14 @@ final class AppModel {
                                     detail: m["detail"] as? String ?? "",
                                     id: m["alert_id"] as? String,
                                     blocked: m["blocked"] as? Bool ?? false,
-                                    acknowledgedBy: m["acknowledged_by"] as? String)
+                                    acknowledged: m["acknowledged"] as? Bool ?? (m["acknowledged_by"] as? String != nil))
+            guardAcknowledged = guardAlert?.acknowledged ?? false
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
         case "alert_acknowledged":
             if let id = m["alert_id"] as? String, id == guardAlert?.id {
-                guardAlert?.acknowledgedBy = m["acknowledged_by"] as? String
+                guardAlert?.acknowledged = true
+                guardAcknowledged = true
             }
         case "alert_cleared":
             if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
@@ -544,6 +548,7 @@ final class AppModel {
 
     private func applyStatus(_ m: [String: Any]) {
         stoppedBy = m["stopped_by"] as? String
+        if let ack = m["guard_acknowledged"] as? Bool { guardAcknowledged = ack }
         guard screen == .session else { return }
         if gate.isStopped { state = .stopped; applyLevel(); return }
         let before = state

@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794084400-demandes-suspectes` | Lot UX final et règles gardien PR #28 | `backend/app.py`, `backend/guard.py`, `backend/sessions.py`, `backend/agent.py`, `backend/static/helper.html`, `PROTOCOL.md`, `tests/`, `apps/mac/Sources/SessionView.swift`, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/Guard.swift`, `apps/ios/Sources/RootView.swift`, `apps/ios/Sources/GuardRequestView.swift`, `apps/ios/Sources/HelperModel.swift`, alertes Windows et leurs tests, `TODO.md` | 7 nov. soir |
 
 ## Journal
 

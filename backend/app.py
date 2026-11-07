@@ -494,6 +494,7 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
     helper_sockets.add(ws)
     helper_alert_scopes[ws] = session.id
     await ws.send_json(session.status())
+    await ws.send_json({"type": "senior", "name": family.senior or None})
     if pending_alert and helper_can_access_alert(ws, pending_alert["helper"]):
         await ws.send_json(pending_alert["helper"])
     if session.last_frame:
@@ -652,6 +653,7 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
     session.take_control(Owner.HELPER)
     args = {"element": "clic du proche", "x": round(x * 1000), "y": round(y * 1000)}
     session.log("helper_click", x=args["x"], y=args["y"])
+    session.execution_started = True
     result = await bridge.execute("click", args)
     session.release_control()
 
@@ -910,16 +912,14 @@ async def acknowledge_guard(msg: dict, ws: WebSocket) -> None:
         await ws.send_json({"type": "refused", "reason": "Cette alerte n'est plus en attente."})
         return
     alert = pending_alert
-    if not alert["helper"].get("acknowledged_by"):
-        session = registry.get(alert["helper"]["session"])
-        who = helper_who.get(ws, {}).get("name") or (session.helper_name if session else "")
-        if not who:
-            who = family.helpers[0]["name"] if len(family.helpers) == 1 else "Votre proche"
-        for payload in alert.values():
-            payload["acknowledged_by"] = who
+    for payload in alert.values():
+        payload["acknowledged"] = True
+    session = registry.get(alert["helper"]["session"])
+    if session:
+        session.guard_acknowledged = True
     await broadcast_helper({"type": "alert_acknowledged", "alert_id": alert["helper"]["alert_id"],
                             "session": alert["helper"]["session"],
-                            "acknowledged_by": alert["helper"]["acknowledged_by"]})
+                            "acknowledged": True})
 
 
 async def dismiss_guard(msg: dict, ws: WebSocket) -> None:

@@ -142,8 +142,28 @@ def evaluer(processus: list[str], fenetre: str = "", url: str = "") -> Alerte | 
 # ---------------------------------------------------- demandes et plans
 
 def _normaliser(texte: str) -> str:
-    texte = unicodedata.normalize("NFKD", texte.lower().replace("’", "'"))
-    return "".join(c for c in texte if not unicodedata.combining(c))
+    texte = unicodedata.normalize("NFKD", texte.casefold().replace("’", "'"))
+    texte = "".join(c for c in texte if not unicodedata.combining(c))
+    for mot in ("virement", "virer", "transferer", "paiement", "payer", "confirmer",
+                "cartes", "carte", "cadeaux", "cadeau", "codes", "code", "sms", "iban",
+                "urgent", "support", "technique", "bitcoin", "uberweisung", "uberweisen",
+                "gutschein", "dringend"):
+        texte = re.sub(r"\b" + r"[\s.·_-]*".join(mot) + r"\b", mot, texte)
+    for allemand, francais in ((r"uberweisungen|uberweisung", "virement"),
+                               (r"uberweisen|uberweise", "virer"),
+                               (r"gutscheinen|gutscheine|gutscheins|gutschein", "carte cadeau"),
+                               (r"dringend", "urgent"), (r"bezahlen", "payer"),
+                               (r"kaufen", "acheter"), (r"senden|schicken", "envoyer")):
+        texte = re.sub(r"\b(?:" + allemand + r")\b", francais, texte)
+    return re.sub(r"\bcartes?[.·_-]+cadeaux?\b", "carte cadeau", texte)
+
+
+def _montant(texte: str) -> Decimal:
+    texte = re.sub(r"\s", "", texte)
+    if re.search(r"[.,]\d{1,2}$", texte):
+        entier, decimales = re.split(r"[.,](?=\d{1,2}$)", texte)
+        return Decimal(re.sub(r"[.,]", "", entier) + "." + decimales)
+    return Decimal(re.sub(r"[.,]", "", texte))
 
 
 def _risque(motif: str) -> Alerte:
@@ -166,6 +186,12 @@ def evaluer_demande(texte: str) -> Alerte | None:
         r"(?:(?:un|le|ce|the|a)\s+)?(?:paiement|virement|payment|transfer)\b|"
         r"^(?:achat|paiement|payment)\b", t
     ))
+    confirmation_virement = bool(re.search(
+        r"\b(?:confirmer|valider|autoriser|confirm|validate|approve|authori[sz]e)\s+"
+        r"(?:(?:un|le|ce|the|a)\s+)?(?:virement|transfer)\b", t
+    ))
+    if confirmation_virement:
+        return _risque("Confirmation d'un virement : vérifiez le destinataire avec votre proche.")
     envoi = bool(re.search(r"\b(envoyer|envoi|transferer|transfert|transmettre|donner|send|transfer)\b", t))
     if envoi:
         objet_monetaire = (
@@ -182,8 +208,8 @@ def evaluer_demande(texte: str) -> Alerte | None:
             r"(?:compte|iban|rib)\b", t
         ))
     # Les espaces insécables et séparateurs de milliers viennent souvent de la dictée.
-    montants = re.findall(r"(?<!\w)(\d{1,3}(?:[\s.,]\d{3})+|\d+)(?:[,.]\d{1,2})?\s*(?:euros?\b|eur\b|€|dollars?\b|\$)", t)
-    gros_montant = any(int(re.sub(r"\D", "", m)) >= 1000 for m in montants)
+    montants = re.findall(r"(?<!\w)(\d[\d\s.,]*)\s*(?:euros?\b|eur\b|€|dollars?\b|\$)", t)
+    gros_montant = any(_montant(m) >= 1000 for m in montants)
     gros_montant |= bool(re.search(r"\b(mille|milliers?|million|dix mille|cent mille)\b", t))
     etranger = bool(re.search(r"\b(etranger|international|afrique|senegal|cote d'ivoire|benin|nigeria|maroc|ghana|cameroun|togo|mali|chine|hong kong|turquie|russie|dubai|thailande|etats.unis)\b", t))
     iban = re.search(r"\b([a-z]{2})\s*\d{2}\s*(?:\d{4}|[a-z]{4}\s*\d{4})(?:\s*[a-z0-9]){6,26}\b", t)
@@ -206,16 +232,23 @@ def evaluer_demande(texte: str) -> Alerte | None:
         r"to my (?:son|daughter|grandson|granddaughter|brother|sister|mother|father)\b)"
     )
     famille = bool(re.search(transfert_famille, t))
+    telephone_perdu = bool(re.search(
+        r"\b(?:perdu|casse|vole)\s+(?:(?:son|mon|le|un)\s+)?(?:telephone|portable)\b|"
+        r"\b(?:telephone|portable)\s+(?:perdu|casse|vole)\b", t
+    ))
     facture_habituelle = (
         r"\b(?:payer|regler|paie|paye)\s+(?:(?:ma|la|mes|les|mon|le|une|un)\s+)?"
         r"(?:factures?\s+(?:de\s+|d')?)?(?:edf|engie|orange|sfr|free|bouygues|impots|eau|loyer)\s+"
-        r"(?:de\s+)?\d[\d\s.,]*\s*(?:euros?\b|eur\b|€)"
+        r"(?:de\s+)?(?P<montant>\d[\d\s.,]*)\s*(?:euros?\b|eur\b|€)"
     )
-    facture = bool(re.search(facture_habituelle, t))
-    reste = re.sub(transfert_famille + "|" + facture_habituelle, "", t)
+    facture = any(_montant(m["montant"]) <= 1500 for m in re.finditer(facture_habituelle, t))
+    reste = re.sub(transfert_famille, "", t)
+    reste = re.sub(facture_habituelle, lambda m: "" if _montant(m["montant"]) <= 1500 else m[0], reste)
     autres_montants = re.findall(r"\d[\d\s.,]*\s*(?:euros?\b|eur\b|€|dollars?\b|\$)", reste)
     destinataire_habituel = (famille or facture) and not autres_montants and not re.search(r"\b(mille|million)\b", reste)
-    autre_signal = etranger or pression or compte_inconnu or code_recu or support or bool(iban)
+    autre_signal = etranger or pression or compte_inconnu or code_recu or support or bool(iban) or telephone_perdu
+    if famille and operation_argent and (telephone_perdu or compte_inconnu):
+        return _risque("Demande d'argent d'un proche annonçant un téléphone perdu ou un nouveau compte/numéro.")
     if operation_argent and argent and ((gros_montant and not (destinataire_habituel and not autre_signal))
                                       or compte_etranger or compte_inconnu or (iban and iban[1] != "fr")):
         return _risque("Transfert d'argent important ou vers un compte à l'étranger.")

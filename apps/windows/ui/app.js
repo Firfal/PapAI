@@ -404,7 +404,7 @@
         <span style="${f(17, 6)}">${danger ? 'Attention' : 'Pour information'}</span></div>
       <div style="${f(30, 6)}">${esc(a.title)}</div>
       ${a.detail ? `<div class="muted" style="${f(19, 5)}">${esc(a.detail)}</div>` : ''}
-      ${a.acknowledgedBy ? `<div style="${f(20, 6)}">${esc(a.acknowledgedBy)} a vu l'alerte, il va vous appeler</div>` : ''}
+      ${a.acknowledged ? `<div style="${f(20, 6)}">Un proche a vu l'alerte et s'en occupe</div>` : ''}
       ${a.blocked ? '' : `<div class="row"><div class="spacer"></div>${pill("J'ai compris", 'dismissAlert', { height: 56 })}</div>`}</div>`;
   }
 
