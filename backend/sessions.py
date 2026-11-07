@@ -72,6 +72,7 @@ class Session:
     state: State = State.WAITING_CONSENT
     stopped_by: str | None = None
     execution_started: bool = False
+    where: str | None = None  # "web" ou "desktop" : proposé avec le plan, puis mode réel
     guard_acknowledged: bool = False
     owner: Owner = Owner.NONE
     consented: bool = False
@@ -347,6 +348,7 @@ class Session:
             "paused": self.paused,
             "helper_name": self.helper_name or None,
             "doing": self.doing or None,
+            "where": self.where,
             "plan_step": self.plan_step
             if self.plan_approved and self.state in (State.ACTIVE, State.AWAITING_HELPER)
             else None,

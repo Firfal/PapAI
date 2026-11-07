@@ -26,6 +26,7 @@ final class AppModel {
     var connected = false
     var screen: AppScreen = .home
     var state: SessionState?
+    var sessionWhere: String?
     /// L'aide est en pause à la demande de la personne aidée : Holo n'agit plus et
     /// elle retrouve sa souris et son clavier.
     var paused = false
@@ -76,6 +77,8 @@ final class AppModel {
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored let client = BridgeClient()
+    @ObservationIgnored let webHost = WebAgentHost()
+    @ObservationIgnored private var webFronted = false
     @ObservationIgnored weak var window: NSWindow? { didSet { watchWindow(); applyLevel() } }
     /// La grande fenêtre est rangée pour laisser voir ce que fait Holo.
     @ObservationIgnored private var compact = false
@@ -219,6 +222,9 @@ final class AppModel {
         guard !started else { return }
         started = true
         client.onMessage = { [weak self] m in self?.handle(m) }
+        webHost.onChange = { [weak self] id in
+            self?.client.send(["type": "web_agent", "session_id": id ?? NSNull()])
+        }
         InputLock.shared.allowedRect = { [weak self] in self?.protectedRect() }
         InputLock.shared.onEscape = { [weak self] in self?.stop() }
         Task { [weak self] in
@@ -226,6 +232,7 @@ final class AppModel {
                 try? await Task.sleep(for: .seconds(5))
                 guard let self else { return }
                 if InputLock.shared.isOn, Date().timeIntervalSince(self.lastHeard) > 45 {
+                    self.webHost.stopLocal()
                     InputLock.shared.set(false)
                 }
             }
@@ -234,7 +241,10 @@ final class AppModel {
             guard let self else { return }
             self.connected = ok
             // Plus de connexion : la personne ne doit jamais rester bloquée.
-            if !ok { InputLock.shared.set(false) }
+            if !ok {
+                self.webHost.stopLocal()
+                InputLock.shared.set(false)
+            }
             if ok { self.sendProfile() }
             // Test : PAPAI_AUTOTASK lance une demande dès la connexion.
             if ok, !self.autoSent, let t = ProcessInfo.processInfo.environment["PAPAI_AUTOTASK"], !t.isEmpty {
@@ -440,6 +450,7 @@ final class AppModel {
         guard guardAlert == nil else { return }
         gate.reset()
         stoppedBy = nil
+        sessionWhere = nil
         guardAcknowledged = false
         homeTimer?.cancel()
         self.task = task
@@ -447,6 +458,7 @@ final class AppModel {
         plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
         sessionHelper = nil
         AppUsage.shared.noteRequest(task)
+        webFronted = false
         state = .planning
         screen = .session
         applyLevel()
@@ -458,6 +470,7 @@ final class AppModel {
     /// Le verrou local passe d'abord, puis le serveur est prévenu.
     func stop() {
         gate.raise()
+        webHost.stopLocal(notifyServer: false)
         client.send(["type": "stop"])
         state = .stopped
         currentAction = nil
@@ -485,6 +498,10 @@ final class AppModel {
             Task { await doExecute(req, action) }
         case "status":
             applyStatus(m)
+        case "web_agent_start":
+            if sessionOpen && !gate.isStopped { webHost.start() }
+        case "web_agent_stop":
+            webHost.stopLocal(notifyServer: false)
         case "answer":
             answer = m["content"] as? String
         case "helpers":
@@ -517,6 +534,7 @@ final class AppModel {
             pairLong = m["long"] as? Bool ?? false
             pairExpires = m["expires_in"] as? Int ?? 600
         case "alert":
+            webHost.stopLocal()
             // Le gardien a reconnu une situation : le proche est prévenu en même temps.
             gate.raise()
             InputLock.shared.set(false)
@@ -549,6 +567,7 @@ final class AppModel {
 
     private func applyStatus(_ m: [String: Any]) {
         stoppedBy = m["stopped_by"] as? String
+        sessionWhere = m["where"] as? String
         if let ack = m["guard_acknowledged"] as? Bool { guardAcknowledged = ack }
         guard screen == .session else { return }
         if gate.isStopped { state = .stopped; applyLevel(); return }
@@ -565,6 +584,12 @@ final class AppModel {
         questionForMe = (q?["to"] as? String) == "senior"
         questionOptions = q?["options"] as? [String] ?? []
         if state != .active { currentAction = nil }
+        if state == .done || state == .stopped {
+            webHost.stopLocal()
+        } else if (m["where"] as? String) == "web", state == .active || state == .awaiting_helper, !webFronted {
+            webFronted = true
+            webHost.bringToFront()
+        }
         applyLevel()
     }
 
