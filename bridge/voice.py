@@ -16,6 +16,12 @@ import urllib.error
 import urllib.request
 import uuid
 
+from dotenv import load_dotenv
+
+# Ce module est utilisable seul : il ne dépend pas de qui l'importe pour que
+# le .env soit chargé.
+load_dotenv()
+
 UPLOAD = "https://api.gladia.io/v2/upload"
 TRANSCRIBE = "https://api.gladia.io/v2/pre-recorded"
 
