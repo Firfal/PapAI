@@ -7,7 +7,7 @@ struct RootView: View {
         ZStack(alignment: .bottom) {
             Soin.bg.ignoresSafeArea()
             VStack(spacing: 0) {
-                Header(name: model.helperName ?? "Quentin", onAvatar: { model.sheet = .settings })
+                Header(name: model.helperName ?? "Support", onAvatar: { model.sheet = .settings })
                     .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 12)
                 if model.isConfigured && !model.connected {
                     LostBanner(model: model).padding(.horizontal, 20).padding(.bottom, 10)
@@ -134,7 +134,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Connexion").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
-                Text("Le plus simple : scannez le QR affiché sur l’ordinateur de \(model.senior) (Proches › Ajouter un proche).")
+                Text("Le plus simple : scannez le QR affiché sur l’ordinateur de \(model.senior) (Mon support › Ajouter un support).")
                     .font(.system(size: 15)).foregroundStyle(Soin.secondary)
                 Button("Scanner le QR de l’ordinateur") { model.sheet = .scanner }
                     .buttonStyle(CapsuleButtonStyle(fill: Soin.accent))
@@ -143,8 +143,8 @@ struct SettingsView: View {
                         .buttonStyle(CapsuleButtonStyle(fill: Soin.card, text: Soin.ink))
                 }
                 Text("Ou à la main").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink).padding(.top, 8)
-                field("Adresse du serveur", text: $server, prompt: "https://…/k/<clé famille>")
-                field("Clé aidant", text: $key, prompt: "demo")
+                field("Adresse du serveur", text: $server, prompt: "https://…/k/<clé de l'espace>")
+                field("Clé support", text: $key, prompt: "demo")
                 HStack(alignment: .top, spacing: 6) {
                     Circle().fill(model.connected ? Soin.accent : (model.linkError == nil ? Soin.secondary : Soin.danger))
                         .frame(width: 8, height: 8).padding(.top, 5)
@@ -323,7 +323,7 @@ struct RequestCard: View {
                     .frame(width: 48, height: 48).background(Soin.card, in: Circle())
                 VStack(alignment: .leading, spacing: 1) {
                     TimelineView(.periodic(from: .now, by: 20)) { _ in
-                        Text("Demande de Mamie · \(ago(model.requestStart))")
+                        Text("Demande de \(model.senior) · \(ago(model.requestStart))")
                             .font(.system(size: 13)).foregroundStyle(Soin.secondary).lineLimit(1)
                     }
                     Text(model.seniorTitle).font(.system(size: 20, weight: .bold)).foregroundStyle(Soin.ink)
