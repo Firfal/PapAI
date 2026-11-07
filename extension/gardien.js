@@ -6,14 +6,31 @@ const enCours = new Set();
 function domaineHttp(adresse) {
   try {
     const url = new URL(adresse);
-    return ["http:", "https:"].includes(url.protocol) ? url.hostname.toLowerCase().replace(/\.$/, "") : "";
+    return ["http:", "https:"].includes(url.protocol)
+      ? url.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "") : "";
   } catch {
     return "";
   }
 }
 
+function ignorerDomaine(domaine, serveur) {
+  const hote = domaine.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  if (["localhost", "127.0.0.1", "::1"].includes(hote)) return true;
+  const octets = hote.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/)?.slice(1).map(Number);
+  if (octets && octets.every((octet) => octet <= 255)) {
+    const [premier, deuxieme] = octets;
+    if (premier === 10 || (premier === 172 && deuxieme >= 16 && deuxieme <= 31) ||
+        (premier === 192 && deuxieme === 168)) return true;
+  }
+  const hoteServeur = domaineHttp(serveur || "");
+  return Boolean(hote && hoteServeur && hote === hoteServeur);
+}
+
 async function estConnu(domaine) {
-  return (await connus).some((parent) => domaine === parent || domaine.endsWith("." + parent));
+  const sites = await connus;
+  if (sites.exceptions_exactes.includes(domaine)) return true;
+  if (sites.exclusions.some((parent) => domaine === parent || domaine.endsWith("." + parent))) return false;
+  return sites.connus.some((parent) => domaine === parent || domaine.endsWith("." + parent));
 }
 
 async function appliquer(onglet, navigation, avis) {
@@ -30,7 +47,7 @@ async function analyser(onglet) {
   enCours.add(navigation.documentId);
   try {
     const liaison = await chrome.storage.local.get(["server", "token"]);
-    if (!liaison.server || !liaison.token) return;
+    if (!liaison.server || !liaison.token || ignorerDomaine(navigation.domaine, liaison.server)) return;
     const cleCache = "avis:" + navigation.domaine;
     const cache = (await chrome.storage.local.get(cleCache))[cleCache];
     let avis = cache?.expire > Date.now() ? cache : null;
@@ -53,7 +70,7 @@ async function analyser(onglet) {
       if (!reponse.ok) return;
       avis = await reponse.json();
       if (!["sur", "douteux", "arnaque"].includes(avis.verdict)) return;
-      const duree = avis.verdict === "sur" ? 7 * 24 * 3600000 : 3600000;
+      const duree = avis.verdict === "sur" ? 24 * 3600000 : 3600000;
       avis = {verdict: avis.verdict, proche: typeof avis.proche === "string" ? avis.proche.slice(0, 40) : "votre proche",
         expire: Date.now() + duree};
       await chrome.storage.local.set({[cleCache]: avis});
@@ -75,8 +92,9 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
   const cle = "onglet:" + details.tabId;
   const precedent = (await chrome.storage.session.get(cle))[cle];
   const cleCache = "avis:" + domaine;
-  const cache = (await chrome.storage.local.get(cleCache))[cleCache];
-  const attente = Boolean(domaine && !(await estConnu(domaine)) &&
+  const liaison = await chrome.storage.local.get(["server", cleCache]);
+  const cache = liaison[cleCache];
+  const attente = Boolean(domaine && !ignorerDomaine(domaine, liaison.server) && !(await estConnu(domaine)) &&
     (domaine !== precedent?.domaine || cache?.expire > Date.now()));
   await chrome.storage.session.set({[cle]: {domaine, documentId: details.documentId, attente}});
   if (attente) setTimeout(() => analyser(details.tabId), 1800);

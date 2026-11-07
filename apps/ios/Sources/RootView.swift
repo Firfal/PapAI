@@ -266,9 +266,13 @@ struct StoppedView: View {
             Image(systemName: model.iRefusedPlan ? "xmark" : "pause")
                 .font(.system(size: 22, weight: .semibold)).foregroundStyle(Soin.ink)
                 .frame(width: 64, height: 64).background(Soin.card, in: Circle())
-            Text(model.iRefusedPlan ? "Vous avez refusé le plan" : "\(model.seniorTitle) a arrêté l’assistance")
+            Text(model.stoppedBy == "gardien" ? "PapAI a arrêté l'assistance : démarche suspecte"
+                 : model.iRefusedPlan ? "Vous avez refusé le plan" : "\(model.seniorTitle) a arrêté l’assistance")
                 .font(.system(size: 22, weight: .bold)).foregroundStyle(Soin.ink)
-            Text("Rien n’a été fait sur son ordinateur.").font(.system(size: 15)).foregroundStyle(Soin.secondary)
+                .multilineTextAlignment(.center).padding(.horizontal, 24)
+            Text("L'assistance reste arrêtée. Toute nouvelle aide demande votre accord.")
+                .font(.system(size: 15)).foregroundStyle(Soin.secondary)
+                .multilineTextAlignment(.center).padding(.horizontal, 24)
             Spacer(); Spacer()
         }.frame(maxWidth: .infinity)
     }

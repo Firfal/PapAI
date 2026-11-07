@@ -5,7 +5,12 @@
   "version": "0.1.0",
   "description": "Un proche à vos côtés pour reconnaître les sites suspects.",
   "permissions": ["storage", "webNavigation"],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "https://papai-450417131702.europe-west1.run.app/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "optional_host_permissions": ["https://*/*"],
   "background": {"service_worker": "gardien.js"},
   "action": {
     "default_popup": "popup.html",

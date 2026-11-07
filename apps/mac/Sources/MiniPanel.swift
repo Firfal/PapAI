@@ -103,8 +103,14 @@ private struct MiniView: View {
                     .accessibilityLabel("Arrêter l'assistance (Échap)")
                 }
             } else {
-                Button { model.expandWindow() } label: {
-                    Text("J'ai besoin d'aide").font(rounded(16, .semibold)).foregroundStyle(.white)
+                Button {
+                    MicPresence.shared.demande = true
+                    model.backHome()
+                    model.expandWindow()
+                } label: {
+                    Label(MicPresence.shared.microPresent ? "Parler à PapAI" : "Écrire à PapAI",
+                          systemImage: MicPresence.shared.microPresent ? "mic.fill" : "pencil")
+                        .font(rounded(16, .semibold)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).frame(height: 40)
                         .background(Capsule().fill(T.ink))
                 }
@@ -115,6 +121,7 @@ private struct MiniView: View {
         .frame(width: 340, height: 132, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(T.card))
         .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(T.ink.opacity(0.06)))
+        .id(model.textScale)
     }
 
     private var title: String {

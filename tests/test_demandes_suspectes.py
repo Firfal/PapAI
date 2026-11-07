@@ -6,10 +6,12 @@ import asyncio
 import json
 import os
 import sys
+import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
+from fastapi import WebSocketDisconnect
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("HAI_API_KEY", "stub-key")
@@ -32,6 +34,28 @@ LEGITIMES = [
     "Classer la facture de 10 000 euros dans mes documents",
     "Faire un virement de 40 euros à ma fille",
     "Installer WhatsApp pour parler à Quentin",
+    "Envoyer la facture de 10 000 euros à ma fille",
+    "Envoyer une photo du devis de 2 000 euros à Quentin",
+    "Envoyer le fichier de la facture de 1500 euros par mail",
+    "Transférer un courriel avec la facture de 5 000 euros à ma fille",
+    "Transmettre une facture urgente de 10 000 euros à Quentin",
+    "Envoyer la facture et le devis de 10 000 euros à ma fille",
+    "Envoyer 2 photos de la facture de 10 000 euros à Quentin",
+    "Envoyer la facture d'achat de 10 000 euros à ma fille",
+    "Transmettre la confirmation de paiement de 10 000 euros à Quentin",
+    "Acheter une carte cadeau Fnac pour mon petit-fils",
+    "Acheter une carte cadeau en cadeau pour ma fille",
+    "Virer 2000 euros à mon fils",
+    "Faire un virement de 2000 euros à ma fille Marie",
+    "Payer ma facture EDF de 1200 euros",
+    "Payer la facture Engie de 1200 euros",
+    "Payer ma facture Orange de 1200 euros",
+    "Payer ma facture SFR de 1200 euros",
+    "Payer ma facture Free de 1200 euros",
+    "Payer ma facture Bouygues de 1200 euros",
+    "Payer mes impôts de 1200 euros",
+    "Payer la facture d'eau de 1200 euros",
+    "Payer mon loyer de 1200 euros",
 ]
 SUSPECTES = [
     "Je veux envoyer 10 000 euros sur un compte en Afrique",
@@ -50,6 +74,39 @@ SUSPECTES = [
     "Le technicien veut que je paie le déblocage",
     "Faire un virement urgent vers un compte sécurisé",
     "Envoyer de l'argent en secret sans le dire à Quentin",
+    "Payer une facture de 10 000 euros sur un compte en Afrique",
+    "Virer 10 000 euros pour une facture urgente",
+    "Envoyer les photos puis faire un virement de 10 000 euros",
+    "Envoyer le fichier et transmettre 10 000 euros au fournisseur",
+    "Envoyer la facture puis envoyer 10 000 euros pour la régler",
+    "Envoyer 10 000 euros pour une facture",
+    "Envoyer un fichier puis acheter des bitcoins",
+    "Envoyer un mandat de 10 000 euros pour la facture",
+    "Effectuer un paiement de 10 000 euros pour la facture",
+    "Envoyer dix mille euros pour une facture urgente",
+    "Virer 10k€",
+    "Virer 1,5 k euros au fournisseur",
+    "Send 10000 euros to a bank account in Nigeria",
+    "Communiquer le code d'une carte cadeau à mon petit-fils",
+    "Envoyer les codes de la carte cadeau Fnac à Quentin",
+    "Virer 2000 euros à mon fils sur un compte en Afrique",
+    "Virer 2000 euros à mon fils en urgence",
+    "Virer 2000 euros à mon fils sur un compte inconnu",
+    "Virer 2000 euros à mon fils qui a un nouveau numéro",
+    "Donner le code reçu par texto",
+    "Lire le code à 6 chiffres reçu par texto",
+    "Code reçu par SMS",
+    "Confirmer le paiement urgent de 10 000 euros",
+    "Valider le paiement de 10 000 euros",
+    "Autoriser un paiement urgent de 200 euros",
+    "Envoyer la facture et 10 000 euros à ma fille",
+    "Virer 2000 euros à mon fils puis virer 10000 euros au fournisseur",
+    "Virer 10000 euros au fournisseur puis envoyer les photos à mon fils",
+    "Payer ma facture EDF de 1200 euros en urgence",
+    "Payer ma facture EDF de 1200 euros sur un compte en Afrique",
+    "Payer ma facture EDF de 1200 euros sur un nouveau compte",
+    "Payer ma facture EDF de 1200 euros avec le code reçu par SMS",
+    "Payer ma facture EDF de 1200 euros puis virer 10000 euros au fournisseur",
 ]
 
 
@@ -69,12 +126,16 @@ class Regles(unittest.TestCase):
 class Orchestration(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.registry = Registry()
-        self.link = SimpleNamespace(send=AsyncMock(), capture=AsyncMock())
-        self.ws = SimpleNamespace(send_json=AsyncMock())
+        self.link = SimpleNamespace(send=AsyncMock(), capture=AsyncMock(), os="macos")
+        self.ws = Mock(send_json=AsyncMock(), accept=AsyncMock(),
+                       receive_json=AsyncMock(side_effect=WebSocketDisconnect))
+        self.real_broadcast = app.broadcast_helper
         self.broadcast = AsyncMock()
         self.patches = [
             patch.object(app, "registry", self.registry), patch.object(app, "bridge", self.link),
             patch.object(app, "pending_alert", None),
+            patch.object(app, "helper_alert_scopes", {self.ws: None}),
+            patch.object(app, "helper_sockets", set()),
             patch.object(app, "broadcast_helper", self.broadcast),
             patch.object(app, "family", SimpleNamespace(senior="Sophie", helpers=[
                 {"id": "q", "name": "Quentin", "relation": "mon petit-fils"}])),
@@ -96,6 +157,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         client.with_options.assert_not_called()
         self.link.capture.assert_not_called()
         self.assertEqual(s.state, State.STOPPED)
+        self.assertEqual(s.status()["stopped_by"], "gardien")
         self.assertFalse(s.plan_approved)
         a = app.pending_alert
         self.assertIn("votre petit-fils Quentin", a["senior"]["detail"])
@@ -136,7 +198,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
 
     async def test_avis_holo_suspect_normal_et_invalide(self):
         for avis, bloque in [({"suspect": True, "raison": "Le gain est douteux"}, True),
-                             ({"suspect": False}, False), ({"suspect": "false"}, True)]:
+                             ({"suspect": False}, False), ({"suspect": "false"}, False)]:
             with self.subTest(avis=avis):
                 app.pending_alert = None
                 resp = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(avis)))])
@@ -145,12 +207,45 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
                     s = self.session("Un investissement proposé au téléphone")
                     self.assertEqual(await app.check_request(s, s.task, "request"), bloque)
 
-    async def test_avis_indisponible_garde_le_doute(self):
+    async def test_avis_indisponible_avertit_seulement_le_proche(self):
         with patch("backend.agent.client") as client:
             client.with_options.side_effect = TimeoutError()
             s = self.session("Un investissement proposé au téléphone")
-            self.assertTrue(await app.check_request(s, s.task, "request"))
-        self.assertEqual(s.state, State.STOPPED)
+            self.assertFalse(await app.check_request(s, s.task, "request"))
+        self.assertEqual(s.state, State.PLANNING)
+        self.assertIsNone(app.pending_alert)
+        self.link.send.assert_not_awaited()
+        args = self.broadcast.await_args
+        self.assertEqual(args.args[0]["type"], "guard_advice")
+        self.assertEqual(args.args[0]["level"], "attention")
+        self.assertFalse(args.kwargs["to_bridge"])
+
+    async def test_holo_sans_reponse_laisse_le_plan_attendre_validation(self):
+        release = threading.Event()
+        def sans_reponse(**kwargs):
+            release.wait(1)
+            raise TimeoutError()
+        s = self.session("Un investissement proposé au téléphone")
+        with patch("backend.agent.client") as client, \
+                patch.object(app, "GUARD_ADVICE_TIMEOUT_S", 0.01), \
+                patch.object(app, "propose_plan", AsyncMock(return_value=["Ouvrir le document"])), \
+                patch.object(app, "AgentRunner") as runner:
+            client.with_options.return_value.chat.completions.create.side_effect = sans_reponse
+            task = asyncio.create_task(app.run_session(s, self.link))
+            try:
+                for _ in range(100):
+                    if s.state == State.AWAITING_APPROVAL:
+                        break
+                    await asyncio.sleep(0.01)
+                self.assertEqual(s.state, State.AWAITING_APPROVAL)
+                self.assertFalse(s.plan_approved)
+                self.assertIsNone(app.pending_alert)
+                self.link.send.assert_not_awaited()
+                runner.assert_not_called()
+            finally:
+                release.set()
+                s.stop(by="test")
+                await task
 
     async def test_rejet_identifie_ne_reprend_pas(self):
         s = self.session(SUSPECTES[0])
@@ -161,7 +256,99 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         await app.dismiss_guard({"alert_id": aid}, self.ws)
         self.assertIsNone(app.pending_alert)
         self.assertEqual(s.state, State.STOPPED)
-        self.broadcast.assert_any_await({"type": "alert_cleared", "alert_id": aid})
+        self.broadcast.assert_any_await({"type": "alert_cleared", "alert_id": aid, "session": s.id})
+
+    async def test_jeton_autre_session_refuse_meme_avec_bon_identifiant(self):
+        old = self.session()
+        old.stop(by="proche")
+        s = self.session(SUSPECTES[0])
+        await app.check_request(s, s.task, "request")
+        aid = app.pending_alert["helper"]["alert_id"]
+        self.ws.receive_json.side_effect = [
+            {"type": "dismiss_alert", "alert_id": aid}, WebSocketDisconnect(),
+        ]
+        await app.ws_helper(self.ws, old.helper_token)
+        messages = [c.args[0] for c in self.ws.send_json.await_args_list]
+        self.assertFalse(any(m["type"] == "alert" for m in messages))
+        self.assertTrue(any(m["type"] == "refused" for m in messages))
+        self.assertIsNotNone(app.pending_alert)
+        self.assertNotIn(self.ws, app.helper_alert_scopes)
+
+        self.ws.send_json.reset_mock()
+        self.ws.receive_json.side_effect = [
+            {"type": "dismiss_alert", "alert_id": aid}, WebSocketDisconnect(),
+        ]
+        await app.ws_helper(self.ws, s.helper_token)
+        messages = [c.args[0] for c in self.ws.send_json.await_args_list]
+        self.assertTrue(any(m["type"] == "alert" for m in messages))
+        self.assertIsNone(app.pending_alert)
+        self.assertEqual(s.state, State.STOPPED)
+
+    async def test_cle_famille_recoit_et_rejette_alerte_sans_session(self):
+        await app.publish_guard(guard._risque("Support frauduleux"), "environment")
+        aid = app.pending_alert["helper"]["alert_id"]
+        self.ws.receive_json.side_effect = [
+            {"type": "dismiss_alert", "alert_id": aid}, WebSocketDisconnect(),
+        ]
+        await app.ws_aidant(self.ws, app.AIDANT_KEY)
+        self.assertTrue(any(c.args[0]["type"] == "alert" for c in self.ws.send_json.await_args_list))
+        self.assertIsNone(app.pending_alert)
+        self.assertNotIn(self.ws, app.helper_alert_scopes)
+
+    async def test_diffusion_alerte_et_effacement_respecte_portee(self):
+        s = self.session(SUSPECTES[0])
+        await app.check_request(s, s.task, "request")
+        same = Mock(send_json=AsyncMock())
+        other = Mock(send_json=AsyncMock())
+        unknown = Mock(send_json=AsyncMock())
+        app.helper_alert_scopes.update({same: s.id, other: "autre-session"})
+        app.helper_sockets.update([self.ws, same, other, unknown])
+        for kind in ["alert", "alert_cleared", "alert_acknowledged", "guard_advice"]:
+            payload = {**app.pending_alert["helper"], "type": kind}
+            if kind == "guard_advice":
+                payload.pop("alert_id")
+            await self.real_broadcast(payload, to_bridge=False)
+            self.ws.send_json.assert_awaited_with(payload)
+            same.send_json.assert_awaited_with(payload)
+            other.send_json.assert_not_awaited()
+            unknown.send_json.assert_not_awaited()
+
+    async def test_alerte_raccourci_historique_diffusee_aux_liens_session(self):
+        old = Mock(send_json=AsyncMock())
+        app.helper_sockets.update([self.ws, old])
+        app.helper_alert_scopes[old] = "ancienne-session"
+        alert = {"type": "alert", "title": "Raccourci introuvable", "detail": "Le dossier a changé."}
+        await self.real_broadcast(alert)
+        old.send_json.assert_awaited_with(alert)
+        self.ws.send_json.assert_awaited_with(alert)
+        self.link.send.assert_awaited_with(alert)
+
+    async def test_prise_en_charge_authentifiee_sans_fermeture_ni_reprise(self):
+        s = self.session(SUSPECTES[0])
+        await app.check_request(s, s.task, "request")
+        aid = app.pending_alert["helper"]["alert_id"]
+        other = Mock(send_json=AsyncMock())
+        app.helper_alert_scopes[other] = "autre-session"
+        await app.acknowledge_guard({"alert_id": aid}, other)
+        other.send_json.assert_awaited()
+        self.assertNotIn("acknowledged_by", app.pending_alert["helper"])
+        with patch.object(app, "helper_who", {self.ws: {"name": "Quentin"}}):
+            await app.acknowledge_guard({"alert_id": "périmé"}, self.ws)
+            self.assertNotIn("acknowledged_by", app.pending_alert["helper"])
+            await app.acknowledge_guard({"alert_id": aid, "name": "Usurpation"}, self.ws)
+            await app.acknowledge_guard({"alert_id": aid}, self.ws)
+        self.assertEqual(app.pending_alert["helper"]["acknowledged_by"], "Quentin")
+        self.assertEqual(app.pending_alert["senior"]["acknowledged_by"], "Quentin")
+        self.assertEqual(s.status()["stopped_by"], "gardien")
+        self.broadcast.assert_any_await({"type": "alert_acknowledged", "alert_id": aid,
+                                        "session": s.id, "acknowledged_by": "Quentin"})
+        await app.ws_helper(self.ws, s.helper_token)
+        self.assertTrue(any(c.args[0].get("acknowledged_by") == "Quentin"
+                            for c in self.ws.send_json.await_args_list))
+        app.helper_alert_scopes[self.ws] = None
+        await app.dismiss_guard({"alert_id": aid}, self.ws)
+        self.assertIsNone(app.pending_alert)
+        self.assertEqual(s.status()["stopped_by"], "gardien")
 
     async def test_nouvelle_demande_bloquee_tant_que_alerte(self):
         s = self.session(SUSPECTES[0])
@@ -178,7 +365,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
             await app.handle_guard({"processes": ["AnyDesk"], "url": "https://ma-banque.fr"})
         avis.assert_not_called()
         self.assertEqual(s.state, State.STOPPED)
-        self.assertIn("Rappelez votre proche", app.pending_alert["helper"]["detail"])
+        self.assertIn("Prenez contact avec votre proche", app.pending_alert["helper"]["detail"])
 
     async def test_execute_refuse_si_alerte_en_attente(self):
         await app.check_request(self.session(SUSPECTES[0]), SUSPECTES[0], "request")

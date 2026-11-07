@@ -125,7 +125,8 @@ struct SessionView: View {
         case .active: return "\(model.carer) s'en occupe"
         case .awaiting_helper: return "\(model.HelperName) vous aide"
         case .done: return "C'est fait !"
-        case .stopped: return "L'assistance est arrêtée."
+        case .stopped: return model.stoppedBy == "gardien"
+            ? "PapAI a arrêté l'assistance : démarche suspecte" : "L'assistance est arrêtée."
         }
     }
 

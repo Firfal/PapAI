@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import ipaddress
 import json
 import re
 import secrets
@@ -16,7 +17,11 @@ from .family import Family, PairingError
 from .guard import TITRES_ALARMANTS
 
 RACINE = Path(__file__).resolve().parent.parent
-CONNUS = json.loads((RACINE / "extension/sites_connus.json").read_text("utf-8"))
+_SITES = json.loads((RACINE / "extension/sites_connus.json").read_text("utf-8"))
+CONNUS = _SITES["connus"]
+EXCLUSIONS = _SITES["exclusions"]
+EXCEPTIONS_EXACTES = _SITES["exceptions_exactes"]
+RESEAUX_PRIVES = tuple(map(ipaddress.ip_network, ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")))
 MARQUES = {"ameli": "Ameli", "impots": "les impôts", "laposte": "La Poste",
            "caf": "la CAF", "credit-agricole": "le Crédit Agricole",
            "labanquepostale": "La Banque Postale", "microsoft": "Microsoft"}
@@ -60,8 +65,30 @@ class Liaison(Family):
 
 
 def normaliser(domaine: str) -> str:
-    adresse = urlsplit(domaine if "://" in domaine else "//" + domaine)
-    return (adresse.hostname or "").lower().rstrip(".").encode("idna").decode("ascii")
+    brut = domaine.strip()
+    try:
+        return ipaddress.ip_address(brut.strip("[]")).compressed.lower()
+    except ValueError:
+        pass
+    adresse = urlsplit(brut if "://" in brut else "//" + brut)
+    hote = (adresse.hostname or "").lower().rstrip(".")
+    try:
+        return ipaddress.ip_address(hote).compressed.lower()
+    except ValueError:
+        return hote.encode("idna").decode("ascii")
+
+
+def doit_ignorer(domaine: str, serveur: str = "") -> bool:
+    hote = normaliser(domaine)
+    if hote in {"localhost", "127.0.0.1", "::1"}:
+        return True
+    try:
+        adresse = ipaddress.ip_address(hote)
+    except ValueError:
+        adresse = None
+    if adresse and adresse.version == 4 and any(adresse in reseau for reseau in RESEAUX_PRIVES):
+        return True
+    return bool(serveur and hote == normaliser(serveur))
 
 
 def distance(a: str, b: str) -> int:
@@ -72,6 +99,14 @@ def distance(a: str, b: str) -> int:
             suivante.append(min(suivante[-1] + 1, ligne[j] + 1, ligne[j - 1] + (x != y)))
         ligne = suivante
     return ligne[-1]
+
+
+def est_connu(domaine: str) -> bool:
+    if domaine in EXCEPTIONS_EXACTES:
+        return True
+    if any(domaine == d or domaine.endswith("." + d) for d in EXCLUSIONS):
+        return False
+    return any(domaine == d or domaine.endswith("." + d) for d in CONNUS)
 
 
 @dataclass
@@ -85,7 +120,7 @@ class Avis:
 
 def evaluer(domaine: str, titre: str, texte: str) -> Avis:
     domaine = normaliser(domaine)
-    if any(domaine == d or domaine.endswith("." + d) for d in CONNUS):
+    if est_connu(domaine):
         return Avis("sur", "Domaine connu.")
     libelles = domaine.split(".")[:-1]
     for cle, marque in MARQUES.items():
@@ -134,6 +169,7 @@ async def avis_holo(domaine: str, titre: str, texte: str) -> Avis:
 def textes(famille: Family, domaine: str, avis: Avis) -> tuple[str, str, str]:
     proche = famille.helpers[0]["name"] if famille.helpers else "votre proche"
     senior = famille.senior or "La personne que vous aidez"
+    nom_a_appeler = famille.senior or "votre proche"
     sujet = "un site qui imite " + avis.marque if avis.marque else "un site suspect"
     return (f"Attention, ce site peut être une arnaque. Ne donnez rien. Appelez {proche}.",
-            f"{senior} est sur {sujet} : {domaine}. Appelez cette personne.", proche)
+            f"{senior} est sur {sujet} : {domaine}. Appelez {nom_a_appeler} à son numéro habituel.", proche)

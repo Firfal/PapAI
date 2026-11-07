@@ -29,6 +29,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Page web aidant (`helper.html`) : sur `refused`, réactiver le bouton « Garder comme automatisme » resté sur « Rédaction en cours… ».
 - [ ] **Moment fort de la démo** : déplacer le dossier, rejouer, et vérifier que l'app s'arrête et que l'aidant reçoit l'alerte (`automation_failed`).
 - [ ] **App iPhone sur l'appareil** : gestes réels (valider, préciser, refuser, prendre la main avec la loupe), notifications acceptées.
+- [x] iPhone : glisser une étape vers la gauche → « Modifier » (feuille préremplie, consigne envoyée par `refine_plan`, Holo repropose, l'aidant valide). Dictée partout où l'aidant écrit (préciser, modifier, répondre à Holo) : Gladia par `/k/<clé>/transcribe`, SFSpeech en secours. Essayé sur simulateur avec un fichier audio ; pas encore sur un vrai iPhone.
 - [ ] Décider quel iPhone et quel Mac servent sur scène, et sur quel réseau. Garder l'app iPhone au premier plan : en arrière-plan, la connexion se coupe.
 
 ## Parcours de la personne aidée (app Mac, fusionné le 7 novembre)
@@ -37,6 +38,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] 2. Ajouter un proche : QR ou code à 6 chiffres (10 min, usage unique), prénom et lien, plusieurs proches. Page `/p/{code}`, `backend/family.py`.
 - [x] Session proposée à distance par le proche, que la personne aidée accepte ou refuse sur le Mac (`remote_request`).
 - [x] 3. Demande : gros bouton, dictée (celle de l'équipe, Gladia) ou clavier.
+  - [x] Accueil Mac voix d'abord : grand micro, écriture discrète, détection du micro, tutoriels masqués si vides, logotype et taille du texte dans l'encart.
+  - [x] Mes raccourcis sur Mac : applications utilisées, dossiers et groupes de photos, nouveau message Mail, albums ajoutés à la main ; ajout/retrait local, dossiers validés et ouverts dans le Finder explicitement (#16).
 - [x] 4. Consentement : écran dédié « PapAI va regarder votre écran » à la place de la case à cocher.
 - [x] Accord de partage d'écran demandé une seule fois (Mac et Windows), gardé ensuite ; « Retirer l'accord de partage » dans Réglages.
 - [x] 5. Holo explique chaque action en phrase simple, avec l'historique et le plan validé.
@@ -58,7 +61,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 ## P2 — bonus, seulement si tout le P0 passe
 
-- [x] Gardien anti-arnaque : demandes et plans contrôlés avant exécution (règles + avis Holo si doute), alerte bloquante sur le Mac et texte pour le proche sur iPhone/web, notification locale et Live Activity. Vérifié sur Mac réel, iPhone simulé et web avec le virement de 10 000 euros en Afrique ; photos de Noël sans alerte. Entrée/Échap ne ferment pas l'alerte ; rejet par l'aidant sans reprise automatique. Tests et builds Mac/iPhone au vert. Branche `devin/1794084400-demandes-suspectes`, pas encore fusionnée. Reste : essai sur iPhone physique et reconnexion native, parcours normal complet sur le vrai Mac avec autorisation de capture (parcours simulé Python au vert). Android attend la fusion de #23.
+- [x] Gardien anti-arnaque : demandes et plans contrôlés avant exécution ; règles déterministes + avis Holo si doute. Si l'avis expire/échoue, attention au proche seulement et plan toujours à valider. Alerte bloquante Mac, iPhone Soin et web : « Je m'en occupe » accuse réception sur le Mac, « C'est normal » rejette sans reprise. Cause d'arrêt explicitement attribuée à PapAI sur les quatre interfaces. Cadeaux offerts, virements familiaux explicites et factures de fournisseurs habituels acceptés sans autre signal ; codes, anglais, k€ et validation de paiements suspects détectés. Diffusion/rejet limités à la famille/session ; alertes de raccourci historiques préservées. Entrée/Échap ne ferment ni l'alerte ni la fin Mac sous-jacente ; actions Windows interrompues. 36 légitimes/49 suspectes, 18 tests règles/orchestration, 49 contrôles Windows simulés sur macOS ; suites et builds Mac/iPhone au vert. UI Mac réel/iPhone simulé/web revérifiée, captures/vidéo actualisées. Branche `devin/1794084400-demandes-suspectes`, pas encore fusionnée. Reste : iPhone physique/reconnexion native, parcours normal complet sur le vrai Mac avec autorisation de capture, Windows natif. Android attend la fusion de #23.
 - [x] Voix : dicter la demande (micro de l'app Mac, Gladia puis secours Apple sur l'appareil). `GLADIA_API_KEY` est sur Cloud Run, transcription testée en ligne.
   - [ ] Essayer la dictée sur le vrai Mac (autorisation du micro).
   - [ ] Entendre ce que fait Holo (synthèse vocale) : rien n'est codé.
@@ -76,7 +79,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] App Mac (SwiftUI) : connexion, capture sans sa propre fenêtre, plan affiché, Arrêter local, automatismes.
 - [x] App iPhone (SwiftUI) : validation, précision, capture en direct, prise de main, automatisme. Testée sur simulateur et installée sur l'iPhone.
 - [x] Serveur du Gardien navigateur : liaison d'extension, avis de sites, alertes distinctes aidé/proche et tests.
-- [x] Extension PapAI Gardien (Chrome/Edge/Brave, Manifest V3) : liaison depuis les Réglages Mac, liste commune, cache local, bannière et voile. Alertes de sites intégrées au blocage et au rejet par le proche. Essai automatisé Chromium sur Mac ; revue visuelle et essais Windows/Edge/Brave à faire.
+- [x] Extension PapAI Gardien (Chrome/Edge/Brave, Manifest V3) : liaison depuis les Réglages Mac, permissions limitées avec demande pour un autre serveur HTTPS, exclusions des hébergeurs de contenu utilisateur et adresses locales, cache local 24 h pour les avis sûrs, interface « Soin » pour bannière, voile et popup. Alertes intégrées au blocage et au rejet par le proche. Essai et captures headless Chromium ; essais Windows/Edge/Brave à faire.
 - [x] Gardien anti-arnaque (logique et 14 contrôles), banc d'essai du protocole (13 contrôles avec `tests/faux_holo.py`), parcours de bout en bout (`tests/test_parcours.py`, 26 contrôles), route de dictée (`tests/test_transcribe.py`), faux Mac.
 - [x] Design « Soin », logo (logotype C) et mascotte papaye Pastel en icône des deux apps.
 - [x] Notion du hackathon avec la base Features, mise à jour le 7 novembre à 18 h 30 selon l'état réel.

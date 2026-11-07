@@ -45,6 +45,7 @@ struct RootView: View {
         .padding(.horizontal, 28).padding(.bottom, 28)
         .background(T.bg.ignoresSafeArea())
         .background(WindowGrabber { model.window = $0 })
+        .disabled(model.guardAlert != nil)
         .overlay { if let a = model.guardAlert { GuardAlertView(alert: a) } }
         .id(model.textScale)
         .sheet(isPresented: $model.showSettings) { SettingsView() }

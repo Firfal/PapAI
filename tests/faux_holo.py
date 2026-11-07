@@ -11,6 +11,7 @@ fiche a des étapes en simples chaînes, comme le vrai Holo le fait parfois.
 from __future__ import annotations
 
 import json
+import re
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -63,9 +64,12 @@ def reponse(corps: dict) -> dict:
         elif '"folder"' in consigne:
             message["content"] = '{"folder": "pictures", "subfolder": "Noël 2025"}'
         else:
-            message["content"] = json.dumps(
-                {"steps": ["Ouvrir le Finder", "Aller dans Images", "Ouvrir Noël 2025"]},
-                ensure_ascii=False)
+            etapes = ["Ouvrir le Finder", "Aller dans Images", "Ouvrir Noël 2025"]
+            # Consigne « Étape N : remplacer « … » par « … » » de l'iPhone : appliquée.
+            for n, _, nouveau in re.findall(r"Étape (\d+) : remplacer « (.+?) » par « (.+?) »", consigne):
+                if 1 <= int(n) <= len(etapes):
+                    etapes[int(n) - 1] = nouveau
+            message["content"] = json.dumps({"steps": etapes}, ensure_ascii=False)
     return {
         "id": "faux", "object": "chat.completion", "created": int(time.time()),
         "model": corps.get("model", "faux-holo"),

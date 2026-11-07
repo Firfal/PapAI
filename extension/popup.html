@@ -8,22 +8,27 @@
   <script src="popup.js" defer></script>
 </head>
 <body>
-  <header><img src="icone-48.png" alt="" width="48" height="48"><strong>PapAI Gardien</strong></header>
-  <main>
-    <p id="message" role="status" aria-live="polite"></p>
-    <section id="protege" hidden>
-      <h1>Ce navigateur est protégé</h1>
-      <p>PapAI vous prévient si un site semble suspect. En cas de doute, appelez votre proche.</p>
-      <button id="delier" class="secondaire">Délier</button>
-    </section>
-    <form id="liaison">
-      <h1>Protéger ce navigateur</h1>
-      <label for="serveur">Adresse du serveur PapAI</label>
-      <input id="serveur" type="url" placeholder="https://…" required autocomplete="off" spellcheck="false">
-      <label for="code">Code à 6 chiffres affiché dans les Réglages de PapAI</label>
-      <input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="123456" required autocomplete="off">
-      <button id="lier" type="submit">Protéger ce navigateur</button>
-    </form>
-  </main>
+  <div class="carte">
+    <header><img src="icone-48.png" alt="" width="48" height="48"><strong>PapAI Gardien</strong></header>
+    <main>
+      <p id="message" role="status" aria-live="polite"></p>
+      <section id="protege" hidden>
+        <h1>Ce navigateur est protégé</h1>
+        <p>PapAI vous prévient si un site semble suspect. En cas de doute, appelez votre proche.</p>
+        <button id="delier" class="secondaire">Retirer la protection</button>
+      </section>
+      <form id="liaison">
+        <h1>Protéger ce navigateur</h1>
+        <button id="autre-serveur" class="lien" type="button">Autre serveur</button>
+        <label id="serveur-label" for="serveur" hidden>Adresse du serveur PapAI</label>
+        <input id="serveur" type="url" value="https://papai-450417131702.europe-west1.run.app"
+          autocomplete="off" spellcheck="false" hidden>
+        <label for="code">Code à 6 chiffres affiché dans les Réglages de PapAI</label>
+        <input id="code" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+          placeholder="123456" required autocomplete="off">
+        <button id="lier" type="submit">Protéger ce navigateur</button>
+      </form>
+    </main>
+  </div>
 </body>
 </html>

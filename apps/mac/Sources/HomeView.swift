@@ -8,34 +8,69 @@ struct HomeView: View {
     @State private var dictation = Dictation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
+    @State private var writing = false
+    @State private var favoris = HomeShortcuts()
+    @State private var ajoutVisible = false
+    private var raccourcis: MicPresence { .shared }
 
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
             helpCard
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 28) { shortcuts; apps }
+                VStack(alignment: .leading, spacing: 16) {
+                    if !model.lessons.isEmpty || model.notice != nil { shortcuts }
+                    apps
+                }
                     .padding(.bottom, 8)
             }
             .frame(width: 400)
         }
+        .onAppear { ouvrirDemande(); favoris.actualiser() }
+        .onChange(of: raccourcis.demande) { _, _ in ouvrirDemande() }
+        .sheet(isPresented: $ajoutVisible, onDismiss: { favoris.actualiser() }) {
+            AjouterRaccourci(favoris: favoris)
+        }
     }
 
     private var helpCard: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             TimelineView(.everyMinute) { ctx in
                 let hello = Greeting.word(at: ctx.date)
                 Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName)")
-                    .font(rounded(52, .semibold)).tracking(-0.8)
+                    .font(rounded(44, .semibold)).tracking(-0.8)
             }
             Text("Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à \(model.helperName).")
-                .font(rounded(21)).foregroundStyle(T.muted)
+                .font(rounded(18)).foregroundStyle(T.muted)
                 .fixedSize(horizontal: false, vertical: true)
-            TextField("Par exemple : je ne retrouve pas mes photos", text: $request, axis: .vertical)
-                .textFieldStyle(.plain).font(rounded(22)).lineLimit(1...3)
-                .focused($focused)
-                .padding(.horizontal, 24).padding(.vertical, 22)
-                .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
-                .padding(.top, 8)
+            Spacer(minLength: 0)
+            if raccourcis.microPresent {
+                VStack(spacing: 12) {
+                    micButton
+                    Text(dictation.phase == .listening ? "Je vous écoute…" :
+                         dictation.phase == .transcribing ? "Je note…" : "Parler à PapAI")
+                        .font(rounded(20, .semibold))
+                    if !request.isEmpty && !writing {
+                        Text(request).font(rounded(18)).lineLimit(3)
+                    }
+                }.frame(maxWidth: .infinity)
+            }
+            if writing || !raccourcis.microPresent {
+                HStack(spacing: 10) {
+                    TextField("Écrivez votre demande", text: $request)
+                        .textFieldStyle(.plain).font(rounded(18)).focused($focused)
+                        .onSubmit(submit)
+                    Button("Envoyer", action: submit).font(rounded(15, .semibold))
+                        .buttonStyle(.plain)
+                        .disabled(dictation.phase != .idle)
+                }
+                .padding(18).background(RoundedRectangle(cornerRadius: 22).fill(T.card))
+            } else if dictation.phase == .idle {
+                Button { writing = true; focused = true } label: {
+                    Text("Écrire").font(rounded(15, .semibold))
+                        .padding(.horizontal, 22).padding(.vertical, 10)
+                        .background(Capsule().fill(T.card))
+                }.buttonStyle(PressStyle()).frame(maxWidth: .infinity)
+            }
             if let warning {
                 Label(warning, systemImage: "exclamationmark.circle")
                     .font(rounded(17, .semibold))
@@ -43,64 +78,30 @@ struct HomeView: View {
                     .background(Capsule().fill(T.card))
             }
             Spacer(minLength: 0)
-            HStack(spacing: 14) {
-                micButton
-                Button(action: submit) {
-                    Text("J'ai besoin d'aide").font(rounded(26, .semibold))
-                        .padding(.horizontal, 28).frame(maxWidth: .infinity).frame(height: 78)
-                        .foregroundStyle(.white)
-                        .background(Capsule().fill(T.ink))
-                }
-                .buttonStyle(PressStyle())
-            }
         }
         .foregroundStyle(T.ink)
-        .padding(40)
+        .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
     }
 
     private var micButton: some View {
         let listening = dictation.phase == .listening
-        return Button {
-            warning = nil
-            let before = request.trimmingCharacters(in: .whitespacesAndNewlines)
-            func joined(_ t: String) -> String { before.isEmpty ? t : before + " " + t }
-            dictation.toggle(httpBase: model.httpBase, onLive: { t in
-                // Les mots s'affichent pendant qu'elle parle, et partent chez l'aidant.
-                request = joined(t)
-                model.sendDictation(t)
-            }) { text in
-                request = joined(text)
-                model.sendDictation(text, final: true)
-                // Quand la personne s'arrête de parler, la demande part seule,
-                // sans qu'elle ait à appuyer sur « J'ai besoin d'aide ».
-                submit()
-            }
-        } label: {
-            HStack(spacing: 12) {
+        return Button(action: dicter) {
                 ZStack {
                     if listening {
                         Circle().fill(T.accent.opacity(0.25))
-                            .frame(width: 78, height: 78)
-                            .scaleEffect(reduceMotion ? 1 : (pulse ? 1.12 : 0.9))
+                            .frame(width: 166, height: 166)
+                            .scaleEffect(reduceMotion ? 1 : (pulse ? 1.08 : 0.94))
                     }
-                    Circle().fill(listening ? T.accent : .white).frame(width: 62, height: 62)
+                    Circle().fill(listening ? T.accent : .white).frame(width: 148, height: 148)
                     if dictation.phase == .transcribing {
-                        ProgressView().controlSize(.small)
+                        ProgressView()
                     } else {
                         Image(systemName: listening ? "stop.fill" : "mic.fill")
-                            .foregroundStyle(listening ? .white : T.ink).font(.system(size: 24))
+                            .foregroundStyle(listening ? .white : T.ink).font(rounded(48))
                     }
-                }
-                .frame(width: 78, height: 78)
-                if listening {
-                    Text("Je vous écoute…").font(rounded(20, .semibold)).foregroundStyle(T.accent)
-                } else if dictation.phase == .transcribing {
-                    Text("Je note…").font(rounded(20, .semibold)).foregroundStyle(T.muted)
-                }
-            }
-            .padding(.trailing, dictation.phase == .idle ? 0 : 14)
+                }.frame(width: 180, height: 180)
         }
         .buttonStyle(PressStyle())
         .disabled(dictation.phase == .transcribing)
@@ -113,7 +114,31 @@ struct HomeView: View {
         .onChange(of: dictation.message) { _, m in if let m { warning = m; dictation.message = nil } }
     }
 
+    private func ouvrirDemande() {
+        guard raccourcis.demande else { return }
+        raccourcis.demande = false
+        if raccourcis.microPresent {
+            if dictation.phase == .idle { dicter() }
+        } else { writing = true; focused = true }
+    }
+
+    private func dicter() {
+        warning = nil
+        let before = request.trimmingCharacters(in: .whitespacesAndNewlines)
+        func joined(_ t: String) -> String { before.isEmpty ? t : before + " " + t }
+        dictation.toggle(httpBase: model.httpBase, onLive: { t in
+            // Les mots s'affichent pendant qu'elle parle, et partent chez l'aidant.
+            request = joined(t)
+            model.sendDictation(t)
+        }) { text in
+            request = joined(text)
+            model.sendDictation(text, final: true)
+            submit()
+        }
+    }
+
     private func submit() {
+        guard dictation.phase == .idle else { return }
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { warning = "Dites en quelques mots ce qui ne va pas."; focused = true; return }
         if !model.connected { warning = "Je ne joins pas \(model.helperName) pour le moment. Réessayez dans un instant."; return }
@@ -127,17 +152,13 @@ struct HomeView: View {
 
     private var shortcuts: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Mes tutoriels").font(rounded(24, .semibold))
             if let n = model.notice {
                 Text(n).font(rounded(17, .medium))
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
             }
-            if model.lessons.isEmpty {
-                Text("\(model.HelperName) pourra ajouter ici ce que vous avez fait ensemble, pour le refaire sans aide.")
-                    .font(rounded(17)).foregroundStyle(T.muted)
-                    .padding(22).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+            if !model.lessons.isEmpty {
+                Text("Mes tutoriels").font(rounded(21, .semibold))
             }
             ForEach(model.lessons) { l in tile(l) }
         }
@@ -145,19 +166,16 @@ struct HomeView: View {
     }
 
     private func tile(_ l: Lesson) -> some View {
-        VStack(spacing: 12) {
+        HStack(spacing: 10) {
             Button { model.runShortcut(l) } label: {
-                HStack(spacing: 16) {
-                    Circle().fill(T.mint).frame(width: 56, height: 56)
+                HStack(spacing: 10) {
+                    Circle().fill(T.mint).frame(width: 36, height: 36)
                         .overlay(Image(systemName: Shortcuts.symbol(for: l.shortcut?.folder))
-                            .font(.system(size: 22, weight: .medium)).foregroundStyle(T.accent))
+                            .font(rounded(18)).foregroundStyle(T.accent))
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(l.title).font(rounded(20, .semibold)).multilineTextAlignment(.leading)
-                        Text("Un clic, sans attendre").font(rounded(15)).foregroundStyle(T.muted)
+                        Text(l.title).font(rounded(18, .semibold)).multilineTextAlignment(.leading)
                     }
                     Spacer(minLength: 0)
-                    Circle().fill(T.ink).frame(width: 42, height: 42)
-                        .overlay(Image(systemName: "play.fill").font(.system(size: 14)).foregroundStyle(.white))
                 }
                 .contentShape(Rectangle())
             }
@@ -165,55 +183,122 @@ struct HomeView: View {
             .accessibilityLabel(l.title)
             if !(l.steps ?? []).isEmpty {
                 Button { model.openLesson(l) } label: {
-                    Text("Montrez-moi").font(rounded(16, .semibold)).foregroundStyle(T.accent)
-                        .frame(maxWidth: .infinity).frame(height: 40)
-                        .background(Capsule().fill(T.mint))
+                    Text("Montrez-moi").font(rounded(15, .semibold)).foregroundStyle(T.accent)
+                        .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5).background(Capsule().fill(T.mint))
                 }
                 .buttonStyle(PressStyle())
             }
         }
-        .padding(18)
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
     }
 
-    /// Les plus utilisées et les plus demandées en aide (voir `AppUsage`).
-    private var usage: AppUsage { AppUsage.shared }
-
     private var apps: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Mes applications").font(rounded(24, .semibold))
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 14) {
-                ForEach(usage.top) { app in
-                    let name = app.name, bundle = app.bundle
-                    Button { openApp(bundle) } label: {
-                        VStack(spacing: 8) {
-                            Circle().fill(T.card).frame(width: 88, height: 88)
-                                .overlay(Image(nsImage: icon(bundle)).resizable().frame(width: 52, height: 52))
-                            Text(name).font(rounded(15, .medium))
-                        }
-                        .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Mes raccourcis").font(rounded(21, .semibold))
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
+                ForEach(favoris.tuiles) { tuile in
+                    Button { favoris.ouvrir(tuile, notice: model.showNotice) } label: {
+                        VStack(spacing: 4) {
+                            Circle().fill(T.card).frame(width: 54, height: 54)
+                                .overlay {
+                                    if case .application(let bundle) = tuile.cible,
+                                       let image = icon(bundle) {
+                                        Image(nsImage: image).resizable().frame(width: 36, height: 36)
+                                    } else {
+                                        Image(systemName: symbole(tuile)).font(rounded(24))
+                                            .foregroundStyle(T.accent)
+                                    }
+                                }
+                            Text(tuile.titre).font(rounded(15)).multilineTextAlignment(.center)
+                                .lineLimit(2).frame(minHeight: 24, alignment: .top)
+                        }.frame(maxWidth: .infinity)
                     }
                     .buttonStyle(PressStyle())
-                    .accessibilityLabel("Ouvrir \(name)")
+                    .accessibilityLabel("Ouvrir \(tuile.titre)")
+                    .contextMenu {
+                        if tuile.ajoutee { Button("Retirer") { favoris.retirer(tuile) } }
+                    }
                 }
+                Button { ajoutVisible = true } label: {
+                    VStack(spacing: 4) {
+                        Circle().fill(T.card).frame(width: 54, height: 54)
+                            .overlay(Image(systemName: "plus").font(rounded(24)).foregroundStyle(T.muted))
+                        Text("Ajouter").font(rounded(15)).frame(minHeight: 24, alignment: .top)
+                    }.frame(maxWidth: .infinity)
+                }
+                    .buttonStyle(PressStyle())
             }
         }
         .foregroundStyle(T.ink)
     }
 
-    private func icon(_ bundle: String) -> NSImage {
+    private func symbole(_ tuile: HomeShortcuts.Tuile) -> String {
+        if case .application(let bundle) = tuile.cible {
+            switch bundle {
+            case "com.apple.mail": return "envelope"
+            case "com.apple.Photos": return "photo.on.rectangle"
+            case "com.apple.Safari": return "safari"
+            default: return "app"
+            }
+        }
+        return tuile.symbole
+    }
+
+    private func icon(_ bundle: String) -> NSImage? {
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) {
             return NSWorkspace.shared.icon(forFile: url.path)
         }
-        return NSImage(systemSymbolName: "app", accessibilityDescription: nil) ?? NSImage()
+        return nil
     }
 
-    private func openApp(_ bundle: String) {
-        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else {
-            model.showNotice("Cette application n'est pas disponible sur cet ordinateur.")
-            return
+}
+
+private struct AjouterRaccourci: View {
+    @Environment(\.dismiss) private var fermer
+    let favoris: HomeShortcuts
+    @State private var albumVisible = false
+    @State private var nom = ""
+    @State private var erreur: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Ajouter un raccourci").font(rounded(26, .semibold))
+            Text("Jusqu'à 4 raccourcis personnels, gardés sur ce Mac.").font(rounded(16))
+            Button {
+                let panneau = NSOpenPanel()
+                panneau.canChooseDirectories = true
+                panneau.canChooseFiles = false
+                panneau.allowsMultipleSelection = false
+                panneau.treatsFilePackagesAsDirectories = false
+                panneau.prompt = "Ajouter"
+                if panneau.runModal() == .OK, let url = panneau.url {
+                    if favoris.ajouterDossier(url) { fermer() }
+                    else { erreur = "Choisissez un dossier ordinaire. Si vous avez déjà 4 raccourcis personnels, retirez-en un d'abord." }
+                }
+            } label: { Label("Un dossier", systemImage: "folder") }
+                .buttonStyle(PillStyle(filled: false, height: 50))
+            Button { albumVisible = true; erreur = nil } label: {
+                Label("Un album Photos", systemImage: "rectangle.stack")
+            }.buttonStyle(PillStyle(filled: false, height: 50))
+            if albumVisible {
+                Text("Le nom de l'album dans Photos").font(rounded(17))
+                TextField("Par exemple : Petits-enfants", text: $nom)
+                    .textFieldStyle(.roundedBorder).font(rounded(18)).onSubmit(ajouterAlbum)
+                Button("Ajouter cet album", action: ajouterAlbum)
+                    .buttonStyle(PillStyle(height: 50))
+            }
+            if let erreur { Text(erreur).font(rounded(16)).foregroundStyle(T.danger) }
+            Button("Fermer") { fermer() }.buttonStyle(.plain).font(rounded(17))
         }
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        .foregroundStyle(T.ink).padding(32).frame(width: 520).background(T.mint)
+    }
+
+    private func ajouterAlbum() {
+        if favoris.ajouterAlbum(nom) { fermer() }
+        else { erreur = "Écrivez le nom de l'album. Si vous avez déjà 4 raccourcis personnels, retirez-en un d'abord." }
     }
 }
 

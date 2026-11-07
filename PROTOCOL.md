@@ -28,8 +28,11 @@ Avec l'extension liée, seuls les sites inconnus non présents en cache transmet
 leur domaine, titre et au plus 2 000 caractères de texte visible au serveur,
 éventuellement à Holo en cas d'hésitation. Jamais les champs, mots de passe,
 cookies, chemin ni paramètres de l'URL ; aucune capture. La liste connue ne
-déclenche aucune requête. Le cache local garde `sur` sept jours, les autres avis
-une heure, sans conserver l'extrait. Le jeton haché est stocké dans `sites.json`.
+déclenche aucune requête. L'extrait de texte envoyé peut contenir des données
+personnelles affichées dans la page. Le cache local garde `sur` 24 heures, les
+autres avis une heure, sans conserver l'extrait. Le jeton haché est stocké dans
+`sites.json`. `localhost`, `127.0.0.1`, `::1`, les IPv4 privées et l'hôte du
+serveur lié sont exclus à la fois dans l'extension et sur le serveur.
 
 Le serveur Python (`backend/app.py`) décide. Les apps Swift affichent et exécutent.
 Messages JSON sur WebSocket. Coordonnées toujours normalisées dans [0, 1000]
@@ -151,7 +154,20 @@ Quand ça se déclenche, l'aidant **et** la personne aidée reçoivent :
 Le serveur examine le texte de **chaque** `help_request` avant capture et
 planification, puis chaque plan (y compris après `refine_plan`). Les règles
 déterministes suffisent aux cas manifestes ; Holo ne donne qu'un avis textuel
-en cas d'hésitation. Une indisponibilité de cet avis ne débloque pas un doute.
+en cas d'hésitation. Si cet avis expire ou échoue, le serveur envoie seulement
+au proche un `guard_advice` non bloquant (ni `alert_id`, ni `blocked`) :
+`{"type":"guard_advice","level":"attention","source":"avis_indisponible","session":"…","title":"Avis de sécurité indisponible","detail":"…"}`.
+Le proche de la famille et le jeton de cette session le reçoivent, jamais le
+pont aidé. La préparation continue et le plan attend toujours sa validation.
+Un verdict Holo réellement suspect ou une règle déterministe reste bloquant.
+Les achats de cartes cadeaux offerts à un proche ne déclenchent pas seuls le
+gardien ; transmettre leurs codes ou les utiliser comme moyen de paiement
+suspect reste signalé. Un virement explicitement adressé à un membre de la
+famille, ou une facture d'un fournisseur habituel (EDF, Engie, Orange, SFR,
+Free, Bouygues, impôts, eau, loyer), n'est pas bloqué pour son seul montant.
+Étranger, urgence, compte/numéro nouveau ou inconnu, IBAN, code reçu ou support
+suspect annulent cette exception. Les montants `k€` et les demandes de
+transfert en anglais sont aussi analysés.
 Une demande suspecte termine la session en `stopped`, sans `execute` ni plan à
 approuver. Les alertes de veille arrêtent aussi l'assistance en cours.
 
@@ -166,19 +182,44 @@ et Live Activity existantes (pas de nouvelle promesse de push APNs).
 
 Le Mac garde l'alerte bloquante au-dessus de l'interface et refuse tout `execute`,
 y compris `press_key`. Aucune touche (Entrée, Échap…) ne ferme l'alerte.
-Le proche peut « Rappeler » (consigne de contact, sans relancer Holo) ou envoyer :
+Le proche a deux actions : « Je m'en occupe » et « C'est normal ».
+La première ne passe aucun appel et envoie :
+
+```json
+{"type":"ack_alert","alert_id":"…"}
+```
+
+Même contrôle d'identité et de portée que le rejet ci-dessous. Le serveur
+envoie `{"type":"alert_acknowledged","alert_id":"…","session":"…","acknowledged_by":"Quentin"}`.
+Le prénom vient du proche authentifié, jamais du message. L'aidé lit
+« Quentin a vu l'alerte, il va vous appeler ». Cet accusé est conservé dans
+le champ optionnel `alert.acknowledged_by` et rejoué à la reconnexion.
+Un client ignore l'accusé si son identifiant ne correspond plus à l'alerte
+affichée : un accusé tardif ne fait pas réapparaître une alerte rejetée.
+Il ne ferme rien et ne relance aucune action. Un deuxième accusé conserve le
+premier proche. Aucun bouton côté aidé ne prétend passer un appel.
+
+« C'est normal » demande une confirmation puis envoie :
 
 ```json
 {"type":"dismiss_alert","alert_id":"…"}
 ```
+
+Le rejet exige la clé famille (canal aidant permanent), ou le jeton de la
+session indiquée par `alert.session`, même si celle-ci est déjà arrêtée.
+Le jeton d'une autre session n'autorise ni la réception/relecture de cette
+alerte ni son rejet. Une alerte sans session n'est accessible qu'à la famille.
 
 Ce message, accepté uniquement sur un canal aidant authentifié, signifie
 « Je connais cette démarche, rejeter l'alerte », **pas autoriser l'exécution**.
 Le serveur vérifie l'identifiant puis envoie aux apps :
 
 ```json
-{"type":"alert_cleared","alert_id":"…"}
+{"type":"alert_cleared","alert_id":"…","session":"…"}
 ```
+
+Le champ optionnel `session` (ou `null`) conserve la même portée de diffusion
+que l'alerte d'origine. Les anciens clients peuvent l'ignorer.
 
 La session arrêtée reste terminale. Il faut une nouvelle demande et une nouvelle
 validation normale. Tant qu'une alerte reste ouverte, les nouvelles demandes
@@ -187,6 +228,14 @@ sont arrêtées aussi. L'alerte est renvoyée aux aidants et au pont à la recon
 
 Les alertes de veille partent immédiatement à partir des signaux textuels,
 sans attendre de capture ni de confirmation visuelle de Holo.
+`status.stopped_by` est optionnel (`null` hors arrêt explicite). La valeur
+`gardien` est conservée même après rejet de l'alerte : toutes les interfaces
+affichent « PapAI a arrêté l'assistance : démarche suspecte », sans attribuer
+l'arrêt à la personne aidée. Les autres causes d'arrêt restent inchangées.
+Sur Windows, `level: danger` ou `blocked: true` lève immédiatement le verrou
+local et annule les tâches `execute` engagées. Le fil d'exécution conserve le
+verrou de sa demande et le relit avant les gestes suivants, même si une nouvelle
+demande réinitialise ensuite le verrou courant.
 
 Ce qui est reconnu aujourd'hui : un outil de prise en main qui tourne
 (AnyDesk, TeamViewer, UltraViewer…), une fausse alerte « votre ordinateur est

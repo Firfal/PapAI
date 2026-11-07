@@ -56,6 +56,7 @@ class Model:
         self.connected = False
         self.screen = "home"
         self.state: str | None = None
+        self.stopped_by: str | None = None
         self.task = ""
         self.plan: list[str] = []
         self.plan_step: int | None = None
@@ -136,6 +137,7 @@ class Model:
                 "textScale": self.text_scale, "textScales": TEXT_SCALES,
                 "server": self.server_url, "httpBase": self.http_base,
                 "screen": self.screen, "state": self.state, "sessionOpen": self.session_open,
+                "stoppedBy": self.stopped_by,
                 "task": self.task, "pendingTask": self.pending_task, "screenConsent": self.screen_consent,
                 "plan": list(self.plan), "planStep": self.plan_step,
                 "question": self.question, "answer": self.answer,
@@ -292,6 +294,8 @@ class Model:
         self.ask_help(task, requested_by=r.get("from"))
 
     def dismiss_alert(self) -> None:
+        if self.alert and self.alert.get("blocked"):
+            return
         self.alert = None
         self.push()
 
@@ -331,6 +335,7 @@ class Model:
 
     def ask_help(self, task: str, requested_by: str | None = None) -> None:
         self.gate.reset()
+        self.stopped_by = None
         self._cancel(self._home_timer)
         with self._lock:
             self.task = str(task or "")
@@ -386,8 +391,19 @@ class Model:
                 self.pair_added = str(m["added"])
                 self.pair_code = self.pair_url = None
         elif kind == "alert":
+            if m.get("level") == "danger" or m.get("blocked"):
+                self.gate.raise_stop()
+                self.state = "stopped"
+                self.current_action = None
             self.alert = {"level": str(m.get("level") or "info"), "title": str(m.get("title") or ""),
-                          "detail": str(m.get("detail") or "")}
+                          "detail": str(m.get("detail") or ""), "id": m.get("alert_id"),
+                          "blocked": bool(m.get("blocked")), "acknowledgedBy": m.get("acknowledged_by")}
+        elif kind == "alert_acknowledged":
+            if self.alert and m.get("alert_id") and m["alert_id"] == self.alert.get("id"):
+                self.alert["acknowledgedBy"] = m.get("acknowledged_by")
+        elif kind == "alert_cleared":
+            if self.alert and m.get("alert_id") and m["alert_id"] == self.alert.get("id"):
+                self.alert = None
         elif kind == "lessons_changed":
             def go() -> None:
                 self.refresh_lessons()
@@ -408,6 +424,7 @@ class Model:
 
     def _apply_status(self, m: dict) -> None:
         with self._lock:
+            self.stopped_by = m.get("stopped_by")
             if self.screen != "session":
                 return
             if self.gate.is_stopped:
