@@ -16,12 +16,13 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794085883-ios-appairage-sur` | iPhone : appairage sûr (#27) | `apps/ios/Sources/Pairing.swift`, `HelperModel.swift` (appairage), `RootView.swift` (SettingsView), `DebugDriver.swift`, `apps/ios/project.yml` (ATS) | 8 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 7 nov. soir | Devin | `devin/1794085883-ios-appairage-sur` | iPhone : appairage sûr (#27), HTTPS obligatoire (HTTP local en Debug), hôte visible et confirmation UI/modèle avant remplacement, prénom enregistré après succès, origine de réponse contrôlée, ATS sans chargements arbitraires. Build simulateur réussi ; scénarios connexion locale, HTTP public refusé, remplacement annulé et UserDefaults inchangés vérifiés à l’écran. Tests gardien 14, protocole 14, profil 6, parcours 27, sécurité 31. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794084386-accueil-mac-voix` | Retouches `apps/mac/Sources/HomeView.swift` : vraies icônes des applications résolues par bundle, y compris en démo (symbole si absentes) ; bouton « Montrez-moi » sur une ligne sans tronquer le titre à 1.18. Builds Xcode et CLI réussis ; captures `apres-raccourcis.png` et `apres-grande.png` régénérées et regardées dans `~/captures`. TextScale restauré. Fichier libéré. |
 | 7 nov. soir | Devin | `devin/1794084386-accueil-mac-voix` | Accueil Mac voix d'abord et raccourcis locaux sécurisés : `HomeView.swift`, `MiniPanel.swift`, `Theme.swift`, `Model.swift` (démo seulement), `MicPresence.swift`, `HomeShortcuts.swift`, tests `mic_presence_test.swift` et `home_shortcuts_test.swift`, `brand/logotype-papai.svg`, `TODO.md`. Présence micro, écriture discrète, tutoriels masqués si vides, logotype vectoriel 36 pt, applications/dossiers/groupes de photos et actions Mail/Photos, personnalisation JSON locale (4 ajouts, 9 tuiles avec Ajouter). Validation des dossiers à l'ajout et à l'ouverture, Finder explicite. Builds Xcode et CLI ; Swift raccourcis 35 contrôles, micro OK ; Python gardien 14, protocole 14, parcours 27. Captures dans `~/captures`, dont taille 1.18 restaurée ensuite. Pas de micro physique : `PAPAI_DEMO_MIC=1` pour les captures, dictée réelle non essayée. Fichiers libérés. |
 | 7 nov. | Claude | `parcours-onboarding` | Lancement sur Mac sans Xcode : `run_backend_mac.sh`, `apps/mac/scripts/build-mac-cli.sh` (swiftc + bundle + signature ad hoc). |
