@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794071404-todo-notion-etat` | `TODO.md` et base Features du Notion selon l'état réel | `TODO.md` | 7 nov. 18 h 10 |
 
 ## Journal
 
