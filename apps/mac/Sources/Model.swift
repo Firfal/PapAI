@@ -2,7 +2,7 @@ import AppKit
 import Observation
 import SwiftUI
 
-enum AppScreen { case home, session, lesson }
+enum AppScreen { case home, consent, session, lesson }
 
 struct Helper: Identifiable, Equatable {
     var id: String
@@ -47,6 +47,8 @@ final class AppModel {
     var pairAdded: String?
     var remoteRequest: RemoteRequest?
     var showHelpers = false
+    var pendingTask = ""
+    var actions: [String] = []
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored let client = BridgeClient()
@@ -54,6 +56,7 @@ final class AppModel {
     @ObservationIgnored private var started = false
     @ObservationIgnored private var autoSent = false
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
+    @ObservationIgnored private var homeTimer: Task<Void, Never>?
 
     var sessionOpen: Bool { state?.isOpen ?? false }
     var serverURL: String {
@@ -171,11 +174,14 @@ final class AppModel {
             let json = #"[{"id":"a","title":"Mes photos de Noël","shortcut":{"folder":"pictures"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes documents","shortcut":{"folder":"documents"}}]"#
             lessons = (try? JSONDecoder().decode([Lesson].self, from: Data(json.utf8))) ?? []
             if demo == "home" { return }
+            if demo == "consent" { pendingTask = "Je ne retrouve plus mes photos de Noël"; screen = .consent; return }
             guard let s = SessionState(rawValue: demo) else { return }
             task = "Je ne retrouve plus mes photos de Noël"
             plan = ["Ouvrir le Finder", "Aller dans le dossier Images", "Ouvrir le dossier « Noël 2025 »"]
             answer = "Vos photos de Noël sont ouvertes dans le dossier Images."
-            currentAction = "Clic sur l'icône du Finder"
+            currentAction = "Je clique sur l'icône du Finder"
+            actions = ["J'ouvre la recherche du Mac", "J'écris « Finder »", "Je clique sur l'icône du Finder"]
+            question = "Je vois deux dossiers « Noël ». Lequel faut-il ouvrir ?"
             state = s
             screen = .session
         }
@@ -214,10 +220,23 @@ final class AppModel {
 
     // MARK: Demande d'aide
 
+    /// Étape 4 : avant tout partage, un écran qui dit ce qui va se passer.
+    func requestConsent(task: String) {
+        pendingTask = task
+        screen = .consent
+    }
+
+    func cancelConsent() {
+        pendingTask = ""
+        screen = .home
+    }
+
     func askHelp(task: String, requestedBy: String? = nil) {
         gate.reset()
+        homeTimer?.cancel()
         self.task = task
-        plan = []; question = nil; answer = nil; currentAction = nil
+        pendingTask = ""
+        plan = []; question = nil; answer = nil; currentAction = nil; actions = []
         state = .planning
         screen = .session
         applyLevel()
@@ -236,6 +255,7 @@ final class AppModel {
     }
 
     func backHome() {
+        homeTimer?.cancel()
         screen = .home
         state = nil
         applyLevel()
@@ -265,6 +285,11 @@ final class AppModel {
                 pairAdded = added
                 stopPairing()
             }
+        case "lessons_changed":
+            Task {
+                await refreshLessons()
+                if let t = m["title"] as? String { showNotice("Nouveau tutoriel : « \(t) »") }
+            }
         case "pair_code":
             pairCode = m["code"] as? String
             pairURL = m["url"] as? String
@@ -282,12 +307,24 @@ final class AppModel {
     private func applyStatus(_ m: [String: Any]) {
         guard screen == .session else { return }
         if gate.isStopped { state = .stopped; applyLevel(); return }
+        let before = state
         if let s = (m["state"] as? String).flatMap(SessionState.init(rawValue:)) { state = s }
+        if state == .done, before != .done { scheduleHome() }
         if let t = m["task"] as? String, !t.isEmpty { task = t }
         plan = (m["plan"] as? [String]) ?? []
         question = (m["question"] as? [String: Any])?["question"] as? String
         if state != .active { currentAction = nil }
         applyLevel()
+    }
+
+    /// Étape 7 : le partage est déjà coupé ; l'écran de fin reste un moment
+    /// puis l'accueil revient tout seul.
+    private func scheduleHome() {
+        homeTimer?.cancel()
+        homeTimer = Task {
+            try? await Task.sleep(nanoseconds: 90_000_000_000)
+            if !Task.isCancelled, screen == .session, state == .done { backHome() }
+        }
     }
 
     private func doCapture(_ req: String) async {
@@ -311,7 +348,9 @@ final class AppModel {
             client.send(["type": "result", "req": req, "result": text, "refused": refused])
         }
         if gate.isStopped { reply("Arrêt demandé par la personne aidée.", refused: true); return }
-        currentAction = describeAction(name, args)
+        let said = describeAction(name, args)
+        currentAction = said
+        if actions.last != said { actions.append(said) }
         do {
             let r = try await Actuator.run(name: name, args: args, gate: gate, protected: protectedRect())
             reply(r, refused: false)

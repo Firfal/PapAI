@@ -38,6 +38,7 @@ Reçoit :
 - `{"type":"session","id":…,"helper_url":…}`
 - `{"type":"helpers","helpers":[{"id","name","relation"}],"added":"Claire"?}` à chaque `hello` et après chaque ajout ou retrait.
 - `{"type":"pair_code","code":"482913","url":"http://…/p/482913","expires_in":600}` code à afficher et à mettre en QR.
+- `{"type":"lessons_changed","title":"…"}` le proche vient de valider un tutoriel : l'app relit `/lessons`.
 - `{"type":"remote_request","from":"Claire","task":"…"}` un proche propose une session : rien ne démarre sans l'accord de la personne aidée.
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
 

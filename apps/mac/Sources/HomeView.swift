@@ -3,7 +3,6 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var request = ""
-    @State private var consent = false
     @State private var warning: String?
     @FocusState private var focused: Bool
     @State private var dictation = Dictation()
@@ -34,16 +33,6 @@ struct HomeView: View {
                 .padding(.horizontal, 24).padding(.vertical, 22)
                 .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 .padding(.top, 8)
-            Button { consent.toggle(); warning = nil } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: consent ? "checkmark.square.fill" : "square")
-                        .font(.system(size: 28)).foregroundStyle(consent ? T.accent : T.ink)
-                    Text("J'autorise le partage de mon écran pendant cette demande")
-                        .font(rounded(18)).multilineTextAlignment(.leading)
-                }
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(.isToggle)
             if let warning {
                 Label(warning, systemImage: "exclamationmark.circle")
                     .font(rounded(17, .semibold))
@@ -114,25 +103,25 @@ struct HomeView: View {
     private func submit() {
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { warning = "Dites en quelques mots ce qui ne va pas."; focused = true; return }
-        if !consent { warning = "Cochez la case pour autoriser le partage de votre écran."; return }
         if !model.connected { warning = "Je ne joins pas \(model.helperName) pour le moment. Réessayez dans un instant."; return }
         warning = nil
-        model.askHelp(task: text)
-        request = ""; consent = false
+        // Étape 4 : l'écran de consentement passe avant tout partage.
+        model.requestConsent(task: text)
+        request = ""
     }
 
     // MARK: Droite
 
     private var shortcuts: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Mes raccourcis").font(rounded(24, .semibold))
+            Text("Mes tutoriels").font(rounded(24, .semibold))
             if let n = model.notice {
                 Text(n).font(rounded(17, .medium))
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
             }
             if model.lessons.isEmpty {
-                Text("\(model.HelperName) ajoutera ici vos raccourcis.")
+                Text("\(model.HelperName) pourra ajouter ici ce que vous avez fait ensemble, pour le refaire sans aide.")
                     .font(rounded(17)).foregroundStyle(T.muted)
                     .padding(22).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))

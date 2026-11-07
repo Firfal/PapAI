@@ -397,6 +397,9 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             ).strip()
             saved = approve_and_save(session.lesson, session)
             await ws.send_json({"type": "lesson_saved", "lesson": saved})
+            if bridge is not None:
+                # La personne aidée le retrouve aussitôt dans « Mes tutoriels ».
+                await bridge.send({"type": "lessons_changed", "title": saved.get("title", "")})
 
         else:
             await ws.send_json({"type": "refused", "reason": "Message inconnu."})

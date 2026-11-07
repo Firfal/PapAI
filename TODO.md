@@ -1,10 +1,11 @@
 # PapAI — to-do de l'équipe
 
 Rendu : **dimanche 8 novembre, 14 h (Luma) et 14 h 30 (BuilderBase)**.
-Mis à jour le 7 novembre à 16 h 15. Cochez au fur et à mesure et poussez.
+Mis à jour le 7 novembre à 16 h 30. Cochez au fur et à mesure et poussez.
 
 ## À lire avant de toucher au code (agents compris)
 
+- **Avant de commencer, réservez vos fichiers dans [`AGENTS.md`](AGENTS.md)** (une branche par chantier), et notez-y ce que vous avez fait en finissant. C'est ce qui évite que deux agents modifient le même fichier.
 - Le contrat serveur ↔ apps est dans [`PROTOCOL.md`](PROTOCOL.md). Un changement de message se fait là d'abord.
 - **Règle produit, non négociable : rien ne bouge sur l'ordinateur sans plan validé par l'aidant.** Le bouton Arrêter du Mac coupe tout, même hors ligne.
 - Holo ne doit jamais cliquer dans une fenêtre d'autorisation du système ni dans les Réglages (`carepilot_tools.py`).
@@ -25,6 +26,22 @@ Mis à jour le 7 novembre à 16 h 15. Cochez au fur et à mesure et poussez.
 - [ ] **Moment fort de la démo** : déplacer le dossier, rejouer, et vérifier que l'app s'arrête et que l'aidant reçoit l'alerte (`automation_failed`).
 - [ ] **App iPhone sur l'appareil** : gestes réels (valider, préciser, refuser, prendre la main avec la loupe), notifications acceptées.
 - [ ] Décider quel iPhone et quel Mac servent sur scène, et sur quel réseau. Garder l'app iPhone au premier plan : en arrière-plan, la connexion se coupe.
+
+## Parcours de la personne aidée (branche `parcours-onboarding`, à relire avant fusion)
+
+- [x] 1. Accueil au premier lancement : bienvenue, prénom, taille du texte (grande par défaut), autorisations expliquées.
+- [x] 2. Ajouter un proche : QR ou code à 6 chiffres (10 min, usage unique), prénom et lien, plusieurs proches. Page `/p/{code}`, `backend/family.py`.
+- [x] Session proposée à distance par le proche, que la personne aidée accepte ou refuse sur le Mac (`remote_request`).
+- [x] 3. Demande : gros bouton, dictée (celle de l'équipe, Gladia) ou clavier.
+- [x] 4. Consentement : écran dédié « PapAI va regarder votre écran » à la place de la case à cocher.
+- [x] 5. Holo explique chaque action en phrase simple, avec l'historique et le plan validé.
+- [x] 6. Escalade : la question de Holo affichée pendant que le proche répond.
+- [x] 7. Fin : « C'est fait ! », partage coupé, retour automatique à l'accueil.
+- [x] 8. « Mes tutoriels » rafraîchi dès que le proche valide une fiche (`lessons_changed`).
+- [x] « Quentin » n'est plus écrit en dur : l'app affiche le prénom du ou des proches ajoutés.
+- [ ] Page web aidant : valider, préciser ou refuser le plan (l'app iPhone le fait déjà).
+- [ ] Afficher quelle étape du plan est en cours (demande un champ côté serveur).
+- [ ] Fusionner `parcours-onboarding` dans `main`.
 
 ## P1 — pitch et rendu (demain matin)
 

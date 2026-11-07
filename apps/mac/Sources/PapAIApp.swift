@@ -34,6 +34,7 @@ struct RootView: View {
                 } else {
                     switch model.screen {
                     case .home: HomeView()
+                    case .consent: ConsentView()
                     case .session: SessionView()
                     case .lesson:
                         if let l = model.lesson { LessonView(lesson: l).id(l.id) } else { HomeView() }
