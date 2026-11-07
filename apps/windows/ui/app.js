@@ -404,14 +404,14 @@
       `<div>${pill(S.helpers.length ? 'Ajouter un autre proche' : 'Ajouter un proche', 'pair', { filled: !S.helpers.length, height: 60, disabled: !S.connected })}</div>
        ${S.connected ? '' : `<div class="muted" style="${f(16, 4)}">Connexion au serveur en cours…</div>`}`;
     const added = S.pairAdded ? `<div class="row accent" style="gap:8px;${f(19, 6)}">${icon('checkCircle', 22)}${esc(S.pairAdded)} fait maintenant partie de vos proches.</div>` : '';
-    const code = S.pairCode ? `<div class="card col" style="padding:22px;gap:10px;align-items:center;flex:none">
+    const code = S.pairCode ? `<div class="card col" style="padding:18px 22px;gap:8px;align-items:center;flex:none">
         ${S.pairQR ? `<img src="${S.pairQR}" alt="QR code à scanner par votre proche" style="width:170px;height:170px;image-rendering:pixelated">` : ''}
         <div class="muted" style="${f(16, 4)}">ou le code</div>
         <div style="font-size:${38 * S.textScale}px;font-weight:600;letter-spacing:4px;font-variant-numeric:tabular-nums;user-select:text">${esc(S.pairCode.slice(0, 3))} ${esc(S.pairCode.slice(3))}</div>
         <div class="muted" style="${f(15, 4)}">${S.pairLong ? 'Valable 24 heures' : 'Valable 10 minutes'}</div>
-        ${S.pairURL ? `<div style="width:260px">${pill('Envoyer par SMS, WhatsApp…', 'shareInvite', { filled: false, height: 56, grow: true })}</div>` : ''}
+        ${S.pairURL ? `<button class="accent press" data-act="shareInvite" style="${f(17, 6)}">Envoyer par SMS, WhatsApp…</button>` : ''}
         ${ui.inviteCopied ? `<div class="accent" style="max-width:260px;text-align:center;${f(15, 6)}">${esc(ui.inviteCopied)}</div>` : ''}
-        ${S.pairURL ? `<div class="muted" style="max-width:260px;text-align:center;word-break:break-all;user-select:text;${f(13, 4)}">Sans l'app PapAI : ${esc(S.pairURL)}</div>` : ''}
+        ${S.pairURL ? `<div class="muted" style="max-width:240px;text-align:center;word-break:break-all;user-select:text;${f(13, 4)}">Sans l'app PapAI : ${esc(S.pairURL)}</div>` : ''}
         <button class="muted" data-act="stopPair" style="${f(17, 6)}">Annuler</button>
       </div>` : '';
     return `<div class="row" style="align-items:flex-start;gap:28px">
