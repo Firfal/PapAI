@@ -25,10 +25,11 @@ extension HelperModel {
                     }
                     else if l == "click" { confirmClick() }
                     else if l.hasPrefix("answer:") { answer(String(l.dropFirst(7))) }
-                    else if l.hasPrefix("pair:"), case .pair(let link)? = sheet {
+                    else if l.hasPrefix("pair:") || l.hasPrefix("pairconfirm:"), case .pair(let link)? = sheet {
                         // pair:Prénom|lien|code (code seulement pour la saisie manuelle)
-                        let p = l.dropFirst(5).split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-                        Task { await submitPair(link, code: p.count > 2 ? p[2] : nil, name: p[0], relation: p.count > 1 ? p[1] : "") }
+                        let confirmed = l.hasPrefix("pairconfirm:")
+                        let p = l.dropFirst(confirmed ? 12 : 5).split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+                        Task { await submitPair(link, code: p.count > 2 ? p[2] : nil, name: p.first ?? "", relation: p.count > 1 ? p[1] : "", confirmedReplace: confirmed) }
                     }
                     else if l == "settings" { sheet = .settings }
                     else if l == "scanner" { sheet = .scanner }
