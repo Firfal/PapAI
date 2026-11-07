@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | devin/1794084386-accueil-mac-voix | Accueil Mac : voix d'abord, raccourcis, logotype | apps/mac/Sources/HomeView.swift, MiniPanel.swift, AppUsage.swift, Theme.swift (Header), nouveau HomeShortcuts.swift, Model.swift (mode démo et textScale seulement) | 7 nov. soir |
 
 ## Journal
 
