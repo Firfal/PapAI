@@ -475,9 +475,11 @@ object Helper {
                 val q = m.optJSONObject("question")
                 val toSenior = q?.optString("to") == "senior"
                 if (newState != state) {
+                    // Une reconnexion renvoie le même état : on ne sonne pas deux fois pour la même attente.
                     val key = "$sid:$newState"
-                    if ((newState == "awaiting_approval" || (newState == "awaiting_helper" && !toSenior)) &&
-                        key != lastNotified) {
+                    val waits = newState == "awaiting_approval" || (newState == "awaiting_helper" && !toSenior)
+                    if (!waits) lastNotified = ""
+                    if (waits && key != lastNotified) {
                         lastNotified = key
                         notifyHelp(newState, q?.optString("question"), m.optString("task"))
                     }
