@@ -14,6 +14,8 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 ## En cours
 
+| Devin | `devin/1794084917-extension-gardien` | Extension de navigateur PapAI Gardien | `extension/`, `backend/sites.py`, `tests/test_sites.py`, route `/ext/*` et message `ext_pair_start` de `backend/app.py`, section « Extension de navigateur » de `PROTOCOL.md`, cases `ext_pair_code` de `apps/mac/Sources/Model.swift`, ligne « Protéger le navigateur » de `SettingsView` (`apps/mac/Sources/PermissionsView.swift`), branche avis de site de `tests/faux_holo.py` | 7 nov. soir |
+
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | Devin | `devin/1794084400-demandes-suspectes` | Détection des demandes suspectes, alertes aidé/proche | `backend/`, `tests/`, `PROTOCOL.md`, `apps/mac/Sources/Guard.swift`, chemins d'alerte de `apps/mac/Sources/Model.swift`, `apps/ios/Sources/HelperModel.swift`, `apps/ios/Sources/LiveAlert.swift`, alerte de `RootView.swift` et nouveau composant d'alerte (pas ApprovalView) ; `TODO.md` pour le bilan | 7 nov. soir |
