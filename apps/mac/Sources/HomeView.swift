@@ -8,34 +8,64 @@ struct HomeView: View {
     @State private var dictation = Dictation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
+    @State private var writing = false
+    private var raccourcis: HomeShortcuts { .shared }
 
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
             helpCard
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 28) { shortcuts; apps }
+                VStack(alignment: .leading, spacing: 28) {
+                    if !model.lessons.isEmpty || model.notice != nil { shortcuts }
+                    apps
+                }
                     .padding(.bottom, 8)
             }
             .frame(width: 400)
         }
+        .onAppear { ouvrirDemande() }
+        .onChange(of: raccourcis.demande) { _, _ in ouvrirDemande() }
     }
 
     private var helpCard: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 16) {
             TimelineView(.everyMinute) { ctx in
                 let hello = Greeting.word(at: ctx.date)
                 Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName)")
-                    .font(rounded(52, .semibold)).tracking(-0.8)
+                    .font(rounded(44, .semibold)).tracking(-0.8)
             }
             Text("Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à \(model.helperName).")
-                .font(rounded(21)).foregroundStyle(T.muted)
+                .font(rounded(18)).foregroundStyle(T.muted)
                 .fixedSize(horizontal: false, vertical: true)
-            TextField("Par exemple : je ne retrouve pas mes photos", text: $request, axis: .vertical)
-                .textFieldStyle(.plain).font(rounded(22)).lineLimit(1...3)
-                .focused($focused)
-                .padding(.horizontal, 24).padding(.vertical, 22)
-                .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
-                .padding(.top, 8)
+            Spacer(minLength: 0)
+            if raccourcis.microPresent {
+                VStack(spacing: 12) {
+                    micButton
+                    Text(dictation.phase == .listening ? "Je vous écoute…" :
+                         dictation.phase == .transcribing ? "Je note…" : "Parler à PapAI")
+                        .font(rounded(20, .semibold))
+                    if !request.isEmpty && !writing {
+                        Text(request).font(rounded(18)).lineLimit(3)
+                    }
+                }.frame(maxWidth: .infinity)
+            }
+            if writing || !raccourcis.microPresent {
+                HStack(spacing: 10) {
+                    TextField("Écrivez votre demande", text: $request)
+                        .textFieldStyle(.plain).font(rounded(18)).focused($focused)
+                        .onSubmit(submit)
+                    Button("Envoyer", action: submit).font(rounded(15, .semibold))
+                        .buttonStyle(.plain)
+                        .disabled(dictation.phase != .idle)
+                }
+                .padding(18).background(RoundedRectangle(cornerRadius: 22).fill(T.card))
+            } else if dictation.phase == .idle {
+                Button { writing = true; focused = true } label: {
+                    Text("Écrire").font(rounded(15, .semibold))
+                        .padding(.horizontal, 22).padding(.vertical, 10)
+                        .background(Capsule().fill(T.card))
+                }.buttonStyle(PressStyle()).frame(maxWidth: .infinity)
+            }
             if let warning {
                 Label(warning, systemImage: "exclamationmark.circle")
                     .font(rounded(17, .semibold))
@@ -43,64 +73,30 @@ struct HomeView: View {
                     .background(Capsule().fill(T.card))
             }
             Spacer(minLength: 0)
-            HStack(spacing: 14) {
-                micButton
-                Button(action: submit) {
-                    Text("J'ai besoin d'aide").font(rounded(26, .semibold))
-                        .padding(.horizontal, 28).frame(maxWidth: .infinity).frame(height: 78)
-                        .foregroundStyle(.white)
-                        .background(Capsule().fill(T.ink))
-                }
-                .buttonStyle(PressStyle())
-            }
         }
         .foregroundStyle(T.ink)
-        .padding(40)
+        .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
     }
 
     private var micButton: some View {
         let listening = dictation.phase == .listening
-        return Button {
-            warning = nil
-            let before = request.trimmingCharacters(in: .whitespacesAndNewlines)
-            func joined(_ t: String) -> String { before.isEmpty ? t : before + " " + t }
-            dictation.toggle(httpBase: model.httpBase, onLive: { t in
-                // Les mots s'affichent pendant qu'elle parle, et partent chez l'aidant.
-                request = joined(t)
-                model.sendDictation(t)
-            }) { text in
-                request = joined(text)
-                model.sendDictation(text, final: true)
-                // Quand la personne s'arrête de parler, la demande part seule,
-                // sans qu'elle ait à appuyer sur « J'ai besoin d'aide ».
-                submit()
-            }
-        } label: {
-            HStack(spacing: 12) {
+        return Button(action: dicter) {
                 ZStack {
                     if listening {
                         Circle().fill(T.accent.opacity(0.25))
-                            .frame(width: 78, height: 78)
-                            .scaleEffect(reduceMotion ? 1 : (pulse ? 1.12 : 0.9))
+                            .frame(width: 166, height: 166)
+                            .scaleEffect(reduceMotion ? 1 : (pulse ? 1.08 : 0.94))
                     }
-                    Circle().fill(listening ? T.accent : .white).frame(width: 62, height: 62)
+                    Circle().fill(listening ? T.accent : .white).frame(width: 148, height: 148)
                     if dictation.phase == .transcribing {
-                        ProgressView().controlSize(.small)
+                        ProgressView()
                     } else {
                         Image(systemName: listening ? "stop.fill" : "mic.fill")
-                            .foregroundStyle(listening ? .white : T.ink).font(.system(size: 24))
+                            .foregroundStyle(listening ? .white : T.ink).font(rounded(48))
                     }
-                }
-                .frame(width: 78, height: 78)
-                if listening {
-                    Text("Je vous écoute…").font(rounded(20, .semibold)).foregroundStyle(T.accent)
-                } else if dictation.phase == .transcribing {
-                    Text("Je note…").font(rounded(20, .semibold)).foregroundStyle(T.muted)
-                }
-            }
-            .padding(.trailing, dictation.phase == .idle ? 0 : 14)
+                }.frame(width: 180, height: 180)
         }
         .buttonStyle(PressStyle())
         .disabled(dictation.phase == .transcribing)
@@ -113,7 +109,31 @@ struct HomeView: View {
         .onChange(of: dictation.message) { _, m in if let m { warning = m; dictation.message = nil } }
     }
 
+    private func ouvrirDemande() {
+        guard raccourcis.demande else { return }
+        raccourcis.demande = false
+        if raccourcis.microPresent {
+            if dictation.phase == .idle { dicter() }
+        } else { writing = true; focused = true }
+    }
+
+    private func dicter() {
+        warning = nil
+        let before = request.trimmingCharacters(in: .whitespacesAndNewlines)
+        func joined(_ t: String) -> String { before.isEmpty ? t : before + " " + t }
+        dictation.toggle(httpBase: model.httpBase, onLive: { t in
+            // Les mots s'affichent pendant qu'elle parle, et partent chez l'aidant.
+            request = joined(t)
+            model.sendDictation(t)
+        }) { text in
+            request = joined(text)
+            model.sendDictation(text, final: true)
+            submit()
+        }
+    }
+
     private func submit() {
+        guard dictation.phase == .idle else { return }
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { warning = "Dites en quelques mots ce qui ne va pas."; focused = true; return }
         if !model.connected { warning = "Je ne joins pas \(model.helperName) pour le moment. Réessayez dans un instant."; return }
@@ -127,17 +147,13 @@ struct HomeView: View {
 
     private var shortcuts: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Mes tutoriels").font(rounded(24, .semibold))
             if let n = model.notice {
                 Text(n).font(rounded(17, .medium))
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
             }
-            if model.lessons.isEmpty {
-                Text("\(model.HelperName) pourra ajouter ici ce que vous avez fait ensemble, pour le refaire sans aide.")
-                    .font(rounded(17)).foregroundStyle(T.muted)
-                    .padding(22).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+            if !model.lessons.isEmpty {
+                Text("Mes tutoriels").font(rounded(21, .semibold))
             }
             ForEach(model.lessons) { l in tile(l) }
         }
@@ -150,14 +166,14 @@ struct HomeView: View {
                 HStack(spacing: 16) {
                     Circle().fill(T.mint).frame(width: 56, height: 56)
                         .overlay(Image(systemName: Shortcuts.symbol(for: l.shortcut?.folder))
-                            .font(.system(size: 22, weight: .medium)).foregroundStyle(T.accent))
+                            .font(rounded(22)).foregroundStyle(T.accent))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(l.title).font(rounded(20, .semibold)).multilineTextAlignment(.leading)
                         Text("Un clic, sans attendre").font(rounded(15)).foregroundStyle(T.muted)
                     }
                     Spacer(minLength: 0)
                     Circle().fill(T.ink).frame(width: 42, height: 42)
-                        .overlay(Image(systemName: "play.fill").font(.system(size: 14)).foregroundStyle(.white))
+                        .overlay(Image(systemName: "play.fill").font(rounded(15)).foregroundStyle(.white))
                 }
                 .contentShape(Rectangle())
             }
