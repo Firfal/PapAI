@@ -129,7 +129,8 @@ class ChoixDuMode(Base):
 
     def test_identifiant_annonce_valide(self):
         self.assertEqual(web_agent.valid_browser_session({"session_id": NAV}), NAV)
-        for mauvais in (None, "", "a b", "x" * 80, {"session_id": "../etc"}, 42, {"autre": NAV}):
+        for mauvais in (None, "", "a b", "x" * 80, NAV + "\n", "not-a-uuid",
+                        {"session_id": "../etc"}, 42, {"autre": NAV}):
             self.assertIsNone(web_agent.valid_browser_session(mauvais), mauvais)
 
     async def mode(self, where, annonce):

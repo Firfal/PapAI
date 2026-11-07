@@ -36,15 +36,15 @@ ASK_HELPER_DESCRIPTION = (
     "ou si une page demande de payer, d'installer, d'appeler ou d'autoriser un accès à distance."
 )
 
-_BROWSER_SESSION = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
+_BROWSER_SESSION = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _STEP = re.compile(r"\b[ÉéEe]tape\s+(\d+)\b")
 
 
 def valid_browser_session(value) -> str | None:
-    """L'identifiant annoncé par l'app : court, sans caractère spécial."""
+    """L'identifiant annoncé par l'app : UUID canonique en minuscules."""
     if isinstance(value, dict):
         value = value.get("session_id")
-    if isinstance(value, str) and _BROWSER_SESSION.match(value):
+    if isinstance(value, str) and re.fullmatch(_BROWSER_SESSION, value):
         return value
     return None
 
