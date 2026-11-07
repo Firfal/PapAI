@@ -102,21 +102,6 @@ envoie un ponctuellement, et répond alors par :
 {"type":"alert","level":"danger|attention|info","title":"…","detail":"…"}
 ```
 
-<<<<<<< HEAD
-||||||| d692278
-Pour les situations visuelles (fausse alerte virus, page de paiement), le
-serveur demande **une** capture et fait décrire l'écran par Holo : le proche lit
-ce qui s'y trouve vraiment, pas un soupçon technique.
-
-Ce qui est reconnu aujourd'hui : un outil de prise en main qui tourne
-(AnyDesk, TeamViewer, UltraViewer…), une fausse alerte « votre ordinateur est
-infecté, appelez ce numéro », un site de carte prépayée ou de transfert
-irréversible, et la combinaison la plus grave — outil de prise en main **plus**
-page bancaire ouverte.
-
-Consulter sa banque seule ne déclenche rien.
-
-=======
 ### Demandes suspectes (champs optionnels, anciens clients compatibles)
 
 Le serveur examine le texte de **chaque** `help_request` avant capture et
@@ -229,7 +214,6 @@ page bancaire ouverte.
 
 Consulter sa banque seule ne déclenche rien.
 
->>>>>>> origin/main
 ## Automatismes
 
 `GET /lessons` renvoie les automatismes validés. Chacun a `title`, `steps`
