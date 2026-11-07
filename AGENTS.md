@@ -16,13 +16,13 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794084917-extension-gardien` | Étape 3 : intégration Gardien navigateur et liaison Mac | `backend/app.py` (avis de site et titres publish_guard), `apps/mac/Sources/Model.swift` (liaison seulement), `apps/mac/Sources/PermissionsView.swift`, `tests/test_sites.py`, documentation confidentialité | 7 nov. soir |
 | _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 7 nov. soir | Devin | `devin/1794084917-extension-gardien` | Étape 3 : fusion de la PR #28, sites via publish_guard (titres optionnels), doute sans blocage, rejet et reconnexion testés ; liaison navigateur dans Réglages Mac, mode PAPAI_DEMO=browser, confidentialité actualisée. Build Mac sans erreur ; sites 69/69 et 92/92, gardien 14, demandes suspectes 12, protocole 14, parcours 27, sécurité 35, extension Chromium 14. UI non vérifiée visuellement. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794084917-extension-gardien` | Étape 2 : extension PapAI Gardien MV3, popup, cache, extraction sans champs, bannière et voile fermé, icônes du logotype ; titres serveur précisés. Sites 66/66, intégration serveur 83/83, Chromium isolé 14/14 (dont requêtes réelles sans ajout CORS). Revue visuelle laissée au pilote ; Edge/Brave et Windows non essayés. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794084917-extension-gardien` | Étape 1 : serveur du Gardien navigateur, routes `/ext/pair` et `/ext/site`, message `ext_pair_start`, jetons hachés, liste connue commune, règles et avis Holo, alertes distinctes. Sites 66/66, intégration 80/80, gardien 14/14, protocole 14/14, parcours 27/27, sécurité 31/31. Extension et interfaces Mac non réalisées (étapes suivantes). Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794084400-demandes-suspectes` | Demandes et plans vérifiés avant exécution : règles déterministes (14 légitimes, 16 suspectes) + avis Holo textuel en cas de doute, indisponibilité bloquante. Alerte Mac non fermable au clavier et verrou local ; texte distinct pour le proche ; notifications et Live Activity iPhone, rejet confirmé iPhone/web sans reprise. Contrat `alert_id`/`dismiss_alert`/`alert_cleared`, point d'entrée `publish_guard` réutilisable. Tests : nouvelles règles/orchestration 12, gardien 14, protocole 14, parcours 27, sécurité 35, profil 6, aidant 5, transcribe OK. Builds Mac/iPhone zéro erreur (avertissements iOS existants). UI Mac réel/iPhone 17 simulé/web : blocage, rappel, rejets synchronisés, notification et Dynamic Island vérifiés, captures et vidéo. Parcours normal natif non terminé (capture non autorisée), injection locale execute et reconnexion native non essayées. Android #23 encore ouverte, hors de cette branche. Ni fusion ni déploiement. Fichiers libérés. |

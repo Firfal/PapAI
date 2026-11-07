@@ -25,6 +25,16 @@ Hackathon H Company × 42 AI, 7-8 novembre 2026. Agent : **Holo** (H Company).
 
 ## Architecture
 
+### Confidentialité du Gardien navigateur
+
+Avec l'[extension liée](extension/README.md), une page inconnue non présente en
+cache transmet au serveur son domaine, son titre et au plus 2 000 caractères de
+texte visible, éventuellement soumis à Holo en cas de doute. Jamais les champs,
+mots de passe, cookies, chemin ni paramètres de l'URL ; aucune capture. Les sites
+connus ne déclenchent aucune requête. Le serveur ne journalise que domaine et
+verdict, jamais titre ni extrait. Ce fonctionnement complète les trois signaux
+textuels de veille envoyés par l'app Mac, y compris hors session d'aide.
+
 ```
 Mac de la personne aidée         Serveur PapAI (Cloud Run)          H Company
   apps/mac  (SwiftUI)    ──wss──▶  backend/ (FastAPI)    ──HTTPS──▶  Holo

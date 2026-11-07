@@ -59,7 +59,7 @@ Les garde-fous
 - Les proches s'ajoutent par QR ou code à 6 chiffres, à usage unique ; toutes les routes en ligne sont protégées par une clé famille.
 
 Gardien anti-arnaque
-PapAI sait reconnaître les situations d'arnaque typiques à partir de trois signaux textuels, sans capture : un outil de prise en main qui tourne (AnyDesk, TeamViewer…), une fausse alerte « votre ordinateur est infecté », un site de carte prépayée, et surtout un outil de prise en main avec une page bancaire ouverte. La logique est testée (14 contrôles) et branchée sur l'app Mac, qui envoie ces signaux toutes les 8 secondes en dehors des sessions. Le proche est prévenu, et Holo lui décrit ce qui est réellement à l'écran. [R6]
+La veille Mac reconnaît des situations d'arnaque à partir de trois signaux textuels, sans capture : applications ouvertes, titre de fenêtre et site du navigateur. Avec l'extension liée, une page inconnue non présente en cache transmet aussi domaine, titre et au plus 2 000 caractères visibles au serveur, avec avis textuel Holo en cas de doute. Jamais champs, mots de passe, cookies, chemin ni paramètres ; aucune capture. Seuls domaine et verdict sont journalisés. Les sites connus ne sont pas envoyés. Une arnaque probable arrête l'assistance et prévient la personne aidée et son proche ; un doute prévient seulement le proche. [R6]
 
 Limites connues
 Les automatismes sont gardés sur une seule instance du serveur et disparaissent à un redéploiement ; le stockage durable est la prochaine étape. Les notifications de l'iPhone demandent que l'app soit ouverte (pas encore de push).

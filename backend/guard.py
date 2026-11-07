@@ -7,6 +7,11 @@ site du navigateur. La veille n'envoie aucune capture au modèle. Les demandes
 d'aide et les plans sont vérifiés séparément avant toute exécution ; seuls les
 indices ambigus demandent un avis textuel à Holo.
 
+Avec l'extension liée, une page inconnue transmet aussi son domaine, son titre
+et au plus 2 000 caractères visibles au serveur, sans capture. Jamais de champs,
+mots de passe, cookies, chemin ni paramètres ; seul domaine et verdict sont
+journalisés. Les règles de sites sont dans sites.py.
+
 Ce module ne promet pas de protéger : il reconnaît des situations qu'on y a
 mises. C'est une différence qu'il faut tenir dans le discours aussi.
 """
@@ -73,7 +78,7 @@ def _contient(texte: str, aiguilles) -> str | None:
 
 
 def evaluer(processus: list[str], fenetre: str = "", url: str = "") -> Alerte | None:
-    """Rend une alerte, ou None. Appelé en continu, sans rien envoyer nulle part.
+    """Rend une alerte, ou None. Cette fonction ne fait aucun appel réseau.
 
     L'ordre compte : on rend l'alerte la plus grave, pas la première trouvée.
     """

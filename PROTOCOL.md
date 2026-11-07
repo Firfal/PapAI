@@ -13,12 +13,23 @@ Corps : `{"domain":"exemple.fr","title":"…","text":"…"}` ; bornes respective
 Réponse : `{"verdict":"sur|douteux|arnaque","raison":"…","proche":"Claire"}`.
 Jeton inconnu : 401 ; plus de 30 signalements/10 min ou 300/jour : 429.
 
-Les règles lisent `extension/sites_connus.json`, source commune avec la future extension.
+Les règles et l'extension lisent `extension/sites_connus.json`, leur source commune.
 Un signal faible seul demande un avis textuel à Holo ; une panne laisse `douteux`.
-`douteux` produit une `alert` attention, `source: environment`, uniquement aux aidants.
-`arnaque` produit une `alert` danger avec un texte propre à l'aidé et un autre aux aidants.
+`sur` n'émet aucune alerte. `douteux` produit une `alert` attention,
+`source: environment`, uniquement aux aidants, sans blocage et sans affichage sur le Mac.
+`arnaque` passe par `publish_guard(source="environment")` : arrêt de l'exécution,
+`alert` danger avec `alert_id`, `blocked: true`, titres et textes propres à chaque
+destinataire. L'alerte en attente revient à la reconnexion ; seul un aidant peut
+envoyer `dismiss_alert` avec son `alert_id`. `alert_cleared` est diffusé aux deux
+côtés, sans reprise automatique de l'exécution.
 Même domaine et verdict : une seule alerte par cinq minutes, sans masquer la réponse HTTP.
 Seuls le domaine et le verdict sont journalisés, jamais le titre ou le texte de page.
+Avec l'extension liée, seuls les sites inconnus non présents en cache transmettent
+leur domaine, titre et au plus 2 000 caractères de texte visible au serveur,
+éventuellement à Holo en cas d'hésitation. Jamais les champs, mots de passe,
+cookies, chemin ni paramètres de l'URL ; aucune capture. La liste connue ne
+déclenche aucune requête. Le cache local garde `sur` sept jours, les autres avis
+une heure, sans conserver l'extrait. Le jeton haché est stocké dans `sites.json`.
 
 Le serveur Python (`backend/app.py`) décide. Les apps Swift affichent et exécutent.
 Messages JSON sur WebSocket. Coordonnées toujours normalisées dans [0, 1000]
@@ -113,8 +124,9 @@ jamais le serveur. Erreurs : 404 mauvaise clé, 503 `{"error":"gladia_absent"}`
 
 ## Gardien anti-arnaque
 
-L'app de la personne aidée observe en continu **trois signaux textuels**, et
-n'envoie que ceux-là. Jamais de capture, jamais d'appel au modèle à ce stade :
+La veille de l'app de la personne aidée observe **trois signaux textuels**,
+sans capture ni appel au modèle pour ce message `guard`. L'extension liée ajoute
+les envois de pages inconnues décrits dans « Extension de navigateur » :
 
 ```json
 {"type":"guard",

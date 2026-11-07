@@ -289,6 +289,12 @@ gcloud run deploy papai --source . --project papai-h42-ifiy5 --region europe-wes
 
 ## 11. Pièges connus
 
+- **Confidentialité de l'extension liée :** hors session aussi, une page inconnue
+  non présente en cache transmet domaine, titre et au plus 2 000 caractères
+  visibles au serveur (avis Holo textuel si doute). Jamais champs, mots de passe,
+  cookies, chemin ni paramètres ; pas de capture. Seuls domaine et verdict sont
+  journalisés. Les sites connus ne sont pas envoyés. Voir `extension/README.md`.
+
 - Sur le Mac de Quentin, **une app en plein écran** (Brave) recouvre tout : Holo voit et clique dedans. Il faut dégager le bureau avant une session.
 - **Fenêtres d'autorisation macOS :** ni l'agent ni Holo n'y touchent. C'est l'humain qui clique.
 - **Redéploiement Cloud Run :** relancer l'app Mac ensuite (`osascript -e 'quit app "PapAI"'; open ~/Applications/PapAI.app`).

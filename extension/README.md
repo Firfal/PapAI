@@ -16,8 +16,8 @@ de build ni dépendance : le dossier est prêt à charger.
    le jeton et les avis locaux. Si le serveur perd le jeton, un nouveau code sera
    demandé à la prochaine vérification.
 
-La commande de code dans les Réglages Mac sera ajoutée à l'étape suivante ; pour
-les essais serveur, le pont peut déjà envoyer `ext_pair_start`.
+Sur le Mac, la ligne **Protéger le navigateur** des Réglages affiche le code et
+l'adresse du serveur. Un code expiré peut être renouvelé avec **Afficher le code**.
 
 ## Ce qui est transmis
 

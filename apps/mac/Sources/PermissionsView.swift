@@ -84,6 +84,33 @@ struct SettingsView: View {
                     dismiss()
                 }.buttonStyle(PillStyle(filled: false, height: 50))
             }
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Protéger le navigateur").font(rounded(20, .semibold))
+                    Spacer()
+                    Button("Afficher le code") { model.startBrowserPairing() }
+                        .buttonStyle(PillStyle(filled: false, height: 48))
+                        .disabled(!model.connected)
+                }
+                if let code = model.browserPairCode, let expiration = model.browserPairExpiration {
+                    TimelineView(.periodic(from: .now, by: 1)) { contexte in
+                        if contexte.date < expiration {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(String(code.prefix(3)) + " " + String(code.suffix(3)))
+                                    .font(rounded(44, .semibold)).monospacedDigit().textSelection(.enabled)
+                                Text(model.browserPairServer ?? "").font(rounded(18)).textSelection(.enabled)
+                                Text("Valable 10 minutes").font(rounded(16)).foregroundStyle(T.muted)
+                                Text("Dans le navigateur, cliquez sur PapAI Gardien et tapez ce code.")
+                                    .font(rounded(18)).fixedSize(horizontal: false, vertical: true)
+                            }
+                        } else {
+                            Text("Ce code a expiré. Demandez-en un nouveau.")
+                                .font(rounded(18)).foregroundStyle(T.muted)
+                        }
+                    }
+                }
+            }
+            .padding(18).background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(T.mint))
             HStack {
                 Spacer()
                 Button("Annuler") { dismiss() }.buttonStyle(PillStyle(filled: false, height: 50))

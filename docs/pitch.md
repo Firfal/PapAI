@@ -106,6 +106,9 @@ la compilation de l'app Mac sur macOS, ce pitch, et une app Windows au même des
 - **Gardien anti-arnaque** (20 s) [R6] : « PapAI regarde aussi trois indices textuels, sans capture : les applications ouvertes,
   le titre de la fenêtre, l'adresse du navigateur. AnyDesk avec la banque ouverte ? Le proche est prévenu. »
   Si R6 n'est pas fait : « La détection est écrite et testée, 14 contrôles, et branchée sur le Mac. »
+  Avec l'extension liée : « Pour une page inconnue non présente en cache, le domaine, le titre et au plus
+  2 000 caractères visibles partent au serveur, même hors session. Ni champs, mots de passe, cookies,
+  chemin ou paramètres, ni capture. Le journal ne garde que domaine et verdict. »
 - **Technique** (10 s) : « Deux apps SwiftUI, un serveur FastAPI sur Cloud Run. Le serveur décide, les apps exécutent. »
 
 ### Questions probables du jury

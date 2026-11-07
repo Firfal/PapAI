@@ -76,7 +76,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] App Mac (SwiftUI) : connexion, capture sans sa propre fenêtre, plan affiché, Arrêter local, automatismes.
 - [x] App iPhone (SwiftUI) : validation, précision, capture en direct, prise de main, automatisme. Testée sur simulateur et installée sur l'iPhone.
 - [x] Serveur du Gardien navigateur : liaison d'extension, avis de sites, alertes distinctes aidé/proche et tests.
-- [x] Extension PapAI Gardien (Chrome/Edge/Brave, Manifest V3) : liaison, liste commune, cache local, bannière et voile. Essai automatisé Chromium sur Mac ; revue visuelle et essais Windows/Edge/Brave à faire. Commande de liaison dans les Réglages Mac à ajouter séparément.
+- [x] Extension PapAI Gardien (Chrome/Edge/Brave, Manifest V3) : liaison depuis les Réglages Mac, liste commune, cache local, bannière et voile. Alertes de sites intégrées au blocage et au rejet par le proche. Essai automatisé Chromium sur Mac ; revue visuelle et essais Windows/Edge/Brave à faire.
 - [x] Gardien anti-arnaque (logique et 14 contrôles), banc d'essai du protocole (13 contrôles avec `tests/faux_holo.py`), parcours de bout en bout (`tests/test_parcours.py`, 26 contrôles), route de dictée (`tests/test_transcribe.py`), faux Mac.
 - [x] Design « Soin », logo (logotype C) et mascotte papaye Pastel en icône des deux apps.
 - [x] Notion du hackathon avec la base Features, mise à jour le 7 novembre à 18 h 30 selon l'état réel.

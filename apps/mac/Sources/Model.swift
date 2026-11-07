@@ -65,6 +65,9 @@ final class AppModel {
     /// Vrai pour une invitation à envoyer (SMS, WhatsApp…), valable 24 h.
     var pairLong = false
     var pairExpires = 600
+    var browserPairCode: String?
+    var browserPairServer: String?
+    var browserPairExpiration: Date?
     var remoteRequest: RemoteRequest?
     var showHelpers = false
     var pendingTask = ""
@@ -171,6 +174,12 @@ final class AppModel {
         client.send(long ? ["type": "pair_start", "long": true] : ["type": "pair_start"])
     }
 
+    func startBrowserPairing() {
+        browserPairCode = nil
+        browserPairExpiration = nil
+        client.send(["type": "ext_pair_start"])
+    }
+
     /// Le texte de l'invitation envoyée au proche, avec le lien d'appairage.
     var invitationText: String {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
@@ -270,6 +279,13 @@ final class AppModel {
             let json = #"[{"id":"a","title":"Mes photos de Noël","shortcut":{"folder":"pictures"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes documents","shortcut":{"folder":"documents"}}]"#
             lessons = (try? JSONDecoder().decode([Lesson].self, from: Data(json.utf8))) ?? []
             if demo == "home" { return }
+            if demo == "browser" {
+                browserPairCode = "123456"
+                browserPairServer = "http://192.168.1.20:8000"
+                browserPairExpiration = Date().addingTimeInterval(600)
+                showSettings = true
+                return
+            }
             if demo == "alert" {
                 guardAlert = GuardAlert(level: "danger",
                                         title: "Quelqu'un est en train de prendre la main sur votre ordinateur",
@@ -502,6 +518,10 @@ final class AppModel {
                 await refreshLessons()
                 if let t = m["title"] as? String { showNotice("Nouveau tutoriel : « \(t) »") }
             }
+        case "ext_pair_code":
+            browserPairCode = m["code"] as? String
+            browserPairServer = m["server"] as? String
+            browserPairExpiration = Date().addingTimeInterval(TimeInterval(m["expires_in"] as? Int ?? 600))
         case "pair_code":
             pairCode = m["code"] as? String
             pairURL = m["url"] as? String
