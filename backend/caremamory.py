@@ -232,9 +232,10 @@ async def draft_lesson(session: Session) -> dict:
         raise ValueError("fiche sans étape exploitable")
     # Toute étape a sa capture : si Holo n'en a pas choisi une valable, on prend,
     # parmi celles qu'il a vues, celle qui correspond à sa place dans la session.
-    # La toute première montre l'écran avant toute action : elle ne sert qu'à
-    # défaut d'autre, la dernière montre le résultat final.
-    fallback = _spread(shown[1:] or shown, len(steps))
+    # La toute première montre l'écran avant toute action : on s'en passe quand
+    # il reste au moins une capture par étape.
+    pool = shown[1:] if len(shown) > len(steps) else shown
+    fallback = _spread(pool, len(steps))
     for i, step in enumerate(steps):
         if not step["frame"]:
             step["frame"] = fallback[min(i, len(fallback) - 1)]
