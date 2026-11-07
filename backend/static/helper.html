@@ -651,9 +651,12 @@ function onMessage(ev) {
     const prev = state;
     state = m.state;
     if (m.task !== undefined) task = m.task || '';
-    if (m.session !== sessionId) { sessionId = m.session; requestAt = Date.now(); }
+    const nouvelle = m.session !== sessionId;
+    if (nouvelle) { sessionId = m.session; requestAt = Date.now(); }
     if (!requestAt) requestAt = Date.now();
-    if (['waiting_consent', 'planning'].includes(state) && prev !== state) {
+    // Un automatisme importé commence directement en `active` : plan déjà validé.
+    const debut = ['waiting_consent', 'planning'].includes(state) || (nouvelle && state === 'active');
+    if (debut && prev !== state) {
       home = false;
       if (prev === null || ['done', 'stopped'].includes(prev)) {
         refusedByMe = false; savedTitle = null; hasDraft = false; lessonBusy = false;
