@@ -511,11 +511,11 @@
     if (!S) return;
     const t = e.target;
     if (e.key === 'Escape') {
+      if (S.onboarded && S.screen === 'session' && S.sessionOpen) { ui.sheet = null; return acts.stop(); }
       if (ui.sheet) { ui.sheet === 'helpers' ? acts.closeHelpers() : acts.closeSheet(); return; }
       if (S.alert) return acts.dismissAlert();
       if (!S.onboarded) return;
       if (S.remoteRequest) return acts.refuseRemote();
-      if (S.screen === 'session' && S.sessionOpen) return acts.stop();
       if (S.screen === 'consent') return acts.cancelConsent();
       if (S.screen === 'lesson') return acts.closeLesson();
       return;
