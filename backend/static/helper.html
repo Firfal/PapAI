@@ -3,20 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#11151c">
-<title>CarePilot — aider un proche</title>
+<meta name="theme-color" content="#EEF0EE">
+<title>PapAI · aider un proche</title>
 <style>
+  /* Direction « Soin » : fond gris doux, grandes cartes blanches, un seul
+     accent menthe, l'état choisi en pilule noire. Mêmes tokens que les apps. */
   :root {
-    --bg: #11151c; --panel: #1a2029; --sunken: #0c1016; --line: #2b3440;
-    --text: #e9eef5; --muted: #93a1b3; --faint: #6b7a8d;
-    --accent: #4da3ff; --ink: #04121f; --warn: #ffb020; --stop: #ff5c5c; --ok: #35c08a;
-    --r: 12px;
+    --bg: #EEF0EE; --card: #FFFFFF; --ink: #111312; --muted: #7A807C;
+    --accent: #2E9E5B; --mint: #E2F2E7; --line: #E1E4E1; --sunken: #F5F6F5;
+    --r: 28px;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
   body {
-    margin: 0 auto; background: var(--bg); color: var(--text);
-    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
-    max-width: 760px;
+    margin: 0 auto; background: var(--bg); color: var(--ink);
+    font: 17px/1.45 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, "Segoe UI", sans-serif;
+    max-width: 640px;
     /* viewport-fit=cover découpe sous l'encoche et la barre de geste :
        sans ces marges, le dernier bouton est à moitié inatteignable. */
     padding:
@@ -24,37 +26,72 @@
       calc(32px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
   }
 
-  header { display: flex; align-items: baseline; gap: 10px; padding: 18px 0 10px; }
-  h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
-  .task { color: var(--muted); font-size: 14px; min-width: 0; flex: 1;
+  header { display: flex; align-items: center; gap: 12px; padding: 20px 4px 14px; }
+  .logo { font-size: 28px; font-weight: 700; letter-spacing: -.6px; line-height: 1; }
+  /* Le point du i est une petite papaye : c'est le logotype retenu. */
+  .logo .i { position: relative; display: inline-block; }
+  .logo .i::after {
+    content: ""; position: absolute; left: 50%; top: -.02em; width: .3em; height: .36em;
+    margin-left: -.15em; border-radius: 50% 50% 46% 46%;
+    background: #F9A56C; box-shadow: inset 0 0 0 .055em #79BE8C;
+  }
+  .task { color: var(--muted); font-size: 15px; min-width: 0; flex: 1; text-align: right;
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .card { background: var(--card); border-radius: var(--r); padding: 20px; margin-bottom: 12px; }
+  .card h2 { font-size: 21px; line-height: 1.2; margin: 0 0 6px; letter-spacing: -.2px; }
+  .card .hint { color: var(--muted); font-size: 15px; margin: 0 0 14px; }
 
   /* ------------------------------------------------------------- bandeau */
 
   #banner {
     display: flex; align-items: center; gap: 10px;
-    padding: 11px 14px; border-radius: var(--r); font-size: 14px; font-weight: 600;
-    background: var(--panel); border: 1px solid var(--line); margin-bottom: 12px;
+    padding: 14px 18px; border-radius: 999px; font-size: 15px; font-weight: 600;
+    background: var(--card); color: var(--muted); margin-bottom: 12px;
   }
-  #banner .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex: none; }
-  #banner.active   { border-color: var(--ok);   color: var(--ok); }
+  #banner .dot { width: 10px; height: 10px; border-radius: 50%; background: currentColor; flex: none; }
+  #banner.active   { background: var(--mint); color: var(--accent); }
   #banner.active .dot { animation: pulse 1.6s ease-in-out infinite; }
-  #banner.waiting  { border-color: var(--warn); color: var(--warn); }
-  #banner.closed   { border-color: var(--stop); color: var(--stop); }
+  #banner.waiting  { background: var(--ink); color: #fff; }
+  #banner.waiting .dot { background: var(--accent); }
+  #banner.closed   { background: var(--card); color: var(--muted); }
   @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .25 } }
   @media (prefers-reduced-motion: reduce) { #banner.active .dot { animation: none } }
 
+  /* ------------------------------------------------------------ le plan */
+
+  #plan { background: var(--mint); }
+  #plan ol { margin: 4px 0 18px; padding: 0; list-style: none; counter-reset: s; }
+  #plan li { position: relative; padding: 12px 14px 12px 52px; margin-bottom: 8px;
+             background: var(--card); border-radius: 18px; font-size: 17px; }
+  #plan li::before {
+    counter-increment: s; content: counter(s);
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: #fff;
+    font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  #planWait { color: var(--muted); font-size: 15px; margin: 0; }
+  #planActions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #planActions .primary { grid-column: 1 / -1; }
+  #refineRow { margin-top: 10px; }
+
+  /* ------------------------------------------------------------ l'alerte */
+
+  #alert { background: var(--ink); color: #fff; }
+  #alert h2 { color: #fff; }
+  #alert p { color: #C9CEC9; margin: 0 0 14px; font-size: 15px; }
+  #alert button { background: #fff; color: var(--ink); }
+
   /* -------------------------------------------------------- la capture */
 
-  .shot { position: relative; border: 1px solid var(--line); border-radius: var(--r);
-          overflow: hidden; background: #000; }
+  .shot { position: relative; border-radius: 22px; overflow: hidden; background: var(--card); }
   .shot img { display: block; width: 100%; height: auto; }
-  .shot.armed { border-color: var(--accent); cursor: crosshair; touch-action: none; }
-  #empty { padding: 48px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+  .shot.armed { box-shadow: 0 0 0 3px var(--accent); cursor: crosshair; touch-action: none; }
+  #empty { padding: 48px 16px; text-align: center; color: var(--muted); font-size: 15px; }
 
   #pin { position: absolute; width: 28px; height: 28px; margin: -14px 0 0 -14px;
          border: 2px solid var(--accent); border-radius: 50%; display: none;
-         pointer-events: none; box-shadow: 0 0 0 2px rgba(4,18,31,.55); }
+         pointer-events: none; box-shadow: 0 0 0 2px rgba(255,255,255,.75); }
   #pin::before, #pin::after {
     content: ""; position: absolute; background: var(--accent);
   }
@@ -67,102 +104,122 @@
      loupe qui suit le doigt cache précisément ce qu'on essaie de viser. */
   #loupe {
     display: none; position: relative; height: 124px; margin-bottom: 8px;
-    border-radius: var(--r); border: 1px solid var(--accent);
-    background-repeat: no-repeat; background-color: #000; overflow: hidden;
+    border-radius: 22px; box-shadow: 0 0 0 3px var(--accent);
+    background-repeat: no-repeat; background-color: var(--card); overflow: hidden;
   }
-  #loupe::before, #loupe::after { content: ""; position: absolute; background: rgba(77,163,255,.9); }
+  #loupe::before, #loupe::after { content: ""; position: absolute; background: rgba(46,158,91,.9); }
   #loupe::before { left: 50%; top: 0; bottom: 0; width: 1px; }
   #loupe::after  { top: 50%; left: 0; right: 0; height: 1px; }
 
-  #aimbar {
-    display: none; margin-top: 10px; padding: 12px 14px; border-radius: var(--r);
-    background: var(--panel); border: 1px solid var(--accent);
-  }
-  #aimbar p { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
-  #aimbar.ready p { color: var(--text); }
+  #aimbar { display: none; margin-top: 12px; }
+  #aimbar p { margin: 0 0 4px; font-size: 15px; color: var(--muted); }
+  #aimbar.ready p { color: var(--ink); }
 
-  #freshness { margin-top: 8px; font-size: 13px; color: var(--faint);
+  #freshness { margin-top: 8px; font-size: 14px; color: var(--muted);
                display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  #freshness.stale { color: var(--warn); }
-  #freshness button { padding: 6px 10px; font-size: 13px; }
+  #freshness.stale { color: var(--ink); font-weight: 600; }
+  #freshness button { min-height: 36px; padding: 6px 14px; font-size: 14px; }
 
   /* -------------------------------------------------------- la question */
 
-  #question { margin-top: 14px; padding: 14px; border-radius: var(--r);
-              background: var(--panel); border: 1px solid var(--warn); display: none; }
-  #question p { margin: 0 0 12px; font-weight: 600; }
-  .options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  #question { display: none; }
+  #question p { margin: 0 0 12px; font-weight: 600; font-size: 19px; }
+  .options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
 
   /* ------------------------------------------------------- les contrôles */
 
   .row { display: flex; gap: 8px; margin-top: 12px; }
   .row > * { flex: 1; min-width: 0; }
   input[type=text] {
-    padding: 13px; border-radius: 10px; border: 1px solid var(--line);
-    background: var(--sunken); color: var(--text); font-size: 16px;
+    padding: 15px 18px; border-radius: 999px; border: 0;
+    background: var(--sunken); color: var(--ink); font: inherit; font-size: 17px; outline: none;
   }
+  #plan input[type=text] { background: var(--card); }
+  input[type=text]:focus { box-shadow: 0 0 0 2px var(--accent); }
   button {
-    min-height: 46px; padding: 12px 16px; border-radius: 10px;
-    border: 1px solid var(--line); background: var(--panel); color: var(--text);
-    font-size: 15px; font-weight: 600; cursor: pointer;
+    min-height: 52px; padding: 12px 20px; border-radius: 999px;
+    border: 0; background: var(--card); color: var(--ink);
+    font: inherit; font-size: 17px; font-weight: 600; cursor: pointer;
   }
-  button.primary { background: var(--accent); border-color: var(--accent); color: var(--ink); }
-  button.danger  { background: var(--stop);   border-color: var(--stop);   color: #fff; }
-  button.ghost   { background: transparent; }
+  .card button:not(.primary) { background: var(--sunken); }
+  #plan button:not(.primary) { background: var(--card); }
+  button.primary { background: var(--ink); color: #fff; }
+  button.ghost   { background: transparent; color: var(--muted); }
   button:disabled { opacity: .38; cursor: not-allowed; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  .note { color: var(--faint); font-size: 13px; margin: 10px 2px 0; }
+  .note { color: var(--muted); font-size: 14px; margin: 10px 6px 0; }
 
-  /* ------------------------------------------------------- CareMemory */
+  /* ------------------------------------------------------- automatisme */
 
-  #memory { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: none; }
-  #memory h2 { font-size: 16px; margin: 0 0 4px; }
-  .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  #memory { margin-top: 12px; display: none; }
   #draft, #saved { display: none; margin-top: 14px; }
-  #lessonTitle { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
-                 background: var(--sunken); color: var(--text); font-size: 16px; font-weight: 600; }
+  #lessonTitle { width: 100%; font-weight: 600; }
   #steps { margin: 14px 0; padding: 0; list-style: none; counter-reset: step; }
   #steps li { margin-bottom: 18px; }
   #steps li::before {
     counter-increment: step; content: "Étape " counter(step);
-    display: block; font-size: 13px; font-weight: 600; color: var(--accent); margin-bottom: 6px;
+    display: block; font-size: 14px; font-weight: 600; color: var(--accent); margin-bottom: 6px;
   }
-  #steps textarea { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--line);
-                    background: var(--sunken); color: var(--text); font: inherit; font-size: 15px;
-                    resize: vertical; }
-  #steps .check { color: var(--muted); font-size: 13px; margin-top: 6px; }
-  #steps img { width: 100%; border-radius: 8px; border: 1px solid var(--line); margin-top: 8px; }
-  #saved { padding: 14px; border-radius: 10px; border: 1px solid var(--ok);
-           color: var(--ok); font-weight: 600; }
+  #steps textarea { width: 100%; padding: 12px 14px; border-radius: 16px; border: 0;
+                    background: var(--sunken); color: var(--ink); font: inherit; font-size: 16px;
+                    resize: vertical; outline: none; }
+  #steps textarea:focus { box-shadow: 0 0 0 2px var(--accent); }
+  #steps .check { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  #steps img { width: 100%; border-radius: 16px; margin-top: 8px; }
+  #saved { padding: 14px 18px; border-radius: 18px; background: var(--mint);
+           color: var(--accent); font-weight: 600; }
 
   #toast {
     position: fixed; left: 50%; transform: translateX(-50%);
     bottom: calc(20px + env(safe-area-inset-bottom));
-    background: var(--stop); color: #fff; padding: 11px 16px; border-radius: 10px;
-    font-size: 14px; font-weight: 600; display: none; max-width: 92vw; text-align: center;
-    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    background: var(--ink); color: #fff; padding: 13px 20px; border-radius: 999px;
+    font-size: 15px; font-weight: 600; display: none; max-width: 92vw; text-align: center;
+    box-shadow: 0 10px 30px rgba(17,19,18,.25);
   }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>CarePilot</h1>
+  <div class="logo" role="img" aria-label="papai">pap<span aria-hidden="true">a</span><span class="i" aria-hidden="true">ı</span></div>
   <div class="task" id="task">Connexion…</div>
 </header>
 
 <div id="banner" role="status" aria-live="polite"><span class="dot"></span><span id="bannerText">Connexion au serveur…</span></div>
 
-<div id="remote" hidden>
-  <p class="note" style="margin:0 0 8px">Pas de demande en cours. Vous pouvez proposer une session : votre proche devra l'accepter sur son ordinateur.</p>
+<div class="card" id="alert" hidden role="alert">
+  <h2 id="alertTitle"></h2>
+  <p id="alertDetail"></p>
+  <button type="button" id="alertOk">J'ai compris</button>
+</div>
+
+<div class="card" id="plan" hidden>
+  <h2 id="planTitle">Holo propose ce plan</h2>
+  <p class="hint" id="planHint">Rien ne bouge sur l'ordinateur de votre proche avant votre accord.</p>
+  <p id="planWait" hidden>Holo regarde l'écran et prépare un plan…</p>
+  <ol id="planSteps"></ol>
+  <div id="planActions">
+    <button class="primary" id="planApprove" type="button">Valider</button>
+    <button id="planRefine" type="button">Préciser</button>
+    <button id="planRefuse" type="button">Refuser</button>
+  </div>
+  <div class="row" id="refineRow" hidden>
+    <input type="text" id="refineText" placeholder="Ex. : dans Images › Noël 2025" autocomplete="off" aria-label="Votre précision">
+    <button class="primary" id="refineSend" type="button" style="flex:0 0 auto">Envoyer</button>
+  </div>
+</div>
+
+<div class="card" id="remote" hidden>
+  <h2>Tout va bien</h2>
+  <p class="hint">Pas de demande en cours. Vous pouvez proposer une session : votre proche devra l'accepter sur son ordinateur.</p>
   <div class="row">
     <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Pourquoi cette session">
     <button class="primary" id="remoteSend" type="button" style="flex:0 0 auto">Proposer</button>
   </div>
 </div>
 
-<div id="question">
+<div class="card" id="question">
   <p id="qtext"></p>
   <div class="options" id="options"></div>
   <div class="row">
@@ -184,7 +241,7 @@
   <button class="ghost" id="refresh" type="button">Rafraîchir</button>
 </div>
 
-<div id="aimbar" aria-live="polite">
+<div class="card" id="aimbar" aria-live="polite">
   <p id="aimText">Touchez l'écran de votre proche à l'endroit où il faut cliquer.</p>
   <div class="row">
     <button class="primary" id="confirm" type="button" disabled>Cliquer ici</button>
@@ -198,13 +255,13 @@
 </div>
 <p class="note" id="armNote">Vous pourrez cliquer vous-même quand l'assistance sera en pause.</p>
 
-<div id="memory">
-  <h2>Fiche d'apprentissage</h2>
-  <p class="hint">Transformez cette session en fiche que votre proche pourra suivre seul la prochaine fois.</p>
-  <button class="primary" id="makeLesson" type="button">Créer la fiche</button>
+<div class="card" id="memory">
+  <h2>Garder comme automatisme</h2>
+  <p class="hint">Votre proche pourra relancer seul ce que vous venez de valider, en un clic.</p>
+  <button class="primary" id="makeLesson" type="button">Préparer l'automatisme</button>
 
   <div id="draft">
-    <input type="text" id="lessonTitle" placeholder="Titre de la fiche" aria-label="Titre de la fiche">
+    <input type="text" id="lessonTitle" placeholder="Titre de l'automatisme" aria-label="Titre de l'automatisme">
     <ol id="steps"></ol>
     <div class="row">
       <button class="primary" id="approve" type="button">Valider et enregistrer</button>
@@ -270,11 +327,13 @@ function toast(msg) {
 }
 
 const LABELS = {
+  planning:          ['Holo prépare un plan', 'active'],
+  awaiting_approval: ['Votre proche attend votre accord', 'waiting'],
   waiting_consent: ["En attente de l'autorisation de votre proche", 'waiting'],
-  active:          ["L'assistance travaille sur le PC", 'active'],
+  active:          ["Holo agit sur l'ordinateur", 'active'],
   awaiting_helper: ['Votre proche a besoin de vous', 'waiting'],
   done:            ['Session terminée', 'closed'],
-  stopped:         ['Session arrêtée depuis le PC', 'closed'],
+  stopped:         ['Session arrêtée', 'closed'],
 };
 
 /* ------------------------------------------- fraîcheur de la capture */
@@ -395,8 +454,13 @@ function onMessage(ev) {
     if (m.state !== 'awaiting_helper') { setArmed(false); $('question').style.display = 'none'; }
     if (m.state === 'active') { $('pause').textContent = 'Mettre en pause'; }
 
+    renderPlan(m);
+
     // La fiche se rédige une fois la manipulation terminée.
-    $('memory').style.display = open ? 'none' : 'block';
+    $('memory').style.display = m.state === 'done' ? 'block' : 'none';
+    const live = ['active', 'awaiting_helper'].includes(m.state);
+    if (!armed) $('controls').style.display = live ? 'flex' : 'none';
+    $('armNote').style.display = live && !armed ? 'block' : 'none';
     tickFreshness();
   }
 
@@ -440,12 +504,23 @@ function onMessage(ev) {
     toast('Votre proche a accepté. Holo prépare un plan.');
   }
 
+  else if (m.type === 'alert') {
+    $('alertTitle').textContent = m.title || 'Attention';
+    $('alertDetail').textContent = m.detail || '';
+    $('alert').hidden = false;
+    $('alert').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   else if (m.type === 'answer') {
     setBanner(m.content, 'active');
   }
 
   else if (m.type === 'refused') {
     toast(m.reason);
+    if (planDeciding) {
+      planDeciding = false;
+      ['planApprove', 'planRefine', 'planRefuse', 'refineSend'].forEach(id => $(id).disabled = false);
+    }
     sending = false;
     $('confirm').textContent = 'Cliquer ici';
     tickFreshness();
@@ -498,10 +573,57 @@ function onMessage(ev) {
 
   else if (m.type === 'lesson_saved') {
     $('draft').style.display = 'none';
-    $('saved').textContent = '✓ Fiche « ' + m.lesson.title + ' » enregistrée.';
+    $('saved').textContent = 'Automatisme « ' + m.lesson.title + ' » enregistré. La tuile apparaît chez votre proche.';
     $('saved').style.display = 'block';
   }
 }
+
+/* -------------------------------------------------------------- le plan */
+
+// Le plan reste affiché tant que l'aidant ne l'a pas tranché. Valider,
+// préciser ou refuser : le serveur revérifie l'état, la page ne fait que proposer.
+let planDeciding = false;
+function renderPlan(m) {
+  const show = m.state === 'planning' || m.state === 'awaiting_approval';
+  $('plan').hidden = !show;
+  if (!show) { planDeciding = false; $('refineRow').hidden = true; return; }
+  const waiting = m.state === 'planning';
+  if (waiting) planDeciding = false;
+  $('planTitle').textContent = waiting ? 'Holo prépare un plan' : 'Holo propose ce plan';
+  $('planWait').hidden = !waiting;
+  $('planHint').hidden = waiting;
+  $('planSteps').innerHTML = '';
+  if (!waiting) (m.plan || []).forEach(t => {
+    const li = document.createElement('li');
+    li.textContent = t;
+    $('planSteps').appendChild(li);
+  });
+  $('planActions').hidden = waiting;
+  if (waiting) $('refineRow').hidden = true;
+  ['planApprove', 'planRefine', 'planRefuse', 'refineSend'].forEach(id => $(id).disabled = waiting || planDeciding);
+}
+
+function decide(o) {
+  planDeciding = true;
+  ['planApprove', 'planRefine', 'planRefuse', 'refineSend'].forEach(id => $(id).disabled = true);
+  send(o);
+}
+
+$('planApprove').onclick = () => decide({ type: 'approve_plan' });
+$('planRefuse').onclick = () => decide({ type: 'refuse_plan' });
+$('planRefine').onclick = () => {
+  $('refineRow').hidden = !$('refineRow').hidden;
+  if (!$('refineRow').hidden) $('refineText').focus();
+};
+$('refineSend').onclick = () => {
+  const t = $('refineText').value.trim();
+  if (!t) { $('refineText').focus(); return; }
+  $('refineText').value = '';
+  $('refineRow').hidden = true;
+  decide({ type: 'refine_plan', text: t });
+};
+$('refineText').addEventListener('keydown', e => { if (e.key === 'Enter') $('refineSend').click(); });
+$('alertOk').onclick = () => { $('alert').hidden = true; };
 
 /* ----------------------------------------------------------- les actions */
 
@@ -523,7 +645,7 @@ $('cancelAim').onclick = () => setArmed(false);
 $('refresh').onclick = requestRefresh;
 
 // Le clic part en coordonnées normalisées relatives à l'image affichée, jamais
-// en pixels : le pont Windows les reprojette sur l'écran réel.
+// en pixels : l'app de la personne aidée les reprojette sur l'écran réel.
 $('confirm').onclick = () => {
   if (!target || sending) return;
   sending = true;
@@ -539,7 +661,7 @@ $('redo').onclick = () => {
   $('draft').style.display = 'none';
   $('makeLesson').style.display = '';
   $('makeLesson').disabled = false;
-  $('makeLesson').textContent = 'Créer la fiche';
+  $('makeLesson').textContent = "Préparer l'automatisme";
   send({ type: 'draft_lesson' });
 };
 $('approve').onclick = () => {
