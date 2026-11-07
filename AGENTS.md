@@ -17,6 +17,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794084917-extension-gardien` | Fusion #28 et permissions/cache/exclusions/confidentialité de l'extension | `AGENTS.md`, `PROTOCOL.md`, `backend/app.py`, `backend/sites.py`, `apps/mac/Sources/Model.swift`, `extension/`, `tests/test_extension.mjs` | 7 nov. soir |
 
 ## Journal
 
