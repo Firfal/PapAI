@@ -944,9 +944,17 @@ MAX_IMPORT = 15_000_000
 
 async def _import_automation(request: Request):
     """Le support (service IT, proche) importe un automatisme : c'est sa validation."""
-    body = await request.body()
-    if len(body) > MAX_IMPORT:
-        return JSONResponse({"error": "Fichier trop gros."}, status_code=413)
+    trop = JSONResponse({"error": "Fichier trop gros."}, status_code=413)
+    try:
+        if int(request.headers.get("content-length") or 0) > MAX_IMPORT:
+            return trop
+    except ValueError:
+        return trop
+    body = bytearray()
+    async for part in request.stream():
+        body += part
+        if len(body) > MAX_IMPORT:
+            return trop
     try:
         pack = json.loads(body)
     except ValueError:
