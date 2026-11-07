@@ -162,6 +162,25 @@ async def main() -> None:
             check("après Arrêter, plus aucune action", len(actions) == avant,
                   f"{len(actions) - avant} action(s) de trop")
 
+            # --- « Garder comme automatisme » : jamais de silence, même si
+            # Holo renvoie des étapes en simples chaînes (faux_holo.py).
+            await aidant.send(json.dumps({"type": "draft_lesson"}))
+            fiche = None
+            fin = asyncio.get_running_loop().time() + 60
+            while asyncio.get_running_loop().time() < fin:
+                try:
+                    m = json.loads(await asyncio.wait_for(aidant.recv(), 60))
+                except (asyncio.TimeoutError, websockets.ConnectionClosed):
+                    break
+                if m.get("type") in ("lesson_draft", "refused"):
+                    fiche = m
+                    break
+            etapes = ((fiche or {}).get("lesson") or {}).get("steps") or []
+            check("la fiche est rédigée, étapes lisibles",
+                  fiche is not None and fiche.get("type") == "lesson_draft"
+                  and all(isinstance(e, dict) and e.get("instruction") for e in etapes)
+                  and etapes != [], fiche)
+
         service.cancel()
 
     print()
