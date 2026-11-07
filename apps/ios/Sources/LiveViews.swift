@@ -35,6 +35,7 @@ struct PlanProgress: View {
             Text(current.map { "Étape \($0) sur \(plan.count)" } ?? "Plan validé")
                 .font(.system(size: 13)).foregroundStyle(Soin.secondary)
             ForEach(Array(plan.enumerated()), id: \.offset) { i, raw in
+                let s = PlanStep(id: i, raw: raw)
                 let past = current.map { i + 1 < $0 } ?? false
                 let now = current == i + 1
                 HStack(spacing: 12) {
@@ -47,9 +48,12 @@ struct PlanProgress: View {
                         }
                     }
                     .frame(width: 30, height: 30)
-                    Text(PlanStep(id: i, raw: raw).title)
-                        .font(.system(size: 15, weight: now ? .semibold : .regular))
-                        .foregroundStyle(past ? Soin.secondary : Soin.ink)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(s.title)
+                            .font(.system(size: 15, weight: now ? .semibold : .regular))
+                            .foregroundStyle(past ? Soin.secondary : Soin.ink)
+                        if let detail = s.detail { Text(detail).font(.system(size: 13)).foregroundStyle(Soin.secondary) }
+                    }
                     Spacer(minLength: 0)
                 }
                 .accessibilityElement(children: .combine)
