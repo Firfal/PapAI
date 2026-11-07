@@ -99,6 +99,7 @@ class Folders(unittest.TestCase):
     def test_new_message_only_opens_fixed_empty_mailto(self):
         home = self.home()
         tile = next(t for t in home.snapshot() if t['label'] == 'Nouveau message')
+        self.assertEqual(tile['id'], 'action:new-message')
         self.assertNotIn('url', tile)
         with patch('papai.home_shortcuts.os.name', 'nt'), \
              patch('papai.home_shortcuts.os.startfile', create=True) as launch:

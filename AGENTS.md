@@ -16,12 +16,13 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794086359-windows-accueil-voix` | Corrections UX #33 après Mac #30 | `apps/windows/` ; alertes/StopGate intacts | 7 nov. soir |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 7 nov. soir | Devin | `devin/1794086359-windows-accueil-voix` | Retouches UX Windows après Mac #30 : sous-titre sans micro dynamique, avertissement vide identique, Envoyer noir 44 px, titres 700, Retirer derrière Modifier/Terminer ; Nouveau message ouvre seulement `mailto:` fixe sans donnée utilisateur. Tests Windows app 27 et serveur/faux Holo 36 ; unitaires Python 15 et JS 7 ; suites dépôt gardien 14, protocole 14, profil 6, transcribe OK, sécurité 31, parcours 27, aidant connecté 5. Chrome/Linux : quatre comparaisons Mac/Windows, Modifier/Terminer, 900×640 et texte 1.18. Main remis à jour ; alertes/StopGate intacts. Pas de vrai Windows, client mail, micro physique ou Gladia réel. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794086359-windows-accueil-voix` | Correctif `home_shortcuts.py` et `test_home.py` : un dossier personnel disparu garde sa tuile supprimable, sans cible ouvrable ; une suppression libère une des 4 places. Test reproduit en échec avant correction, puis 14 tests Python + 5 JS et 36 contrôles Windows avec serveur au vert. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794086359-windows-accueil-voix` | Accueil Windows porté depuis Mac #26 : `apps/windows` (UI, logotype, présence micro à chaud, dictée automatique unique, raccourcis locaux validés), `TODO.md` ligne Windows. Alertes/StopGate de `model.py` et `bridge.py` intacts. Tests Windows app 27 et serveur + faux Holo 36 ; nouveaux tests Python 13, JS 5 ; suites dépôt gardien 14, protocole 14, profil 6, transcribe OK, sécurité 31, parcours 27, aidant connecté 5. Chrome/Linux : quatre états comparés au Mac, petite fenêtre 900×640 et texte 1.18 ; champ et Envoyer accessibles. Pas de vrai Windows ni micro physique/Gladia réel. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794082375-android-aidant` | Accueil Android : alerte en attente en première carte, sans « Tout va bien » ; ordre extrait dans `homeCards`, couvert par trois tests JVM. Refus d’appairage titré « Lien refusé » en encre. Pas de boutons « Je m’en occupe » / « C’est normal ». Main fusionné (#29, #30), journaux conservés. Tests JVM 21/21, builds debug/release réussis ; deux captures Android 14 dans `~/captures-android/v3/`. Backend inchangé. Fichiers libérés. |
