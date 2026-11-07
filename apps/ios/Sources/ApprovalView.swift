@@ -6,6 +6,10 @@ struct ApprovalView: View {
     @State private var confirmRefuse = false
     @State private var zoom = false
     @State private var editing: EditedStep?
+    /// L'indice du glisser n'est montré qu'une fois, au premier plan affiché.
+    @AppStorage("swipeHintSeen") private var swipeHintSeen = false
+    @State private var nudge: CGFloat = 0
+    @State private var hintNow = false
 
     var body: some View {
         // Une List (et non une ScrollView) pour le geste « glisser vers la gauche ».
@@ -23,6 +27,8 @@ struct ApprovalView: View {
                 .listRowInsets(EdgeInsets(top: 9, leading: 22, bottom: 6, trailing: 22))
                 ForEach(Array(model.plan.enumerated()), id: \.offset) { i, raw in
                     stepRow(i, raw)
+                        .offset(x: i == 0 ? nudge : 0)
+                        .background(alignment: .trailing) { if i == 0 { swipeBadge } }
                         .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
                         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button { edit(i, raw) } label: { Label("Modifier", systemImage: "pencil") }
@@ -32,7 +38,10 @@ struct ApprovalView: View {
                 }
                 if !model.plan.isEmpty {
                     Label("Glissez une étape vers la gauche pour la modifier.", systemImage: "hand.draw")
-                        .font(.system(size: 13)).foregroundStyle(Soin.secondary)
+                        .font(.system(size: quietHint ? 13 : 15, weight: quietHint ? .regular : .semibold))
+                        .foregroundStyle(quietHint ? Soin.secondary : Soin.ink)
+                        .padding(.horizontal, quietHint ? 0 : 14).padding(.vertical, quietHint ? 0 : 9)
+                        .background(quietHint ? Color.clear : Soin.accentSoft, in: Capsule())
                         .frame(maxWidth: .infinity, alignment: .center)
                         .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 20, trailing: 20))
                 }
@@ -44,6 +53,7 @@ struct ApprovalView: View {
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 0)
         .safeAreaInset(edge: .bottom) { bottomBar }
+        .task(id: model.plan) { await showSwipeHint() }
         .sheet(isPresented: $showRefine) { RefineSheet(model: model) }
         .sheet(item: $editing) { e in StepEditSheet(model: model, step: e) }
         .confirmationDialog("Refuser ce plan ?", isPresented: $confirmRefuse, titleVisibility: .visible) {
@@ -51,6 +61,29 @@ struct ApprovalView: View {
             Button("Annuler", role: .cancel) {}
         } message: { Text("Rien ne sera fait, et l’ordinateur de \(model.senior) l’indiquera.") }
         .fullScreenCover(isPresented: $zoom) { ZoomView(image: model.frame) }
+    }
+
+    /// La première étape glisse un instant vers la gauche et laisse voir « Modifier ».
+    private func showSwipeHint() async {
+        guard !swipeHintSeen, !model.plan.isEmpty else { return }
+        hintNow = true
+        try? await Task.sleep(for: .milliseconds(700))
+        guard !Task.isCancelled else { return }
+        withAnimation(.spring(duration: 0.5)) { nudge = -76 }
+        try? await Task.sleep(for: .milliseconds(1100))
+        withAnimation(.spring(duration: 0.5)) { nudge = 0 }
+        swipeHintSeen = true
+    }
+
+    /// Le texte reste en évidence pendant tout le premier plan affiché.
+    private var quietHint: Bool { swipeHintSeen && !hintNow }
+
+    private var swipeBadge: some View {
+        Image(systemName: "pencil").font(.system(size: 18, weight: .semibold)).foregroundStyle(.white)
+            .frame(width: 52, height: 52).background(Soin.accent, in: Circle())
+            .padding(.trailing, 10)
+            .opacity(nudge < 0 ? 1 : 0)
+            .accessibilityHidden(true)
     }
 
     private func edit(_ i: Int, _ raw: String) {
@@ -130,7 +163,7 @@ struct DictationField: View {
             TextField(placeholder, text: $text, axis: .vertical)
                 .lineLimit(2...6).focused(focused)
                 .font(.system(size: 17)).padding(16).soinCard(radius: 18)
-                .disabled(dictation.phase == .transcribing)
+                .disabled(dictation.phase != .idle)  // pas de saisie pendant la dictée
             BigMicButton(dictation: dictation) {
                 focused.wrappedValue = false
                 let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -165,6 +198,7 @@ struct RefineSheet: View {
             .buttonStyle(CapsuleButtonStyle())
             .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || dictation.phase != .idle)
             .opacity(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || dictation.phase != .idle ? 0.4 : 1)
+            CancelButton { dictation.cancel(); dismiss() }
         }
         .padding(24).background(Soin.bg.ignoresSafeArea())
         .presentationDetents([.large])
@@ -209,11 +243,23 @@ struct StepEditSheet: View {
             .buttonStyle(CapsuleButtonStyle())
             .disabled(trimmed.isEmpty || trimmed == step.text || dictation.phase != .idle)
             .opacity(trimmed.isEmpty || trimmed == step.text || dictation.phase != .idle ? 0.4 : 1)
+            CancelButton { dictation.cancel(); dismiss() }
         }
         .padding(24).background(Soin.bg.ignoresSafeArea())
         .presentationDetents([.large])
         .onAppear { text = step.text }
         .onDisappear { dictation.cancel() }
+    }
+}
+
+/// « Annuler » des feuilles de dictée : coupe l'écoute, n'envoie rien.
+struct CancelButton: View {
+    let action: () -> Void
+    var body: some View {
+        Button("Annuler", action: action)
+            .font(.system(size: 17, weight: .semibold, design: .rounded)).foregroundStyle(Soin.ink)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .contentShape(Rectangle())
     }
 }
 
