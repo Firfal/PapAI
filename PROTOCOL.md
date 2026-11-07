@@ -56,6 +56,41 @@ Envoie :
 - `{"type":"pause"}` · `{"type":"refresh"}` · `{"type":"click","frame_id":"…","x":0..1,"y":0..1}` (seulement en `awaiting_helper`)
 - `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automatisme »
 
+## Gardien anti-arnaque
+
+L'app de la personne aidée observe en continu **trois signaux textuels**, et
+n'envoie que ceux-là. Jamais de capture, jamais d'appel au modèle à ce stade :
+
+```json
+{"type":"guard",
+ "processes":["Safari","AnyDesk"],
+ "window":"Votre ordinateur est infecté",
+ "url":"https://mabanque.exemple.fr"}
+```
+
+Fréquence conseillée : toutes les 5 à 10 secondes. Le serveur évalue
+(`backend/guard.py`) et ne répond que s'il reconnaît une situation. Une même
+situation ne resonne pas avant 5 minutes — une alerte qui se répète est une
+alerte qu'on apprend à ignorer.
+
+Quand ça se déclenche, l'aidant **et** la personne aidée reçoivent :
+
+```json
+{"type":"alert","level":"danger|attention|info","title":"…","detail":"…"}
+```
+
+Pour les situations visuelles (fausse alerte virus, page de paiement), le
+serveur demande **une** capture et fait décrire l'écran par Holo : le proche lit
+ce qui s'y trouve vraiment, pas un soupçon technique.
+
+Ce qui est reconnu aujourd'hui : un outil de prise en main qui tourne
+(AnyDesk, TeamViewer, UltraViewer…), une fausse alerte « votre ordinateur est
+infecté, appelez ce numéro », un site de carte prépayée ou de transfert
+irréversible, et la combinaison la plus grave — outil de prise en main **plus**
+page bancaire ouverte.
+
+Consulter sa banque seule ne déclenche rien.
+
 ## Automatismes
 
 `GET /lessons` renvoie les automatismes validés. Chacun a `title`, `steps`

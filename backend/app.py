@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import secrets
 from pathlib import Path
 
@@ -19,6 +20,7 @@ import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 
+from . import guard
 from .agent import AgentRunner, propose_plan
 from .caremamory import LESSONS_DIR, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
@@ -200,6 +202,12 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     "title": str(msg.get("title", "Un raccourci")),
                     "detail": str(msg.get("detail", "")),
                 })
+                continue
+
+            if kind == "guard":
+                # Le gardien du Mac a vu passer un signal. Il n'envoie que du
+                # texte — processus, titre de fenêtre, adresse — jamais l'écran.
+                await handle_guard(ws, msg)
                 continue
 
             if kind == "stop":
@@ -483,6 +491,80 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         pass
     finally:
         helper_sockets.discard(ws)
+
+
+# Une même situation ne doit pas sonner en boucle : on retient ce qui a déjà
+# été signalé, pour ne pas apprendre à la personne à ignorer les alertes.
+_guard_vu: dict[str, float] = {}
+GUARD_SILENCE_S = 300
+
+
+async def handle_guard(ws: WebSocket, msg: dict) -> None:
+    """Un signal du gardien. Évalue, et ne dérange que si ça vaut la peine."""
+    import time
+
+    alerte = guard.evaluer(
+        processus=[str(p) for p in (msg.get("processes") or [])],
+        fenetre=str(msg.get("window", "")),
+        url=str(msg.get("url", "")),
+    )
+    if alerte is None:
+        return
+
+    dernier = _guard_vu.get(alerte.motif, 0.0)
+    if time.time() - dernier < GUARD_SILENCE_S:
+        return
+    _guard_vu[alerte.motif] = time.time()
+
+    detail = alerte.detail
+    if alerte.confirmer:
+        # Seulement ici une capture part au modèle : pour dire au proche ce qui
+        # est réellement à l'écran, au lieu d'un soupçon technique.
+        vu = await confirmer_par_le_modele(ws, alerte)
+        if vu:
+            detail = detail + "\n\nCe que voit PapAI : " + vu
+
+    print(f"[gardien] {alerte.niveau} — {alerte.motif}", flush=True)
+    charge = {
+        "type": "alert", "level": alerte.niveau,
+        "title": alerte.titre, "detail": detail,
+    }
+    await broadcast_helper(charge)
+    try:
+        await ws.send_json(charge)   # et sur l'écran de la personne aidée
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def confirmer_par_le_modele(ws: WebSocket, alerte) -> str:
+    """Une capture, un appel, une description. Rien de plus."""
+    if bridge is None:
+        return ""
+    frame = await bridge.capture()
+    if frame is None:
+        return ""
+    try:
+        from carepilot_tools import MODEL, TEMPERATURE, observation
+        from .agent import client
+
+        resp = await asyncio.to_thread(
+            client.chat.completions.create,
+            model=MODEL,
+            messages=[
+                {"role": "system",
+                 "content": guard.PROMPT_CONFIRMATION.format(motif=alerte.motif)},
+                observation(frame.png_b64),
+            ],
+            temperature=TEMPERATURE,
+        )
+        brut = resp.choices[0].message.content or ""
+        m = re.search(r"\{.*\}", brut, re.S)
+        if not m:
+            return ""
+        return str(json.loads(m.group(0)).get("description", "")).strip()
+    except Exception as e:  # noqa: BLE001 — l'alerte part quand même
+        print(f"[gardien] confirmation impossible : {type(e).__name__}", flush=True)
+        return ""
 
 
 @app.get("/")
