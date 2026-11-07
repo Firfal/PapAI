@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/ios-appairage` | Appairage iPhone par `papai://` + QR, connexion iPhone fiable | `apps/ios/`, `backend/static/pair.html`, `pair_code` dans `backend/app.py`, QR dans `apps/mac/Sources/OnboardingView.swift` et `Model.swift`, `PROTOCOL.md` (section proches) | 7 nov. |
+| Claude | `integration` | Centralisation sur main (PR #19, #21, #22), tests et déploiement | tout le dépôt, le temps de l’intégration | 7 nov. soir |
 
 ## Journal
 
