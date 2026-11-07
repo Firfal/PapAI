@@ -160,12 +160,12 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         self.real_broadcast = app.broadcast_helper
         self.broadcast = AsyncMock()
         self.patches = [
-            patch.object(app, "registry", self.registry), patch.object(app, "bridge", self.link),
-            patch.object(app, "pending_alert", None),
-            patch.object(app, "helper_alert_scopes", {self.ws: None}),
-            patch.object(app, "helper_sockets", set()),
+            patch.object(app.S(), "registry", self.registry), patch.object(app.S(), "bridge", self.link),
+            patch.object(app.S(), "pending_alert", None),
+            patch.object(app.S(), "helper_alert_scopes", {self.ws: None}),
+            patch.object(app.S(), "helper_sockets", set()),
             patch.object(app, "broadcast_helper", self.broadcast),
-            patch.object(app, "family", SimpleNamespace(senior="Sophie", helpers=[
+            patch.object(app.S(), "family", SimpleNamespace(senior="Sophie", helpers=[
                 {"id": "q", "name": "Quentin", "relation": "mon petit-fils"}])),
         ]
         for p in self.patches:
@@ -361,7 +361,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         other.send_json.assert_awaited()
         self.assertNotIn("acknowledged_by", app.S().pending_alert["helper"])
         self.assertFalse(app.S().pending_alert["helper"].get("acknowledged"))
-        with patch.object(app, "helper_who", {self.ws: {"name": "Quentin"}}):
+        with patch.object(app.S(), "helper_who", {self.ws: {"name": "Quentin"}}):
             await app.acknowledge_guard({"alert_id": "périmé"}, self.ws)
             self.assertNotIn("acknowledged_by", app.S().pending_alert["helper"])
             self.assertFalse(app.S().pending_alert["helper"].get("acknowledged"))
@@ -427,7 +427,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         self.assertIs(s.status()["execution_started"], False)
         s.state = State.AWAITING_HELPER
         s.set_frame(Frame("f", "image", 100, 100))
-        with patch.object(app, "bridge", SimpleNamespace(execute=AsyncMock(return_value="clic"))):
+        with patch.object(app.S(), "bridge", SimpleNamespace(execute=AsyncMock(return_value="clic"))):
             await app.handle_helper_click(s, {"frame_id": "f", "x": 0.5, "y": 0.5}, self.ws)
         s.stop(by="gardien")
         self.assertIs(s.status()["execution_started"], True)
@@ -443,7 +443,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
 
     async def test_veille_arrete_avant_tout_avis(self):
         s = self.session()
-        with patch.object(app, "_guard_vu", {}), patch.object(app, "confirmer_par_le_modele", AsyncMock()) as avis:
+        with patch.object(app.S(), "guard_vu", {}), patch.object(app, "confirmer_par_le_modele", AsyncMock()) as avis:
             await app.handle_guard({"processes": ["AnyDesk"], "url": "https://ma-banque.fr"})
         avis.assert_not_called()
         self.assertEqual(s.state, State.STOPPED)
