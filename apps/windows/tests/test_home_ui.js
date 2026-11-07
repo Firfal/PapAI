@@ -70,6 +70,24 @@ test('Retirer exige le mode Modifier et Nouveau message transmet seulement son i
   assert.doesNotMatch(h.root.innerHTML, /href="mailto:/);
 });
 
+test('retirer le dernier personnel quitte le mode édition avant le prochain ajout', async () => {
+  const h = await home();
+  const message = { id: 'action:new-message', label: 'Nouveau message', symbol: 'compose' };
+  const personal = { id: 'perso', label: 'Photos', personal: true };
+  h.update({ homeShortcuts: [message, personal] });
+  h.click('editShortcuts');
+  h.update({ homeShortcuts: [message, personal] });
+  assert.match(h.root.innerHTML, /data-act="removeShortcut"/);
+  h.click('removeShortcut', 'perso');
+  h.update({ homeShortcuts: [message] });
+  assert.doesNotMatch(h.root.innerHTML, /data-act="editShortcuts"|data-act="removeShortcut"/);
+  h.update({ homeShortcuts: [message, { ...personal, id: 'nouveau' }] });
+  assert.match(h.root.innerHTML, />Modifier</);
+  assert.doesNotMatch(h.root.innerHTML, /data-act="removeShortcut"|>Terminer</);
+  h.click('editShortcuts');
+  assert.match(h.root.innerHTML, /data-act="removeShortcut" data-arg="nouveau"/);
+});
+
 test('bascule micro/texte à chaud, sans perdre le brouillon', async () => {
   const h = await home();
   assert.match(h.root.innerHTML, /Dicter ma demande/);

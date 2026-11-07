@@ -568,6 +568,7 @@
     update(snap) {
       const was = S && S.screen;
       S = snap;
+      if (!(S.homeShortcuts || []).some(a => a.personal)) ui.editingShortcuts = false;
       const m = S.dictation && S.dictation.message;
       if (m && m !== ui.lastDictMsg) ui.warning = m;
       if (m && S.dictation.phase === 'idle') ui.dictating = false;
