@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794088468-automatismes-importes` | Automatismes importés par un support (IT ou proche), actions de premier niveau, gardien périodique retiré des apps | `backend/automations.py`, `backend/app.py` (routes automatismes, `run_automation`), `backend/caremamory.py`, `apps/mac/Sources/{Core,Model,HomeView}.swift`, `apps/windows/papai/{core,model,bridge,app}.py`, `apps/windows/ui/app.js`, `automations/`, `tests/test_automatismes.py`, `PROTOCOL.md`, `README.md`, `TODO.md` | 7 nov. soir |
 
 ## Journal
 
