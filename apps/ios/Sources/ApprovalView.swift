@@ -55,7 +55,7 @@ struct ApprovalView: View {
 
     private func edit(_ i: Int, _ raw: String) {
         guard !model.planBusy else { return }
-        editing = EditedStep(index: i, text: raw)
+        editing = EditedStep(index: i, text: raw, plan: model.plan)
     }
 
     private func stepRow(_ i: Int, _ raw: String) -> some View {
@@ -102,11 +102,15 @@ struct ApprovalView: View {
 struct EditedStep: Identifiable {
     let index: Int
     let text: String
+    /// Le plan entier : Holo ne reçoit que la demande et les précisions, pas l'ancien plan.
+    let plan: [String]
     var id: Int { index }
 
     /// La consigne envoyée à Holo par `refine_plan`.
     func instruction(_ new: String) -> String {
-        "Étape \(index + 1) : remplacer « \(text) » par « \(new) ». Garde les autres étapes et propose le plan corrigé."
+        let current = plan.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: " ; ")
+        return "Étape \(index + 1) : remplacer « \(text) » par « \(new) ». "
+            + "Plan actuel : \(current). Garde les autres étapes telles quelles et propose le plan corrigé."
     }
 }
 
