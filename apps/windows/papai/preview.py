@@ -19,6 +19,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .model import Model
+from .home_shortcuts import HomeShortcuts
 
 UI = Path(__file__).resolve().parent.parent / "ui"
 
@@ -27,11 +28,19 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         u = urlparse(self.path)
         if u.path == "/state.json":
-            demo = (parse_qs(u.query).get("demo") or ["home"])[0]
+            query = parse_qs(u.query)
+            demo = (query.get("demo") or ["home"])[0]
             m = Model(demo=demo)
-            m.prefs = {"firstName": "Jeanne"} if not demo.startswith("onboarding") else {}
+            m.prefs = {} if demo.startswith("home") else {"firstName": "Jeanne"}
             m.start()
-            body = json.dumps(m.snapshot(), ensure_ascii=False).encode()
+            snap = m.snapshot()
+            if demo in ('home_empty', 'home_shortcuts'):
+                snap['lessons'] = []
+            snap['microPresent'] = (query.get('mic') or ['1'])[0] != '0'
+            snap['homeShortcuts'] = HomeShortcuts(demo=True).snapshot()
+            if demo != 'home_shortcuts':
+                snap['homeShortcuts'] = [t for t in snap['homeShortcuts'] if not t.get('personal')]
+            body = json.dumps(snap, ensure_ascii=False).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
