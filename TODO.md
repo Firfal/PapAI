@@ -37,7 +37,7 @@ Mis à jour le 7 novembre à 16 h 15. Cochez au fur et à mesure et poussez.
 ## P2 — bonus, seulement si tout le P0 passe
 
 - [ ] Gardien anti-arnaque : brancher la détection (`backend/guard.py`) sur l'écran de l'aîné et l'alerte iPhone. La logique est déjà testée.
-- [ ] Voix : dicter la demande et entendre ce que fait Holo (Gladia, prix sponsor).
+- [x] Voix : dicter la demande (micro de l'app Mac, Gladia puis secours Apple sur l'appareil). Reste : entendre ce que fait Holo ; `GLADIA_API_KEY` à mettre sur Cloud Run.
 - [ ] Rangement guidé des dossiers : plan de rangement validé par l'aidant, rien supprimé, tout annulable.
 - [ ] Notification push quand l'app iPhone est fermée (APNs).
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).

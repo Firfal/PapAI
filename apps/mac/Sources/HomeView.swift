@@ -6,6 +6,9 @@ struct HomeView: View {
     @State private var consent = false
     @State private var warning: String?
     @FocusState private var focused: Bool
+    @State private var dictation = Dictation()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulse = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 24) {
@@ -48,25 +51,64 @@ struct HomeView: View {
                     .background(Capsule().fill(T.card))
             }
             Spacer(minLength: 0)
-            Button(action: submit) {
-                HStack(spacing: 18) {
-                    ZStack {
-                        Circle().fill(.white).frame(width: 46, height: 46)
-                        Image(systemName: "mic.fill").foregroundStyle(T.ink).font(.system(size: 20))
-                    }
+            HStack(spacing: 14) {
+                micButton
+                Button(action: submit) {
                     Text("J'ai besoin d'aide").font(rounded(26, .semibold))
-                    Spacer(minLength: 0)
+                        .padding(.horizontal, 28).frame(maxWidth: .infinity).frame(height: 78)
+                        .foregroundStyle(.white)
+                        .background(Capsule().fill(T.ink))
                 }
-                .padding(.horizontal, 16).frame(maxWidth: .infinity).frame(height: 78)
-                .foregroundStyle(.white)
-                .background(Capsule().fill(T.ink))
+                .buttonStyle(PressStyle())
             }
-            .buttonStyle(PressStyle())
         }
         .foregroundStyle(T.ink)
         .padding(40)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
+    }
+
+    private var micButton: some View {
+        let listening = dictation.phase == .listening
+        return Button {
+            warning = nil
+            dictation.toggle(httpBase: model.httpBase) { text in
+                request = request.isEmpty ? text : request + " " + text
+            }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    if listening {
+                        Circle().fill(T.accent.opacity(0.25))
+                            .frame(width: 78, height: 78)
+                            .scaleEffect(reduceMotion ? 1 : (pulse ? 1.12 : 0.9))
+                    }
+                    Circle().fill(listening ? T.accent : .white).frame(width: 62, height: 62)
+                    if dictation.phase == .transcribing {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: listening ? "stop.fill" : "mic.fill")
+                            .foregroundStyle(listening ? .white : T.ink).font(.system(size: 24))
+                    }
+                }
+                .frame(width: 78, height: 78)
+                if listening {
+                    Text("Je vous écoute…").font(rounded(20, .semibold)).foregroundStyle(T.accent)
+                } else if dictation.phase == .transcribing {
+                    Text("Je note…").font(rounded(20, .semibold)).foregroundStyle(T.muted)
+                }
+            }
+            .padding(.trailing, dictation.phase == .idle ? 0 : 14)
+        }
+        .buttonStyle(PressStyle())
+        .disabled(dictation.phase == .transcribing)
+        .accessibilityLabel(listening ? "Arrêter la dictée" : "Dicter ma demande")
+        .onChange(of: listening) { _, on in
+            if on, !reduceMotion {
+                withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
+            } else { withAnimation(.none) { pulse = false } }
+        }
+        .onChange(of: dictation.message) { _, m in if let m { warning = m; dictation.message = nil } }
     }
 
     private func submit() {

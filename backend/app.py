@@ -17,10 +17,10 @@ import secrets
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 
-from . import guard
+from . import guard, voice
 from .agent import AgentRunner, propose_plan
 from .caremamory import LESSONS_DIR, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
@@ -584,6 +584,24 @@ async def lesson_file_keyed(fam: str, lesson_id: str, filename: str):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return _serve_lesson_file(lesson_id, filename)
+
+
+@app.post("/k/{fam}/transcribe")
+async def transcribe_keyed(fam: str, request: Request):
+    """Dictée de la demande : audio brut en entrée, {"text": "..."} en sortie."""
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    if not voice.configured():
+        return JSONResponse({"error": "gladia_absent"}, status_code=503)
+    audio = await request.body()
+    if len(audio) > 5_000_000:
+        return JSONResponse({"error": "trop_long"}, status_code=413)
+    ctype = request.headers.get("content-type", "audio/wav").split(";")[0].strip()
+    ext = "m4a" if "m4a" in ctype or "mp4" in ctype else "wav"
+    ok, text = await asyncio.to_thread(voice.transcribe, audio, f"demande.{ext}", ctype)
+    if not ok:
+        return JSONResponse({"error": text}, status_code=502)
+    return {"text": text}
 
 
 @app.get("/lessons")

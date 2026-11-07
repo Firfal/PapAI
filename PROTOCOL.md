@@ -56,6 +56,15 @@ Envoie :
 - `{"type":"pause"}` · `{"type":"refresh"}` · `{"type":"click","frame_id":"…","x":0..1,"y":0..1}` (seulement en `awaiting_helper`)
 - `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automatisme »
 
+## Dictée de la demande
+
+`POST /k/{clé}/transcribe` : corps = audio brut (`Content-Type: audio/wav` ou
+`audio/m4a`, 5 Mo max), rien n'est écrit sur le disque. Réponse `{"text":"…"}`.
+Gladia (français) transcrit côté serveur ; la clé `GLADIA_API_KEY` ne quitte
+jamais le serveur. Erreurs : 404 mauvaise clé, 503 `{"error":"gladia_absent"}`
+(pas de clé Gladia : l'app Mac bascule sur la reconnaissance du Mac),
+502 `{"error":"phrase lisible"}`, 413 trop long.
+
 ## Gardien anti-arnaque
 
 L'app de la personne aidée observe en continu **trois signaux textuels**, et

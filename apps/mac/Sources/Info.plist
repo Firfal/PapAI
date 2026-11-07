@@ -29,7 +29,11 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>PapAI écoute votre voix uniquement quand vous touchez le micro, pour écrire votre demande à votre place.</string>
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>PapAI partage votre écran avec Quentin et Holo uniquement quand vous demandez de l'aide.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>PapAI transforme votre voix en texte pour écrire votre demande à votre place.</string>
 </dict>
 </plist>
