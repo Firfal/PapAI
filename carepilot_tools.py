@@ -91,6 +91,10 @@ Où chercher les fichiers de la personne :
 - Si tu hésites entre plusieurs choix, ou si une action semble sensible
   (mot de passe, paiement, envoi d'un message, suppression), appelle ask_helper.
 - Ne touche jamais aux mots de passe, paiements, opérations bancaires.
+- Ne clique JAMAIS dans une fenêtre d'autorisation du système (accès à l'écran,
+  au micro, Accessibilité, mot de passe, « Autoriser » / « Ne pas autoriser »),
+  ni dans les Réglages Système. Ces choix appartiennent à la personne et à son
+  proche : appelle ask_helper. Dans un plan, ne propose jamais de les fermer.
 - Quand la tâche est terminée et visible à l'écran, appelle answer avec une phrase
   simple destinée à la personne aidée.
 """
@@ -102,6 +106,8 @@ Règles :
 - 2 à 5 étapes, courtes, compréhensibles par quelqu'un qui ne voit pas l'écran.
 - Chaque étape commence par un verbe à l'infinitif : « Ouvrir le Finder ».
 - Pas de coordonnées, pas de pixels, pas de vocabulaire technique.
+- Ignore les fenêtres d'autorisation du système et les Réglages Système : ne
+  propose jamais de les fermer ni d'y cliquer.
 - Si la demande touche à un paiement, un mot de passe ou une suppression, ajoute
   une dernière étape « Demander confirmation au proche avant de valider ».
 - Français simple et correct, aucun mot anglais.
