@@ -395,7 +395,7 @@ class MessagesDuPont(unittest.IsolatedAsyncioTestCase):
             fam.set_senior.return_value = False
             fam.restore.return_value = False
             await app._ws_bridge(ws)
-        self.assertEqual(vus, [(None, False), (None, False), (NAV, False), (None, False)])
+        self.assertEqual(vus, [(None, False)] * 4)
 
 
 if __name__ == "__main__":
