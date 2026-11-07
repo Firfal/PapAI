@@ -212,7 +212,7 @@ struct HomeView: View {
                                     }
                                 }
                             Text(tuile.titre).font(rounded(15)).multilineTextAlignment(.center)
-                                .lineLimit(2).frame(height: 44, alignment: .top)
+                                .lineLimit(2).frame(minHeight: 24, alignment: .top)
                         }.frame(maxWidth: .infinity)
                     }
                     .buttonStyle(PressStyle())
@@ -225,7 +225,7 @@ struct HomeView: View {
                     VStack(spacing: 4) {
                         Circle().fill(T.card).frame(width: 54, height: 54)
                             .overlay(Image(systemName: "plus").font(rounded(24)).foregroundStyle(T.muted))
-                        Text("Ajouter").font(rounded(15)).frame(height: 44, alignment: .top)
+                        Text("Ajouter").font(rounded(15)).frame(minHeight: 24, alignment: .top)
                     }.frame(maxWidth: .infinity)
                 }
                     .buttonStyle(PressStyle())

@@ -16,13 +16,13 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | devin/1794084386-accueil-mac-voix | Accueil Mac : voix et raccourcis locaux sécurisés | apps/mac/Sources/HomeView.swift, MiniPanel.swift, Theme.swift, HomeShortcuts.swift, MicPresence.swift, apps/mac/tests, brand/logotype-papai.svg, TODO.md | 7 nov. soir |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
-| 7 nov. soir | Devin | `devin/1794084386-accueil-mac-voix` | Accueil Mac voix d'abord, présence micro (simulation `PAPAI_DEMO_MIC=1` uniquement en démo, `PAPAI_NOMIC=1` prioritaire), écriture discrète, tutoriels masqués si vides, logotype vectoriel, raccourci de l'encart et taille du texte. Builds Xcode et CLI, tests présence micro et silence, captures dans `~/captures`. Pas de micro physique sur cette machine : dictée réelle non essayée. Fichiers libérés. |
+| 7 nov. soir | Devin | `devin/1794084386-accueil-mac-voix` | Accueil Mac voix d'abord et raccourcis locaux sécurisés : `HomeView.swift`, `MiniPanel.swift`, `Theme.swift`, `Model.swift` (démo seulement), `MicPresence.swift`, `HomeShortcuts.swift`, tests `mic_presence_test.swift` et `home_shortcuts_test.swift`, `brand/logotype-papai.svg`, `TODO.md`. Présence micro, écriture discrète, tutoriels masqués si vides, logotype vectoriel 36 pt, applications/dossiers/groupes de photos et actions Mail/Photos, personnalisation JSON locale (4 ajouts, 9 tuiles avec Ajouter). Validation des dossiers à l'ajout et à l'ouverture, Finder explicite. Builds Xcode et CLI ; Swift raccourcis 35 contrôles, micro OK ; Python gardien 14, protocole 14, parcours 27. Captures dans `~/captures`, dont taille 1.18 restaurée ensuite. Pas de micro physique : `PAPAI_DEMO_MIC=1` pour les captures, dictée réelle non essayée. Fichiers libérés. |
 | 7 nov. | Claude | `parcours-onboarding` | Lancement sur Mac sans Xcode : `run_backend_mac.sh`, `apps/mac/scripts/build-mac-cli.sh` (swiftc + bundle + signature ad hoc). |
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 1-2 : accueil en 5 écrans (bienvenue, prénom, taille du texte, autorisations, proches), ajout d'un proche par QR ou code à 6 chiffres (`backend/family.py`, `/p/{code}`, `pair.html`), session proposée par le proche à accepter sur le Mac (`remote_request`). |
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 3 à 8 : écran de consentement, actions expliquées en phrases simples avec historique, question du proche, écran de fin avec retour auto à l'accueil, « Mes tutoriels » rafraîchi quand le proche valide une fiche (`lessons_changed`). |
