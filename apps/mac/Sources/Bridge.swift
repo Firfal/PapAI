@@ -6,6 +6,8 @@ import Foundation
 final class BridgeClient {
     var onMessage: (([String: Any]) -> Void)?
     var onConnection: ((Bool) -> Void)?
+    /// Navigateur servi par `holo local browser`, répété dans chaque hello.
+    var webAgentID: String?
 
     private var task: URLSessionWebSocketTask?
     private var loop: Task<Void, Never>?
@@ -36,7 +38,9 @@ final class BridgeClient {
         task = t
         t.resume()
         do {
-            try await t.send(.string(Self.json(["type": "hello", "os": "macos"])))
+            var hello: [String: Any] = ["type": "hello", "os": "macos"]
+            if let id = webAgentID { hello["web_agent"] = ["session_id": id] }
+            try await t.send(.string(Self.json(hello)))
         } catch {
             onConnection?(false)
             return

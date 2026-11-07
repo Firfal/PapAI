@@ -75,6 +75,8 @@ final class AppModel {
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored let client = BridgeClient()
+    @ObservationIgnored let webHost = WebAgentHost()
+    @ObservationIgnored private var webFronted = false
     @ObservationIgnored weak var window: NSWindow? { didSet { watchWindow(); applyLevel() } }
     /// La grande fenêtre est rangée pour laisser voir ce que fait Holo.
     @ObservationIgnored private var compact = false
@@ -218,6 +220,10 @@ final class AppModel {
         guard !started else { return }
         started = true
         client.onMessage = { [weak self] m in self?.handle(m) }
+        webHost.onChange = { [weak self] id in
+            self?.client.webAgentID = id
+            self?.client.send(["type": "web_agent", "session_id": id ?? NSNull()])
+        }
         InputLock.shared.allowedRect = { [weak self] in self?.protectedRect() }
         InputLock.shared.onEscape = { [weak self] in self?.stop() }
         Task { [weak self] in
@@ -446,6 +452,8 @@ final class AppModel {
         plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
         sessionHelper = nil
         AppUsage.shared.noteRequest(task)
+        webFronted = false
+        webHost.start()
         state = .planning
         screen = .session
         applyLevel()
@@ -457,6 +465,7 @@ final class AppModel {
     /// Le verrou local passe d'abord, puis le serveur est prévenu.
     func stop() {
         gate.raise()
+        webHost.stopLocal()
         client.send(["type": "stop"])
         state = .stopped
         currentAction = nil
@@ -516,6 +525,7 @@ final class AppModel {
             pairLong = m["long"] as? Bool ?? false
             pairExpires = m["expires_in"] as? Int ?? 600
         case "alert":
+            webHost.stopLocal()
             // Le gardien a reconnu une situation : le proche est prévenu en même temps.
             gate.raise()
             InputLock.shared.set(false)
@@ -564,6 +574,12 @@ final class AppModel {
         questionForMe = (q?["to"] as? String) == "senior"
         questionOptions = q?["options"] as? [String] ?? []
         if state != .active { currentAction = nil }
+        if state == .done || state == .stopped {
+            webHost.stopLocal()
+        } else if (m["where"] as? String) == "web", state == .active || state == .awaiting_helper, !webFronted {
+            webFronted = true
+            webHost.bringToFront()
+        }
         applyLevel()
     }
 
