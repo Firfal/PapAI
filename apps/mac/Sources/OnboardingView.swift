@@ -98,13 +98,13 @@ struct OnboardingView: View {
             HStack(alignment: .center, spacing: 28) {
                 VStack(alignment: .leading, spacing: 18) {
                     Text("Bienvenue sur PapAI").font(rounded(52, .bold)).tracking(-0.8)
-                    Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Un proche est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
+                    Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
                         .font(rounded(23)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 Mascotte(humeur: .joyeuse).frame(width: 190 * CGFloat(model.textScale), height: 190 * CGFloat(model.textScale))
             }
-            promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre proche.")
+            promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre support.")
             promise("stop.circle.fill", "Vous pouvez tout arrêter à tout moment.")
             promise("lock.fill", "Votre écran n'est partagé que quand vous le demandez.")
         }
