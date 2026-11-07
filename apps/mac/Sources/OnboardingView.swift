@@ -152,7 +152,7 @@ struct HelpersPanel: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text(onboarding ? "Qui va vous aider ?" : "Mes proches")
                     .font(rounded(onboarding ? 44 : 34, .semibold)).tracking(-0.6)
-                Text("Votre fille, votre fils, un ami… Il ou elle scanne le code avec son téléphone et donne son prénom. Vous pouvez en ajouter plusieurs.")
+                Text("Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.")
                     .font(rounded(20)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 if let added = model.pairAdded {
                     Label("\(added) fait maintenant partie de vos proches.", systemImage: "checkmark.circle.fill")
@@ -188,14 +188,6 @@ struct HelpersPanel: View {
                     }
                     .buttonStyle(PillStyle(filled: model.helpers.isEmpty, height: 60))
                     .disabled(!model.connected)
-                    // Le proche n'est pas là : on lui envoie un lien par SMS, WhatsApp, Mail…
-                    Button {
-                        model.startPairing(long: true)
-                    } label: {
-                        Label("Envoyer une invitation", systemImage: "paperplane.fill")
-                    }
-                    .buttonStyle(PillStyle(filled: false, height: 60))
-                    .disabled(!model.connected)
                     if !model.connected {
                         Text("Connexion au serveur en cours…").font(rounded(16)).foregroundStyle(T.muted)
                     }
@@ -222,7 +214,7 @@ struct HelpersPanel: View {
                 .monospacedDigit().tracking(4)
                 .textSelection(.enabled)
             Text(model.pairLong ? "Valable 24 heures" : "Valable 10 minutes").font(rounded(15)).foregroundStyle(T.muted)
-            if model.pairLong, let link = URL(string: url) {
+            if let link = URL(string: url) {
                 ShareLink(item: link, subject: Text("Rejoignez-moi sur PapAI"),
                           message: Text(model.invitationText)) {
                     Label("Envoyer par SMS, WhatsApp…", systemImage: "square.and.arrow.up")

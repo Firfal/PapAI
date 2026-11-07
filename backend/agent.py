@@ -158,8 +158,8 @@ class AgentRunner:
                     await self.broadcast({"type": "answer", "content": args.get("content", "")})
                     return
 
-                if name == "ask_helper":
-                    result = await self._escalate(args)
+                if name in ("ask_helper", "ask_senior"):
+                    result = await self._escalate(args, to="senior" if name == "ask_senior" else "helper")
                     if result is None:
                         return
                 else:
@@ -211,15 +211,16 @@ class AgentRunner:
             return None
         return result
 
-    async def _escalate(self, args: dict) -> str | None:
-        """Suspend l'agent et attend le proche. None = arrêt ou expiration."""
+    async def _escalate(self, args: dict, to: str = "helper") -> str | None:
+        """Suspend l'agent et attend une réponse. None = arrêt ou expiration."""
         question = args.get("question", "")
         options = args.get("options") or []
-        fut = self.s.ask_helper(question, options)
+        fut = self.s.ask_helper(question, options, to=to)
         await self.broadcast(self.s.status())
-        await self.broadcast({"type": "question", "question": question, "options": options})
+        await self.broadcast({"type": "question", "question": question, "options": options, "to": to})
 
         reply = await fut
         if reply is None or not self.s.is_open:
             return None
-        return f"Réponse du proche : {reply}"
+        who = "la personne aidée" if to == "senior" else "du proche"
+        return f"Réponse de {who} : {reply}" if to == "senior" else f"Réponse du proche : {reply}"

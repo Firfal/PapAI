@@ -156,3 +156,10 @@ En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gard�
 - `pair_code` porte `expires_in` (600 ou 86400) et `long` (vrai pour une invitation). `app_url` = `papai://pair?u=<url>&n=<prénom>` : l'app iPhone affiche « Rejoindre Sophie » avant même l'appairage.
 - La réponse de `POST …/p/<code>` contient `senior` (prénom de la personne aidée), en plus de `server` et `key`.
 - Test : `python tests/test_profil.py http://127.0.0.1:8000 demo` (6 contrôles).
+
+## Question à la personne aidée (`ask_senior`)
+
+- Holo peut poser une question à la personne aidée elle-même, pour une information qu'elle seule connaît (banque, fournisseur, nom). Jamais de mot de passe ni de code.
+- `status.question` porte alors `"to":"senior"` (sinon `"helper"`). Le message `question` aussi.
+- App de la personne aidée : elle affiche la question et répond par `{"type":"senior_answer","text":"…"}`. L'aidant voit « Question posée à Sophie » et peut aussi répondre (`answer`). La première réponse compte.
+- Côté personne aidée, le plan n'est plus affiché : seulement l'avancement (`state`, `plan_step` / longueur du plan).

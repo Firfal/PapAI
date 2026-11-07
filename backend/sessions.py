@@ -206,12 +206,16 @@ class Session:
 
     # ------------------------------------------------------------ escalade
 
-    def ask_helper(self, question: str, options: list[str] | None = None) -> asyncio.Future:
+    def ask_helper(self, question: str, options: list[str] | None = None,
+                   to: str = "helper") -> asyncio.Future:
+        """`to` : « helper » (le proche) ou « senior » (la personne aidée, pour ce
+        qu'elle seule sait). Les deux peuvent répondre ; la première réponse compte."""
         self.require_open()
         self.state = State.AWAITING_HELPER
         self.owner = Owner.NONE
-        self.question = {"question": question, "options": options or []}
-        self.log("ask_helper", question=question, options=options or [])
+        to = "senior" if to == "senior" else "helper"
+        self.question = {"question": question, "options": options or [], "to": to}
+        self.log("ask_senior" if to == "senior" else "ask_helper", question=question, options=options or [])
         self._helper_reply = asyncio.get_running_loop().create_future()
         return self._helper_reply
 

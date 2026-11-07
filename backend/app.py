@@ -344,6 +344,19 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 t.add_done_callback(_guard_taches.discard)
                 continue
 
+            if kind == "senior_answer":
+                # La personne aidée répond à une question de Holo qui lui était posée.
+                s = current_session()
+                text = str(msg.get("text", "")).strip()[:300]
+                if s is not None and text and s.question and s.question.get("to") == "senior":
+                    try:
+                        s.log("senior_reply", text=text)
+                        s.answer_from_helper(text)
+                        await broadcast_helper(s.status())
+                    except Refused:
+                        pass
+                continue
+
             if kind == "stop":
                 for s in list(registry._by_id.values()):
                     if s.is_open:

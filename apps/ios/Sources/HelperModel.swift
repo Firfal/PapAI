@@ -77,6 +77,8 @@ final class HelperModel {
     /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
     var planStep: Int?
     var question: (text: String, options: [String])?
+    /// Vrai quand Holo pose la question à la personne aidée (`to: senior`).
+    var questionToSenior = false
     var sessionId = ""
     var requestStart = Date()
     var iRefusedPlan = false
@@ -445,6 +447,7 @@ final class HelperModel {
             planStep = m["plan_step"] as? Int
             if let q = m["question"] as? [String: Any], let t = q["question"] as? String {
                 question = (t, q["options"] as? [String] ?? [])
+                questionToSenior = (q["to"] as? String) == "senior"
             } else if newState != "awaiting_helper" { question = nil }
 
         case "frame":

@@ -31,6 +31,9 @@ final class AppModel {
     /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
     var planStep: Int?
     var question: String?
+    /// Vrai quand Holo pose la question à la personne aidée elle-même (`ask_senior`).
+    var questionForMe = false
+    var questionOptions: [String] = []
     var answer: String?
     var currentAction: String?
     var lessons: [Lesson] = []
@@ -124,13 +127,16 @@ final class AppModel {
     }
 
     func finishOnboarding() {
+        // L'inscription vaut accord de partage d'écran pendant les demandes d'aide.
+        UserDefaults.standard.set(true, forKey: "screenConsent")
+        screenConsent = true
         UserDefaults.standard.set(true, forKey: "onboarded")
         onboarded = true
         permissionsDismissed = true
         stopPairing()
     }
 
-    func startPairing(long: Bool = false) {
+    func startPairing(long: Bool = true) {
         pairAdded = nil
         client.send(long ? ["type": "pair_start", "long": true] : ["type": "pair_start"])
     }
@@ -273,12 +279,21 @@ final class AppModel {
 
     // MARK: Demande d'aide
 
-    /// Étape 4 : la première fois, un écran qui dit ce qui va se passer.
-    /// Ensuite la demande part directement : l'accord est déjà donné.
+    /// L'accord de partage est donné une seule fois, à l'inscription : une demande
+    /// d'aide part directement, sans deuxième confirmation (décision de l'équipe).
     func requestConsent(task: String) {
-        if screenConsent { askHelp(task: task); return }
-        pendingTask = task
-        screen = .consent
+        if !screenConsent {
+            UserDefaults.standard.set(true, forKey: "screenConsent")
+            screenConsent = true
+        }
+        askHelp(task: task)
+    }
+
+    /// Réponse de la personne aidée à une question de Holo qui lui est posée.
+    func answerSenior(_ text: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        client.send(["type": "senior_answer", "text": t])
     }
 
     func giveConsent() {
@@ -389,7 +404,10 @@ final class AppModel {
         if let t = m["task"] as? String, !t.isEmpty { task = t }
         plan = (m["plan"] as? [String]) ?? []
         planStep = m["plan_step"] as? Int
-        question = (m["question"] as? [String: Any])?["question"] as? String
+        let q = m["question"] as? [String: Any]
+        question = q?["question"] as? String
+        questionForMe = (q?["to"] as? String) == "senior"
+        questionOptions = q?["options"] as? [String] ?? []
         if state != .active { currentAction = nil }
         applyLevel()
     }

@@ -85,10 +85,6 @@ struct SettingsView: View {
                     model.onboarded = false
                     dismiss()
                 }.buttonStyle(PillStyle(filled: false, height: 50))
-                if model.screenConsent {
-                    Button("Retirer l'accord de partage") { model.revokeConsent() }
-                        .buttonStyle(PillStyle(filled: false, height: 50))
-                }
             }
             HStack {
                 Spacer()
@@ -96,6 +92,7 @@ struct SettingsView: View {
                 Button("Enregistrer") {
                     UserDefaults.standard.set(server, forKey: "server")
                     UserDefaults.standard.set(name, forKey: "firstName")
+                    model.sendProfile()
                     model.reconnect()
                     Task { await model.refreshLessons() }
                     dismiss()

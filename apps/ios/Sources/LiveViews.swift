@@ -158,7 +158,9 @@ struct HelperView: View {
 
     private func questionCard(_ q: (text: String, options: [String])) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("\(model.seniorTitle) a besoin de vous").font(.system(size: 13)).foregroundStyle(Soin.secondary)
+            Text(model.questionToSenior
+                 ? "Question posée à \(model.senior) sur son écran. Vous pouvez aussi répondre."
+                 : "\(model.seniorTitle) a besoin de vous").font(.system(size: 13)).foregroundStyle(Soin.secondary)
             Text(q.text).font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
             if !q.options.isEmpty {
                 FlowLayout(spacing: 8) {

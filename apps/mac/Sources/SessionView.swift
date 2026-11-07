@@ -106,7 +106,7 @@ struct SessionView: View {
     private var title: String {
         switch state {
         case .planning: "Holo regarde votre écran…"
-        case .awaiting_approval: "\(model.HelperName) vérifie le plan"
+        case .awaiting_approval: "\(model.HelperName) vérifie votre demande"
         case .active: "Holo s'en occupe"
         case .awaiting_helper: "\(model.HelperName) vous aide"
         case .done: "C'est fait !"
@@ -118,8 +118,10 @@ struct SessionView: View {
         switch state {
         case .planning: "Un instant, je prépare ce qu'il faut faire."
         case .awaiting_approval: "Rien ne se passera sur votre écran avant son accord."
-        case .active: model.currentAction ?? "Je regarde l'écran…"
-        case .awaiting_helper: "Holo a une question. \(model.HelperName) a reçu une image de votre écran et va répondre. Restez là, ne touchez à rien."
+        case .active: "Ne touchez à rien, je m'occupe de tout."
+        case .awaiting_helper: model.questionForMe
+            ? "J'ai besoin d'une information que vous seul connaissez."
+            : "\(model.HelperName) répond à une question de Holo. Restez là, ne touchez à rien."
         case .done: nil
         case .stopped: "Votre écran n'est plus partagé."
         }
@@ -127,21 +129,13 @@ struct SessionView: View {
 
     @ViewBuilder private var content: some View {
         switch state {
-        case .awaiting_approval where !model.plan.isEmpty:
-            planList(current: nil)
-        case .active:
-            VStack(alignment: .leading, spacing: 16) {
-                if !model.actions.isEmpty { history }
-                if !model.plan.isEmpty { planList(current: model.planStep, compact: true) }
-            }
+        case .planning, .awaiting_approval, .active:
+            Progress(fraction: fraction, phase: phase, helper: model.HelperName)
         case .awaiting_helper:
-            if let q = model.question {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("La question de Holo").font(rounded(16, .semibold)).foregroundStyle(T.muted)
-                    Text(q).font(rounded(24, .medium)).fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(24).frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+            if model.questionForMe, let q = model.question {
+                SeniorQuestion(question: q, options: model.questionOptions) { model.answerSenior($0) }
+            } else {
+                Progress(fraction: fraction, phase: 2, helper: model.HelperName)
             }
         case .done:
             VStack(alignment: .leading, spacing: 16) {
@@ -157,54 +151,27 @@ struct SessionView: View {
         }
     }
 
-    /// Le plan, avec l'étape en cours en vert et les précédentes cochées.
-    private func planList(current: Int?, compact: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: compact ? 8 : 12) {
-            if compact {
-                Text(current.map { "Étape \($0) sur \(model.plan.count)" } ?? "Le plan validé")
-                    .font(rounded(16, .semibold)).foregroundStyle(T.muted)
-            }
-            ForEach(Array(model.plan.enumerated()), id: \.offset) { i, step in
-                let past = current.map { i + 1 < $0 } ?? false
-                let now = current == i + 1
-                HStack(spacing: 16) {
-                    ZStack {
-                        Circle().fill(past || now ? T.accent : T.ink)
-                        if past {
-                            Image(systemName: "checkmark").font(.system(size: compact ? 13 : 16, weight: .bold))
-                        } else {
-                            Text("\(i + 1)").font(rounded(compact ? 15 : 18, .semibold))
-                        }
-                    }
-                    .foregroundStyle(.white)
-                    .frame(width: compact ? 30 : 38, height: compact ? 30 : 38)
-                    Text(step).font(rounded(compact ? 18 : 20, now ? .semibold : .medium))
-                        .foregroundStyle(past ? T.muted : T.ink)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                }
-                .padding(compact ? 10 : 12)
-                .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(now ? "En cours : \(step)" : past ? "Fait : \(step)" : step)
-            }
+    /// Où en est le traitement, sans détailler les étapes de Holo : la personne
+    /// aidée n'a pas besoin du plan, seulement de savoir que ça avance.
+    private var phase: Int {
+        switch state {
+        case .planning: 0
+        case .awaiting_approval: 1
+        default: 2
         }
-        .animation(.easeInOut(duration: 0.25), value: current)
     }
 
-    /// Ce que Holo a déjà fait, la dernière action en premier plan.
-    private var history: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Ce que j'ai fait").font(rounded(16, .semibold)).foregroundStyle(T.muted)
-            ForEach(Array(model.actions.suffix(4).enumerated()), id: \.offset) { i, a in
-                let last = i == min(model.actions.count, 4) - 1
-                HStack(spacing: 12) {
-                    Image(systemName: last ? "circle.dotted" : "checkmark.circle.fill")
-                        .font(.system(size: 20)).foregroundStyle(T.accent)
-                    Text(a).font(rounded(18, last ? .semibold : .regular))
-                        .foregroundStyle(last ? T.ink : T.muted)
-                }
+    private var fraction: Double {
+        switch state {
+        case .planning: return 0.15
+        case .awaiting_approval: return 0.35
+        case .active, .awaiting_helper:
+            if let step = model.planStep, !model.plan.isEmpty {
+                return 0.45 + 0.5 * Double(max(step - 1, 0)) / Double(model.plan.count)
             }
+            return 0.5
+        case .done: return 1
+        case .stopped: return 0
         }
     }
 
@@ -213,5 +180,94 @@ struct SessionView: View {
             Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(T.accent).frame(width: 28)
             Text(text).font(rounded(19)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// Avancement du traitement : une barre et trois temps, rien de technique.
+private struct Progress: View {
+    let fraction: Double
+    let phase: Int
+    let helper: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(T.card)
+                    Capsule().fill(T.accent).frame(width: max(18, g.size.width * fraction))
+                        .animation(.easeInOut(duration: 0.6), value: fraction)
+                }
+            }
+            .frame(height: 18)
+            .accessibilityElement()
+            .accessibilityLabel("Avancement")
+            .accessibilityValue("\(Int(fraction * 100)) %")
+
+            step(0, "Holo regarde votre écran et prépare la suite")
+            step(1, "\(helper) vérifie et donne son accord")
+            step(2, "Holo s'en occupe")
+        }
+        .padding(24)
+        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card.opacity(0.55)))
+    }
+
+    private func step(_ i: Int, _ text: String) -> some View {
+        let done = i < phase, now = i == phase
+        return HStack(spacing: 14) {
+            Image(systemName: done ? "checkmark.circle.fill" : now ? "circle.dotted" : "circle")
+                .font(.system(size: 24)).foregroundStyle(done || now ? T.accent : T.muted)
+            Text(text).font(rounded(21, now ? .semibold : .regular))
+                .foregroundStyle(done ? T.muted : T.ink)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(done ? "Fait : \(text)" : now ? "En cours : \(text)" : text)
+    }
+}
+
+/// Une question que Holo pose à la personne aidée, pour ce qu'elle seule sait.
+private struct SeniorQuestion: View {
+    let question: String
+    let options: [String]
+    let send: (String) -> Void
+    @State private var text = ""
+    @State private var sent = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Holo vous demande").font(rounded(16, .semibold)).foregroundStyle(T.muted)
+            Text(question).font(rounded(28, .medium)).fixedSize(horizontal: false, vertical: true)
+            if sent {
+                Label("Merci, c'est noté.", systemImage: "checkmark.circle.fill")
+                    .font(rounded(20, .semibold)).foregroundStyle(T.accent)
+            } else {
+                if !options.isEmpty {
+                    HStack(spacing: 10) {
+                        ForEach(options, id: \.self) { o in
+                            Button(o) { reply(o) }.buttonStyle(PillStyle(filled: false, height: 56))
+                        }
+                    }
+                }
+                HStack(spacing: 12) {
+                    TextField("Votre réponse", text: $text)
+                        .textFieldStyle(.plain).font(rounded(22, .medium))
+                        .padding(.horizontal, 20).padding(.vertical, 16)
+                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.bg))
+                        .onSubmit { reply(text) }
+                    Button("Répondre") { reply(text) }
+                        .buttonStyle(PillStyle(height: 56))
+                        .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                Text("Ne donnez jamais de mot de passe ni de code : on ne vous les demandera pas.")
+                    .font(rounded(15)).foregroundStyle(T.muted)
+            }
+        }
+        .padding(24).frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+    }
+
+    private func reply(_ t: String) {
+        let v = t.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !v.isEmpty else { return }
+        send(v); sent = true
     }
 }

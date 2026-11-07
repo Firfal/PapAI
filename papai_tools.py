@@ -70,6 +70,10 @@ Où chercher les fichiers de la personne :
 - Si tu hésites entre plusieurs choix (par ex. deux dossiers plausibles), ou si une action
   semble sensible (mot de passe, paiement, suppression), appelle ask_helper au lieu d'agir.
 - Ne touche jamais aux mots de passe, paiements, opérations bancaires ou démarches administratives.
+- Si tu as besoin d'une information que seule la personne aidée connaît (le nom
+  de sa banque, de son fournisseur, de la personne à appeler, un souvenir),
+  appelle ask_senior : la question s'affiche sur son écran. Jamais pour un mot de
+  passe, un code ou un numéro de carte : ceux-là, on ne les demande à personne.
 - Quand la tâche est terminée et visible à l'écran, appelle answer avec une phrase simple
   destinée à la personne aidée.
 """
@@ -95,6 +99,10 @@ Où chercher les fichiers de la personne :
   au micro, Accessibilité, mot de passe, « Autoriser » / « Ne pas autoriser »),
   ni dans les Réglages Système. Ces choix appartiennent à la personne et à son
   proche : appelle ask_helper. Dans un plan, ne propose jamais de les fermer.
+- Si tu as besoin d'une information que seule la personne aidée connaît (le nom
+  de sa banque, de son fournisseur, de la personne à appeler, un souvenir),
+  appelle ask_senior : la question s'affiche sur son écran. Jamais pour un mot de
+  passe, un code ou un numéro de carte : ceux-là, on ne les demande à personne.
 - Quand la tâche est terminée et visible à l'écran, appelle answer avec une phrase
   simple destinée à la personne aidée.
 """
@@ -211,6 +219,23 @@ TOOLS = [
                 "properties": {
                     "question": {"type": "string", "description": "Question courte et concrète pour le proche"},
                     "options": {"type": "array", "items": {"type": "string"}, "description": "Choix possibles, si pertinent"},
+                },
+                "required": ["question"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ask_senior",
+            "description": ("Poser une question à la personne aidée elle-même, sur son écran, pour une "
+                            "information qu'elle seule connaît (sa banque, son fournisseur, un nom). "
+                            "Jamais de mot de passe, de code ni de numéro de carte. Suspend l'agent."),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string", "description": "Question courte, en mots simples, vouvoiement"},
+                    "options": {"type": "array", "items": {"type": "string"}, "description": "Réponses possibles, si pertinent"},
                 },
                 "required": ["question"],
             },
