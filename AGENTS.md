@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794072473-fiche-captures` | Fiches : chaque étape illustrée par une vraie capture de la session | `backend/caremamory.py`, `tests/test_protocole.py`, `tests/faux_holo.py` | 7 nov. |
 
 ## Journal
 
