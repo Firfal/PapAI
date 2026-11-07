@@ -8,6 +8,5 @@ STOP
 .env
 bridge/
 holo_agent.py
-carepilot_documentation.html
 *.bat
 .git/

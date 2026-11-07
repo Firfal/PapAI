@@ -16,7 +16,7 @@ import re
 import time
 from pathlib import Path
 
-from carepilot_tools import MODEL, TEMPERATURE, make_client, observation
+from papai_tools import MODEL, TEMPERATURE, make_client, observation
 
 from .sessions import Session
 

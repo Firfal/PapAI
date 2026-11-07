@@ -81,7 +81,7 @@ Mac de la personne aidée          Serveur PapAI (Cloud Run)            H Compan
   - **Un seul pilote à la fois :** l'aidant ne clique que lorsque l'agent est suspendu (`Owner` dans `sessions.py`).
   - **Fenêtre PapAI :** elle est exclue de la capture (ScreenCaptureKit) et les clics qui la visent sont refusés.
   - **Fraîcheur :** une capture de plus de 30 s ne peut plus servir à un clic de l'aidant.
-  - **Consignes de Holo** (`carepilot_tools.py`) : jamais de mot de passe, de paiement ni de suppression, jamais de fenêtre d'autorisation du système ni de Réglages, et `ask_helper` après deux essais ratés.
+  - **Consignes de Holo** (`papai_tools.py`) : jamais de mot de passe, de paiement ni de suppression, jamais de fenêtre d'autorisation du système ni de Réglages, et `ask_helper` après deux essais ratés.
 - **Holo :** modèle `holo3-1-35b-a3b`, API compatible OpenAI sur `https://api.hcompany.ai/v1/`. Palier gratuit : 10 requêtes par minute, d'où une étape toutes les 6,5 s minimum. Maximum 5 images par requête, on en garde 3. Contexte de 65 000 tokens. La température est à 0 (à 0,8, les clics ratent leur cible de plusieurs centaines de pixels). Une session typique coûte moins d'un centime de dollar. La clé H « papai-hackathon » est sur le compte robertquentin732, avec 100 $ de crédits.
 
 ## 4. Où est quoi
@@ -116,7 +116,7 @@ Mac de la personne aidée          Serveur PapAI (Cloud Run)            H Compan
 | `family.py` | proches : appairage par QR ou code à 6 chiffres, page `/p/{code}` (snarbe) |
 | `voice.py` | dictée : Gladia v2 (upload puis pre-recorded), route `POST /k/{fam}/transcribe` |
 | `static/` | pages web de secours (`helper.html` est encore dans l'ancien thème sombre, plus `pair.html`, etc.) |
-| `../carepilot_tools.py` | contrat avec Holo : outils, `SYSTEM_PROMPT` (Windows), `MAC_SYSTEM_PROMPT`, `PLAN_PROMPT` |
+| `../papai_tools.py` | contrat avec Holo : outils, `SYSTEM_PROMPT` (Windows), `MAC_SYSTEM_PROMPT`, `PLAN_PROMPT` |
 
 **Sécurité en ligne :**
 - Avec `PAPAI_PUBLIC=1`, toutes les routes utiles passent par **`/k/{clé famille}/…`** : `/k/{k}/ws/bridge`, `/k/{k}/ws/aidant/{k}`, `/k/{k}/lessons`, `/k/{k}/lessons/{id}/{img}`, `/k/{k}/transcribe`.
@@ -131,8 +131,8 @@ Mac de la personne aidée          Serveur PapAI (Cloud Run)            H Compan
 | `HOLO_MODEL` | `holo3-1-35b-a3b` |
 | `PAPAI_AIDANT_KEY` | la clé famille |
 | `PAPAI_PUBLIC` | `1` en ligne |
-| `CAREPILOT_PUBLIC_URL` | l'URL Cloud Run |
-| `CAREPILOT_MAX_STEPS` | 25 par défaut |
+| `PAPAI_PUBLIC_URL` | l'URL Cloud Run (l'ancien nom `CAREPILOT_PUBLIC_URL` est encore lu) |
+| `PAPAI_MAX_STEPS` | 25 par défaut (l'ancien nom `CAREPILOT_MAX_STEPS` est encore lu) |
 | `GLADIA_API_KEY` | **pas encore définie** : la dictée bascule sur la reconnaissance vocale d'Apple, sur le Mac |
 
 **En local :**
