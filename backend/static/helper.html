@@ -672,6 +672,7 @@ function onMessage(ev) {
     $('alertTitle').textContent = m.title || 'Attention';
     $('alertDetail').textContent = m.detail || '';
     $('alert').hidden = false;
+    $('alert').scrollIntoView({ behavior: 'smooth', block: 'start' });
     toast(m.title || 'Alerte');
   }
 
