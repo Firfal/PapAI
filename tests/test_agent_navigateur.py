@@ -226,6 +226,21 @@ class FramesWeb(Base):
         self.assertTrue(await attendre(lambda: s.last_frame is not None))
 
 
+class CreationAnnulee(Base):
+    async def test_annulation_pendant_creation_annule_la_session_h(self):
+        self.api.start_delay = 0.25
+        s = self.session()
+        task = await self.lancer(s)
+        s.decide_plan("approve", "")
+        self.assertTrue(await asyncio.to_thread(self.api.creation_started.wait, 2))
+
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertTrue(await attendre(lambda: self.api.a_appele("DELETE", "/h1")))
+        self.assertEqual(self.api.sessions["h1"].status, "interrupted")
+
+
 class QuestionAuProche(Base):
     scenario = "question"
 

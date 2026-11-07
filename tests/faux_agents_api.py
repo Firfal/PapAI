@@ -116,6 +116,8 @@ class FauxAgentsAPI:
         self.scenario = scenario
         self.sessions: dict[str, FauxSession] = {}
         self.appels: list[tuple[str, str]] = []
+        self.start_delay = 0.0
+        self.creation_started = threading.Event()
         api = self
 
         class H(BaseHTTPRequestHandler):
@@ -145,6 +147,9 @@ class FauxAgentsAPI:
                     return self._json(401, {"detail": "clé"})
                 if methode == "POST" and len(parts) == 3:
                     corps = self._corps()
+                    api.creation_started.set()
+                    if api.start_delay:
+                        time.sleep(api.start_delay)
                     sid = f"h{len(api.sessions) + 1}"
                     api.sessions[sid] = FauxSession(sid, corps, api.scenario)
                     return self._json(200, {"id": sid, "status": {"status": "running"}, "created_at": _now(), "request": corps})

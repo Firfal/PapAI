@@ -27,6 +27,7 @@ ENV_ID = "papai-chrome"
 MAX_STEPS = int(os.environ.get("PAPAI_WEB_MAX_STEPS", "40"))
 MAX_TIME_S = float(os.environ.get("PAPAI_WEB_MAX_TIME_S", "900"))
 PAUSE_POLL_S = 0.3
+START_SESSION_CLEANUP_TIMEOUT_S = 15.0
 DONE_DEFAULT = "C'est fait."
 
 ASK_HELPER_DESCRIPTION = (
@@ -162,14 +163,28 @@ class WebAgentRunner:
             self.s.execution_started = True
             self.s.doing = "Holo ouvre le navigateur"
             await self.broadcast(self.s.status())
-            self.handle = await self.client.start_session(
+            creation = asyncio.create_task(self.client.start_session(
                 agent=agent_spec(self.browser_session),
                 messages=brief(self.s, self.notes),
                 tools=[ask],
                 max_steps=MAX_STEPS,
                 max_time_s=MAX_TIME_S,
                 idempotency_key=f"papai-{self.s.id}-{secrets.token_hex(4)}",
-            )
+            ))
+            try:
+                self.handle = await asyncio.shield(creation)
+            except asyncio.CancelledError:
+                try:
+                    self.handle = await asyncio.wait_for(
+                        asyncio.shield(creation), timeout=START_SESSION_CLEANUP_TIMEOUT_S
+                    )
+                except asyncio.TimeoutError:
+                    creation.add_done_callback(self._cancel_late_creation)
+                except Exception:
+                    pass
+                if self.handle is not None:
+                    await self._cancel_remote()
+                raise
             self.s.log("web_agent_started", h_session=self.handle.id)
             watcher = asyncio.create_task(self._watch())
             async for event in self.handle.stream(tools=[ask]):
@@ -210,6 +225,13 @@ class WebAgentRunner:
         if self._cancel_task is None:
             self._cancel_task = asyncio.ensure_future(self._do_cancel())
         await asyncio.shield(self._cancel_task)
+
+    def _cancel_late_creation(self, task: asyncio.Task) -> None:
+        try:
+            self.handle = task.result()
+        except (asyncio.CancelledError, Exception):
+            return
+        asyncio.create_task(self._cancel_remote())
 
     async def _do_cancel(self) -> None:
         try:
