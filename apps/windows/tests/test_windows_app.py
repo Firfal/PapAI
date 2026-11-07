@@ -167,6 +167,14 @@ def unit() -> None:
                   "actions": [{"do": "open_settings", "page": "printers"}]}]
     m.run_shortcut("imp-000000000002")
     check(m.screen == "home" and "autre ordinateur" in (m.notice or ""), "automatisme d'une autre plateforme refusé")
+    m.lessons.append({"id": "imp-000000000003", "title": "Long", "platforms": ["windows"],
+                      "actions": [{"do": "open_url", "url": "https://x.fr"}]})
+    m.automation_running = "Scan"
+    m.run_shortcut("imp-000000000003")
+    check(m.snapshot()["automationRunning"] == "Scan", "un seul automatisme à la fois, Arrêter visible")
+    m.stop()
+    check(m.gate.is_stopped, "Arrêter depuis l'accueil lève le verrou de l'automatisme")
+    m.automation_running = None
     m.run_shortcut("imp-000000000001")
     check(m.screen == "consent", "automatisme avec Holo : accord du partage d'abord")
     m.give_consent()

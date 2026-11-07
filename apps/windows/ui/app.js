@@ -113,7 +113,12 @@
           style="height:40px;border-radius:999px;background:var(--mint);${f(16, 6)}">Montrez-moi</button>` : ''}
       </div>`;
     }).join('');
-    return `<div class="col" style="gap:14px"><div style="${f(24, 6)}">Mes tutoriels</div>${notice}${empty}${tiles}</div>`;
+    const running = S.automationRunning ? `<div class="card row" style="padding:18px;gap:14px;align-items:center">
+        <span class="grow" style="${f(18, 6)}">En cours : ${esc(S.automationRunning)}</span>
+        <button class="row press" data-act="stop" aria-label="Arrêter l'automatisme (Échap)"
+          style="gap:10px;height:52px;padding:0 20px;border-radius:999px;background:var(--ink);color:#fff">
+          ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
+    return `<div class="col" style="gap:14px"><div style="${f(24, 6)}">Mes tutoriels</div>${running}${notice}${empty}${tiles}</div>`;
   }
 
   const APP_STYLE = {

@@ -74,6 +74,7 @@ class Model:
         self.remote_request: dict | None = None
         self.pending_task = ""
         self.pending_automation: str | None = None
+        self.automation_running: str | None = None
         self.apps: list[dict] = []
         self.dictation = {"phase": "idle", "message": None}
         self.onboarded = bool(self.prefs.get("onboarded"))
@@ -141,7 +142,7 @@ class Model:
                 "plan": list(self.plan), "planStep": self.plan_step,
                 "question": self.question, "answer": self.answer,
                 "currentAction": self.current_action, "actions": list(self.actions),
-                "lessons": list(self.lessons), "lesson": self.lesson, "notice": self.notice, "alert": self.alert,
+                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "notice": self.notice, "alert": self.alert,
                 "helpers": list(self.helpers), "pairCode": self.pair_code,
                 "pairURL": self.pair_url, "pairQR": qr_data_url(self.pair_url or ""),
                 "pairAdded": self.pair_added, "remoteRequest": self.remote_request,
@@ -491,7 +492,10 @@ class Model:
             self.screen = "consent"
             self.push()
             return
+        if self.automation_running:
+            return
         self.gate.reset()
+        self.automation_running = str(lesson.get("title") or "Automatisme")
         self.show_notice(f"C'est parti : {lesson.get('title') or 'automatisme'}…")
         threading.Thread(target=self._play_automation, args=(lesson, holo), daemon=True).start()
 
@@ -503,7 +507,10 @@ class Model:
 
     def _play_automation(self, lesson: dict, holo: bool) -> None:
         gate = self.gate
-        ok, detail = play_actions(lesson, lambda n: self._fetch_lesson_file(lesson["id"], n), gate)
+        try:
+            ok, detail = play_actions(lesson, lambda n: self._fetch_lesson_file(lesson["id"], n), gate)
+        finally:
+            self.automation_running = None
         if gate.is_stopped:
             self.show_notice("Arrêté. Rien d'autre ne sera fait.")
             return
