@@ -650,7 +650,7 @@ class Model:
                 self.onboarding_step = 0
             if self.onboarding_step == 1:
                 self.prefs["firstName"] = "Jeanne"
-            if self.onboarding_step == 4:
+            if self.onboarding_step == 3:
                 self.helpers = [{"id": "1", "name": "Claire", "relation": "sa fille"}]
                 self.pair_code = "482913"
                 self.pair_url = "http://192.168.1.20:8000/p/482913"
