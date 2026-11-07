@@ -289,7 +289,8 @@ struct Mascotte: View {
     var anime = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var souffle = false
-    private var bouge: Bool { souffle && anime && !reduceMotion }
+    /// Discrète : immobile, sauf un léger souffle pendant l'écoute.
+    private var bouge: Bool { anime && !reduceMotion && humeur == .ecoute }
 
     var body: some View {
         Canvas { ctx, size in
@@ -299,21 +300,34 @@ struct Mascotte: View {
             MascotteDessin.dessiner(in: &ctx, humeur: humeur)
         }
         .aspectRatio(1, contentMode: .fit)
-        .scaleEffect(x: 1, y: bouge ? 1.025 : 1, anchor: .bottom)
-        .rotationEffect(.degrees(humeur == .ecoute && bouge ? -3 : 0), anchor: .bottom)
-        .onAppear {
-            guard anime, !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { souffle = true }
-        }
-        // « Réduire les animations » activé à chaud : la mascotte s'immobilise aussitôt.
-        .onChange(of: reduceMotion) { _, reduit in
-            if reduit {
-                withTransaction(Transaction(animation: nil)) { souffle = false }
-            } else if anime {
-                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { souffle = true }
-            }
-        }
+        .scaleEffect(x: 1, y: souffle ? 1.015 : 1, anchor: .bottom)
+        .onAppear(perform: suivre)
+        .onChange(of: bouge) { _, _ in suivre() }
         .accessibilityHidden(true)
+    }
+
+    private func suivre() {
+        if bouge {
+            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) { souffle = true }
+        } else {
+            withTransaction(Transaction(animation: nil)) { souffle = false }
+        }
+    }
+}
+
+extension Mascotte {
+    /// Tailles de Papaye, volontairement petites : elle accompagne sans prendre la place du texte.
+    /// « Reduite » : repli quand la fenêtre est petite ou le texte très grand.
+    enum Taille {
+        static let accueil: CGFloat = 56
+        static let accueilReduite: CGFloat = 40
+        static let session: CGFloat = 64
+        static let sessionReduite: CGFloat = 44
+        static let bienvenue: CGFloat = 88
+        static let bienvenueReduite: CGFloat = 56
+        static let prenom: CGFloat = 56
+        static let prenomReduite: CGFloat = 40
+        static let encart: CGFloat = 22
     }
 }
 

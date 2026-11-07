@@ -210,7 +210,7 @@ struct IdleView: View {
                             Text("Vous serez prévenu dès qu’une demande d’aide arrive.").font(.system(size: 16)).foregroundStyle(Soin.secondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        Mascotte(humeur: .calme).frame(width: 84, height: 84)
+                        Mascotte(humeur: .calme).frame(width: Mascotte.Taille.carte, height: Mascotte.Taille.carte)
                     }
                     .padding(22).soinCard(Soin.accentSoft, radius: 28)
                 } else {
@@ -273,7 +273,7 @@ struct WaitingView: View {
             VStack(spacing: 20) {
                 RequestCard(model: model)
                 VStack(spacing: 12) {
-                    Mascotte(humeur: .reflechit).frame(width: 96, height: 96)
+                    Mascotte(humeur: .reflechit).frame(width: Mascotte.Taille.attente, height: Mascotte.Taille.attente)
                     HStack(spacing: 10) {
                         ProgressView().tint(Soin.accent)
                         Text(text).font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
@@ -294,7 +294,7 @@ struct StoppedView: View {
                     .font(.system(size: 26, weight: .semibold)).foregroundStyle(Soin.danger)
                     .frame(width: 64, height: 64).background(Soin.card, in: Circle())
             } else {
-                Mascotte(humeur: .calme).frame(width: 110, height: 110)
+                Mascotte(humeur: .calme).frame(width: Mascotte.Taille.arret, height: Mascotte.Taille.arret)
             }
             Text(model.stoppedBy == "gardien" ? "PapAI a arrêté l'assistance : démarche suspecte"
                  : model.iRefusedPlan ? "Vous avez refusé le plan" : "\(model.seniorTitle) a arrêté l’assistance")

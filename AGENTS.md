@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin (mascotte) | `devin/1794094609-mascotte-discrete` | Papaye plus discrète (taille, animation) | `apps/mac/Sources/Theme.swift` (partie mascotte), lignes de taille de la mascotte dans `HomeView.swift` (avec l'agent accueil), `SessionView.swift`, `OnboardingView.swift`, `MiniPanel.swift` ; `apps/ios/Sources/Mascotte.swift`, `RootView.swift`/`DoneView.swift` (taille seulement) | 8 nov. |
 
 ## Journal
 

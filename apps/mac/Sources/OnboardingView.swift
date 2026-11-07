@@ -95,11 +95,10 @@ struct OnboardingView: View {
 
     /// Le décor cède la place avant le texte : mascotte réduite, promesses sans carte, puis mascotte masquée.
     private var welcome: some View {
-        let s = CGFloat(model.textScale)
-        return ViewThatFits(in: .vertical) {
-            welcome(mascotte: 190 * s)
-            welcome(mascotte: 110)
-            welcome(mascotte: 110, cartes: false)
+        ViewThatFits(in: .vertical) {
+            welcome(mascotte: Mascotte.Taille.bienvenue)
+            welcome(mascotte: Mascotte.Taille.bienvenueReduite)
+            welcome(mascotte: Mascotte.Taille.bienvenueReduite, cartes: false)
             welcome(mascotte: nil, cartes: false)
             welcome(mascotte: nil, cartes: false, titre: 44)
             ScrollView { welcome(mascotte: nil, cartes: false, titre: 44) }
@@ -137,10 +136,9 @@ struct OnboardingView: View {
     }
 
     private var firstName: some View {
-        let s = CGFloat(model.textScale)
-        return ViewThatFits(in: .vertical) {
-            firstName(mascotte: 120 * s)
-            firstName(mascotte: 72)
+        ViewThatFits(in: .vertical) {
+            firstName(mascotte: Mascotte.Taille.prenom)
+            firstName(mascotte: Mascotte.Taille.prenomReduite)
             firstName(mascotte: nil)
         }
     }

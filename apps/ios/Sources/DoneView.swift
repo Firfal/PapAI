@@ -19,7 +19,7 @@ struct DoneView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    Mascotte(humeur: .bravo).frame(width: 76, height: 76)
+                    Mascotte(humeur: .bravo).frame(width: Mascotte.Taille.carte, height: Mascotte.Taille.carte)
                 }
                 .padding(20).soinCard(Soin.peach, radius: 28)
 
