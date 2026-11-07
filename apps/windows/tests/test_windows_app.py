@@ -18,8 +18,10 @@ import json
 import os
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["PAPAI_HOME"] = tempfile.mkdtemp()
@@ -126,8 +128,63 @@ def unit() -> None:
     m.start()
     m._handle({"type": "alert", "level": "danger", "title": "Arnaque", "detail": "N'appelez pas."})
     check(m.snapshot()["alert"]["title"] == "Arnaque", "alerte du gardien affichée")
+    check(m.gate.is_stopped and m.state == "stopped", "alerte danger : verrou local et état arrêté")
     m.dismiss_alert()
     check(m.snapshot()["alert"] is None, "alerte fermée")
+    check(m.gate.is_stopped, "fermer l'alerte ne baisse pas le verrou")
+
+    async def guard_during_action(name):
+        started, release, finished = threading.Event(), threading.Event(), threading.Event()
+        fake = Mock()
+
+        def wait_for_alert(*args):
+            started.set()
+            if not release.wait(3):
+                raise TimeoutError("alerte non reçue")
+
+        if name == "click":
+            fake.moveTo.side_effect = wait_for_alert
+        else:
+            fake.write.side_effect = wait_for_alert
+
+        def runner(*args):
+            try:
+                return core.run_action(*args)
+            finally:
+                finished.set()
+
+        b = Bridge("", core.StopGate(), FakeScreen, lambda m: None,
+                   lambda ok: None, lambda s: None, runner=runner)
+        b.last_status = {"state": "active", "plan_approved": True}
+        act = {"name": name, "args": {"x": 10, "y": 10, "text": "ABCD"}}
+        with patch.dict(sys.modules, {"pyautogui": fake}), patch.object(core, "WINDOWS", False):
+            await b._handle(WS(), {"type": "execute", "req": "guard", "action": act})
+            check(await asyncio.to_thread(started.wait, 3), f"{name} engagé avant l'alerte")
+            tasks = list(b._executions)
+            await b._handle(WS(), {"type": "alert", "level": "info"})
+            check(not b.gate.is_stopped and not tasks[0].cancelling(), "info : pas d'arrêt abusif")
+            await b._handle(WS(), {"type": "alert", "level": "danger"})
+            check(b.gate.is_stopped and tasks[0].cancelling(), "danger : verrou levé et execute annulé")
+            await b._execute(WS(), "apres", act)
+            check(sent[-1]["refused"], "execute ultérieur refusé")
+            b.gate.reset()
+            release.set()
+            await asyncio.gather(*tasks, return_exceptions=True)
+            check(await asyncio.to_thread(finished.wait, 3), "le fil d'action s'est arrêté")
+            check(not fake.click.called and fake.write.call_count == (1 if name == "type_text" else 0),
+                  f"{name} : aucun geste suivant après l'alerte, même après reset")
+            check(not b._executions, "tâche execute libérée")
+
+    asyncio.run(guard_during_action("click"))
+    asyncio.run(guard_during_action("type_text"))
+
+    async def blocked_attention():
+        b = Bridge("", core.StopGate(), FakeScreen, lambda m: None,
+                   lambda ok: None, lambda s: None)
+        await b._handle(WS(), {"type": "alert", "level": "attention", "blocked": True})
+        check(b.gate.is_stopped, "avis Holo bloquant : verrou levé même au niveau attention")
+
+    asyncio.run(blocked_attention())
 
     m = Model(demo="home")
     m.request_consent("Mes photos")

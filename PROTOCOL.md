@@ -163,6 +163,10 @@ sont arrêtées aussi. L'alerte est renvoyée aux aidants et au pont à la recon
 
 Les alertes de veille partent immédiatement à partir des signaux textuels,
 sans attendre de capture ni de confirmation visuelle de Holo.
+Sur Windows, `level: danger` ou `blocked: true` lève immédiatement le verrou
+local et annule les tâches `execute` engagées. Le fil d'exécution conserve le
+verrou de sa demande et le relit avant les gestes suivants, même si une nouvelle
+demande réinitialise ensuite le verrou courant.
 
 Ce qui est reconnu aujourd'hui : un outil de prise en main qui tourne
 (AnyDesk, TeamViewer, UltraViewer…), une fausse alerte « votre ordinateur est

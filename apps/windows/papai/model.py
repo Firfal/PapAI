@@ -386,6 +386,10 @@ class Model:
                 self.pair_added = str(m["added"])
                 self.pair_code = self.pair_url = None
         elif kind == "alert":
+            if m.get("level") == "danger" or m.get("blocked"):
+                self.gate.raise_stop()
+                self.state = "stopped"
+                self.current_action = None
             self.alert = {"level": str(m.get("level") or "info"), "title": str(m.get("title") or ""),
                           "detail": str(m.get("detail") or "")}
         elif kind == "lessons_changed":
