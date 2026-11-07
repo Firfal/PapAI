@@ -22,6 +22,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 7 nov. soir | Devin | `devin/1794084917-extension-gardien` | Étape 2 : extension PapAI Gardien MV3, popup, cache, extraction sans champs, bannière et voile fermé, icônes du logotype ; titres serveur précisés. Sites 66/66, intégration serveur 83/83, Chromium isolé 14/14 (dont requêtes réelles sans ajout CORS). Revue visuelle laissée au pilote ; Edge/Brave et Windows non essayés. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794084917-extension-gardien` | Étape 1 : serveur du Gardien navigateur, routes `/ext/pair` et `/ext/site`, message `ext_pair_start`, jetons hachés, liste connue commune, règles et avis Holo, alertes distinctes. Sites 66/66, intégration 80/80, gardien 14/14, protocole 14/14, parcours 27/27, sécurité 31/31. Extension et interfaces Mac non réalisées (étapes suivantes). Fichiers libérés. |
 | 7 nov. | Claude | `parcours-onboarding` | Lancement sur Mac sans Xcode : `run_backend_mac.sh`, `apps/mac/scripts/build-mac-cli.sh` (swiftc + bundle + signature ad hoc). |
 | 7 nov. | Claude | `parcours-onboarding` | Étapes 1-2 : accueil en 5 écrans (bienvenue, prénom, taille du texte, autorisations, proches), ajout d'un proche par QR ou code à 6 chiffres (`backend/family.py`, `/p/{code}`, `pair.html`), session proposée par le proche à accepter sur le Mac (`remote_request`). |
