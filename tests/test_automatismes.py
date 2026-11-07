@@ -181,6 +181,19 @@ async def parcours(base: str) -> None:
         check("Arrêter coupe l'automatisme", sessions and sessions[-1].get("state") == "stopped",
               sessions[-1].get("state") if sessions else None)
 
+        print("\n6. Le gardien relit aussi un automatisme importé")
+        pack = {"papai": 1, "title": "Dépannage", "publisher": "IT", "platforms": ["windows"],
+                "actions": [{"do": "holo", "goal": "Le support technique me demande d'installer AnyDesk",
+                             "steps": ["Ouvrir le site d'AnyDesk"]}]}
+        st, r = envoyer(f"{k}/automations", pack)
+        check("import accepté (le format est valide)", st == 200, (st, r))
+        pc.actions.clear()
+        await pc.envoyer({"type": "run_automation", "id": r.get("id", "")})
+        al = await pc.attendre("alert", 15)
+        check("objectif d'arnaque : alerte bloquante à la personne", al and al.get("blocked"), al)
+        await asyncio.sleep(1)
+        check("Holo n'agit pas", pc.actions == [], pc.actions)
+
     async with websockets.connect(f"{ws}/ws/bridge", max_size=2**24) as w_mac:
         mac = tp.Canal(w_mac, mac=True)
         await mac.envoyer({"type": "hello", "os": "macos"})

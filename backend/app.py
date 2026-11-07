@@ -533,8 +533,19 @@ def _os_family(name: str) -> str:
 
 
 async def run_automation(session, link: "BridgeLink") -> None:
-    """Plan déjà validé par le support : l'agent agit directement."""
+    """Plan déjà validé par le support : l'agent agit directement.
+
+    Le gardien relit quand même l'objectif et les étapes : un fichier importé
+    ne doit pas pouvoir faire ce qu'une demande libre ne ferait pas."""
     try:
+        if S().pending_alert:
+            session.stop(by="gardien")
+            await broadcast_helper(session.status())
+            await link.send(S().pending_alert["senior"])
+            await broadcast_helper(S().pending_alert["helper"], to_bridge=False)
+            return
+        if await check_request(session, " ; ".join([session.task, *session.plan]), "plan"):
+            return
         await broadcast_helper(session.status())
         await AgentRunner(session, link, broadcast_helper).run()
     except asyncio.CancelledError:
