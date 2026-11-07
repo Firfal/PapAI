@@ -30,7 +30,7 @@
 		<true/>
 	</dict>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>PapAI lit l'adresse de la page ouverte dans votre navigateur pour repérer les sites d'arnaque et prévenir vos proches.</string>
+	<string>PapAI lit l'adresse de la page ouverte dans votre navigateur pour repérer les sites d'arnaque et prévenir vos proches, et ouvre dans Photos les albums que vous avez ajoutés à l'accueil.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>PapAI écoute votre voix uniquement quand vous touchez le micro, pour écrire votre demande à votre place.</string>
 	<key>NSScreenCaptureUsageDescription</key>

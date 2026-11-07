@@ -137,6 +137,7 @@ final class HelperModel {
     static let frameTTL: Double = 30
 
     init() {
+        #if DEBUG
         // `-serverURL …` et `-helperKey …` au lancement (dépannage, démo) : on les garde.
         let args = ProcessInfo.processInfo.arguments
         for k in ["serverURL", "helperKey"] {
@@ -145,6 +146,7 @@ final class HelperModel {
                 if !v.isEmpty { UserDefaults.standard.set(v, forKey: k) }
             }
         }
+        #endif
         serverURL = UserDefaults.standard.string(forKey: "serverURL") ?? ""
         helperKey = UserDefaults.standard.string(forKey: "helperKey") ?? ""
     }
@@ -191,14 +193,18 @@ final class HelperModel {
 
     /// Enregistre de nouveaux réglages. Jamais de valeur vide : une configuration
     /// qui marche n'est pas effacée par un champ laissé blanc.
-    func applySettings(server: String, key: String) {
+    @discardableResult
+    func applySettings(server: String, key: String) -> Bool {
         let s = server.trimmingCharacters(in: .whitespacesAndNewlines)
         let k = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !s.isEmpty, !k.isEmpty else { return }
+        guard !s.isEmpty, !k.isEmpty else { return false }
+        guard PairServer.allowed(s) else { pairError = PairServer.refusal; return false }
+        pairError = nil
         serverURL = s; helperKey = k
         UserDefaults.standard.set(s, forKey: "serverURL")
         UserDefaults.standard.set(k, forKey: "helperKey")
         reconnect()
+        return true
     }
 
     func start() {
@@ -348,9 +354,7 @@ final class HelperModel {
 
     func open(url: URL) {
         if url.host == "open" { return }   // touché depuis la carte de l'écran verrouillé
-        if let n = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-            .queryItems?.first(where: { $0.name == "n" })?.value { setSenior(n) }
-        guard let link = PairLink.parse(url.absoluteString) else { showToast("Lien PapAI non reconnu."); return }
+        guard let link = PairLink.parse(url.absoluteString) else { showToast(PairServer.refusal); return }
         openPair(link)
     }
 
@@ -362,11 +366,21 @@ final class HelperModel {
     /// Saisie du code à la main : il faut déjà connaître le serveur.
     func manualPairLink() -> PairLink? {
         let s = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        return s.isEmpty ? nil : PairLink(base: baseHTTP, code: nil)
+        return s.isEmpty || !PairServer.allowed(baseHTTP) ? nil : PairLink(base: baseHTTP, code: nil)
+    }
+
+    func needsReplaceConfirmation(_ link: PairLink) -> Bool {
+        isConfigured && PairServer.normalized(link.base) != PairServer.normalized(baseHTTP)
     }
 
     /// POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur.
-    func submitPair(_ link: PairLink, code: String?, name: String, relation: String) async {
+    func submitPair(_ link: PairLink, code: String?, name: String, relation: String, confirmedReplace: Bool = false) async {
+        guard !pairBusy else { return }
+        guard PairServer.allowed(link.base) else { pairError = PairServer.refusal; return }
+        guard confirmedReplace || !needsReplaceConfirmation(link) else {
+            pairError = "Confirmez le remplacement de la liaison avant de rejoindre ce serveur."
+            return
+        }
         let c = (link.code ?? code ?? "").filter(\.isNumber)
         let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard c.count == 6 else { pairError = "Le code fait 6 chiffres."; return }
@@ -390,8 +404,9 @@ final class HelperModel {
                 return
             }
             var server = (r["server"] as? String) ?? link.origin
+            if !PairServer.allowed(server) || !PairServer.sameOrigin(server, link.origin) { server = link.origin }
             while server.hasSuffix("/") { server.removeLast() }
-            setSenior(r["senior"] as? String)
+            setSenior(r["senior"] as? String ?? link.senior)
             helperName = r["name"] as? String ?? n
             UserDefaults.standard.set(helperName, forKey: "helperName")
             if let id = r["id"] as? String { helperId = id; UserDefaults.standard.set(id, forKey: "helperId") }
