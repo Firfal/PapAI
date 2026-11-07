@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794094625-accueil-recherche-automates` | Accueil Mac : barre de demande + petit micro + AutoMates (empilée sur #39) | `apps/mac/Sources/HomeView.swift` (mise en page), `apps/mac/Sources/Model.swift` (démo seulement) | 8 nov. |
 
 ## Journal
 
