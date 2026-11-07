@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794069197-fiche-etapes-chaines` | Fiche : étapes en chaînes, erreur renvoyée à l'aidant | `backend/caremamory.py`, `backend/app.py` (branche `draft_lesson`), `apps/ios/Sources/HelperModel.swift` (cas `refused`), `tests/test_protocole.py`, `tests/faux_holo.py` | 7 nov. |
 
 ## Journal
 
