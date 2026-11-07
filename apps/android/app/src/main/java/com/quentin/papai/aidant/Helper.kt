@@ -122,6 +122,7 @@ object Helper {
     var frame by mutableStateOf<ImageBitmap?>(null)
     private var frameId: String? = null
     private var lastNotified = ""
+    private var hasProposedPlan = false
     var frameAt by mutableStateOf<Long?>(null)
 
     // Prise de main
@@ -159,10 +160,11 @@ object Helper {
         prefs = ctx.getSharedPreferences("papai", Context.MODE_PRIVATE)
         serverURL = prefs.getString("serverURL", "") ?: ""
         helperKey = prefs.getString("helperKey", "") ?: ""
-        helperName = prefs.getString("helperName", null)
+        helperName = cleanText(prefs.getString("helperName", null)).ifEmpty { null }
         helperId = prefs.getString("helperId", "") ?: ""
         helperRelation = prefs.getString("helperRelation", "") ?: ""
-        seniorName = prefs.getString("seniorName", "") ?: ""
+        seniorName = cleanText(prefs.getString("seniorName", ""))
+        prefs.edit().putString("seniorName", seniorName).putString("helperName", helperName).apply()
     }
 
     val isConfigured get() = serverURL.isNotBlank() && helperKey.isNotBlank()
@@ -260,13 +262,13 @@ object Helper {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 val msg = try { JSONObject(text) } catch (_: Exception) { return }
                 // Les captures se décodent hors du fil principal.
-                val img = if (msg.optString("type") == "frame") decode(msg.optString("png_b64")) else null
+                val img = if (msg.text("type") == "frame") decode(msg.text("png_b64")) else null
                 main.post {
                     if (gen != generation) return@post
                     if (!hello) {
-                        if (msg.optString("type") == "refused") {
+                        if (msg.text("type") == "refused") {
                             keyRefused = true
-                            val reason = msg.optString("reason").takeIf { it.isNotEmpty() }
+                            val reason = msg.text("reason").takeIf { it.isNotEmpty() }
                             linkError = "Clé refusée par $host" + (reason?.let { " ($it)" } ?: "") + "."
                             webSocket.close(1000, null)
                             return@post
@@ -331,10 +333,11 @@ object Helper {
     // MARK: Personne aidée
 
     fun setSenior(name: String?) {
-        val n = name?.trim().orEmpty()
+        val n = cleanText(name)
         if (n.isEmpty() || n == seniorName) return
         seniorName = n
         prefs.edit().putString("seniorName", n).apply()
+        LinkService.refresh(ctx)
     }
 
     /** Lien `papai://pair?u=…&n=…` ouvert depuis un QR, un SMS ou la page web. */
@@ -364,7 +367,7 @@ object Helper {
             return
         }
         val c = (link.code ?: code ?: "").filter { it.isDigit() }
-        val n = name.trim()
+        val n = cleanText(name)
         if (c.length != 6) { pairError = "Le code fait 6 chiffres."; return }
         if (n.isEmpty()) { pairError = "Indiquez votre prénom."; return }
         val body = JSONObject().put("name", n).put("relation", relation).toString()
@@ -383,19 +386,20 @@ object Helper {
                 main.post {
                     pairBusy = false
                     if (!r.optBoolean("ok")) {
-                        pairError = r.optString("error").ifEmpty { "Le serveur a refusé l'appairage." }
+                        pairError = r.text("error").ifEmpty { "Le serveur a refusé l'appairage." }
                         return@post
                     }
-                    val key = r.optString("key")
+                    val key = r.text("key")
                     if (key.isEmpty()) {
                         pairError = "Le serveur n'a pas renvoyé de clé : réglez la connexion à la main."
                         return@post
                     }
-                    val server = PairingPolicy.responseOrigin(link, r.optString("server"))
-                    seniorName = r.optString("senior").ifBlank { link.senior.orEmpty() }.trim()
+                    val server = PairingPolicy.responseOrigin(link, r.text("server"))
+                    seniorName = r.text("senior").ifBlank { cleanText(link.senior) }
                     prefs.edit().putString("seniorName", seniorName).apply()
-                    helperName = r.optString("name").ifEmpty { n }
-                    r.optString("id").takeIf { it.isNotEmpty() }?.let { helperId = it }
+                    LinkService.refresh(ctx)
+                    helperName = r.text("name").ifEmpty { n }
+                    r.text("id").takeIf { it.isNotEmpty() }?.let { helperId = it }
                     helperRelation = relation
                     prefs.edit().putString("helperName", helperName).putString("helperId", helperId)
                         .putString("helperRelation", relation).apply()
@@ -426,7 +430,7 @@ object Helper {
                 val arr = try { JSONArray(response.body?.string() ?: "[]") } catch (_: Exception) { return }
                 val list = (0 until arr.length()).mapNotNull { i ->
                     val o = arr.optJSONObject(i) ?: return@mapNotNull null
-                    Lesson(o.optString("title"), o.optJSONArray("steps")?.length() ?: 0)
+                    Lesson(o.text("title"), o.optJSONArray("steps")?.length() ?: 0)
                 }
                 main.post { lessons = list }
             }
@@ -442,12 +446,12 @@ object Helper {
     // MARK: Messages
 
     private fun strings(a: JSONArray?): List<String> =
-        if (a == null) emptyList() else (0 until a.length()).map { a.optString(it) }
+        if (a == null) emptyList() else (0 until a.length()).map { a.text(it) }
 
     private fun handle(m: JSONObject, img: ImageBitmap?) {
-        when (m.optString("type")) {
+        when (m.text("type")) {
             "hello" -> {
-                setSenior(m.optString("senior"))
+                setSenior(m.text("senior"))
                 // Le serveur renvoie status et capture juste après s'il y a une session :
                 // sans session (serveur redémarré), il ne reste rien de l'ancienne demande.
                 state = null; frame = null; frameId = null; frameAt = null
@@ -456,32 +460,33 @@ object Helper {
                     "relation" to helperRelation)
             }
 
-            "helper_id" -> m.optString("id").takeIf { it.isNotEmpty() }?.let {
+            "helper_id" -> m.text("id").takeIf { it.isNotEmpty() }?.let {
                 helperId = it; prefs.edit().putString("helperId", it).apply()
             }
 
             "dictation" -> {
-                val t = m.optString("text").trim()
+                val t = m.text("text")
                 liveDictation = t.ifEmpty { null }
                 dictationClear?.let { main.removeCallbacks(it) }
                 // Sans nouvelle demande dans la minute, on efface le texte affiché.
                 dictationClear = Runnable { liveDictation = null }.also { main.postDelayed(it, 60_000) }
             }
 
-            "senior" -> setSenior(m.optString("name"))
+            "senior" -> setSenior(m.text("name"))
 
             "status" -> {
-                val newState = m.optString("state").ifEmpty { null }
-                val sid = m.opt("session")?.toString() ?: ""
+                val newState = m.text("state").ifEmpty { null }
+                val sid = m.text("session")
                 if (sid != sessionId) {
                     liveDictation = null
                     sessionId = sid; requestStart = System.currentTimeMillis(); iRefusedPlan = false
+                    hasProposedPlan = false
                     doneAnswer = null; hasDraft = false; savedTitle = null; lessonBusy = false
                     pausing = false; doneFresh = false
                     frame = null; frameId = null; frameAt = null
                 }
                 val q = m.optJSONObject("question")
-                val toSenior = q?.optString("to") == "senior"
+                val toSenior = q?.text("to") == "senior"
                 if (newState != state) {
                     // Une reconnexion renvoie le même état : on ne sonne pas deux fois pour la même attente.
                     val key = "$sid:$newState"
@@ -489,7 +494,7 @@ object Helper {
                     if (!waits) lastNotified = ""
                     if (waits && key != lastNotified) {
                         lastNotified = key
-                        notifyHelp(newState, q?.optString("question"), m.optString("task"))
+                        notifyHelp(newState, q?.text("question"), m.text("task"))
                     }
                     if (newState == "done") { doneFresh = true; loadLessons() }
                     if (newState == "active") { pausing = false; planBusy = false }
@@ -498,42 +503,43 @@ object Helper {
                     if (newState != "awaiting_approval" && newState != "awaiting_helper") clearHelpNotification()
                 }
                 state = newState
-                task = m.optString("task").ifEmpty { task }
+                if (newState == "awaiting_approval") hasProposedPlan = true
+                task = m.text("task").ifEmpty { task }
                 plan = strings(m.optJSONArray("plan"))
                 planStep = if (m.has("plan_step") && !m.isNull("plan_step")) m.optInt("plan_step") else null
-                doing = m.optString("doing").ifEmpty { null }
+                doing = m.text("doing").ifEmpty { null }
                 seniorPaused = m.optBoolean("paused", false)
-                if (q != null && q.optString("question").isNotEmpty()) {
-                    question = Question(q.optString("question"), strings(q.optJSONArray("options")))
+                if (q != null && q.text("question").isNotEmpty()) {
+                    question = Question(q.text("question"), strings(q.optJSONArray("options")))
                     questionToSenior = toSenior
                 } else if (newState != "awaiting_helper") question = null
             }
 
             "frame" -> if (img != null) {
-                frame = img; frameId = m.optString("frame_id").ifEmpty { null }
+                frame = img; frameId = m.text("frame_id").ifEmpty { null }
                 frameAt = System.currentTimeMillis(); target = null
             }
 
-            "question" -> m.optString("question").takeIf { it.isNotEmpty() }?.let {
+            "question" -> m.text("question").takeIf { it.isNotEmpty() }?.let {
                 question = Question(it, strings(m.optJSONArray("options")))
             }
 
-            "answer" -> doneAnswer = m.optString("content").ifEmpty { null }
+            "answer" -> doneAnswer = m.text("content").ifEmpty { null }
 
             "alert" -> {
-                val t = m.optString("title").ifEmpty { "Alerte" }
-                val d = m.optString("detail")
+                val t = m.text("title").ifEmpty { "Alerte" }
+                val d = m.text("detail")
                 lastAlert = AlertInfo(t, d)
                 notifyLocal(t, d, ALERT_ID)
                 showToast(t)
             }
 
             "refused" -> {
-                showToast(m.optString("reason").ifEmpty { "Refusé" })
+                showToast(m.text("reason").ifEmpty { "Refusé" })
                 sending = false; planBusy = false; lessonBusy = false
             }
 
-            "ack" -> when (m.optString("what")) {
+            "ack" -> when (m.text("what")) {
                 "click" -> {
                     sending = false; aiming = false; target = null
                     showToast("Clic transmis à l'ordinateur de $senior.")
@@ -546,34 +552,34 @@ object Helper {
             "lesson_draft" -> {
                 lessonBusy = false
                 val l = m.optJSONObject("lesson") ?: return
-                draftTitle = l.optString("title")
+                draftTitle = l.text("title")
                 draftTarget = shortcutLabel(l.optJSONObject("shortcut"))
                 val previews = m.optJSONObject("preview")
                 draftSteps.clear()
                 val steps = l.optJSONArray("steps") ?: JSONArray()
                 for (i in 0 until steps.length()) {
                     val s = steps.optJSONObject(i)
-                    if (s == null) { draftSteps.add(DraftStep(steps.optString(i), null, null)); continue }
-                    val f = s.optString("frame")
-                    val preview = previews?.optString(f)?.takeIf { f.isNotEmpty() && it.isNotEmpty() }?.let { decode(it) }
-                    draftSteps.add(DraftStep(s.optString("instruction"), s.optString("checkpoint").ifEmpty { null }, preview))
+                    if (s == null) { draftSteps.add(DraftStep(steps.text(i), null, null)); continue }
+                    val f = s.text("frame")
+                    val preview = previews?.text(f)?.takeIf { f.isNotEmpty() && it.isNotEmpty() }?.let { decode(it) }
+                    draftSteps.add(DraftStep(s.text("instruction"), s.text("checkpoint").ifEmpty { null }, preview))
                 }
                 hasDraft = true
             }
 
             "lesson_saved" -> {
                 hasDraft = false; lessonBusy = false
-                savedTitle = m.optJSONObject("lesson")?.optString("title")?.ifEmpty { null } ?: draftTitle
+                savedTitle = m.optJSONObject("lesson")?.text("title")?.ifEmpty { null } ?: draftTitle
                 loadLessons()
             }
         }
     }
 
     private fun shortcutLabel(s: JSONObject?): String? {
-        val folder = s?.optString("folder")?.ifEmpty { null } ?: return null
+        val folder = s?.text("folder")?.ifEmpty { null } ?: return null
         val names = mapOf("downloads" to "Téléchargements", "pictures" to "Images", "documents" to "Documents",
             "desktop" to "Bureau", "videos" to "Vidéos", "music" to "Musique")
-        val sub = s.optString("subfolder").trim()
+        val sub = s.text("subfolder")
         val root = names[folder.lowercase()] ?: folder
         return if (sub.isEmpty()) root else "$root › $sub"
     }
@@ -586,7 +592,7 @@ object Helper {
     private fun notifyHelp(state: String, question: String?, task: String) {
         val who = seniorTitle
         if (state == "awaiting_approval") {
-            notifyLocal("$who demande de l'aide",
+            notifyLocal(if (hasProposedPlan) "Nouveau plan proposé" else "$who demande de l'aide",
                 if (task.isEmpty()) "Un plan attend votre accord." else "« $task » : un plan attend votre accord.", HELP_ID)
         } else {
             notifyLocal("$who a besoin de vous", question?.ifEmpty { null } ?: "Holo attend votre aide.", HELP_ID)

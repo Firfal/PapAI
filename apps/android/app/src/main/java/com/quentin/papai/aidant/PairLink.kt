@@ -29,7 +29,7 @@ data class PairLink(
                     parts[0] to URLDecoder.decode(parts.getOrElse(1) { "" }, "UTF-8")
                 }
                 t = query["u"]?.trim() ?: return null
-                senior = query["n"]
+                senior = cleanText(query["n"]).ifEmpty { null }
             }
             val m = pattern.find(t) ?: return null
             val base = m.groupValues[1].trimEnd('/')
