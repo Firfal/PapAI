@@ -31,7 +31,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -113,8 +113,8 @@ fun Header(name: String, onAvatar: () -> Unit) {
             T(if (h >= 19 || h < 5) "Bonsoir" else "Bonjour", 14.sp, color = Soin.secondary)
             T(name, 20.sp, FontWeight.SemiBold)
         }
-        Box(Modifier.size(48.dp).clip(CircleShape).background(Soin.card), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.Notifications, null, tint = Soin.ink)
+        Box(Modifier.size(48.dp).clip(CircleShape).background(Soin.card).clickable(onClick = onAvatar), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Settings, "Réglages", tint = Soin.ink)
         }
     }
 }

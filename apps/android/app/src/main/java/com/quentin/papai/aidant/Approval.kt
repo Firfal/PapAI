@@ -106,19 +106,20 @@ fun RefineSheet(onClose: () -> Unit) {
     var text by rememberSaveable { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        T("Préciser le plan", 24.sp, FontWeight.Bold)
-        T("Dites ou écrivez à Holo ce qu'il doit changer. Il proposera un nouveau plan.", 15.sp, color = Soin.secondary)
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SoinField(text, { text = it }, "Par exemple : les photos sont dans Images > Noël 2025",
-                Modifier.weight(1f), single = false, minLines = 3,
-                keyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
-            MicButton({ text }, { text = it; error = null }, { error = it })
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            T("Préciser le plan", 24.sp, FontWeight.Bold)
+            T("Dites ou écrivez à Holo ce qu'il doit changer. Il proposera un nouveau plan.", 15.sp, color = Soin.secondary)
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                SoinField(text, { text = it }, "Par exemple : les photos sont dans Images > Noël 2025",
+                    Modifier.weight(1f), single = false, minLines = 3,
+                    keyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
+                MicButton({ text }, { text = it; error = null }, { error = it })
+            }
+            error?.let { T(it, 14.sp) } ?: Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.GraphicEq, null, Modifier.size(16.dp), tint = Soin.secondary)
+                T("Le micro ajoute ce que vous dites ; l'envoi reste manuel.", 14.sp, color = Soin.secondary)
+            }
         }
-        error?.let { T(it, 14.sp) } ?: Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.GraphicEq, null, Modifier.size(16.dp), tint = Soin.secondary)
-            T("Le micro ajoute ce que vous dites ; l'envoi reste manuel.", 14.sp, color = Soin.secondary)
-        }
-        Spacer(Modifier.weight(1f))
         CapsuleButton("Envoyer à Holo", enabled = text.isNotBlank()) {
             val t = text.trim()
             if (t.isNotEmpty()) { Helper.refinePlan(t); onClose() }

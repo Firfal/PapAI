@@ -26,10 +26,10 @@ object Soin {
     val bg = Color(0xFFEEF0EE)
     val card = Color.White
     val ink = Color(0xFF111312)
-    val secondary = Color(0xFF7A807C)
+    val secondary = Color(0xFF59615B)
     val accent = Color(0xFF2E9E5B)
     val accentSoft = Color(0xFFE2F2E7)
-    val danger = Color(0xFFC62828)
+    val danger = Color(0xFFC8442F)
 }
 
 fun Modifier.soinCard(fill: Color = Soin.card, radius: Dp = 22.dp): Modifier =
@@ -51,14 +51,13 @@ fun CapsuleButton(
             .fillMaxWidth()
             .defaultMinSize(minHeight = 56.dp)
             .clip(CircleShape)
-            .background(fill)
-            .alpha(if (enabled) 1f else 0.45f)
+            .background(if (enabled) fill else fill.copy(alpha = 0.45f))
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
         if (content != null) content()
-        else Text(label, color = text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        else Text(label, color = if (enabled) text else text.copy(alpha = 0.7f), fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
