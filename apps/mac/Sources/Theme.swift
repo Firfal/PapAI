@@ -59,13 +59,15 @@ struct Header: View {
             Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "fr_FR"))))
                 .font(rounded(18)).foregroundStyle(T.muted)
             Spacer()
-            HStack(spacing: 10) {
-                Circle().fill(model.connected ? T.accent : T.muted.opacity(0.5)).frame(width: 10, height: 10)
-                Text(model.connected ? "\(model.HelperName) est joignable" : "\(model.HelperName) n'est pas joignable")
-                    .font(rounded(16, .medium))
+            // Rien quand tout va bien : la personne aidée n'a pas à se soucier de la connexion.
+            if !model.connected {
+                HStack(spacing: 10) {
+                    Circle().fill(T.muted.opacity(0.5)).frame(width: 10, height: 10)
+                    Text("Pas de connexion pour le moment").font(rounded(16, .medium))
+                }
+                .padding(.horizontal, 18).padding(.vertical, 11)
+                .background(Capsule().fill(T.card))
             }
-            .padding(.horizontal, 18).padding(.vertical, 11)
-            .background(Capsule().fill(T.card))
             Button { model.showSettings = true } label: {
                 Image(systemName: "gearshape").font(.system(size: 17, weight: .medium))
                     .frame(width: 42, height: 42).background(Circle().fill(T.card))

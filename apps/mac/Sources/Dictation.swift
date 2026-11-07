@@ -17,6 +17,12 @@ final class Dictation {
     private var limit: Task<Void, Never>?
     private var onText: ((String) -> Void)?
     private var base = ""
+    /// Fin de phrase : après avoir parlé, ce silence suffit pour envoyer.
+    private let silenceToSend: TimeInterval = 1.8
+    /// Personne ne parle du tout : on arrête au bout de ce délai.
+    private let nothingHeard: TimeInterval = 8
+    private var startedAt = Date()
+    private var lastVoice: Date?
 
     func toggle(httpBase: String, onText: @escaping (String) -> Void) {
         switch phase {
@@ -43,6 +49,7 @@ final class Dictation {
             guard r.record() else { throw CocoaError(.fileWriteUnknown) }
             recorder = r; fileURL = url; self.onText = onText; base = httpBase
             phase = .listening
+            startedAt = Date(); lastVoice = nil
             meter()
             limit = Task { [weak self] in
                 try? await Task.sleep(for: .seconds(30))
@@ -59,10 +66,28 @@ final class Dictation {
                 self.recorder?.updateMeters()
                 let db = self.recorder?.averagePower(forChannel: 0) ?? -60
                 self.level = CGFloat(max(0, min(1, (db + 50) / 50)))
+                // Voix au-dessus du bruit de fond : on note le moment.
+                if db > -38 { self.lastVoice = Date() }
+                if let v = self.lastVoice, Date().timeIntervalSince(v) > self.silenceToSend {
+                    self.stop(); break
+                }
+                if self.lastVoice == nil, Date().timeIntervalSince(self.startedAt) > self.nothingHeard {
+                    self.cancelSilent(); break
+                }
                 try? await Task.sleep(for: .milliseconds(80))
             }
             self?.level = 0
         }
+    }
+
+    /// Rien entendu : on arrête sans rien envoyer.
+    private func cancelSilent() {
+        guard phase == .listening else { return }
+        limit?.cancel()
+        recorder?.stop(); recorder = nil
+        if let u = fileURL { try? FileManager.default.removeItem(at: u) }
+        phase = .idle
+        message = "Je n'ai rien entendu. Appuyez sur le micro et parlez."
     }
 
     func stop() {

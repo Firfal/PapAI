@@ -41,10 +41,10 @@
       <span class="muted">·</span>
       <span class="muted" style="${f(18, 5)}">${esc(date)}</span>
       <div class="spacer"></div>
-      <div class="pillChip" style="gap:10px;padding:11px 18px">
-        <span class="dot" style="background:${S.connected ? 'var(--accent)' : 'rgba(122,128,124,.5)'}"></span>
-        <span style="${f(16, 5)}">${esc(S.HelperName)} ${S.connected ? 'est joignable' : "n'est pas joignable"}</span>
-      </div>
+      ${S.connected ? '' : `<div class="pillChip" style="gap:10px;padding:11px 18px">
+        <span class="dot" style="background:rgba(122,128,124,.5)"></span>
+        <span style="${f(16, 5)}">Pas de connexion pour le moment</span>
+      </div>`}
       <button class="circle press" data-act="openSettings" aria-label="Réglages"
         style="width:42px;height:42px;background:var(--card)">${icon('gear', 19)}</button>
     </div>`;

@@ -63,6 +63,9 @@ struct HomeView: View {
             warning = nil
             dictation.toggle(httpBase: model.httpBase) { text in
                 request = request.isEmpty ? text : request + " " + text
+                // Dictée : quand la personne s'arrête de parler, la demande part,
+                // sans qu'elle ait à appuyer sur « J'ai besoin d'aide ».
+                submit()
             }
         } label: {
             HStack(spacing: 12) {
@@ -105,7 +108,7 @@ struct HomeView: View {
         if text.isEmpty { warning = "Dites en quelques mots ce qui ne va pas."; focused = true; return }
         if !model.connected { warning = "Je ne joins pas \(model.helperName) pour le moment. Réessayez dans un instant."; return }
         warning = nil
-        // Étape 4 : la première fois, l'écran de consentement passe avant tout partage.
+        // L'accord de partage a été donné à l'inscription : la demande part directement.
         model.requestConsent(task: text)
         request = ""
     }
