@@ -171,6 +171,7 @@ struct OnboardingView: View {
     private var permissions: some View {
         VStack(alignment: .leading, spacing: 22) {
             Text("Deux autorisations, une seule fois").font(rounded(44, .bold)).tracking(-0.6)
+                .lineLimit(1).minimumScaleFactor(0.8)
             Text("macOS doit vous demander votre accord. Cliquez sur chaque bouton, puis cochez PapAI dans la liste qui s'ouvre.")
                 .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
             PermissionRow(ok: model.screenOK, title: "Voir mon écran",
