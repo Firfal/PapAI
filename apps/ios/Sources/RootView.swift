@@ -68,7 +68,8 @@ struct Header: View {
             }
             .accessibilityLabel("Réglages")
             VStack(alignment: .leading, spacing: 0) {
-                Text("Bonjour").font(.system(size: 14)).foregroundStyle(Soin.secondary)
+                Text({ let h = Calendar.current.component(.hour, from: Date()); return (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour" }())
+                    .font(.system(size: 14)).foregroundStyle(Soin.secondary)
                 Text(name).font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
             }
             Spacer()

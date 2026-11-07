@@ -63,7 +63,7 @@
     const warn = ui.warning ? `<div class="pillChip" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
         ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '';
     return `<div class="mintCard" style="padding:40px;gap:20px">
-      <div style="${f(52, 6)};letter-spacing:-0.8px;line-height:1.1">Bonjour ${esc(S.firstName)}</div>
+      <div style="${f(52, 6)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())} ${esc(S.firstName)}</div>
       <div class="muted" style="${f(21, 5)}">Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à ${esc(S.helperName)}.</div>
       <textarea id="req" class="field" rows="1" placeholder="Par exemple : je ne retrouve pas mes photos"
         style="margin-top:8px;padding:22px 24px;${f(22, 5)};line-height:1.3">${esc(ui.request)}</textarea>

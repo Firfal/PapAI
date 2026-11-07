@@ -22,8 +22,11 @@ struct HomeView: View {
 
     private var helpCard: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text(model.firstName.isEmpty ? "Bonjour" : "Bonjour \(model.firstName)")
-                .font(rounded(52, .semibold)).tracking(-0.8)
+            TimelineView(.everyMinute) { ctx in
+                let hello = Greeting.word(at: ctx.date)
+                Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName)")
+                    .font(rounded(52, .semibold)).tracking(-0.8)
+            }
             Text("Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à \(model.helperName).")
                 .font(rounded(21)).foregroundStyle(T.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -219,5 +222,13 @@ struct PressStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.spring(duration: 0.25, bounce: 0), value: configuration.isPressed)
+    }
+}
+
+/// « Bonsoir » à partir de 19 h et jusqu'à 5 h, « Bonjour » le reste du temps.
+enum Greeting {
+    static func word(at date: Date = Date()) -> String {
+        let h = Calendar.current.component(.hour, from: date)
+        return (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour"
     }
 }
