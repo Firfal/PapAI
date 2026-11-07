@@ -16,7 +16,7 @@ enum T {
     static let muted = Color(hex: 0x5C625E)
     static let accent = Color(hex: 0x2E9E5B)
     /// Vert du texte sur menthe ou blanc (le vert d'accent y est trop clair).
-    static let leaf = Color(hex: 0x1F7A45)
+    static let leaf = Color(hex: 0x1C7240)
     static let mint = Color(hex: 0xE2F2E7)
     static let papaya = Color(hex: 0xF58A3A)
     /// Chair de papaye : fond des moments heureux (fin d'aide, bienvenue).

@@ -10,7 +10,7 @@ enum Soin {
     static let accent = Color(red: 0x2E/255, green: 0x9E/255, blue: 0x5B/255)
     static let accentSoft = Color(red: 0xE2/255, green: 0xF2/255, blue: 0xE7/255)
     /// Vert du texte sur menthe, pêche ou blanc (le vert d'accent y est trop clair).
-    static let leaf = Color(red: 0x1F/255, green: 0x7A/255, blue: 0x45/255)
+    static let leaf = Color(red: 0x1C/255, green: 0x72/255, blue: 0x40/255)
     static let papaya = Color(red: 0xF5/255, green: 0x8A/255, blue: 0x3A/255)
     /// Chair de papaye : fond des moments heureux (fin d'aide).
     static let peach = Color(red: 0xFF/255, green: 0xE7/255, blue: 0xD2/255)
