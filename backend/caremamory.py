@@ -53,7 +53,8 @@ Réponds UNIQUEMENT par un objet JSON, sans texte autour :
 {"title": "...", "steps": [{"instruction": "...", "checkpoint": "...", "frame": "..."}]}
 
 `title` commence par un verbe à l'infinitif, par exemple « Retrouver mes photos ».
-`frame` reprend l'identifiant de la capture jointe qui montre le mieux l'étape."""
+`frame` reprend l'identifiant de la capture jointe qui montre l'écran une fois
+l'étape réussie."""
 
 
 def _trajectory(session: Session, ids: list[str]) -> str:
@@ -229,9 +230,11 @@ async def draft_lesson(session: Session) -> dict:
         )
     if not steps:
         raise ValueError("fiche sans étape exploitable")
-    # Toute étape a sa capture : si Holo n'en a pas choisi une valable, on prend
-    # celle qui correspond à sa place dans la session (la dernière pour la fin).
-    fallback = _spread(available, len(steps))
+    # Toute étape a sa capture : si Holo n'en a pas choisi une valable, on prend,
+    # parmi celles qu'il a vues, celle qui correspond à sa place dans la session.
+    # La toute première montre l'écran avant toute action : elle ne sert qu'à
+    # défaut d'autre, la dernière montre le résultat final.
+    fallback = _spread(shown[1:] or shown, len(steps))
     for i, step in enumerate(steps):
         if not step["frame"]:
             step["frame"] = fallback[min(i, len(fallback) - 1)]
