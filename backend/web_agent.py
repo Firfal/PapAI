@@ -171,15 +171,27 @@ class WebAgentRunner:
                 max_time_s=MAX_TIME_S,
                 idempotency_key=f"papai-{self.s.id}-{secrets.token_hex(4)}",
             ))
+            late_cancel_armed = False
+
+            def arm_late_cancel() -> None:
+                nonlocal late_cancel_armed
+                if not creation.done() and not late_cancel_armed:
+                    creation.add_done_callback(self._cancel_late_creation)
+                    late_cancel_armed = True
+
             try:
                 self.handle = await asyncio.shield(creation)
             except asyncio.CancelledError:
+                arm_late_cancel()
                 try:
                     self.handle = await asyncio.wait_for(
                         asyncio.shield(creation), timeout=START_SESSION_CLEANUP_TIMEOUT_S
                     )
+                except asyncio.CancelledError:
+                    arm_late_cancel()
+                    raise
                 except asyncio.TimeoutError:
-                    creation.add_done_callback(self._cancel_late_creation)
+                    arm_late_cancel()
                 except Exception:
                     pass
                 if self.handle is not None:
@@ -228,10 +240,14 @@ class WebAgentRunner:
 
     def _cancel_late_creation(self, task: asyncio.Task) -> None:
         try:
-            self.handle = task.result()
+            handle = task.result()
         except (asyncio.CancelledError, Exception):
             return
-        asyncio.create_task(self._cancel_remote())
+        if self.handle is not None:
+            return
+        self.handle = handle
+        if self._cancel_task is None:
+            asyncio.create_task(self._cancel_remote())
 
     async def _do_cancel(self) -> None:
         try:

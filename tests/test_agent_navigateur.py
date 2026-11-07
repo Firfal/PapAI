@@ -290,6 +290,26 @@ class CreationAnnulee(Base):
         self.assertTrue(await attendre(lambda: self.api.a_appele("DELETE", "/h1")))
         self.assertEqual(self.api.sessions["h1"].status, "interrupted")
 
+    async def test_annulations_repetees_pendant_creation_n_annulent_qu_une_fois(self):
+        self.api.start_delay = 0.4
+        s = self.session()
+        task = await self.lancer(s)
+        s.decide_plan("approve", "")
+        self.assertTrue(await asyncio.to_thread(self.api.creation_started.wait, 2))
+
+        task.cancel()
+        await asyncio.sleep(0.03)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertTrue(await attendre(lambda: self.api.a_appele("DELETE", "/h1")))
+        await asyncio.sleep(0.05)
+        self.assertEqual(self.api.sessions["h1"].status, "interrupted")
+        self.assertEqual(
+            sum(m == "DELETE" and p.endswith("/h1") for m, p in self.api.appels),
+            1,
+        )
+
 
 class QuestionAuProche(Base):
     scenario = "question"
