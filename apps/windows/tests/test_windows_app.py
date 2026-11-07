@@ -110,6 +110,21 @@ def unit() -> None:
     check(sent[3]["refused"] and len(calls) == 1, "execute refusé après Arrêter")
     check(len(sent) == 4, "aucune capture envoyée après Arrêter")
 
+    b.guard = lambda: {"type": "guard", "processes": ["AnyDesk"], "window": "Alerte", "url": ""}
+    asyncio.run(b._send_guard(WS()))
+    check(sent[-1]["type"] == "guard" and "png_b64" not in sent[-1], "gardien : signaux textuels seuls")
+    b.guard = lambda: 1 / 0
+    asyncio.run(b._send_guard(WS()))
+    check(len(sent) == 5, "gardien : une erreur ne casse rien")
+    check(core.guard_signals() is None or core.guard_signals()["type"] == "guard", "guard_signals hors Windows")
+
+    m = Model(demo="home")
+    m.start()
+    m._handle({"type": "alert", "level": "danger", "title": "Arnaque", "detail": "N'appelez pas."})
+    check(m.snapshot()["alert"]["title"] == "Arnaque", "alerte du gardien affichée")
+    m.dismiss_alert()
+    check(m.snapshot()["alert"] is None, "alerte fermée")
+
 
 def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
     import websockets

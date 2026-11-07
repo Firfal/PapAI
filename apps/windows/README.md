@@ -80,6 +80,26 @@ Différences assumées :
 - La fenêtre PapAI est exclue des captures (`SetWindowDisplayAffinity`, sinon
   masquée) et les clics dans sa zone sont refusés : seule la personne aidée la
   manipule. Session ouverte, elle reste au premier plan.
+- **Gardien anti-arnaque** : toutes les 8 s, l'app envoie `guard` avec trois
+  signaux textuels (processus, titre de la fenêtre active, URL vide faute
+  d'équivalent simple à l'AppleScript du Mac). Jamais l'écran. Une `alert` du
+  serveur s'affiche par-dessus tout, jusqu'à « J'ai compris ».
+
+## Provenance
+
+Deux branches ont porté l'app Windows le même jour ; celle-ci les réunit.
+
+- `devin/windows-soin` : interface (tous les écrans de l'app Mac actuelle),
+  `model.py`, `bridge.py` (refus sans plan validé), `settings.py`, `dictation.py`,
+  accueil en 5 écrans, proches et QR, `remote_request`, `lessons_changed`,
+  `plan_step`, saisie accentuée par SendInput, aperçu Linux et tests.
+- `devin/1794070934-windows-vers-main` (app de cyp-cor, branche `windows`) :
+  gardien (`guard`, `alert`), écran principal choisi par `is_primary`, masque de
+  la fenêtre dans la capture, refus ciblé des clics sur PapAI (la session
+  survit), filtre « Uninstall » du menu Démarrer, dossiers connus. Ces gestes
+  ont été essayés sur un vrai écran Windows dans cette branche (clic, saisie,
+  touches, défilement, verrou d'arrêt). Son `main.py` et sa vue sont remplacés
+  par la structure ci-dessus ; son historique est conservé par la fusion.
 
 ## Aperçu et tests sans Windows
 

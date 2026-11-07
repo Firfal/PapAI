@@ -354,3 +354,27 @@ def open_shortcut(shortcut: dict | None) -> tuple[bool, str]:
     except OSError as e:
         return False, str(e)
     return True, str(target)
+
+
+# ------------------------------------------------------------- le gardien
+
+
+def guard_signals() -> dict | None:
+    """Les trois signaux textuels du gardien anti-arnaque (PROTOCOL.md) :
+    processus, titre de la fenêtre active, URL. Jamais l'écran.
+    L'URL du navigateur n'a pas d'équivalent simple sous Windows : vide."""
+    if sys.platform != "win32":
+        return None
+    import subprocess
+
+    buf = ctypes.create_unicode_buffer(512)
+    user32 = ctypes.windll.user32
+    user32.GetWindowTextW(user32.GetForegroundWindow(), buf, 512)
+    try:
+        out = subprocess.run(["tasklist", "/fo", "csv", "/nh"], capture_output=True, text=True,
+                             timeout=5, creationflags=0x08000000).stdout  # sans console
+    except (OSError, subprocess.SubprocessError):
+        out = ""
+    names = sorted({line.split('","')[0].strip('"').removesuffix(".exe")
+                    for line in out.splitlines() if line.startswith('"')})
+    return {"type": "guard", "processes": names, "window": buf.value, "url": ""}

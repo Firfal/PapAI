@@ -43,6 +43,7 @@ class Api:
     def remove_helper(self, helper_id): self._model.remove_helper(helper_id)
     def accept_remote(self): self._model.accept_remote()
     def refuse_remote(self): self._model.refuse_remote()
+    def dismiss_alert(self): self._model.dismiss_alert()
     def request_consent(self, task): self._model.request_consent(task)
     def cancel_consent(self): self._model.cancel_consent()
     def ask_help(self, task): self._model.ask_help(task)

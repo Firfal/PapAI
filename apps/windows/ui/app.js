@@ -392,6 +392,18 @@
       <div class="row"><div class="spacer"></div>${pill('Fermer', 'closeHelpers', { height: 54 })}</div></div>`;
   }
 
+  // Alerte du gardien (PROTOCOL.md) : elle passe devant tout.
+  function alertSheet() {
+    const a = S.alert, danger = a.level === 'danger';
+    const tint = danger ? '#C8442F' : 'var(--accent)';
+    return `<div class="sheet col" style="width:620px;padding:36px;gap:18px;background:var(--card)">
+      <div class="row" style="gap:14px;color:${tint}">${icon('exclam', 30, tint)}
+        <span style="${f(17, 6)}">${danger ? 'Attention' : 'Pour information'}</span></div>
+      <div style="${f(30, 6)}">${esc(a.title)}</div>
+      ${a.detail ? `<div class="muted" style="${f(19, 5)}">${esc(a.detail)}</div>` : ''}
+      <div class="row"><div class="spacer"></div>${pill("J'ai compris", 'dismissAlert', { height: 56 })}</div></div>`;
+  }
+
   // ------------------------------------------------------------------- rendu
   function body() {
     if (!S.onboarded) return onboarding();
@@ -416,7 +428,8 @@
     const sel = focusId && a.setSelectionRange ? [a.selectionStart, a.selectionEnd] : null;
     document.getElementById('root').innerHTML = header() + `<div class="main">${body()}</div>`;
     document.getElementById('sheet').innerHTML =
-      ui.sheet === 'settings' ? settingsSheet() : ui.sheet === 'helpers' ? helpersSheet() : '';
+      ui.sheet === 'settings' ? settingsSheet() : ui.sheet === 'helpers' ? helpersSheet()
+        : S.alert ? alertSheet() : '';
     const req = document.getElementById('req');
     if (req) autosize(req);
     if (focusId) {
@@ -455,6 +468,7 @@
     submit, mic: () => { ui.warning = null; render(); call('dictation_toggle'); },
     openSettings: () => { ui.settings = { name: S.storedFirstName || S.firstName, server: S.server }; ui.sheet = 'settings'; render(); },
     closeSheet: () => { ui.sheet = null; render(); },
+    dismissAlert: () => { S.alert = null; render(); call('dismiss_alert'); },
     openHelpers: () => { ui.sheet = 'helpers'; render(); },
     closeHelpers: () => { call('stop_pairing'); ui.sheet = null; render(); },
     replayOnboarding: () => { ui.sheet = null; ui.name = null; call('reset_onboarding'); render(); },
@@ -498,6 +512,7 @@
     const t = e.target;
     if (e.key === 'Escape') {
       if (ui.sheet) { ui.sheet === 'helpers' ? acts.closeHelpers() : acts.closeSheet(); return; }
+      if (S.alert) return acts.dismissAlert();
       if (!S.onboarded) return;
       if (S.remoteRequest) return acts.refuseRemote();
       if (S.screen === 'session' && S.sessionOpen) return acts.stop();
@@ -506,6 +521,7 @@
       return;
     }
     if (e.key !== 'Enter' || e.shiftKey || ui.sheet) return;
+    if (S.alert) { e.preventDefault(); acts.dismissAlert(); return; }
     if (t && t.tagName === 'BUTTON') return;
     if (t && t.id === 'req') { e.preventDefault(); submit(); return; }
     if (!S.onboarded) { e.preventDefault(); onbNext(); return; }

@@ -66,6 +66,7 @@ class Model:
         self.lessons: list[dict] = []
         self.lesson: dict | None = None
         self.notice: str | None = None
+        self.alert: dict | None = None
         self.helpers: list[dict] = []
         self.pair_code: str | None = None
         self.pair_url: str | None = None
@@ -139,7 +140,7 @@ class Model:
                 "plan": list(self.plan), "planStep": self.plan_step,
                 "question": self.question, "answer": self.answer,
                 "currentAction": self.current_action, "actions": list(self.actions),
-                "lessons": list(self.lessons), "lesson": self.lesson, "notice": self.notice,
+                "lessons": list(self.lessons), "lesson": self.lesson, "notice": self.notice, "alert": self.alert,
                 "helpers": list(self.helpers), "pairCode": self.pair_code,
                 "pairURL": self.pair_url, "pairQR": qr_data_url(self.pair_url or ""),
                 "pairAdded": self.pair_added, "remoteRequest": self.remote_request,
@@ -281,6 +282,10 @@ class Model:
         task = r.get("task") or f"{r.get('from')} propose de m'aider sur l'ordinateur"
         self.ask_help(task, requested_by=r.get("from"))
 
+    def dismiss_alert(self) -> None:
+        self.alert = None
+        self.push()
+
     def refuse_remote(self) -> None:
         self.remote_request = None
         self._send({"type": "remote_answer", "accepted": False})
@@ -355,6 +360,9 @@ class Model:
             if m.get("added"):
                 self.pair_added = str(m["added"])
                 self.pair_code = self.pair_url = None
+        elif kind == "alert":
+            self.alert = {"level": str(m.get("level") or "info"), "title": str(m.get("title") or ""),
+                          "detail": str(m.get("detail") or "")}
         elif kind == "lessons_changed":
             def go() -> None:
                 self.refresh_lessons()
@@ -503,6 +511,11 @@ class Model:
              "steps": [{"instruction": "Ouvrez l'Explorateur de fichiers"}]},
             {"id": "b", "title": "Mes documents", "shortcut": {"folder": "documents"}},
         ]
+        if demo == "alert":
+            self.alert = {"level": "danger", "title": "Attention : ce message est sans doute une arnaque",
+                          "detail": "Un faux message d'alerte demande d'appeler un numéro. N'appelez pas. "
+                                    "Claire est prévenue."}
+            return
         if demo == "home":
             return
         if demo == "lesson":
