@@ -299,6 +299,12 @@ async def handle(ws, screen: Screen, msg: dict) -> None:
             "type": "result", "req": msg["req"], "result": result, "refused": refused,
         }))
 
+    elif kind == "pairing":
+        to_ui.put(("pairing", msg.get("url", "")))
+
+    elif kind == "invitation":
+        to_ui.put(("invitation", msg.get("text", "")))
+
     elif kind == "session":
         to_ui.put(("session", msg.get("helper_url", "")))
 
@@ -382,6 +388,10 @@ class App:
         self.frame_list = tk.Frame(root, bg="#11151c")
         self.frame_step = tk.Frame(root, bg="#11151c")
         self.frame_choice = tk.Frame(root, bg="#11151c")
+        self.frame_invite = tk.Frame(root, bg="#11151c")
+        self.frame_pair = tk.Frame(root, bg="#11151c")
+        self.pairing_url = ""
+        self._pair_qr = None
 
         self.lessons: list = []
         self.lesson: dict | None = None
@@ -395,23 +405,34 @@ class App:
         self.build_list()
         self.build_step()
         self.build_choice()
+        self.build_invite()
+        self.build_pair()
         self.show_idle()
 
         # Ce que voit la personne aidée : est-ce que c'est branché, oui ou non.
         # « link : connecté » et « écran 1 — 1920x1080 » sont des informations
         # de développement ; elles restent, mais derrière CAREPILOT_DEV.
-        self.link = tk.Label(root, text="● Connexion…", font=self.small,
-                             bg="#11151c", fg="#6b7a8d")
-        self.link.pack(side="bottom", pady=4)
+        status = tk.Frame(root, bg="#11151c")
+        status.pack(side="bottom", pady=4)
+        # Un rond dessiné, pas le caractère « ● » : sa taille et son
+        # alignement dépendent sinon de la police installée.
+        d = int(10 * self.scale)
+        self.link_dot = tk.Canvas(status, width=d, height=d, bg="#11151c",
+                                  highlightthickness=0, bd=0)
+        self.link_dot.pack(side="left", padx=(0, int(6 * self.scale)))
+        self.dot = self.link_dot.create_oval(1, 1, d - 1, d - 1, fill="#7d8b9e", width=0)
+        self.link = tk.Label(status, text="Connexion…", font=self.small,
+                             bg="#11151c", fg="#7d8b9e")
+        self.link.pack(side="left")
 
         self.screen_label = tk.Label(root, text="", font=self.small,
-                                     bg="#11151c", fg="#6b7a8d")
+                                     bg="#11151c", fg="#7d8b9e")
         if DEV_MODE:
             self.screen_label.pack(side="bottom")
 
         # Bandeau de développement : consommation du modèle. À masquer pour la
         # démo (CAREPILOT_DEV=0) — la personne aidée n'a rien à faire de ça.
-        self.usage_label = tk.Label(root, text="", font=self.small, bg="#11151c", fg="#6b7a8d")
+        self.usage_label = tk.Label(root, text="", font=self.small, bg="#11151c", fg="#7d8b9e")
         if DEV_MODE:
             self.usage_label.pack(side="bottom")
         self.root.after(100, self.pump)
@@ -432,7 +453,7 @@ class App:
         # Tk ne sait pas espacer l'intérieur d'un Entry : on l'entoure.
         box = tk.Frame(f, bg="#0c1016")
         box.pack(fill="x", padx=24, pady=14)
-        self.entry = tk.Entry(box, font=self.mid, bg="#0c1016", fg="#6b7a8d",
+        self.entry = tk.Entry(box, font=self.mid, bg="#0c1016", fg="#7d8b9e",
                               insertbackground="#e9eef5", relief="flat",
                               highlightthickness=0, bd=0)
         self.entry.pack(fill="x", padx=12, pady=10)
@@ -488,7 +509,7 @@ class App:
         if not self.entry.get().strip():
             self.entry.delete(0, "end")
             self.entry.insert(0, PLACEHOLDER)
-            self.entry.config(fg="#6b7a8d")
+            self.entry.config(fg="#7d8b9e")
 
     # ---------------------------------------------------------- écran de session
 
@@ -599,7 +620,7 @@ class App:
         self.btn_next.pack(side="left", expand=True, fill="x", padx=(4, 0), ipady=8)
 
         tk.Label(f, text="C'est vous qui faites la manipulation.\nL'ordinateur ne fait que vous montrer.",
-                 font=self.small, bg="#11151c", fg="#6b7a8d",
+                 font=self.small, bg="#11151c", fg="#7d8b9e",
                  justify="center").pack(side="bottom", pady=(0, 12))
 
     def show_list(self) -> None:
@@ -608,7 +629,7 @@ class App:
         self.lessons = fetch_lessons()
         if not self.lessons:
             tk.Label(self.list_box, text="Aucune fiche pour l'instant.\nElles se créent après une demande d'aide.",
-                     font=self.mid, bg="#11151c", fg="#6b7a8d", justify="center").pack(pady=24)
+                     font=self.mid, bg="#11151c", fg="#7d8b9e", justify="center").pack(pady=24)
         for lesson in self.lessons:
             tk.Button(
                 self.list_box, text=lesson.get("title", "Sans titre"), font=self.mid,
@@ -632,7 +653,7 @@ class App:
         )
         self.btn_do_it.pack(fill="x", padx=24, pady=(0, 6), ipady=10)
         self.choice_hint = tk.Label(f, text="", font=self.small, bg="#11151c",
-                                    fg="#6b7a8d", wraplength=int(360 * self.scale),
+                                    fg="#7d8b9e", wraplength=int(360 * self.scale),
                                     justify="center")
         self.choice_hint.pack(pady=(0, 18))
 
@@ -755,9 +776,74 @@ class App:
 
     # ---------------------------------------------------------- transitions
 
+    def build_invite(self) -> None:
+        """Le proche propose, la personne aidée décide. Jamais l'inverse."""
+        f = self.frame_invite
+        tk.Label(f, text="Votre proche propose de vous aider",
+                 font=self.big, bg="#11151c", fg="#e9eef5",
+                 wraplength=int(380 * self.scale), justify="center").pack(pady=(32, 10), padx=16)
+        self.invite_text = tk.Label(f, text="", font=self.mid, bg="#11151c", fg="#93a1b3",
+                                    wraplength=int(360 * self.scale), justify="center")
+        self.invite_text.pack(pady=(0, 6), padx=16)
+        tk.Label(f, text="Si vous acceptez, il verra votre écran\njusqu'à ce que vous arrêtiez.",
+                 font=self.small, bg="#11151c", fg="#6b7a8d", justify="center").pack(pady=(0, 22))
+
+        tk.Button(f, text="Accepter", font=self.big, relief="flat",
+                  bg="#4da3ff", fg="#04121f", activebackground="#7cbcff",
+                  command=lambda: self.answer_invite(True)).pack(fill="x", padx=24, ipady=10)
+        tk.Button(f, text="Non merci", font=self.mid, relief="flat",
+                  bg="#1a2029", fg="#93a1b3", activebackground="#2b3440",
+                  command=lambda: self.answer_invite(False)).pack(fill="x", padx=24, pady=10, ipady=8)
+
+    def answer_invite(self, accepted: bool) -> None:
+        gate.reset()
+        send_soon({"type": "invitation_response", "accepted": accepted})
+        if accepted:
+            self.doing.config(text=self.invite_text.cget("text"))
+            self.banner.config(text="  ÉCRAN PARTAGÉ  ", bg="#ff5c5c")
+            self.show_live()
+        else:
+            self.show_idle()
+
+    def build_pair(self) -> None:
+        """Le lien permanent à donner une fois à son proche.
+
+        Il ne montre aucun écran : il permet seulement de proposer son aide.
+        """
+        f = self.frame_pair
+        tk.Label(f, text="Inviter un proche", font=self.big,
+                 bg="#11151c", fg="#e9eef5").pack(pady=(24, 6))
+        tk.Label(f, text="Montrez-lui ce code une fois.\nIl pourra ensuite vous proposer son aide,\nque vous resterez libre d'accepter ou non.",
+                 font=self.mid, bg="#11151c", fg="#93a1b3", justify="center").pack(pady=(0, 14))
+        self.pair_qr = tk.Label(f, bg="#11151c")
+        self.pair_qr.pack()
+        self.pair_url = tk.Label(f, text="", font=self.small, bg="#11151c",
+                                 fg="#4da3ff", wraplength=int(370 * self.scale))
+        self.pair_url.pack(pady=8)
+        tk.Button(f, text="Retour", font=self.mid, relief="flat", bg="#1a2029",
+                  fg="#93a1b3", activebackground="#2b3440",
+                  command=self.show_idle).pack(fill="x", padx=24, pady=14, ipady=6)
+
+    def show_pair(self) -> None:
+        if not self.pairing_url:
+            return
+        try:
+            import qrcode
+            from PIL import ImageTk
+
+            img = qrcode.make(self.pairing_url, box_size=4, border=2).convert("RGB")
+            side = int(170 * self.scale)
+            self._pair_qr = ImageTk.PhotoImage(img.resize((side, side)))
+            self.pair_qr.config(image=self._pair_qr)
+        except Exception as e:  # noqa: BLE001 — le lien texte reste lisible
+            print("[pont] QR indisponible : " + str(e), flush=True)
+        self.pair_url.config(text=self.pairing_url)
+        self.swap(self.frame_pair)
+
     def swap(self, frame: tk.Frame) -> None:
         for f in (self.frame_idle, self.frame_live, self.frame_list,
-                  self.frame_step, self.frame_choice):
+                  self.frame_step, self.frame_choice, self.frame_invite,
+                  self.frame_pair):
             f.pack_forget()
         frame.pack(fill="both", expand=True)
 
@@ -855,14 +941,25 @@ class App:
                             f"contexte {u['last_prompt']:,}/{CONTEXT_LIMIT:,} ({pct:.0f} %) · "
                             f"~{cost * 100:.2f} ¢"
                         ).replace(",", " "),
-                        fg="#ffb020" if pct > 75 else "#6b7a8d",
+                        fg="#ffb020" if pct > 75 else "#7d8b9e",
                     )
+                elif kind == "pairing":
+                    self.pairing_url = value
+                    print("LIEN PERMANENT DU PROCHE : " + value, flush=True)
+                    self.btn_invite.config(state="normal")
+
+                elif kind == "invitation":
+                    self.invite_text.config(text=f"« {value} »" if value else "")
+                    self.swap(self.frame_invite)
+
                 elif kind == "link":
                     online = value == "connecté"
+                    couleur = "#35c08a" if online else "#ffb020"
                     self.link.config(
-                        text="● Connecté" if online else "● Pas de connexion",
-                        fg="#35c08a" if online else "#ffb020",
+                        text="Connecté" if online else "Pas de connexion",
+                        fg=couleur,
                     )
+                    self.link_dot.itemconfigure(self.dot, fill=couleur)
                     if DEV_MODE and not online:
                         self.screen_label.config(text=value)
                 elif kind == "screen":

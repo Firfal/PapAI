@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CarePilot — proposer mon aide</title>
+<style>
+  :root {
+    --bg: #11151c; --panel: #1a2029; --line: #2b3440;
+    --text: #e9eef5; --muted: #93a1b3;
+    --accent: #4da3ff; --warn: #ffb020; --ok: #35c08a; --stop: #ff5c5c;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 0 16px 32px; max-width: 560px; margin-inline: auto;
+  }
+  header { padding: 28px 0 10px; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: 14px; }
+
+  #state {
+    margin: 16px 0; padding: 12px 14px; border-radius: 10px;
+    background: var(--panel); border: 1px solid var(--line);
+    font-size: 14px; font-weight: 600;
+  }
+  #state.on   { border-color: var(--ok); color: var(--ok); }
+  #state.off  { border-color: var(--stop); color: var(--stop); }
+  #state.wait { border-color: var(--warn); color: var(--warn); }
+
+  label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+  textarea {
+    width: 100%; padding: 13px; border-radius: 10px; border: 1px solid var(--line);
+    background: #0c1016; color: var(--text); font: inherit; resize: vertical;
+  }
+  button {
+    width: 100%; margin-top: 12px; padding: 15px; border-radius: 10px; border: none;
+    background: var(--accent); color: #04121f; font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .note { color: var(--muted); font-size: 13px; margin-top: 18px; }
+  a.cta {
+    display: block; margin-top: 16px; padding: 15px; border-radius: 10px;
+    background: var(--ok); color: #04121f; font-weight: 700; text-align: center;
+    text-decoration: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Proposer mon aide</h1>
+  <div class="sub">Votre proche devra accepter sur son ordinateur avant que vous ne voyiez quoi que ce soit.</div>
+</header>
+
+<div id="state">Connexion…</div>
+
+<div id="form">
+  <label for="what">Sur quoi voulez-vous l'aider ?</label>
+  <textarea id="what" rows="3" placeholder="Retrouver ses photos de vacances"></textarea>
+  <button id="offer" type="button" disabled>Proposer mon aide</button>
+</div>
+
+<div id="after"></div>
+
+<p class="note">
+  Ce lien ne donne accès à aucun écran. Il permet seulement de proposer votre
+  aide. Tant que votre proche n'a pas accepté sur sa machine, rien ne se passe —
+  et il peut tout arrêter à n'importe quel moment.
+</p>
+
+<script>
+const pairing = location.pathname.split('/').pop();
+const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/aidant/${pairing}`);
+const $ = id => document.getElementById(id);
+
+function state(text, cls) { $('state').textContent = text; $('state').className = cls || ''; }
+
+ws.onmessage = ev => {
+  const m = JSON.parse(ev.data);
+
+  if (m.type === 'ready') {
+    if (m.pc_connected) { state("L'ordinateur de votre proche est allumé.", 'on'); $('offer').disabled = false; }
+    else { state("L'ordinateur de votre proche est éteint.", 'off'); $('offer').disabled = true; }
+  }
+  else if (m.type === 'waiting') {
+    state('Proposition envoyée. En attente de sa réponse…', 'wait');
+    $('form').style.display = 'none';
+  }
+  else if (m.type === 'accepted') {
+    state('Il a accepté.', 'on');
+    const a = document.createElement('a');
+    a.className = 'cta'; a.href = m.helper_url; a.textContent = "Ouvrir l'assistance";
+    $('after').appendChild(a);
+    location.href = m.helper_url;
+  }
+  else if (m.type === 'declined') {
+    state(m.reason, 'off');
+    $('form').style.display = '';
+    $('offer').disabled = false;
+  }
+  else if (m.type === 'refused') { state(m.reason, 'off'); $('offer').disabled = true; }
+};
+
+ws.onclose = () => state('Connexion perdue.', 'off');
+
+$('offer').onclick = () => {
+  const t = $('what').value.trim();
+  if (!t) { $('what').focus(); return; }
+  $('offer').disabled = true;
+  ws.send(JSON.stringify({ type: 'offer_help', text: t }));
+};
+</script>
+</body>
+</html>

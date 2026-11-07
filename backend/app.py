@@ -53,6 +53,36 @@ app = FastAPI(title="CarePilot")
 registry = Registry()
 
 
+def _pairing_token() -> str:
+    """Le lien permanent du proche, stable d'un démarrage à l'autre.
+
+    C'est l'appairage : il identifie le proche, et rien de plus. Il ne donne
+    aucun accès à l'écran — seulement le droit de PROPOSER son aide. C'est la
+    personne aidée qui accepte, sur sa machine, et cette acceptation vaut
+    consentement au partage.
+    """
+    f = LESSONS_DIR / "pairing.txt"
+    try:
+        if f.is_file():
+            tok = f.read_text(encoding="utf-8").strip()
+            if tok:
+                return tok
+        tok = secrets.token_urlsafe(18)
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(tok, encoding="utf-8")
+        return tok
+    except OSError:
+        return secrets.token_urlsafe(18)
+
+
+PAIRING = _pairing_token()
+
+# Proches connectés au lien permanent, en attente d'une occasion d'aider.
+pairing_sockets: set[WebSocket] = set()
+# Invitation en cours, le temps que la personne aidée réponde.
+pending_invitation: dict | None = None
+
+
 class BridgeLink:
     """Le pont Windows, vu du serveur. Un seul à la fois dans le MVP."""
 
@@ -128,6 +158,9 @@ async def ws_bridge(ws: WebSocket) -> None:
     await ws.accept()
     bridge = BridgeLink(ws)
     print("[pont] connecté")
+    pairing_url = f"{PUBLIC_URL}/aidant/{PAIRING}"
+    print(f"[pont] lien permanent du proche : {pairing_url}")
+    await ws.send_json({"type": "pairing", "url": pairing_url})
     try:
         while True:
             msg = await ws.receive_json()
@@ -145,6 +178,31 @@ async def ws_bridge(ws: WebSocket) -> None:
                 print(f"[session {session.id}] {session.task}")
                 print(f"[session {session.id}] lien du proche : {url}")
                 await broadcast_helper(session.status())
+
+                if agent_task and not agent_task.done():
+                    agent_task.cancel()
+                agent_task = asyncio.create_task(
+                    AgentRunner(session, bridge, broadcast_helper).run()
+                )
+                continue
+
+            if kind == "invitation_response":
+                # La personne aidée a répondu à une proposition d'aide.
+                global pending_invitation
+                invitation, pending_invitation = pending_invitation, None
+                if not msg.get("accepted") or invitation is None:
+                    await broadcast_pairing(
+                        {"type": "declined", "reason": "Votre proche n'a pas souhaité d'aide."}
+                    )
+                    continue
+
+                session = registry.create(invitation["text"])
+                session.grant_consent()  # accepter l'invitation, c'est consentir
+                session.log("initiated_by", who="helper")
+                url = f"{PUBLIC_URL}/h/{session.helper_token}"
+                await ws.send_json({"type": "session", "id": session.id, "helper_url": url})
+                await broadcast_pairing({"type": "accepted", "helper_url": url})
+                print(f"[session {session.id}] proposée par le proche, acceptée")
 
                 if agent_task and not agent_task.done():
                     agent_task.cancel()
@@ -343,6 +401,55 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
 @app.get("/")
 async def root():
     return {"service": "CarePilot", "bridge": bridge is not None}
+
+
+@app.get("/aidant/{pairing}")
+async def helper_standing_page(pairing: str):
+    """Le lien permanent du proche. Ne montre aucun écran : il propose, c'est tout."""
+    if not secrets.compare_digest(pairing, PAIRING):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return FileResponse(STATIC / "aidant.html")
+
+
+@app.websocket("/ws/aidant/{pairing}")
+async def ws_pairing(ws: WebSocket, pairing: str) -> None:
+    global pending_invitation
+    if not secrets.compare_digest(pairing, PAIRING):
+        await ws.accept()
+        await ws.send_json({"type": "refused", "reason": "Lien invalide."})
+        await ws.close()
+        return
+
+    await ws.accept()
+    pairing_sockets.add(ws)
+    await ws.send_json({"type": "ready", "pc_connected": bridge is not None})
+    try:
+        while True:
+            msg = await ws.receive_json()
+            if msg.get("type") != "offer_help":
+                continue
+            if bridge is None:
+                await ws.send_json({"type": "refused", "reason": "L'ordinateur n'est pas allumé."})
+                continue
+
+            text = str(msg.get("text", "")).strip()[:200]
+            pending_invitation = {"text": text}
+            # On propose : rien ne démarre tant que la personne aidée n'a pas
+            # accepté sur sa propre machine.
+            await bridge.send({"type": "invitation", "text": text})
+            await ws.send_json({"type": "waiting"})
+    except WebSocketDisconnect:
+        pass
+    finally:
+        pairing_sockets.discard(ws)
+
+
+async def broadcast_pairing(payload: dict) -> None:
+    for ws in list(pairing_sockets):
+        try:
+            await ws.send_json(payload)
+        except Exception:  # noqa: BLE001
+            pairing_sockets.discard(ws)
 
 
 @app.get("/lessons")

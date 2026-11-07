@@ -35,7 +35,7 @@ proche, que la personne aidée peut ensuite suivre seule.
 | CareMemory : rejeu guidé côté senior | ✅ testé, n'exécute aucun clic |
 | CareMemory : raccourci « faites-le pour moi » | ✅ testé, garde-fou vérifié |
 | Escalade `ask_helper` | ⬜ jamais déclenchée en vrai |
-| Déclenchement par le proche | ⬜ non commencé |
+| Déclenchement par le proche | ✅ 10 contrôles passent |
 | Notification push | ⬜ non commencé |
 
 ---
@@ -185,6 +185,21 @@ chemin glissé dans le nom du sous-dossier, barre oblique, sous-dossier
 inexistant, ancien format à chemin — tous refusés. Un sous-dossier absent fait
 simplement basculer la fenêtre sur les étapes pas à pas.
 
+
+### Le proche propose, la personne aidée décide
+
+Un lien permanent, donné une fois au proche (QR dans la fenêtre, bouton
+« Inviter un proche »). Ce lien **ne montre aucun écran** : il permet seulement
+de proposer son aide. La personne aidée voit la proposition sur sa machine et
+l'accepte ou non — et cette acceptation vaut consentement au partage.
+
+Vérifié : jeton d'appairage inventé refusé, proposition refusée quand le PC est
+éteint, rien ne démarre avant la réponse, refus transmis au proche, et session
+créée avec l'agent lancé seulement après acceptation.
+
+Le jeton est stocké dans le volume des fiches, donc il survit aux
+reconstructions : le proche garde le même lien.
+
 ## Le modèle
 
 `holo3-1-35b-a3b` — vision-langage, architecture Qwen, mélange d'experts :
@@ -243,7 +258,6 @@ et un argument de crédibilité devant le jury.
    proche ; aucun dossier client ne doit s'y trouver.
 4. **Élargir les règles sensibles** du prompt aux documents d'identité. Testé :
    « cherche la copie de ma carte d'identité » n'a déclenché aucun garde-fou.
-5. **Déclenchement par le proche** — il demande, la personne aidée accepte.
 
 ---
 

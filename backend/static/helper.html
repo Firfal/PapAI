@@ -8,11 +8,28 @@
 <style>
   :root {
     --bg: #11151c; --panel: #1a2029; --sunken: #0c1016; --line: #2b3440;
-    --text: #e9eef5; --muted: #93a1b3; --faint: #6b7a8d;
+    --hover: #222b36;
+    /* --faint était à #6b7a8d : 4,2:1 sur le fond, 3,7:1 sur un panneau.
+       Sous la barre des 4,5:1, et c'est la couleur des phrases qui expliquent
+       quoi faire. Relevé juste au-dessus, il reste plus calme que --muted. */
+    --text: #e9eef5; --muted: #93a1b3; --faint: #7d8b9e;
     --accent: #4da3ff; --ink: #04121f; --warn: #ffb020; --stop: #ff5c5c; --ok: #35c08a;
     --r: 12px;
+    --ease: cubic-bezier(.16, 1, .3, 1);
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  /* Ce que le navigateur dessine à notre place porte quand même la page. */
+  ::selection { background: rgba(77,163,255,.32); color: var(--text); }
+  html {
+    accent-color: var(--accent); color-scheme: dark;
+    scrollbar-color: var(--line) var(--bg); -webkit-text-size-adjust: 100%;
+  }
+  ::-webkit-scrollbar { width: 11px; height: 11px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a4654; }
+
   body {
     margin: 0 auto; background: var(--bg); color: var(--text);
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -78,19 +95,26 @@
     display: none; margin-top: 10px; padding: 12px 14px; border-radius: var(--r);
     background: var(--panel); border: 1px solid var(--accent);
   }
-  #aimbar p { margin: 0 0 10px; font-size: 14px; color: var(--muted); }
+  #aimbar p { margin: 0 0 10px; font-size: 14px; color: var(--muted); max-width: 58ch; }
   #aimbar.ready p { color: var(--text); }
 
   #freshness { margin-top: 8px; font-size: 13px; color: var(--faint);
                display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* `display: flex` l'emporte sur le `display: none` que l'attribut hidden
+     tient du navigateur : sans cette ligne, la ligne de fraîcheur reste
+     affichée alors que le code la croit masquée. */
+  #freshness[hidden] { display: none; }
   #freshness.stale { color: var(--warn); }
   #freshness button { padding: 6px 10px; font-size: 13px; }
+  /* Le compte à rebours change chaque seconde : en chiffres proportionnels,
+     la ligne tressaute à chaque passage de 9 à 8. */
+  #freshText { font-variant-numeric: tabular-nums; }
 
   /* -------------------------------------------------------- la question */
 
   #question { margin-top: 14px; padding: 14px; border-radius: var(--r);
               background: var(--panel); border: 1px solid var(--warn); display: none; }
-  #question p { margin: 0 0 12px; font-weight: 600; }
+  #question p { margin: 0 0 12px; font-weight: 600; max-width: 58ch; }
   .options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 
   /* ------------------------------------------------------- les contrôles */
@@ -100,25 +124,40 @@
   input[type=text] {
     padding: 13px; border-radius: 10px; border: 1px solid var(--line);
     background: var(--sunken); color: var(--text); font-size: 16px;
+    caret-color: var(--accent);
   }
+  input[type=text]::placeholder { color: var(--faint); }
+  input[type=text]:focus { border-color: var(--accent); }
   button {
     min-height: 46px; padding: 12px 16px; border-radius: 10px;
     border: 1px solid var(--line); background: var(--panel); color: var(--text);
     font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: background-color .14s var(--ease), border-color .14s var(--ease);
   }
+  button:hover  { background: var(--hover); border-color: #3a4654; }
+  button:active { transform: translateY(1px); }
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--ink); }
-  button.danger  { background: var(--stop);   border-color: var(--stop);   color: #fff; }
+  button.primary:hover { background: #6fb4ff; border-color: #6fb4ff; }
   button.ghost   { background: transparent; }
-  button:disabled { opacity: .38; cursor: not-allowed; }
+  button.ghost:hover { background: var(--panel); }
+  button.inline  { flex: 0 0 auto; }
+  /* Un désactivé en opacité délave aussi le texte : à .38 l'étiquette passe
+     sous le seuil de lecture. Mieux vaut une vraie couleur éteinte. */
+  button:disabled, button.primary:disabled {
+    opacity: 1; cursor: not-allowed; transform: none;
+    background: transparent; border-color: var(--line); color: var(--faint);
+  }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { button { transition: none } }
 
-  .note { color: var(--faint); font-size: 13px; margin: 10px 2px 0; }
+  .note { color: var(--faint); font-size: 13px; margin: 10px 2px 0; max-width: 58ch; }
 
   /* ------------------------------------------------------- CareMemory */
 
   #memory { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); display: none; }
   #memory h2 { font-size: 16px; margin: 0 0 4px; }
-  .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; max-width: 58ch; }
+  .icon { width: 20px; height: 20px; flex: none; }
   #draft, #saved { display: none; margin-top: 14px; }
   #lessonTitle { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--line);
                  background: var(--sunken); color: var(--text); font-size: 16px; font-weight: 600; }
@@ -134,15 +173,24 @@
   #steps .check { color: var(--muted); font-size: 13px; margin-top: 6px; }
   #steps img { width: 100%; border-radius: 8px; border: 1px solid var(--line); margin-top: 8px; }
   #saved { padding: 14px; border-radius: 10px; border: 1px solid var(--ok);
-           color: var(--ok); font-weight: 600; }
+           color: var(--ok); font-weight: 600; align-items: center; gap: 10px; }
 
+  /* Le message d'erreur était en blanc sur rouge plein : 3,0:1, illisible au
+     soleil sur un téléphone. Il reprend le motif des bandeaux — fond de
+     panneau, bordure et texte de la couleur d'état. */
   #toast {
-    position: fixed; left: 50%; transform: translateX(-50%);
-    bottom: calc(20px + env(safe-area-inset-bottom));
-    background: var(--stop); color: #fff; padding: 11px 16px; border-radius: 10px;
-    font-size: 14px; font-weight: 600; display: none; max-width: 92vw; text-align: center;
-    box-shadow: 0 10px 30px rgba(0,0,0,.45);
+    position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom));
+    background: var(--panel); border: 1px solid var(--stop); color: var(--stop);
+    padding: 12px 16px; border-radius: 10px; max-width: 92vw; text-align: center;
+    font-size: 14px; font-weight: 600; box-shadow: 0 12px 32px rgba(0,0,0,.5);
+    opacity: 0; visibility: hidden; transform: translate(-50%, 10px);
+    transition: opacity .22s var(--ease), transform .22s var(--ease), visibility .22s;
+    /* Il flotte au-dessus du bouton de confirmation : s'il interceptait le
+       doigt, le message d'erreur empêcherait de corriger l'erreur. */
+    pointer-events: none;
   }
+  #toast.show { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { #toast { transition-duration: .01ms } }
 </style>
 </head>
 <body>
@@ -159,7 +207,7 @@
   <div class="options" id="options"></div>
   <div class="row">
     <input type="text" id="reply" placeholder="Votre réponse…" autocomplete="off" aria-label="Votre réponse">
-    <button class="primary" id="send" type="button" style="flex:0 0 auto">Envoyer</button>
+    <button class="primary inline" id="send" type="button">Envoyer</button>
   </div>
 </div>
 
@@ -167,7 +215,11 @@
 
 <div class="shot" id="shot">
   <div id="empty">En attente de la première capture d'écran…</div>
-  <img id="frame" alt="Écran de votre proche" style="display:none">
+  <!-- src transparent 1×1 : la capture arrive par le WebSocket. Un <img> sans
+       src affiche l'icône d'image cassée si la feuille de style n'est pas
+       appliquée, et c'est le premier écran que voit le proche. -->
+  <img id="frame" alt="Écran de votre proche" style="display:none"
+       src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
   <div id="pin"></div>
 </div>
 
@@ -254,9 +306,28 @@ function setBanner(text, cls) {
 
 function toast(msg) {
   $('toast').textContent = msg;
-  $('toast').style.display = 'block';
+  $('toast').classList.add('show');
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => $('toast').style.display = 'none', 4200);
+  toast._t = setTimeout(() => $('toast').classList.remove('show'), 4200);
+}
+
+// Une coche dessinée, pas un caractère : « ✓ » change de forme et de chasse
+// d'une police système à l'autre et ne s'aligne avec rien.
+function checkIcon() {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', 'icon');
+  const path = document.createElementNS(NS, 'path');
+  path.setAttribute('d', 'M4 12.6 L9.6 18.2 L20 6.4');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', 'currentColor');
+  path.setAttribute('stroke-width', '2.4');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(path);
+  return svg;
 }
 
 const LABELS = {
@@ -384,6 +455,13 @@ function onMessage(ev) {
     if (m.state !== 'awaiting_helper') { setArmed(false); $('question').style.display = 'none'; }
     if (m.state === 'active') { $('pause').textContent = 'Mettre en pause'; }
 
+    // Session finie : les commandes de pilotage ne mènent plus nulle part, et
+    // un cadre noir qui annonce « en attente de la première capture » raconte
+    // quelque chose de faux. On les retire au lieu de les griser.
+    $('controls').style.display = open ? 'flex' : 'none';
+    $('armNote').style.display = open ? 'block' : 'none';
+    $('shot').style.display = (open || frameAt) ? 'block' : 'none';
+
     // La fiche se rédige une fois la manipulation terminée.
     $('memory').style.display = open ? 'none' : 'block';
     tickFreshness();
@@ -470,8 +548,12 @@ function onMessage(ev) {
 
   else if (m.type === 'lesson_saved') {
     $('draft').style.display = 'none';
-    $('saved').textContent = '✓ Fiche « ' + m.lesson.title + ' » enregistrée.';
-    $('saved').style.display = 'block';
+    $('saved').textContent = '';
+    $('saved').appendChild(checkIcon());
+    $('saved').appendChild(
+      document.createTextNode('Fiche « ' + m.lesson.title + ' » enregistrée.')
+    );
+    $('saved').style.display = 'flex';
   }
 }
 
