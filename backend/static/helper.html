@@ -247,6 +247,7 @@ const FRAME_TTL_S = 30;
 
 let ws = null, reconnectIn = 1000, closedForGood = false;
 let frameId = null, frameAt = 0, state = null;
+let iRefusedPlan = false;
 let armed = false, target = null, sending = false;
 
 /* ------------------------------------------------------------- connexion */
@@ -404,7 +405,10 @@ function onMessage(ev) {
 
   if (m.type === 'status') {
     state = m.state;
-    const [label, cls] = LABELS[m.state] || [m.state, ''];
+    if (m.state === 'planning') iRefusedPlan = false;
+    const [label, cls] = m.state === 'stopped' && iRefusedPlan
+      ? ["Vous avez refusé le plan. Rien n'a été fait sur l'ordinateur.", 'closed']
+      : LABELS[m.state] || [m.state, ''];
     setBanner(label, cls);
     if (m.task) $('task').textContent = '« ' + m.task + ' »';
 
@@ -432,7 +436,7 @@ function onMessage(ev) {
     ['planApprove', 'planRefuse', 'planRefine'].forEach(id => $(id).disabled = !planOpen);
 
     // La fiche se rédige une fois la manipulation terminée.
-    $('memory').style.display = open ? 'none' : 'block';
+    $('memory').style.display = open || iRefusedPlan ? 'none' : 'block';
     tickFreshness();
   }
 
@@ -585,7 +589,7 @@ $('approve').onclick = () => {
 };
 
 $('planApprove').onclick = () => send({ type: 'approve_plan' });
-$('planRefuse').onclick = () => send({ type: 'refuse_plan' });
+$('planRefuse').onclick = () => { iRefusedPlan = true; send({ type: 'refuse_plan' }); };
 $('planRefine').onclick = () => {
   const text = $('planNote').value.trim();
   if (!text) { toast('Écrivez la précision à donner à Holo.'); $('planNote').focus(); return; }
