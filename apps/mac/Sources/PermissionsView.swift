@@ -85,6 +85,10 @@ struct SettingsView: View {
                     model.onboarded = false
                     dismiss()
                 }.buttonStyle(PillStyle(filled: false, height: 50))
+                if model.screenConsent {
+                    Button("Retirer l'accord de partage") { model.revokeConsent() }
+                        .buttonStyle(PillStyle(filled: false, height: 50))
+                }
             }
             HStack {
                 Spacer()

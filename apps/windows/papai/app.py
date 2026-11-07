@@ -46,6 +46,8 @@ class Api:
     def dismiss_alert(self): self._model.dismiss_alert()
     def request_consent(self, task): self._model.request_consent(task)
     def cancel_consent(self): self._model.cancel_consent()
+    def give_consent(self): self._model.give_consent()
+    def revoke_consent(self): self._model.revoke_consent()
     def ask_help(self, task): self._model.ask_help(task)
     def stop(self): self._model.stop()
     def back_home(self): self._model.back_home()

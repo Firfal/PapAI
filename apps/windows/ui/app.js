@@ -147,7 +147,8 @@
       <div style="${f(44, 6)};letter-spacing:-0.6px;line-height:1.12">PapAI va regarder votre écran</div>
       ${promise('eye', 'Holo voit votre écran pour comprendre le problème.', 21)}
       ${promise('hand', `Rien ne bouge avant l'accord de ${S.helperName}.`, 21)}
-      ${promise('stopCircle', 'Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.', 21)}`, 40, 24) +
+      ${promise('stopCircle', 'Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.', 21)}
+      ${promise('check', 'On ne vous le redemandera pas. Vous pouvez retirer cet accord dans Réglages.', 21)}`, 40, 24) +
       `<div class="row" style="gap:14px;margin-top:18px">
         ${pill('Annuler', 'cancelConsent', { filled: false, height: 78, grow: true })}
         ${pill("D'accord, je partage mon écran", 'share', { height: 78, grow: true, disabled: !S.connected })}
@@ -380,6 +381,7 @@
       <div class="row" style="gap:12px">
         ${pill(`Mes proches (${S.helpers.length})`, 'openHelpers', { filled: false, height: 50 })}
         ${pill("Revoir l'accueil", 'replayOnboarding', { filled: false, height: 50 })}
+        ${S.screenConsent ? pill("Retirer l'accord de partage", 'revokeConsent', { filled: false, height: 50 }) : ''}
       </div>
       <div class="row" style="gap:8px"><div class="spacer"></div>
         ${pill('Annuler', 'closeSheet', { filled: false, height: 50 })}
@@ -478,7 +480,8 @@
     lesson: (id) => call('open_lesson', id),
     app: (p) => call('open_app', p),
     cancelConsent: () => call('cancel_consent'),
-    share: () => call('ask_help', S.pendingTask),
+    share: () => call('give_consent'),
+    revokeConsent: () => { S.screenConsent = false; render(); call('revoke_consent'); },
     stop: () => call('stop'),
     home: () => call('back_home'),
     closeLesson: () => call('close_lesson'),
@@ -553,6 +556,8 @@
   const preview = {
     request_consent: (t) => { S.pendingTask = t; S.screen = 'consent'; render(); },
     cancel_consent: () => { S.screen = 'home'; render(); },
+    give_consent: () => { S.screenConsent = true; S.screen = 'session'; S.state = 'planning'; render(); },
+    revoke_consent: () => {},
     open_lesson: (id) => { S.lesson = S.lessons.find((l) => l.id === id); S.screen = 'lesson'; render(); },
     close_lesson: () => { S.screen = 'home'; render(); },
     back_home: () => { S.screen = 'home'; S.state = null; render(); },

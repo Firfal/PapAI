@@ -38,7 +38,11 @@ final class AppModel {
     var lesson: Lesson?
     var screenOK = Permissions.screenOK
     var axOK = Permissions.accessibilityOK
-    var permissionsDismissed = false
+    /// Les autorisations du Mac sont demandées pendant l'accueil : une fois
+    /// l'accueil fini, on ne remontre plus cet écran à chaque lancement.
+    var permissionsDismissed = UserDefaults.standard.bool(forKey: "onboarded")
+    /// Accord de partage d'écran donné une fois, gardé ; retirable dans Réglages.
+    var screenConsent = UserDefaults.standard.bool(forKey: "screenConsent")
     var showSettings = false
     var captureError: String?
     var onboarded = UserDefaults.standard.bool(forKey: "onboarded")
@@ -241,10 +245,23 @@ final class AppModel {
 
     // MARK: Demande d'aide
 
-    /// Étape 4 : avant tout partage, un écran qui dit ce qui va se passer.
+    /// Étape 4 : la première fois, un écran qui dit ce qui va se passer.
+    /// Ensuite la demande part directement : l'accord est déjà donné.
     func requestConsent(task: String) {
+        if screenConsent { askHelp(task: task); return }
         pendingTask = task
         screen = .consent
+    }
+
+    func giveConsent() {
+        UserDefaults.standard.set(true, forKey: "screenConsent")
+        screenConsent = true
+        askHelp(task: pendingTask)
+    }
+
+    func revokeConsent() {
+        UserDefaults.standard.set(false, forKey: "screenConsent")
+        screenConsent = false
     }
 
     func cancelConsent() {

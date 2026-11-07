@@ -136,7 +136,7 @@ class Model:
                 "textScale": self.text_scale, "textScales": TEXT_SCALES,
                 "server": self.server_url, "httpBase": self.http_base,
                 "screen": self.screen, "state": self.state, "sessionOpen": self.session_open,
-                "task": self.task, "pendingTask": self.pending_task,
+                "task": self.task, "pendingTask": self.pending_task, "screenConsent": self.screen_consent,
                 "plan": list(self.plan), "planStep": self.plan_step,
                 "question": self.question, "answer": self.answer,
                 "currentAction": self.current_action, "actions": list(self.actions),
@@ -293,10 +293,26 @@ class Model:
 
     # ------------------------------------------------------ demande d'aide
 
+    @property
+    def screen_consent(self) -> bool:
+        return bool(self.prefs.get("screenConsent"))
+
     def request_consent(self, task: str) -> None:
-        """Étape 4 : avant tout partage, un écran qui dit ce qui va se passer."""
+        """Étape 4 : la première fois, un écran qui dit ce qui va se passer.
+        Ensuite la demande part directement : l'accord est déjà donné."""
+        if self.screen_consent:
+            self.ask_help(str(task or "").strip())
+            return
         self.pending_task = str(task or "").strip()
         self.screen = "consent"
+        self.push()
+
+    def give_consent(self) -> None:
+        self.save_prefs(screenConsent=True)
+        self.ask_help(self.pending_task)
+
+    def revoke_consent(self) -> None:
+        self.save_prefs(screenConsent=False)
         self.push()
 
     def cancel_consent(self) -> None:

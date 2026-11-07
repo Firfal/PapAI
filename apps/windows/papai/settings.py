@@ -1,5 +1,5 @@
 """Réglages de l'app (équivalent des UserDefaults du Mac), dans
-%APPDATA%\\PapAI\\settings.json. Le prénom, la taille du texte, le serveur."""
+%APPDATA%\\PapAI\\settings.json. Le prénom, la taille du texte, le serveur, l'accord de partage d'écran."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def load() -> dict:
 
 def save(values: dict) -> dict:
     data = load()
-    for k in ("firstName", "server", "textScale", "onboarded"):
+    for k in ("firstName", "server", "textScale", "onboarded", "screenConsent"):
         if k in values:
             data[k] = values[k]
     p = _path()

@@ -15,6 +15,7 @@ struct ConsentView: View {
                 promise("eye.fill", "Holo voit votre écran pour comprendre le problème.")
                 promise("hand.raised.fill", "Rien ne bouge avant l'accord de \(model.helperName).")
                 promise("stop.circle.fill", "Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.")
+                promise("checkmark.seal.fill", "On ne vous le redemandera pas. Vous pouvez retirer cet accord dans Réglages.")
                 Spacer(minLength: 0)
             }
             .foregroundStyle(T.ink).padding(40)
@@ -25,7 +26,7 @@ struct ConsentView: View {
                 Button { model.cancelConsent() } label: { Text("Annuler").frame(maxWidth: .infinity) }
                     .buttonStyle(PillStyle(filled: false, height: 78))
                     .keyboardShortcut(.cancelAction)
-                Button { model.askHelp(task: model.pendingTask) } label: {
+                Button { model.giveConsent() } label: {
                     Text("D'accord, je partage mon écran").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(PillStyle(height: 78))

@@ -38,6 +38,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Session proposée à distance par le proche, que la personne aidée accepte ou refuse sur le Mac (`remote_request`).
 - [x] 3. Demande : gros bouton, dictée (celle de l'équipe, Gladia) ou clavier.
 - [x] 4. Consentement : écran dédié « PapAI va regarder votre écran » à la place de la case à cocher.
+- [x] Accord de partage d'écran demandé une seule fois (Mac et Windows), gardé ensuite ; « Retirer l'accord de partage » dans Réglages. L'écran des autorisations du Mac ne revient plus à chaque lancement une fois l'accueil fini.
 - [x] 5. Holo explique chaque action en phrase simple, avec l'historique et le plan validé.
 - [x] 6. Escalade : la question de Holo affichée pendant que le proche répond.
 - [x] 7. Fin : « C'est fait ! », partage coupé, retour automatique à l'accueil.

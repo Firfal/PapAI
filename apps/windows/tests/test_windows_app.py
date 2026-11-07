@@ -24,7 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["PAPAI_HOME"] = tempfile.mkdtemp()
 
-from papai import apps, core  # noqa: E402
+from papai import apps, core, settings  # noqa: E402
 from papai.bridge import Bridge, wait_until  # noqa: E402
 from papai.model import Model  # noqa: E402
 
@@ -129,6 +129,19 @@ def unit() -> None:
     m.dismiss_alert()
     check(m.snapshot()["alert"] is None, "alerte fermée")
 
+    m = Model(demo="home")
+    m.request_consent("Mes photos")
+    check(m.screen == "consent", "première demande : écran d'accord du partage")
+    m.give_consent()
+    check(m.screen == "session" and m.snapshot()["screenConsent"], "accord donné et gardé")
+    m.back_home()
+    m.request_consent("Mes courriels")
+    check(m.screen == "session" and m.task == "Mes courriels", "demande suivante : l'accord n'est pas redemandé")
+    m.revoke_consent()
+    m.back_home()
+    m.request_consent("Mes photos")
+    check(m.screen == "consent", "accord retiré dans Réglages : redemandé")
+
 
 def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
     import websockets
@@ -163,7 +176,8 @@ def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
 
             m.request_consent("Je ne retrouve plus mes photos")
             check(m.screen == "consent" and not played, "écran de consentement, rien ne bouge")
-            m.ask_help(m.pending_task)
+            m.give_consent()
+            check(settings.load().get("screenConsent") is True, "accord de partage enregistré sur le disque")
             st = await until(lambda x: x.get("type") == "status" and x.get("state") == "awaiting_approval", 60)
             check(st is not None and bool(st.get("plan")), "plan proposé à l'aidant")
             await asyncio.sleep(1)
