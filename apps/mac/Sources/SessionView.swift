@@ -52,33 +52,14 @@ struct SessionView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .center, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 18) {
-                        if model.sessionOpen { sharedBanner }
-                        Text(title).font(rounded(guardStopped ? 34 : 40, .bold)).tracking(-0.6)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // Pas de mascotte sur une alerte du gardien : le message doit rester grave.
-                    if !guardStopped {
-                        Mascotte(humeur: humeur).frame(width: 130 * CGFloat(model.textScale), height: 130 * CGFloat(model.textScale))
-                    }
+            // Le suivi passe avant la mascotte : elle rapetisse puis s'efface avant que le contenu défile.
+            ViewThatFits(in: .vertical) {
+                if !guardStopped {
+                    carte(mascotte: 130 * CGFloat(model.textScale))
+                    carte(mascotte: 80)
                 }
-                if let sub = subtitle {
-                    Text(sub).font(rounded(24, .medium)).foregroundStyle(state == .active ? T.ink : T.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .animation(.easeInOut(duration: 0.25), value: sub)
-                }
-                ViewThatFits(in: .vertical) {
-                    content
-                    ScrollView(showsIndicators: false) { content }
-                }
-                Spacer(minLength: 0)
-                if !model.task.isEmpty && state != .stopped && state != .awaiting_approval {
-                    Text("Votre demande : \(model.task)")
-                        .font(rounded(16)).foregroundStyle(T.muted).lineLimit(2)
-                }
+                carte(mascotte: nil)
+                carte(mascotte: nil, defile: true)
             }
             .foregroundStyle(T.ink)
             .padding(34)
@@ -118,6 +99,38 @@ struct SessionView: View {
                 }
                 .buttonStyle(PillStyle(height: 70))
                 .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+
+    private func carte(mascotte taille: CGFloat?, defile: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(alignment: .center, spacing: 20) {
+                VStack(alignment: .leading, spacing: 18) {
+                    if model.sessionOpen { sharedBanner }
+                    Text(title).font(rounded(guardStopped ? 34 : 40, .bold)).tracking(-0.6)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // Pas de mascotte sur une alerte du gardien : le message doit rester grave.
+                if let taille {
+                    Mascotte(humeur: humeur).frame(width: taille, height: taille)
+                }
+            }
+            if let sub = subtitle {
+                Text(sub).font(rounded(24, .medium)).foregroundStyle(state == .active ? T.ink : T.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .animation(.easeInOut(duration: 0.25), value: sub)
+            }
+            if defile {
+                ScrollView(showsIndicators: false) { content }
+            } else {
+                content
+            }
+            Spacer(minLength: 0)
+            if !model.task.isEmpty && state != .stopped && state != .awaiting_approval {
+                Text("Votre demande : \(model.task)")
+                    .font(rounded(16)).foregroundStyle(T.muted).lineLimit(2)
             }
         }
     }
