@@ -408,13 +408,16 @@
         ${S.pairQR ? `<img src="${S.pairQR}" alt="QR code à scanner par votre proche" style="width:170px;height:170px;image-rendering:pixelated">` : ''}
         <div class="muted" style="${f(16, 4)}">ou le code</div>
         <div style="font-size:${38 * S.textScale}px;font-weight:600;letter-spacing:4px;font-variant-numeric:tabular-nums;user-select:text">${esc(S.pairCode.slice(0, 3))} ${esc(S.pairCode.slice(3))}</div>
-        <div class="muted" style="${f(15, 4)}">Valable 10 minutes</div>
+        <div class="muted" style="${f(15, 4)}">${S.pairLong ? 'Valable 24 heures' : 'Valable 10 minutes'}</div>
+        ${S.pairURL ? `<div style="width:260px">${pill('Envoyer par SMS, WhatsApp…', 'shareInvite', { filled: false, height: 56, grow: true })}</div>` : ''}
+        ${ui.inviteCopied ? `<div class="accent" style="max-width:260px;text-align:center;${f(15, 6)}">${esc(ui.inviteCopied)}</div>` : ''}
+        ${S.pairURL ? `<div class="muted" style="max-width:260px;text-align:center;word-break:break-all;user-select:text;${f(13, 4)}">Sans l'app PapAI : ${esc(S.pairURL)}</div>` : ''}
         <button class="muted" data-act="stopPair" style="${f(17, 6)}">Annuler</button>
       </div>` : '';
     return `<div class="row" style="align-items:flex-start;gap:28px">
       <div class="col grow" style="gap:20px">
         <div style="${f(onb ? 44 : 34, 6)};letter-spacing:-0.6px;line-height:1.1">${onb ? 'Qui va vous aider ?' : 'Mes proches'}</div>
-        <div class="muted" style="${f(20, 4)}">Votre fille, votre fils, un ami… Il ou elle scanne le code avec son téléphone et donne son prénom. Vous pouvez en ajouter plusieurs.</div>
+        <div class="muted" style="${f(20, 4)}">Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.</div>
         ${added}${rows}${add}
       </div>${code}</div>`;
   }
@@ -589,8 +592,13 @@
     nextStep: lessonNext,
     onbBack: () => setStep(Math.max(0, S.onboardingStep - 1)),
     onbNext,
-    pair: () => call('start_pairing'),
-    stopPair: () => call('stop_pairing'),
+    pair: () => { ui.inviteCopied = null; call('start_pairing'); },
+    stopPair: () => { ui.inviteCopied = null; call('stop_pairing'); },
+    shareInvite: () => Promise.resolve(call('copy_invitation')).then((ok) => {
+      ui.inviteCopied = ok ? "Invitation copiée : collez-la dans un SMS, WhatsApp ou un mail."
+        : "Copie impossible : recopiez le lien ci-dessous.";
+      render();
+    }),
     removeHelper: (id) => call('remove_helper', id),
     acceptRemote: () => call('accept_remote'),
     refuseRemote: () => call('refuse_remote'),

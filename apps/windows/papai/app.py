@@ -73,6 +73,7 @@ class Api:
     def save_settings(self, name, server): self._model.save_settings(name, server)
     def start_pairing(self): self._model.start_pairing()
     def stop_pairing(self): self._model.stop_pairing()
+    def copy_invitation(self): return self._model.copy_invitation()
     def remove_helper(self, helper_id): self._model.remove_helper(helper_id)
     def accept_remote(self): self._model.accept_remote()
     def refuse_remote(self): self._model.refuse_remote()

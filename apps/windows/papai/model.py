@@ -12,6 +12,7 @@ import json
 import os
 import threading
 import urllib.request
+from urllib.parse import quote
 from typing import Callable
 
 from . import apps as start_apps
@@ -83,6 +84,11 @@ class Model:
         self.helpers: list[dict] = []
         self.pair_code: str | None = None
         self.pair_url: str | None = None
+        # Lien `papai://` du QR : ouvre l'app du support au lieu du navigateur.
+        self.pair_app_url: str | None = None
+        # Invitation à envoyer (SMS, WhatsApp…), valable 24 h, comme sur le Mac.
+        self.pair_long = False
+        self.pair_expires = 600
         self.pair_added: str | None = None
         self.remote_request: dict | None = None
         self.pending_task = ""
@@ -166,7 +172,8 @@ class Model:
                 "currentAction": self.current_action, "actions": list(self.actions),
                 "lessons": list(self.lessons), "lesson": self.lesson, "notice": self.notice, "alert": self.alert,
                 "helpers": list(self.helpers), "pairCode": self.pair_code,
-                "pairURL": self.pair_url, "pairQR": qr_data_url(self.pair_url or ""),
+                "pairURL": self.pair_url, "pairQR": qr_data_url(self.pair_app_url or self.pair_url or ""),
+                "pairLong": self.pair_long, "pairExpires": self.pair_expires,
                 "pairAdded": self.pair_added, "remoteRequest": self.remote_request,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
@@ -318,7 +325,7 @@ class Model:
         with self._lock:
             self.onboarded = True
             self.onboarding_step = 0
-            self.pair_code = self.pair_url = None
+            self._clear_pair()
         self.push()
 
     def reset_onboarding(self) -> None:
@@ -336,12 +343,39 @@ class Model:
 
     def start_pairing(self) -> None:
         self.pair_added = None
-        self._send({"type": "pair_start"})
+        self._send({"type": "pair_start", "long": True})
         self.push()
 
     def stop_pairing(self) -> None:
-        self.pair_code = self.pair_url = None
+        self._clear_pair()
         self.push()
+
+    def _clear_pair(self) -> None:
+        self.pair_code = self.pair_url = self.pair_app_url = None
+        self.pair_long = False
+
+    @staticmethod
+    def app_pairing_url(url: str) -> str:
+        """`papai://pair?u=<url encodée>` : l'appareil photo du téléphone ouvre l'app, pas le navigateur."""
+        return "papai://pair?u=" + quote(url, safe="-._~")
+
+    @property
+    def invitation_text(self) -> str:
+        n = str(self.prefs.get("firstName") or "").strip()
+        who = n or "Votre proche"
+        return (f"{who} aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre "
+                "téléphone pour vous relier (valable 24 heures) :")
+
+    def copy_invitation(self) -> bool:
+        """« Envoyer par SMS, WhatsApp… » : Windows n'a pas de ShareLink, l'invitation part dans le presse-papiers."""
+        if not self.pair_url:
+            return False
+        try:
+            import pyperclip
+            pyperclip.copy(f"{self.invitation_text}\n{self.pair_url}")
+        except Exception:  # noqa: BLE001 — pas de presse-papiers (aperçu, session distante)
+            return False
+        return True
 
     def remove_helper(self, helper_id: str) -> None:
         self._send({"type": "remove_helper", "id": helper_id})
@@ -453,7 +487,7 @@ class Model:
                             for d in lst if isinstance(d, dict) and d.get("id") and d.get("name")]
             if m.get("added"):
                 self.pair_added = str(m["added"])
-                self.pair_code = self.pair_url = None
+                self._clear_pair()
         elif kind == "alert":
             self.guard_acknowledged = bool(m.get("acknowledged") or m.get("acknowledged_by"))
             if m.get("level") == "danger" or m.get("blocked"):
@@ -479,6 +513,12 @@ class Model:
         elif kind == "pair_code":
             self.pair_code = m.get("code")
             self.pair_url = m.get("url")
+            self.pair_app_url = m.get("app_url") or (self.app_pairing_url(self.pair_url) if self.pair_url else None)
+            self.pair_long = bool(m.get("long"))
+            try:
+                self.pair_expires = int(m.get("expires_in") or 600)
+            except (TypeError, ValueError):
+                self.pair_expires = 600
         elif kind == "remote_request":
             if self.session_open:
                 return
@@ -614,6 +654,8 @@ class Model:
                 self.helpers = [{"id": "1", "name": "Claire", "relation": "sa fille"}]
                 self.pair_code = "482913"
                 self.pair_url = "http://192.168.1.20:8000/p/482913"
+                self.pair_app_url = self.app_pairing_url(self.pair_url)
+                self.pair_long = True
             return
         self.onboarded = True
         self.helpers = [{"id": "1", "name": "Claire", "relation": "sa fille"}]

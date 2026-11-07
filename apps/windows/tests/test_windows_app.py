@@ -309,8 +309,29 @@ def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
     asyncio.run(aidant())
 
 
+def pairing() -> None:
+    """Ajout d'un support identique au Mac : QR papai://, invitation 24 h, lien en texte."""
+    sent = []
+    m = Model()
+    m._send = sent.append
+    m.start_pairing()
+    check(sent and sent[-1] == {"type": "pair_start", "long": True}, "pair_start long, comme le Mac")
+    m._handle({"type": "pair_code", "code": "482913", "url": "https://h/k/c/p/482913",
+               "app_url": "papai://pair?u=x&n=Jeanne", "expires_in": 86400, "long": True})
+    snap = m.snapshot()
+    check(m.pair_app_url == "papai://pair?u=x&n=Jeanne" and snap["pairLong"] and snap["pairExpires"] == 86400,
+          "le QR porte app_url, invitation 24 h")
+    m._handle({"type": "pair_code", "code": "111222", "url": "http://h:8000/p/111222"})
+    check(m.pair_app_url == "papai://pair?u=http%3A%2F%2Fh%3A8000%2Fp%2F111222" and not m.pair_long,
+          "ancien serveur sans app_url : lien papai:// construit")
+    check("valable 24 heures" in m.invitation_text, "texte d'invitation du Mac")
+    m.stop_pairing()
+    check(m.pair_code is None and m.pair_app_url is None and not m.pair_long, "Annuler efface tout")
+
+
 if __name__ == "__main__":
     unit()
+    pairing()
     if "--serveur" in sys.argv:
         with_server()
     print(f"{ok} vérifications passées")
