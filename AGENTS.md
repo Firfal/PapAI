@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/etape-du-plan` | Étape du plan en cours (`plan_step` dans `status`) | `PROTOCOL.md`, `backend/sessions.py`, `backend/agent.py`, `carepilot_tools.py` (outils), `tests/test_protocole.py`, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/SessionView.swift`, `apps/ios/Sources/HelperModel.swift`, `apps/ios/Sources/LiveViews.swift` | 7 nov. |
 
 ## Journal
 
