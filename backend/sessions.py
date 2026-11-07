@@ -23,8 +23,18 @@ FRAME_TTL_S = 30
 
 
 class State(str, Enum):
+    """L'agent n'agit jamais de lui-même : il observe, propose, et attend l'aval.
+
+    waiting_helper -> planning -> plan_review -> active
+                                       ^            |
+                                       +--- précisions du proche
+    """
+
     WAITING_CONSENT = "waiting_consent"   # aide demandée, partage pas encore accordé
-    ACTIVE = "active"                     # l'agent travaille
+    WAITING_HELPER = "waiting_helper"     # proche prévenu, pas encore là
+    PLANNING = "planning"                 # l'agent regarde l'écran et rédige un plan
+    PLAN_REVIEW = "plan_review"           # le proche valide, précise ou refuse le plan
+    ACTIVE = "active"                     # exécution d'un plan validé
     AWAITING_HELPER = "awaiting_helper"   # agent suspendu, question posée au proche
     DONE = "done"
     STOPPED = "stopped"                   # arrêt par la personne aidée — terminal
@@ -38,7 +48,10 @@ class Owner(str, Enum):
     HELPER = "helper"
 
 
-OPEN_STATES = {State.WAITING_CONSENT, State.ACTIVE, State.AWAITING_HELPER}
+OPEN_STATES = {
+    State.WAITING_CONSENT, State.WAITING_HELPER, State.PLANNING,
+    State.PLAN_REVIEW, State.ACTIVE, State.AWAITING_HELPER,
+}
 TERMINAL_STATES = {State.DONE, State.STOPPED}
 
 
@@ -78,6 +91,10 @@ class Session:
 
     # Brouillon de fiche CareMemory, en attente de validation du proche.
     lesson: dict | None = None
+
+    # Le plan proposé par l'agent, et l'aval du proche. Tant que `approved`
+    # est faux, aucune action ne part vers le PC.
+    plan: dict | None = None
     journal: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)
@@ -97,6 +114,7 @@ class Session:
 
     # Rempli par le proche, attendu par la boucle agent.
     _helper_reply: asyncio.Future | None = field(default=None, repr=False)
+    _plan_reply: asyncio.Future | None = field(default=None, repr=False)
 
     # ---------------------------------------------------------------- journal
 
@@ -126,8 +144,10 @@ class Session:
     def grant_consent(self) -> None:
         self.require_open()
         self.consented = True
-        self.state = State.ACTIVE
-        self.owner = Owner.AGENT
+        # L'agent ne démarre pas pour autant : il attend le proche, puis son
+        # aval sur un plan. Rien ne bouge sur l'écran avant.
+        self.state = State.WAITING_HELPER
+        self.owner = Owner.NONE
         self.log("consent", granted=True)
 
     def stop(self, by: str = "senior") -> None:
@@ -139,6 +159,7 @@ class Session:
         self.owner = Owner.NONE
         self.log("stop", by=by)
         self._resolve_reply(None)
+        self._resolve_plan(None)
 
     def finish(self, message: str) -> None:
         self.require_open()
@@ -146,6 +167,7 @@ class Session:
         self.owner = Owner.NONE
         self.log("answer", content=message)
         self._resolve_reply(None)
+        self._resolve_plan(None)
 
     # ------------------------------------------------------------ verrou
 
@@ -189,6 +211,50 @@ class Session:
         return self.last_frame
 
     # ------------------------------------------------------------ escalade
+
+    def helper_arrived(self) -> bool:
+        """Le proche a ouvert la session : l'agent peut commencer à réfléchir."""
+        if self.state is not State.WAITING_HELPER:
+            return False
+        self.state = State.PLANNING
+        self.log("helper_arrived")
+        return True
+
+    def propose_plan(self, steps: list[str], summary: str = "") -> asyncio.Future:
+        """L'agent soumet son plan. Il attend ici, sans rien toucher."""
+        self.require_open()
+        self.plan = {"steps": steps, "summary": summary, "approved": False}
+        self.state = State.PLAN_REVIEW
+        self.owner = Owner.NONE
+        self.log("plan_proposed", steps=steps)
+        self._plan_reply = asyncio.get_running_loop().create_future()
+        return self._plan_reply
+
+    def approve_plan(self, steps: list[str] | None = None) -> None:
+        self.require_open()
+        if self.state is not State.PLAN_REVIEW:
+            raise Refused("Aucun plan n'attend votre validation.")
+        if steps:
+            self.plan["steps"] = steps
+        self.plan["approved"] = True
+        self.state = State.ACTIVE
+        self.owner = Owner.AGENT
+        self.log("plan_approved", steps=self.plan["steps"])
+        self._resolve_plan({"approved": True, "steps": self.plan["steps"]})
+
+    def refine_plan(self, precision: str) -> None:
+        """Le proche précise au lieu de valider : l'agent repart d'un cran."""
+        self.require_open()
+        if self.state is not State.PLAN_REVIEW:
+            raise Refused("Aucun plan n'attend votre validation.")
+        self.state = State.PLANNING
+        self.log("plan_refined", precision=precision)
+        self._resolve_plan({"approved": False, "precision": precision})
+
+    def _resolve_plan(self, value) -> None:
+        fut, self._plan_reply = self._plan_reply, None
+        if fut is not None and not fut.done():
+            fut.set_result(value)
 
     def ask_helper(self, question: str, options: list[str] | None = None) -> asyncio.Future:
         self.require_open()
@@ -239,6 +305,7 @@ class Session:
             "consented": self.consented,
             "task": self.task,
             "question": self.question,
+            "plan": self.plan,
             "usage": self.usage,
         }
 

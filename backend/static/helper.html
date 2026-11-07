@@ -178,6 +178,19 @@
   /* Le message d'erreur était en blanc sur rouge plein : 3,0:1, illisible au
      soleil sur un téléphone. Il reprend le motif des bandeaux — fond de
      panneau, bordure et texte de la couleur d'état. */
+  /* Le plan : le seul écran où le proche décide pour de bon. Il occupe la
+     place, parce que valider sans lire est exactement ce qu'on veut éviter. */
+  #plan {
+    display: none; margin: 16px 0; padding: 16px;
+    border-radius: 12px; background: var(--panel); border: 1px solid var(--accent);
+  }
+  #plan h2 { font-size: 16px; margin: 0 0 6px; }
+  #planSummary { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+  #planSteps { margin: 0 0 16px; padding-left: 22px; }
+  #planSteps li { margin-bottom: 8px; line-height: 1.5; }
+  #plan label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+  .planHint { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
+
   #toast {
     position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom));
     background: var(--panel); border: 1px solid var(--stop); color: var(--stop);
@@ -201,6 +214,21 @@
 </header>
 
 <div id="banner" role="status" aria-live="polite"><span class="dot"></span><span id="bannerText">Connexion au serveur…</span></div>
+
+<div id="plan">
+  <h2>L'agent propose ce plan</h2>
+  <p id="planSummary"></p>
+  <ol id="planSteps"></ol>
+  <div class="row">
+    <button class="primary" id="planOk" type="button">Valider et lancer</button>
+  </div>
+  <label for="planNote">Ou précisez ce qu'il faut changer :</label>
+  <div class="row">
+    <input type="text" id="planNote" placeholder="Ce sont les photos de Noël…" autocomplete="off">
+    <button id="planRefine" type="button" style="flex:0 0 auto">Préciser</button>
+  </div>
+  <p class="planHint">Rien ne se passera sur l'ordinateur de votre proche tant que vous n'aurez pas validé.</p>
+</div>
 
 <div id="question">
   <p id="qtext"></p>
@@ -441,6 +469,7 @@ function onMessage(ev) {
   const m = JSON.parse(ev.data);
 
   if (m.type === 'status') {
+    if (m.state !== 'plan_review') $('plan').style.display = 'none';
     state = m.state;
     const [label, cls] = LABELS[m.state] || [m.state, ''];
     setBanner(label, cls);
@@ -465,6 +494,20 @@ function onMessage(ev) {
     // La fiche se rédige une fois la manipulation terminée.
     $('memory').style.display = open ? 'none' : 'block';
     tickFreshness();
+  }
+
+  else if (m.type === 'plan') {
+    $('planSummary').textContent = m.summary || '';
+    $('planSteps').innerHTML = '';
+    (m.steps || []).forEach(t => {
+      const li = document.createElement('li');
+      li.textContent = t;
+      $('planSteps').appendChild(li);
+    });
+    $('plan').style.display = 'block';
+    $('planOk').disabled = false;
+    $('planRefine').disabled = false;
+    $('planNote').value = '';
   }
 
   else if (m.type === 'frame') {
@@ -603,6 +646,20 @@ $('approve').onclick = () => {
 };
 
 connect();
+
+$('planOk').onclick = () => {
+  const steps = [...$('planSteps').querySelectorAll('li')].map(li => li.textContent);
+  $('planOk').disabled = true; $('planRefine').disabled = true;
+  send({ type: 'approve_plan', steps });
+};
+$('planRefine').onclick = () => {
+  const t = $('planNote').value.trim();
+  if (!t) { $('planNote').focus(); return; }
+  $('planOk').disabled = true; $('planRefine').disabled = true;
+  send({ type: 'refine_plan', text: t });
+};
+$('planNote').addEventListener('keydown', e => { if (e.key === 'Enter') $('planRefine').click(); });
+
 </script>
 </body>
 </html>

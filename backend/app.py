@@ -161,6 +161,11 @@ async def ws_bridge(ws: WebSocket) -> None:
     pairing_url = f"{PUBLIC_URL}/aidant/{PAIRING}"
     print(f"[pont] lien permanent du proche : {pairing_url}")
     await ws.send_json({"type": "pairing", "url": pairing_url})
+    # La page du proche n'apprenait l'état du PC qu'à son ouverture. Ouverte
+    # pendant que la machine était éteinte, elle restait bloquée sur « éteint »
+    # et son bouton désactivé pour toujours — or c'est une page faite pour
+    # rester ouverte.
+    await broadcast_pairing({"type": "ready", "pc_connected": True})
     try:
         while True:
             msg = await ws.receive_json()
@@ -225,6 +230,7 @@ async def ws_bridge(ws: WebSocket) -> None:
         print("[pont] déconnecté")
     finally:
         bridge = None
+        await broadcast_pairing({"type": "ready", "pc_connected": False})
         for s in list(registry._by_id.values()):
             if s.is_open:
                 s.stop(by="pont déconnecté")
@@ -255,6 +261,9 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
 
     await ws.accept()
     helper_sockets.add(ws)
+    # Sa simple présence débloque l'agent, qui attendait pour observer.
+    if session.helper_arrived():
+        await broadcast_helper(session.status())
     await ws.send_json(session.status())
     if session.last_frame:
         await ws.send_json(
@@ -301,6 +310,22 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
 
                 elif kind == "click":
                     await handle_helper_click(session, msg, ws)
+
+                elif kind == "approve_plan":
+                    steps = [
+                        str(x).strip()
+                        for x in (msg.get("steps") or [])
+                        if str(x).strip()
+                    ]
+                    session.approve_plan(steps or None)
+                    await broadcast_helper(session.status())
+
+                elif kind == "refine_plan":
+                    precision = str(msg.get("text", "")).strip()
+                    if not precision:
+                        raise Refused("Dites ce qu'il faut changer.")
+                    session.refine_plan(precision)
+                    await broadcast_helper(session.status())
 
                 elif kind == "draft_lesson":
                     await ws.send_json({"type": "lesson_pending"})
