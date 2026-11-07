@@ -7,6 +7,9 @@ struct GuardAlert: Equatable {
     var level: String
     var title: String
     var detail: String
+    var id: String? = nil
+    var blocked: Bool = false
+    var acknowledged: Bool = false
     var isDanger: Bool { level == "danger" }
 }
 
@@ -98,17 +101,22 @@ struct GuardAlertView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxHeight: 260)
-                Text("Ne faites rien d'autre et appelez \(model.helperName).")
+                if alert.acknowledged {
+                    Text("Un proche a vu l'alerte et s'en occupe")
+                        .font(rounded(22, .semibold)).fixedSize(horizontal: false, vertical: true)
+                }
+                Text(alert.blocked ? "Votre proche a été prévenu. Attendez de lui avoir parlé." : "Ne faites rien d'autre et appelez \(model.helperName).")
                     .font(rounded(18)).foregroundStyle(T.muted)
-                if model.sessionOpen {
-                    Button { model.stop(); model.guardAlert = nil } label: {
+                if model.sessionOpen && !alert.blocked {
+                    Button { model.stop() } label: {
                         Text("Arrêter l'assistance").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(PillStyle(height: 72))
                 }
-                Button { model.guardAlert = nil } label: { Text("J'ai compris").frame(maxWidth: .infinity) }
-                    .buttonStyle(PillStyle(height: 72))
-                    .keyboardShortcut(.defaultAction)
+                if !alert.blocked {
+                    Button { model.guardAlert = nil } label: { Text("J'ai compris").frame(maxWidth: .infinity) }
+                        .buttonStyle(PillStyle(height: 72))
+                }
             }
             .foregroundStyle(T.ink)
             .padding(40)

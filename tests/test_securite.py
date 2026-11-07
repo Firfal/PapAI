@@ -6,8 +6,8 @@ simulé, puis vérifie :
        de la machine même du serveur ; un seul pont à la fois, et l'ancien ne
        débranche pas le nouveau en partant ;
   #18  hors session, le gardien n'envoie aucune capture à Holo et l'alerte
-       arrive une seule fois sur le pont ; en session, la description de
-       Holo arrive (plus de NameError) ; demandes et listes bornées ;
+       arrive une seule fois sur le pont ; même en session, alerte immédiate
+       et arrêt sans capture ni avis Holo ; demandes et listes bornées ;
   #17  ni clé, ni jeton de session, ni demande, ni prénom dans le journal.
 
     python tests/test_securite.py
@@ -253,10 +253,16 @@ async def controles(port: int) -> dict:
             check("hors session, fausse alerte virus : alerte reçue par la personne aidée", alerte is not None)
             check("hors session : aucun appel à Holo, aucune capture", len(holo_vu) == avant,
                   len(holo_vu) - avant)
-            check("l'aidant reçoit l'alerte", await aid.attendre("alert", 5) is not None)
+            proche_alerte = await aid.attendre("alert", 5)
+            check("l'aidant reçoit un texte pour lui", proche_alerte is not None
+                  and "Prenez contact avec votre proche" in proche_alerte.get("detail", "")
+                  and proche_alerte.get("detail") != alerte.get("detail"))
             await asyncio.sleep(1.5)
             n = sum(1 for m in mac2.tous if m.get("type") == "alert")
             check("l'alerte arrive une seule fois sur le pont", n == 1, n)
+            await aid.envoyer({"type": "dismiss_alert", "alert_id": alerte["alert_id"]})
+            await mac2.attendre("alert_cleared")
+            await aid.attendre("alert_cleared")
 
             await mac2.envoyer({"type": "guard", "processes": "AnyDesk", "window": 42})
             await mac2.envoyer({"type": "guard",
@@ -264,8 +270,13 @@ async def controles(port: int) -> dict:
             await asyncio.sleep(1.5)
             await mac2.envoyer({"type": "guard", "processes": ["AnyDesk"] + ["x"] * 20_000})
             alerte = await mac2.attendre("alert", 8)
+            proche_alerte = await aid.attendre("alert", 5)
             check("liste de processus énorme ou mal formée : bornée, le pont répond encore",
-                  alerte is not None and "anydesk" in alerte.get("detail", "").lower(), alerte)
+                  alerte is not None and proche_alerte is not None
+                  and "anydesk" in proche_alerte.get("detail", "").lower(), proche_alerte)
+            await aid.envoyer({"type": "dismiss_alert", "alert_id": alerte["alert_id"]})
+            await mac2.attendre("alert_cleared")
+            await aid.attendre("alert_cleared")
 
             await mac2.envoyer({"type": "help_request", "task": TACHE + " " + "a" * 10_000})
             session = await mac2.attendre("session")
@@ -277,12 +288,20 @@ async def controles(port: int) -> dict:
             await mac2.envoyer({"type": "guard", "processes": [], "window": "",
                                 "url": "https://www.paysafecard.com"})
             alerte = await mac2.attendre("alert", 15)
-            check("en session : Holo décrit l'écran (plus de NameError)",
-                  alerte is not None and DESCRIPTION in alerte.get("detail", ""), alerte)
-            check("en session : une seule capture envoyée à Holo",
-                  sum(avec_image(r) for r in holo_vu[avant:]) == 1)
-            await mac2.envoyer({"type": "stop"})
-            await aid.attendre("status", 5, state="stopped")
+            check("en session : l'alerte est immédiatement bloquante",
+                  alerte is not None and alerte.get("blocked") is True, alerte)
+            check("en session : aucun appel Holo ni capture avant l'alerte", len(holo_vu) == avant)
+            check("en session : arrêt terminal", await aid.attendre("status", 5, state="stopped") is not None)
+            async with connecter(f"ws://{loc}/ws/aidant/{CLE}") as wr:
+                reconnecte = Pont(wr)
+                rep = await reconnecte.attendre("alert", 5)
+                check("reconnexion aidant : alerte en attente renvoyée",
+                      rep is not None and rep.get("alert_id") == alerte["alert_id"])
+                await reconnecte.envoyer({"type": "dismiss_alert", "alert_id": "faux"})
+                check("rejet d'un identifiant périmé : refus", await reconnecte.attendre("refused", 5) is not None)
+                reconnecte.tache.cancel()
+            await aid.envoyer({"type": "dismiss_alert", "alert_id": alerte["alert_id"]})
+            check("rejet par le proche : fermeture explicite sur le Mac", await mac2.attendre("alert_cleared", 5) is not None)
         aid.tache.cancel()
     return vus
 
