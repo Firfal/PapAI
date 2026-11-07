@@ -270,7 +270,7 @@
     const sub = sessionSubtitle(st);
     const banner = S.sessionOpen ? `<div class="pillChip" style="align-self:flex-start;gap:10px;padding:10px 18px;${f(16, 6)}">
       <span class="dot" style="background:var(--accent)"></span>Écran partagé</div>` : '';
-    const footer = (S.task && st !== 'stopped' && st !== 'awaiting_approval')
+    const footer = (S.task && st !== 'stopped' && st !== 'awaiting_approval' && !(st === 'awaiting_helper' && S.questionForMe))
       ? `<div class="muted" style="${f(16, 4)};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">Votre demande : ${esc(S.task)}</div>` : '';
     const bottom = S.sessionOpen
       ? `<div class="row" style="gap:14px;width:100%">${canPause(st) ? pauseButton(70, 26) : ''}${stopButton(70, 26)}</div>`
