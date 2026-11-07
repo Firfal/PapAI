@@ -200,6 +200,7 @@ class BridgeLink:
 
 bridge: BridgeLink | None = None
 helper_sockets: set[WebSocket] = set()
+helper_alert_scopes: dict[WebSocket, str | None] = {}
 agent_task: asyncio.Task | None = None
 
 
@@ -224,11 +225,20 @@ async def _send_helpers_to_bridge() -> None:
             pass
 
 
+def helper_can_access_alert(ws: WebSocket, alert: dict) -> bool:
+    if ws not in helper_alert_scopes:
+        return False
+    scope = helper_alert_scopes[ws]
+    return scope is None or scope == alert.get("session")
+
+
 async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
     if to_bridge and bridge is not None and payload.get("type") in BRIDGE_TYPES:
         await bridge.send(payload)
     dead = []
     for ws in helper_sockets:
+        if payload.get("type") in ("alert", "alert_cleared") and not helper_can_access_alert(ws, payload):
+            continue
         try:
             await ws.send_json(payload)
         except Exception:  # noqa: BLE001
@@ -481,8 +491,9 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
 
     await ws.accept()
     helper_sockets.add(ws)
+    helper_alert_scopes[ws] = session.id
     await ws.send_json(session.status())
-    if pending_alert:
+    if pending_alert and helper_can_access_alert(ws, pending_alert["helper"]):
         await ws.send_json(pending_alert["helper"])
     if session.last_frame:
         await ws.send_json(
@@ -501,6 +512,7 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
         pass
     finally:
         helper_sockets.discard(ws)
+        helper_alert_scopes.pop(ws, None)
 
 
 async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
@@ -790,6 +802,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         await ws.close()
         return
     helper_sockets.add(ws)
+    helper_alert_scopes[ws] = None
     await ws.send_json({"type": "hello", "bridge": bridge is not None,
                         "os": bridge.os if bridge else None, "senior": family.senior or None})
     s = current_session()
@@ -798,7 +811,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         if s.last_frame:
             await ws.send_json({"type": "frame", "frame_id": s.last_frame.frame_id,
                                 "png_b64": s.last_frame.png_b64})
-    if pending_alert:
+    if pending_alert and helper_can_access_alert(ws, pending_alert["helper"]):
         await ws.send_json(pending_alert["helper"])
     try:
         while True:
@@ -827,6 +840,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         pass
     finally:
         helper_sockets.discard(ws)
+        helper_alert_scopes.pop(ws, None)
         if helper_who.pop(ws, None) is not None:
             await _send_helpers_to_bridge()
 
@@ -880,12 +894,13 @@ async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
 
 async def dismiss_guard(msg: dict, ws: WebSocket) -> None:
     global pending_alert
-    if not pending_alert or msg.get("alert_id") != pending_alert["helper"]["alert_id"]:
+    if not pending_alert or not helper_can_access_alert(ws, pending_alert["helper"]) or msg.get("alert_id") != pending_alert["helper"]["alert_id"]:
         await ws.send_json({"type": "refused", "reason": "Cette alerte n'est plus en attente."})
         return
     aid = pending_alert["helper"]["alert_id"]
+    session_id = pending_alert["helper"]["session"]
     pending_alert = None
-    await broadcast_helper({"type": "alert_cleared", "alert_id": aid})
+    await broadcast_helper({"type": "alert_cleared", "alert_id": aid, "session": session_id})
 
 
 async def check_request(session, texte: str, source: str) -> bool:

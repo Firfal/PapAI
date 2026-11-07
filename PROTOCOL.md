@@ -140,13 +140,21 @@ Le proche peut « Rappeler » (consigne de contact, sans relancer Holo) ou envoy
 {"type":"dismiss_alert","alert_id":"…"}
 ```
 
+Le rejet exige la clé famille (canal aidant permanent), ou le jeton de la
+session indiquée par `alert.session`, même si celle-ci est déjà arrêtée.
+Le jeton d'une autre session n'autorise ni la réception/relecture de cette
+alerte ni son rejet. Une alerte sans session n'est accessible qu'à la famille.
+
 Ce message, accepté uniquement sur un canal aidant authentifié, signifie
 « Je connais cette démarche, rejeter l'alerte », **pas autoriser l'exécution**.
 Le serveur vérifie l'identifiant puis envoie aux apps :
 
 ```json
-{"type":"alert_cleared","alert_id":"…"}
+{"type":"alert_cleared","alert_id":"…","session":"…"}
 ```
+
+Le champ optionnel `session` (ou `null`) conserve la même portée de diffusion
+que l'alerte d'origine. Les anciens clients peuvent l'ignorer.
 
 La session arrêtée reste terminale. Il faut une nouvelle demande et une nouvelle
 validation normale. Tant qu'une alerte reste ouverte, les nouvelles demandes

@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
+from fastapi import WebSocketDisconnect
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ.setdefault("HAI_API_KEY", "stub-key")
@@ -69,12 +70,16 @@ class Regles(unittest.TestCase):
 class Orchestration(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.registry = Registry()
-        self.link = SimpleNamespace(send=AsyncMock(), capture=AsyncMock())
-        self.ws = SimpleNamespace(send_json=AsyncMock())
+        self.link = SimpleNamespace(send=AsyncMock(), capture=AsyncMock(), os="macos")
+        self.ws = Mock(send_json=AsyncMock(), accept=AsyncMock(),
+                       receive_json=AsyncMock(side_effect=WebSocketDisconnect))
+        self.real_broadcast = app.broadcast_helper
         self.broadcast = AsyncMock()
         self.patches = [
             patch.object(app, "registry", self.registry), patch.object(app, "bridge", self.link),
             patch.object(app, "pending_alert", None),
+            patch.object(app, "helper_alert_scopes", {self.ws: None}),
+            patch.object(app, "helper_sockets", set()),
             patch.object(app, "broadcast_helper", self.broadcast),
             patch.object(app, "family", SimpleNamespace(senior="Sophie", helpers=[
                 {"id": "q", "name": "Quentin", "relation": "mon petit-fils"}])),
@@ -161,7 +166,60 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
         await app.dismiss_guard({"alert_id": aid}, self.ws)
         self.assertIsNone(app.pending_alert)
         self.assertEqual(s.state, State.STOPPED)
-        self.broadcast.assert_any_await({"type": "alert_cleared", "alert_id": aid})
+        self.broadcast.assert_any_await({"type": "alert_cleared", "alert_id": aid, "session": s.id})
+
+    async def test_jeton_autre_session_refuse_meme_avec_bon_identifiant(self):
+        old = self.session()
+        old.stop(by="proche")
+        s = self.session(SUSPECTES[0])
+        await app.check_request(s, s.task, "request")
+        aid = app.pending_alert["helper"]["alert_id"]
+        self.ws.receive_json.side_effect = [
+            {"type": "dismiss_alert", "alert_id": aid}, WebSocketDisconnect(),
+        ]
+        await app.ws_helper(self.ws, old.helper_token)
+        messages = [c.args[0] for c in self.ws.send_json.await_args_list]
+        self.assertFalse(any(m["type"] == "alert" for m in messages))
+        self.assertTrue(any(m["type"] == "refused" for m in messages))
+        self.assertIsNotNone(app.pending_alert)
+        self.assertNotIn(self.ws, app.helper_alert_scopes)
+
+        self.ws.send_json.reset_mock()
+        self.ws.receive_json.side_effect = [
+            {"type": "dismiss_alert", "alert_id": aid}, WebSocketDisconnect(),
+        ]
+        await app.ws_helper(self.ws, s.helper_token)
+        messages = [c.args[0] for c in self.ws.send_json.await_args_list]
+        self.assertTrue(any(m["type"] == "alert" for m in messages))
+        self.assertIsNone(app.pending_alert)
+        self.assertEqual(s.state, State.STOPPED)
+
+    async def test_cle_famille_recoit_et_rejette_alerte_sans_session(self):
+        await app.publish_guard(guard._risque("Support frauduleux"), "environment")
+        aid = app.pending_alert["helper"]["alert_id"]
+        self.ws.receive_json.side_effect = [
+            {"type": "dismiss_alert", "alert_id": aid}, WebSocketDisconnect(),
+        ]
+        await app.ws_aidant(self.ws, app.AIDANT_KEY)
+        self.assertTrue(any(c.args[0]["type"] == "alert" for c in self.ws.send_json.await_args_list))
+        self.assertIsNone(app.pending_alert)
+        self.assertNotIn(self.ws, app.helper_alert_scopes)
+
+    async def test_diffusion_alerte_et_effacement_respecte_portee(self):
+        s = self.session(SUSPECTES[0])
+        await app.check_request(s, s.task, "request")
+        same = Mock(send_json=AsyncMock())
+        other = Mock(send_json=AsyncMock())
+        unknown = Mock(send_json=AsyncMock())
+        app.helper_alert_scopes.update({same: s.id, other: "autre-session"})
+        app.helper_sockets.update([self.ws, same, other, unknown])
+        for kind in ["alert", "alert_cleared"]:
+            payload = {**app.pending_alert["helper"], "type": kind}
+            await self.real_broadcast(payload, to_bridge=False)
+            self.ws.send_json.assert_awaited_with(payload)
+            same.send_json.assert_awaited_with(payload)
+            other.send_json.assert_not_awaited()
+            unknown.send_json.assert_not_awaited()
 
     async def test_nouvelle_demande_bloquee_tant_que_alerte(self):
         s = self.session(SUSPECTES[0])

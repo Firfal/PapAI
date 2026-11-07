@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794084400-demandes-suspectes` | Corrections PR #28 après revue | `backend/app.py`, `backend/guard.py`, `tests/test_demandes_suspectes.py`, `tests/test_securite.py`, `PROTOCOL.md`, `apps/windows/papai/bridge.py`, `apps/windows/papai/model.py`, `apps/windows/tests/test_windows_app.py`, `AGENTS.md`, `TODO.md` | 7 nov. soir |
 
 ## Journal
 
