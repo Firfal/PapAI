@@ -79,6 +79,11 @@ Différences assumées :
   audio toutes les 2 s, y compris après branchement/débranchement ; sans micro,
   le champ s'affiche d'office et le bouton micro disparaît.
 
+La tuile **Nouveau message** ouvre seulement l'URL fixe `mailto:` avec la
+messagerie par défaut, sans destinataire ni donnée fournie par l'interface.
+Les boutons **Retirer** n'apparaissent qu'après **Modifier**, puis disparaissent
+avec **Terminer**.
+
 Les dossiers sont validés à l'ajout **et à chaque ouverture**, après résolution
 des liens et jonctions, puis ouverts explicitement dans l'Explorateur. Fichiers,
 chemins relatifs/réseau et dossiers déguisés en `.exe`, `.bat`, `.cmd`, `.ps1`,

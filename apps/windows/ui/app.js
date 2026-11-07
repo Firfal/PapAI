@@ -7,7 +7,7 @@
   let api = null;
   const ui = { request: '', warning: null, lessonId: null, lessonIndex: 0, name: null,
                sheet: null, settings: { name: '', server: '' }, lastDictMsg: null,
-               writing: false, dictating: false, lastDictation: null, submitting: false };
+               writing: false, dictating: false, lastDictation: null, submitting: false, editingShortcuts: false };
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -63,14 +63,14 @@
     const warn = ui.warning ? `<div class="pillChip" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
         ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '';
     return `<div class="mintCard homeCard" style="padding:32px;gap:16px">
-      <div style="${f(44, 6)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) : ''}</div>
-      <div class="muted" style="${f(18, 5)}">${mic ? `Un souci sur l'ordinateur ? Dites-le simplement, un message part tout de suite à ${esc(S.helperName)}.` : 'Écrivez ce dont vous avez besoin'}</div>
+      <div style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) : ''}</div>
+      <div class="muted" style="${f(18, 5)}">Un souci sur l'ordinateur ? ${mic ? 'Dites-le simplement' : 'Écrivez ce dont vous avez besoin'}, un message part tout de suite à ${esc(S.helperName)}.</div>
       <div class="spacer"></div>
       ${mic ? micButton() : ''}
       ${ui.writing || !mic ? `<div class="requestRow">
         <textarea id="req" rows="1" placeholder="Écrivez votre demande" aria-label="Écrivez votre demande"
           style="${f(18, 5)};line-height:1.3">${esc(ui.request)}</textarea>
-        <button class="press" data-act="submit" ${busy || ui.submitting ? 'disabled' : ''} style="${f(15, 6)}">Envoyer</button>
+        <button class="pill filled" data-act="submit" ${busy || ui.submitting ? 'disabled' : ''} style="height:44px;padding:0 18px;${f(15, 6)}">Envoyer</button>
       </div>` : S.dictation.phase === 'idle' ? `<button class="pillChip press writeButton" data-act="write" style="${f(15, 6)}">Écrire</button>` : ''}
       ${warn}<div class="spacer"></div></div>`;
   }
@@ -105,11 +105,11 @@
           <span style="${f(18, 6)}">${esc(l.title)}</span>
         </button>
         ${steps ? `<button class="press accent" data-act="lesson" data-arg="${esc(l.id)}"
-          style="white-space:nowrap;padding:5px 10px;border-radius:999px;background:var(--mint);${f(15, 6)}">Montrez-moi</button>` : ''}
+          style="white-space:nowrap;min-height:44px;padding:5px 10px;border-radius:999px;background:var(--mint);${f(15, 6)}">Montrez-moi</button>` : ''}
       </div>`;
     }).join('');
     if (!S.lessons.length && !notice) return '';
-    return `<div class="col" style="gap:14px">${notice}${S.lessons.length ? `<div style="${f(21, 6)}">Mes tutoriels</div>` : ''}${tiles}</div>`;
+    return `<div class="col" style="gap:14px">${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes tutoriels</div>` : ''}${tiles}</div>`;
   }
 
   const APP_STYLE = {
@@ -129,9 +129,12 @@
           style="gap:4px;align-items:center">
         <span class="circle" style="width:54px;height:54px;background:var(--card)">${img}</span>
         <span style="${f(15, 5)};min-height:24px;text-align:center">${esc(a.label)}</span></button>
-        ${a.personal ? `<button class="removeShortcut" data-act="removeShortcut" data-arg="${esc(a.id)}" aria-label="Retirer ${esc(a.label)}" style="${f(15, 6)}">Retirer</button>` : ''}</div>`;
+        ${a.personal && ui.editingShortcuts ? `<button class="removeShortcut" data-act="removeShortcut" data-arg="${esc(a.id)}" aria-label="Retirer ${esc(a.label)}" style="${f(15, 6)}">Retirer</button>` : ''}</div>`;
     }).join('');
-    return `<div class="col" style="gap:12px"><div style="${f(21, 6)}">Mes raccourcis</div><div class="grid3 homeGrid">${items}
+    return `<div class="col" style="gap:12px"><div class="row" style="gap:10px;justify-content:space-between">
+      <div style="${f(21, 7)}">Mes raccourcis</div>
+      ${(S.homeShortcuts || []).some(a => a.personal) ? `<button class="press" data-act="editShortcuts" aria-pressed="${ui.editingShortcuts}" style="min-height:44px;${f(15, 6)}">${ui.editingShortcuts ? 'Terminer' : 'Modifier'}</button>` : ''}
+      </div><div class="grid3 homeGrid">${items}
       <button class="col press" data-act="addShortcut" style="gap:4px;align-items:center">
         <span class="circle" style="width:54px;height:54px;background:var(--card)">${icon('plus', 24, 'var(--muted)')}</span>
         <span style="${f(15, 5)};min-height:24px">Ajouter</span></button></div></div>`;
@@ -451,7 +454,7 @@
   function submit() {
     if (S.dictation.phase !== 'idle' || ui.dictating || ui.submitting || S.screen !== 'home' || S.remoteRequest || S.alert) return;
     const t = ui.request.trim();
-    if (!t) { ui.warning = S.microPresent ? 'Dites en quelques mots ce qui ne va pas.' : 'Écrivez ce dont vous avez besoin'; render(); focus('req'); return; }
+    if (!t) { ui.warning = 'Dites en quelques mots ce qui ne va pas.'; render(); focus('req'); return; }
     if (!S.connected) { ui.warning = `Je ne joins pas ${S.helperName} pour le moment. Réessayez dans un instant.`; render(); return; }
     ui.warning = null;
     ui.submitting = true;
@@ -487,6 +490,7 @@
     },
     write: () => { ui.writing = true; render(); focus('req'); },
     homeShortcut: (id) => call('open_home_shortcut', id),
+    editShortcuts: () => { ui.editingShortcuts = !ui.editingShortcuts; render(); },
     removeShortcut: (id) => call('remove_home_shortcut', id),
     addShortcut: () => { ui.warning = null; ui.sheet = 'addShortcut'; render(); },
     chooseFolder: async () => {

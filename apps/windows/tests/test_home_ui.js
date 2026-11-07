@@ -10,7 +10,7 @@ async function home(microPresent = true) {
     firstName: '', storedFirstName: '', helperName: 'Claire', textScale: 1,
     lessons: [], notice: null, homeShortcuts: [], microPresent,
     dictation: { phase: 'idle', message: null } };
-  const listeners = {}, windowEvents = {}, sent = [];
+  const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [];
   const root = { innerHTML: '' }, sheet = { innerHTML: '' };
   const document = { activeElement: null, documentElement: { style: { setProperty() {} } },
     getElementById: id => ({ root, sheet }[id] || null),
@@ -19,19 +19,56 @@ async function home(microPresent = true) {
     ready: async () => state,
     request_consent: task => { sent.push(task); },
     dictation_toggle: () => {},
+    open_home_shortcut: id => { shortcuts.push(id); },
+    remove_home_shortcut: id => { removed.push(id); },
   } }, addEventListener: (name, fn) => { windowEvents[name] = fn; } };
   const context = vm.createContext({ window, document, icon: () => '<svg></svg>',
     URLSearchParams, location: { search: '' }, setTimeout });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../ui/app.js'), 'utf8'), context);
   await new Promise(resolve => setImmediate(resolve));
   const update = changes => { state = { ...state, ...changes }; window.PapAI.update(state); };
-  const click = act => listeners.click({ target: { closest: () => ({ dataset: { act } }) } });
+  const click = (act, arg) => listeners.click({ target: { closest: () => ({ dataset: { act, arg } }) } });
   const type = text => listeners.input({ target: { id: 'req', value: text,
     style: {}, scrollHeight: 30 } });
   context.getComputedStyle = () => ({ lineHeight: '22' });
   const enter = () => listeners.keydown({ key: 'Enter', target: { id: 'req' }, preventDefault() {} });
-  return { state, root, update, click, type, enter, sent, window };
+  return { state, root, update, click, type, enter, sent, shortcuts, removed, window };
 }
+
+test('textes Mac #30, avertissement vide identique et titres renforcés', async () => {
+  const h = await home(false);
+  h.update({ helperName: 'Théo', lessons: [{ id: 'l', title: 'Mes photos', steps: [] }] });
+  assert.match(h.root.innerHTML, /Un souci sur l'ordinateur \? Écrivez ce dont vous avez besoin, un message part tout de suite à Théo\./);
+  assert.match(h.root.innerHTML, /placeholder="Écrivez votre demande"/);
+  assert.match(h.root.innerHTML, /font-weight:700;[^>]*>(Bonjour|Bonsoir)</);
+  assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes tutoriels</);
+  assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes raccourcis</);
+  assert.match(h.root.innerHTML, /class="pill filled" data-act="submit"[^>]*height:44px/);
+  h.click('submit');
+  assert.match(h.root.innerHTML, /Dites en quelques mots ce qui ne va pas\./);
+  assert.deepEqual(h.sent, []);
+  h.update({ microPresent: true });
+  assert.match(h.root.innerHTML, /Un souci sur l'ordinateur \? Dites-le simplement, un message part tout de suite à Théo\./);
+  h.click('submit');
+  assert.match(h.root.innerHTML, /Dites en quelques mots ce qui ne va pas\./);
+});
+
+test('Retirer exige le mode Modifier et Nouveau message transmet seulement son identifiant', async () => {
+  const h = await home();
+  h.update({ homeShortcuts: [{ id: 'perso', label: 'Photos', personal: true },
+    { id: 'action:new-message', label: 'Nouveau message', symbol: 'compose' }] });
+  assert.doesNotMatch(h.root.innerHTML, /data-act="removeShortcut"/);
+  h.click('editShortcuts');
+  assert.match(h.root.innerHTML, /data-act="removeShortcut"/);
+  assert.match(h.root.innerHTML, />Terminer</);
+  h.click('removeShortcut', 'perso');
+  assert.deepEqual(h.removed, ['perso']);
+  h.click('editShortcuts');
+  assert.doesNotMatch(h.root.innerHTML, /data-act="removeShortcut"/);
+  h.click('homeShortcut', 'action:new-message');
+  assert.deepEqual(h.shortcuts, ['action:new-message']);
+  assert.doesNotMatch(h.root.innerHTML, /href="mailto:/);
+});
 
 test('bascule micro/texte à chaud, sans perdre le brouillon', async () => {
   const h = await home();

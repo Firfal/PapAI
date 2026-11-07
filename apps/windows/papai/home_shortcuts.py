@@ -15,6 +15,7 @@ from .core import known_folder
 FORBIDDEN = {'.exe', '.bat', '.cmd', '.ps1', '.lnk', '.vbs', '.msi', '.scr',
              '.com', '.pif', '.cpl', '.msc', '.hta', '.url', '.appref-ms', '.wsf', '.wsh'}
 IMAGES = {'.jpg', '.jpeg', '.png', '.heic', '.webp', '.gif', '.tiff', '.bmp'}
+MESSAGE_ID = 'action:new-message'
 
 
 def valid_folder(value: str | Path) -> Path | None:
@@ -49,6 +50,16 @@ def open_folder(path: str | Path) -> bool:
 def has_photos(folder: Path) -> bool:
     try:
         return any(p.suffix.lower() in IMAGES and p.is_file() for p in folder.iterdir())
+    except OSError:
+        return False
+
+
+def open_new_message() -> bool:
+    if os.name != 'nt':
+        return False
+    try:
+        os.startfile('mailto:')
+        return True
     except OSError:
         return False
 
@@ -96,6 +107,10 @@ class HomeShortcuts:
         except OSError:
             pass
 
+    def _add_message(self):
+        self._tiles.append(dict(id=MESSAGE_ID, label='Nouveau message', symbol='compose'))
+        self._targets[MESSAGE_ID] = ('message', None)
+
     def refresh(self):
         with self._lock:
             if self._demo:
@@ -104,6 +119,7 @@ class HomeShortcuts:
                           ('Noël 2025', 'photos'), ('Petits-enfants', 'photos')]
                 self._tiles = [dict(id=f'demo-{i}', label=n, symbol=s, personal=i == 7)
                                for i, (n, s) in enumerate(labels)]
+                self._add_message()
                 return
             catalog = self._catalog()
             active = self._foreground()
@@ -152,6 +168,7 @@ class HomeShortcuts:
             folder_tile(recent, symbol='photos')
             for p in self._personal:
                 folder_tile(p['path'], personal=p['id'])
+            self._add_message()
 
     def add_folder(self, path) -> bool:
         with self._lock:
@@ -179,6 +196,9 @@ class HomeShortcuts:
     def open(self, tid) -> tuple[bool, str]:
         with self._lock:
             kind, target = self._targets.get(tid, (None, None))
+            if kind == 'message':
+                ok = open_new_message()
+                return ok, '' if ok else "Je n'arrive pas à ouvrir un nouveau message dans votre messagerie."
             if kind == 'app':
                 return apps.launch(target)
             if kind == 'folder' and open_folder(target):

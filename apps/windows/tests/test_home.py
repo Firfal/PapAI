@@ -94,7 +94,26 @@ class Folders(unittest.TestCase):
         home = HomeShortcuts(storage=self.root / 'local.json', catalog=lambda: [],
                              folders=lambda k: self.root / {'pictures': 'Images', 'documents': 'Documents',
                                                            'downloads': 'Téléchargements'}[k], foreground=lambda: None)
-        self.assertEqual([t['label'] for t in home.snapshot()], ['Images', 'Documents', 'Téléchargements', 'Noël 2025'])
+        self.assertEqual([t['label'] for t in home.snapshot()], ['Images', 'Documents', 'Téléchargements', 'Noël 2025', 'Nouveau message'])
+
+    def test_new_message_only_opens_fixed_empty_mailto(self):
+        home = self.home()
+        tile = next(t for t in home.snapshot() if t['label'] == 'Nouveau message')
+        self.assertNotIn('url', tile)
+        with patch('papai.home_shortcuts.os.name', 'nt'), \
+             patch('papai.home_shortcuts.os.startfile', create=True) as launch:
+            for value in ['mailto:', 'mailto:someone@example.com', 'action:new-message?body=hello',
+                          'action:new-message;evil.exe', 'https://example.com', 'evil.exe']:
+                self.assertFalse(home.open(value)[0])
+            launch.assert_not_called()
+            self.assertTrue(home.open(tile['id'])[0])
+            launch.assert_called_once_with('mailto:')
+            launch.side_effect = OSError('Aucune messagerie')
+            self.assertFalse(home.open(tile['id'])[0])
+        with patch('papai.home_shortcuts.os.name', 'posix'), \
+             patch('papai.home_shortcuts.os.startfile', create=True) as launch:
+            self.assertFalse(home.open(tile['id'])[0])
+            launch.assert_not_called()
 
     def test_missing_personal_folder_stays_removable(self):
         home = self.home()

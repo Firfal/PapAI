@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794086359-windows-accueil-voix` | Corrections UX #33 après Mac #30 | `apps/windows/` ; alertes/StopGate intacts | 7 nov. soir |
 
 ## Journal
 
