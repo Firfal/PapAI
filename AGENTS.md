@@ -16,25 +16,15 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-<<<<<<< HEAD
-| Devin | `devin/1794094625-accueil-recherche-automates` | Accueil Mac : barre de demande + petit micro + AutoMates (empilée sur #39) | `apps/mac/Sources/HomeView.swift` (mise en page), `apps/mac/Sources/Model.swift` (démo seulement) | 8 nov. |
-| Devin (mascotte) | `devin/1794094609-mascotte-discrete` | Papaye plus discrète (taille, animation) | `apps/mac/Sources/Theme.swift` (partie mascotte), lignes de taille de la mascotte dans `HomeView.swift` (avec l'agent accueil), `SessionView.swift`, `OnboardingView.swift`, `MiniPanel.swift` ; `apps/ios/Sources/Mascotte.swift`, `RootView.swift`/`DoneView.swift` (taille seulement) | 8 nov. |
-||||||| 669a12a
-| Devin (mascotte) | `devin/1794094609-mascotte-discrete` | Papaye plus discrète (taille, animation) | `apps/mac/Sources/Theme.swift` (partie mascotte), lignes de taille de la mascotte dans `HomeView.swift` (avec l'agent accueil), `SessionView.swift`, `OnboardingView.swift`, `MiniPanel.swift` ; `apps/ios/Sources/Mascotte.swift`, `RootView.swift`/`DoneView.swift` (taille seulement) | 8 nov. |
-=======
 | _(personne pour l'instant)_ | | | | |
->>>>>>> origin/devin/1794094609-mascotte-discrete
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
-<<<<<<< HEAD
+| 8 nov. | Devin | `devin/1794094625-accueil-recherche-automates` | Accueil Mac réduit à une barre de demande (loupe, champ, petit micro 48 pt intégré pour la dictée existante, Envoyer) et « Mes AutoMates » (automatismes de `GET /lessons`, lancés d'un clic, « Montrez-moi » si étapes ; état vide expliqué). Gros micro, bulle et « Écrire plutôt » retirés ; notice `lessons_changed` : « Nouvel AutoMate ». Branches raccourcis et mascotte fusionnées (`Mascotte.Taille.accueil`/`accueilReduite`). Build CLI zéro erreur, gardien 14, parcours 27. Captures avant/après 1100×720 et 900×640 à 1.18, avec et sans micro. Dictée réelle et clic sur un AutoMate non essayés. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794094580-sans-raccourcis` | Accueil Mac sans raccourcis (sur #39) : grille « Mes raccourcis », feuille `AjouterRaccourci`, `HomeShortcuts.swift` (clé locale `raccourcisAccueil.v1` plus lue) et `home_shortcuts_test.swift` supprimés ; colonne droite affichée seulement avec tutoriels ou notice. Raccourcis de dossier des fiches (`Lesson.shortcut`, `Shortcuts` dans `Core.swift`, `automation_failed`) gardés : liés aux tutoriels et au protocole. Build CLI zéro erreur, gardien 14, parcours 27 ; captures accueil 1200×780, vide, 900×640 et 900×640 texte 1.18. Windows non touché. Fichiers libérés. |
-||||||| 669a12a
-=======
 | 8 nov. | Devin | `devin/1794094609-mascotte-discrete` | Papaye plus discrète : tailles fixes et réduites dans `Mascotte.Taille` (Mac `Theme.swift`, iPhone `Mascotte.swift`) — session 64/44 (avant 130×texte/80), bienvenue 88/56 (avant 190×texte/110), prénom 56/40 (avant 120×texte/72), encart 22 (avant 30), iPhone 52–64 (avant 76–110). Plus de souffle permanent : léger mouvement seulement pendant l'écoute, plus de bascule. `HomeView.swift` non touché : l'agent de la refonte de l'accueil reprend `Mascotte.Taille.accueil` (56) / `.accueilReduite` (40). Build CLI Mac et build iPhone simulateur réussis ; gardien 14, parcours 27. Captures avant/après (1100×720 et 900×640 à 1.18) regardées ; encart flottant et iPhone non capturés. Fichiers libérés. |
->>>>>>> origin/devin/1794094609-mascotte-discrete
 | 8 nov. | Devin | `devin/1794089468-agent-navigateur` | Correctifs PR #38 : annulation du démarrage Chrome expiré, ignore des réponses tardives, capture aidant conservée pour le plan puis réinitialisée à l'entrée en web actif, textes webLive adaptés, arrêt Mac sans commande hors ligne et verrou local avant notification Stop ; sélection du Chrome principal avec `pgrep -o` et annulation H idempotente après arrêts répétés. `hai-agents` épinglé à 1.4.3. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794089468-agent-navigateur` | Correctifs PR #38, points 1–15 : validation avant démarrage Chrome, arrêt sur perte du navigateur/serveur, isolation des captures web et annulation protégée de création H ; présentation web cohérente dans les apps aidant, fermeture de Chrome, UUID strict, garde anti-pont local, dépendances et exemple de plan mis à jour. Réservation libérée. |
 | 7 nov. soir | Devin | `devin/1794089468-agent-navigateur` | Agent navigateur local de H (Agents API) pour les tâches web : `backend/web_agent.py` (SDK `hai_agents`, `HAI_AUTO_BRIDGE=0`, environnement `papai-chrome` user_device, consignes `WEB_AGENT_INSTRUCTIONS`), `where` web/desktop dans le plan, mode web seulement si le Mac annonce `web_agent` ; session H après validation, `ask_helper` sur `awaiting_helper`, pause/reprise, annulation sur arrêt/refus/alerte/déconnexion ; prise en main du bureau refusée en mode web. Mac : `WebAgent.swift` (Chrome PapAI, profil dédié, `holo local browser`, arrêt local `holo local stop`), script `install-agent-navigateur.sh`. Tests : faux Agents API 19 cas (3 passes), gardien 14, protocole 14, parcours 27, sécurité 35, demandes suspectes 22, profil 6, aidant OK, Windows 58 avec serveur. Build Mac zéro erreur. Pas d'essai réel : aucune clé H sur la VM (`holo doctor`). Fichiers libérés. |
