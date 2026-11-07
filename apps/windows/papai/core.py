@@ -35,7 +35,16 @@ class StopGate:
         self._stopped.set()
 
     def reset(self) -> None:
-        self._stopped.clear()
+        """Nouvelle session : un verrou neuf. Un geste encore en cours garde
+        l'ancien, levé, et ne reprend jamais."""
+        if self._stopped.is_set():
+            self._stopped = threading.Event()
+
+    def pin(self) -> "StopGate":
+        """Le verrou tel qu'il est maintenant, pour toute la durée d'un geste."""
+        g = StopGate.__new__(StopGate)
+        g._stopped = self._stopped
+        return g
 
     @property
     def is_stopped(self) -> bool:
@@ -167,6 +176,7 @@ def _type_unicode(ch: str) -> None:
 def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
                protected: tuple | None = None) -> str:
     """Joue une action. Le verrou est relu juste avant chaque geste."""
+    gate = gate.pin()
     if gate.is_stopped:
         raise Stopped()
     import pyautogui
