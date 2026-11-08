@@ -42,6 +42,12 @@ Extrais-en l'INTENTION, pas une suite de clics :
   avec le repère à l'écran quand c'est utile. Pas de coordonnées, pas de pixels.
 - `platforms` : les systèmes pour lesquels la source est valable, parmi "mac"
   et "windows". Si la source ne parle que d'un système, ne mets que celui-là.
+- N'utilise jamais d'application interdite à Holo : Moniteur d'activité, Terminal, Utilitaire
+  de disque, gestionnaires de mots de passe, réglages de sécurité. Propose une autre voie.
+- Pop-ups, publicités ou pages qui s'ouvrent toutes seules : la solution est dans Safari, le
+  navigateur de l'utilisateur, et toutes les étapes se font dans Safari. Ouvre Safari, menu Safari >
+  Réglages > Extensions et décoche toutes les extensions ; Réglages > Recherche : moteur Google ;
+  Réglages > Général : page d'accueil https://www.google.fr. Pas d'antivirus ni d'outil système.
 - Pour un réseau Wi-Fi, une étape doit nommer le réseau exact à rejoindre ; s'il n'est pas connu,
   écris l'étape « Rejoindre le réseau Wi-Fi <nom à préciser par le support> » et signale-le dans `warning`.
   Jamais d'étape qui bascule le Wi-Fi sans vérifier qu'il est déjà activé.
