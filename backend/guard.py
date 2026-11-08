@@ -261,7 +261,9 @@ def evaluer_demande(texte: str, outils_declares=(), domaines_org=()) -> Alerte |
     t = _normaliser(texte)
     secret = re.search(_SECRET, t)
     tiers_demande = re.search(_TIERS, t) and re.search(_DEMANDE, t)
-    if secret and (re.search(_TRANSMETTRE, t) or (tiers_demande and not re.search(_RENOUVELER, t))):
+    transmis = (re.search(_TRANSMETTRE + r"\s+(?:(?:le|la|les|mon|ma|mes|son|sa|ses|ce|cet|cette|un|une|des|du|de|d'|l')\s*){0,2}" + _SECRET, t)
+                or (secret and re.search(r"(?:\bl'|\ble |\bla |\bles |\blui )" + _TRANSMETTRE, t)))
+    if transmis or (secret and tiers_demande and not re.search(_RENOUVELER, t)):
         return _risque("Quelqu'un demande un mot de passe ou un code de sécurité : "
                        "votre support informatique ne vous le demandera jamais.")
     if secret and re.search(r"\b(?:lien|site|page)\b.{0,40}\b(?:recu|envoye|par (?:mail|sms|texto|teams))\b", t):
