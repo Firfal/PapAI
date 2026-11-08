@@ -134,7 +134,7 @@ fun MicButton(base: () -> String, onText: (String) -> Unit, onError: (String) ->
         onText(if (b.isEmpty()) heard else "$b $heard")
     }
     Box(
-        Modifier.size(56.dp).clip(CircleShape).background(Soin.ink).clickable {
+        Modifier.size(56.dp).clip(CircleShape).background(Soin.accentBrush).clickable {
             val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")

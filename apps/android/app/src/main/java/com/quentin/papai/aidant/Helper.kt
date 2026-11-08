@@ -837,7 +837,7 @@ object Helper {
                 .setContentIntent(pi)
                 .build())
             .setSmallIcon(R.drawable.ic_notif)
-            .setColor(0xFF2E9E5B.toInt())
+            .setColor(0xFF1F5BE8.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

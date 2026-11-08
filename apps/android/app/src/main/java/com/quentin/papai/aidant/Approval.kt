@@ -70,7 +70,7 @@ fun ApprovalScreen() {
                 }
             }
         }
-        Column(Modifier.fillMaxWidth().background(Soin.bg).padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
+        Column(Modifier.fillMaxWidth().background(Soin.bgEnd).padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 CapsuleButton("Valider le plan", Modifier.weight(1f), enabled = !m.planBusy, content = {

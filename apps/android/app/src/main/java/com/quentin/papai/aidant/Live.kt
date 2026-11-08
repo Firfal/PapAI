@@ -187,7 +187,7 @@ fun HelperScreen() {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     SoinField(reply, { reply = it }, "Votre réponse…", Modifier.weight(1f), size = 16.sp, radius = 28.dp,
                         keyboard = KeyboardOptions(imeAction = ImeAction.Send), onDone = ::sendReply)
-                    Box(Modifier.size(52.dp).clip(CircleShape).background(Soin.ink).clickable(onClick = ::sendReply),
+                    Box(Modifier.size(52.dp).clip(CircleShape).background(Soin.accentBrush).clickable(onClick = ::sendReply),
                         contentAlignment = Alignment.Center) { Icon(Icons.Default.ArrowUpward, "Envoyer", tint = Color.White) }
                 }
             }
