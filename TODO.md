@@ -36,6 +36,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 - [x] 1. Accueil au premier lancement : bienvenue, prénom, taille du texte (grande par défaut), autorisations expliquées.
 - [x] 2. Ajouter un proche : QR ou code à 6 chiffres (10 min, usage unique), prénom et lien, plusieurs proches. Page `/p/{code}`, `backend/family.py`.
+  - [x] Réglages Mac : section Mon support, Ajouter un support avec démarrage à la connexion, liste existante, QR/code/lien et copie confirmée ; partage SMS, WhatsApp ou mail, panneaux défilants en Très grande.
 - [x] Session proposée à distance par le proche, que la personne aidée accepte ou refuse sur le Mac (`remote_request`).
 - [x] 3. Demande : gros bouton, dictée (celle de l'équipe, Gladia) ou clavier.
   - [x] Accueil Mac voix d'abord : grand micro, écriture discrète, détection du micro, tutoriels masqués si vides, logotype et taille du texte dans l'encart.
