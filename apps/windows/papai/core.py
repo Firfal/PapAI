@@ -122,7 +122,8 @@ def explorer_target(hwnd) -> str:
         shell = CreateObject("Shell.Application", dynamic=True)
         for window in shell.Windows():
             if int(window.HWND) == int(hwnd):
-                return str(window.Document.Folder.Self.Path)
+                target = window.Document.Folder.Self.Path
+                return target if isinstance(target, str) else ""
         return ""
     finally:
         window = shell = None
@@ -199,7 +200,9 @@ class Win32Targets:
         try:
             target = explorer_target(hwnd)
         except Exception:
-            target = ""
+            return "fenêtre protégée"
+        if not isinstance(target, str) or not target.strip():
+            return "fenêtre protégée"
         return control_panel_verdict(name, window_class.value, title.value, target)
 
     def password_focused(self, hwnd):

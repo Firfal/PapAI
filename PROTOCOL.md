@@ -59,6 +59,9 @@ Reçoit :
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
 
 Sous Windows, avant chaque caractère et avant une touche, PapAI vérifie le style natif `ES_PASSWORD` et la propriété UI Automation `IsPassword` de l'élément focalisé, via `comtypes`. Un champ protégé ou une propriété illisible (UIA/COM indisponible, erreur) entraîne un refus sensible ; l'absence du style natif ne suffit pas à autoriser une saisie web/WinUI.
+
+Une fenêtre Explorer `CabinetWClass` dont la cible est illisible (erreur COM, cible absente ou vide) est refusée avec la raison « fenêtre protégée », quelle que soit la langue du titre. Une cible lisible de dossier utilisateur reste autorisée ; les titres reconnus et cibles shell du Panneau de configuration restent sensibles.
+
 Toute alerte affichée, même `info` ou `attention`, lève le verrou local sur Mac et Windows : la frappe en cours s'arrête avant le caractère suivant et fermer l'alerte ne relance pas le geste. Un clic du support bloqué comme sensible renvoie `refused` (« Clic non effectué »), sans accusé de réussite ni réponse automatique à Holo ; l'assistance reste en `awaiting_helper`.
 Le refus sensible d'un clic du support est `{"type":"refused","blocked":"sensitive","reason":"Clic non effectué : cette fenêtre est protégée (réglages ou mots de passe). Guidez <prénom> par téléphone pour faire cette étape sur l'ordinateur."}`. Le prénom vient du profil de l'espace, sinon « la personne aidée ». Les clients affichent ce message en carte persistante, fermée avec « Compris » ou à la prochaine action du support ; les autres refus restent des notifications temporaires. Après refus sensible, la question au support invite à guider la personne par téléphone puis à répondre pour reprendre Holo ; aucune raison technique n'est exposée au support, mais elle reste dans le résultat Holo et le journal.
 

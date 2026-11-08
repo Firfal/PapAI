@@ -97,17 +97,43 @@ class SafetyTests(unittest.TestCase):
         self.assertIsNone(core.control_panel_verdict('explorer.exe', 'Shell_TrayWnd', 'Control Panel'))
         self.assertIsNone(core.control_panel_verdict('notepad.exe', 'CabinetWClass', 'Control Panel'))
 
-    def test_control_panel_win32_and_unreadable_target(self):
+    def test_control_panel_win32(self):
         api = core.Win32Targets.__new__(core.Win32Targets)
         api.user = Mock()
         api.user.GetClassNameW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'CabinetWClass')
         api.user.GetWindowTextW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'Control Panel')
         with patch.object(core, 'explorer_target', side_effect=RuntimeError('indisponible')):
             self.assertIsNotNone(api.control_panel_reason(1, 'explorer.exe'))
-            api.user.GetWindowTextW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'Documents')
+        api.user.GetWindowTextW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'Noël 2025')
+        with patch.object(core, 'explorer_target', return_value='C:\\Users\\Test\\Images\\Noël 2025'):
             self.assertIsNone(api.control_panel_reason(1, 'explorer.exe'))
         with patch.object(core, 'explorer_target', return_value='::{26EE0668-A00A-44D7-9371-BEB064C98683}\\0'):
             self.assertIsNotNone(api.control_panel_reason(1, 'explorer.exe'))
+
+    def test_control_panel_unreadable_target_foreign_title(self):
+        api = core.Win32Targets.__new__(core.Win32Targets)
+        api.user = Mock()
+        api.user.GetClassNameW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'CabinetWClass')
+        api.user.GetWindowTextW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'Systemsteuerung')
+        with patch.object(core, 'explorer_target', side_effect=RuntimeError('indisponible')):
+            self.assertEqual(api.control_panel_reason(1, 'explorer.exe'), 'fenêtre protégée')
+        for target in ('', '   ', None):
+            with self.subTest(target=target), patch.object(core, 'explorer_target', return_value=target):
+                self.assertEqual(api.control_panel_reason(1, 'explorer.exe'), 'fenêtre protégée')
+
+    def test_explorer_target_missing_path(self):
+        com = Mock()
+        shell = Mock()
+        folder = SimpleNamespace(Path=None)
+        shell.Windows.return_value = [SimpleNamespace(
+            HWND=1, Document=SimpleNamespace(Folder=SimpleNamespace(Self=folder)))]
+        client = SimpleNamespace(CreateObject=Mock(return_value=shell))
+        with patch.dict(sys.modules, {'comtypes': com, 'comtypes.client': client}):
+            self.assertEqual(core.explorer_target(1), '')
+            folder.Path = 'C:\\Users\\Test\\Images\\Noël 2025'
+            self.assertEqual(core.explorer_target(1), folder.Path)
+        self.assertEqual(com.CoInitialize.call_count, 2)
+        self.assertEqual(com.CoUninitialize.call_count, 2)
 
     def test_control_panel_blocks_pointer_and_keyboard(self):
         api = self.api()
