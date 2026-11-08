@@ -137,25 +137,8 @@ fun PairSheet(link: PairLink) {
     var name by rememberSaveable { mutableStateOf(m.helperName ?: "") }
     var relation by rememberSaveable { mutableStateOf("") }
     var code by rememberSaveable { mutableStateOf("") }
-    var confirmReplacement by rememberSaveable(link) { mutableStateOf(false) }
     val policyError = PairingPolicy.error(link.base, BuildConfig.DEBUG)
     val copy = PairingPolicy.presentation(link)
-    if (confirmReplacement) {
-        Dialog(onDismissRequest = { confirmReplacement = false }) {
-            Column(Modifier.fillMaxWidth().soinCard().verticalScroll(rememberScrollState()).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                T("Remplacer la liaison ?", 24.sp, FontWeight.Bold)
-                T("Ceci remplacera votre liaison ${if (m.connected) "active " else ""}avec ${m.senior}. Les demandes de ${m.senior} n'arriveront plus sur ce téléphone.", 18.sp)
-                T("Actuel : ${m.lastGood?.first?.let { runCatching { PairLink(it, null).host }.getOrDefault(it) }.orEmpty()} · Nouveau : ${link.host}", 13.sp, color = Soin.secondary)
-                PairServerCard(link)
-                CapsuleButton("Remplacer et rejoindre") {
-                    confirmReplacement = false
-                    m.submitPair(link, code, name, relation, confirmed = true)
-                }
-                TextLink("Annuler") { confirmReplacement = false }
-            }
-        }
-    }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)) {
         if (m.pairDone) {
@@ -210,8 +193,7 @@ fun PairSheet(link: PairLink) {
         CapsuleButton("Rejoindre", enabled = !m.pairBusy && policyError == null, content = if (m.pairBusy) {
             { CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) }
         } else null) {
-            if (PairingPolicy.needsConfirmation(m.lastGood != null)) confirmReplacement = true
-            else m.submitPair(link, code, name, relation)
+            m.submitPair(link, code, name, relation)
         }
         if (!m.pairBusy) TextLink("Annuler") { m.sheet = if (m.isConfigured) null else AppSheet.Settings }
     }

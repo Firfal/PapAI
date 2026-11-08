@@ -14,6 +14,7 @@ import android.util.Base64
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
@@ -87,6 +88,13 @@ object Helper {
     private var helperId = ""
     private var helperRelation = ""
     var seniorName by mutableStateOf("")
+
+    // Mes personnes aidées : une liaison par ordinateur, une seule suivie en détail à la fois.
+    val people = mutableStateListOf<Person>()
+    /** Pour les autres personnes : clé → ordinateur connecté / demande en attente. */
+    val othersOnline = mutableStateMapOf<String, Boolean>()
+    val othersAsking = mutableStateMapOf<String, Boolean>()
+    private val watches = mutableMapOf<String, WebSocket>()
 
     // Connexion
     var connected by mutableStateOf(false)
@@ -168,6 +176,8 @@ object Helper {
         helperRelation = prefs.getString("helperRelation", "") ?: ""
         seniorName = cleanText(prefs.getString("seniorName", ""))
         prefs.edit().putString("seniorName", seniorName).putString("helperName", helperName).apply()
+        people.addAll(People.decode(prefs.getString("people", null)))
+        rememberCurrent()
     }
 
     val isConfigured get() = serverURL.isNotBlank() && helperKey.isNotBlank()
@@ -226,11 +236,148 @@ object Helper {
         if (s.isEmpty() || k.isEmpty()) return
         serverURL = s; helperKey = k
         prefs.edit().putString("serverURL", s).putString("helperKey", k).apply()
+        rememberCurrent()
         reconnect()
         LinkService.start(ctx)
     }
 
+    // MARK: Mes personnes aidées
+
+    private fun savePeople(list: List<Person>) {
+        people.clear(); people.addAll(list)
+        prefs.edit().putString("people", People.encode(list)).apply()
+    }
+
+    private fun rememberCurrent() {
+        if (!isConfigured) return
+        savePeople(People.upsert(people, Person(serverURL.trim(), helperKey.trim(), seniorName, helperId, helperRelation)))
+    }
+
+    fun isCurrent(p: Person) = p.key == helperKey.trim()
+
+    /** Suivre une autre personne : la liaison active change, les autres restent surveillées. */
+    fun switchTo(p: Person) {
+        if (isCurrent(p)) return
+        rememberCurrent()
+        serverURL = p.server; helperKey = p.key; seniorName = p.name
+        helperId = p.helperId; helperRelation = p.relation
+        prefs.edit().putString("serverURL", p.server).putString("helperKey", p.key).putString("seniorName", p.name)
+            .putString("helperId", p.helperId).putString("helperRelation", p.relation).apply()
+        clearSession()
+        reconnect()
+        LinkService.start(ctx)
+        LinkService.refresh(ctx)
+    }
+
+    fun forget(p: Person) {
+        val wasCurrent = isCurrent(p)
+        savePeople(people.filter { it.key != p.key })
+        if (!wasCurrent) { watchOthers(); return }
+        helperKey = ""
+        people.firstOrNull()?.let { switchTo(it); return }
+        generation++
+        socket?.cancel(); socket = null
+        retry?.let { main.removeCallbacks(it) }; retry = null
+        serverURL = ""; seniorName = ""; connected = false
+        prefs.edit().remove("serverURL").remove("helperKey").remove("seniorName").apply()
+        clearSession()
+        watchOthers()
+        LinkService.stop(ctx)
+    }
+
+    private fun clearSession() {
+        state = null; sessionWhere = null; sessionId = ""; task = ""; plan = emptyList(); planStep = null
+        doing = null; question = null; questionToSenior = false; liveDictation = null
+        frame = null; frameId = null; frameAt = null; aiming = false; target = null
+        lessons = emptyList(); lastAlert = null; doneFresh = false; hasDraft = false; savedTitle = null
+        clearHelpNotification()
+    }
+
+    private fun wsFor(server: String, key: String): String {
+        var s = server.trim().trimEnd('/')
+        if (!s.contains("://")) s = "http://$s"
+        return s.replaceFirst("https://", "wss://").replaceFirst("http://", "ws://") + "/ws/aidant/" + key.trim()
+    }
+
+    /** Un canal discret par autre personne, pour savoir qui demande une assistance. */
+    fun watchOthers() {
+        val others = people.filter { !isCurrent(it) }.associateBy { it.key }
+        (watches.keys - others.keys).forEach { k ->
+            watches.remove(k)?.cancel(); othersOnline.remove(k); othersAsking.remove(k)
+        }
+        others.values.forEach { p -> if (p.key !in watches) watch(p) }
+    }
+
+    private fun watch(p: Person) {
+        val req = try { Request.Builder().url(wsFor(p.server, p.key)).build() } catch (_: IllegalArgumentException) { return }
+        watches[p.key] = http.newWebSocket(req, object : WebSocketListener() {
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                val m = try { JSONObject(text) } catch (_: Exception) { return }
+                main.post {
+                    if (watches[p.key] !== webSocket) return@post
+                    val who = people.firstOrNull { it.key == p.key }?.name?.ifEmpty { null } ?: "Une personne aidée"
+                    when (m.text("type")) {
+                        "refused" -> {
+                            watches.remove(p.key); othersOnline[p.key] = false
+                            webSocket.close(1000, null)
+                        }
+                        "hello" -> {
+                            othersOnline[p.key] = m.optBoolean("bridge"); othersAsking[p.key] = false
+                            renamePerson(p.key, m.text("senior"))
+                        }
+                        "senior" -> renamePerson(p.key, m.text("name"))
+                        "status" -> {
+                            val was = othersAsking[p.key] == true
+                            val now = People.isAsking(m.text("state"))
+                            othersAsking[p.key] = now
+                            if (now && !was) {
+                                showToast("$who demande une assistance.")
+                                notifyLocal("$who demande une assistance",
+                                    m.text("task").ifEmpty { "Ouvrez PapAI pour voir la demande." }, otherNotificationId(p.key))
+                            }
+                        }
+                        "alert_cleared" -> othersAsking[p.key] = false
+                        "alert" -> {
+                            othersAsking[p.key] = true
+                            notifyLocal("$who : ${m.text("title").ifEmpty { "alerte" }}", m.text("detail"), otherNotificationId(p.key))
+                        }
+                    }
+                }
+            }
+
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                webSocket.close(1000, null)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                main.post { rewatch(p, webSocket) }
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                main.post { rewatch(p, webSocket) }
+            }
+        })
+    }
+
+    private fun rewatch(p: Person, ws: WebSocket) {
+        if (watches[p.key] !== ws) return
+        watches.remove(p.key); othersOnline[p.key] = false
+        main.postDelayed({
+            if (p.key !in watches && people.any { it.key == p.key && !isCurrent(it) }) watch(p)
+        }, 10_000)
+    }
+
+    private fun renamePerson(key: String, name: String) {
+        val n = cleanText(name)
+        val i = people.indexOfFirst { it.key == key }
+        if (n.isEmpty() || i < 0 || people[i].name == n) return
+        savePeople(people.toMutableList().also { it[i] = it[i].copy(name = n) })
+    }
+
+    private fun otherNotificationId(key: String) = 100 + (key.hashCode() and 0x3ff)
+
     fun start() {
+        watchOthers()
         if (!isConfigured || socket != null || retry != null) return
         connect()
         loadLessons()
@@ -342,6 +489,7 @@ object Helper {
         if (n.isEmpty() || n == seniorName) return
         seniorName = n
         prefs.edit().putString("seniorName", n).apply()
+        rememberCurrent()
         LinkService.refresh(ctx)
     }
 
@@ -369,13 +517,9 @@ object Helper {
         if (serverURL.isBlank()) PairLink("https://${PairingPolicy.officialHost}", null) else PairLink(baseHTTP, null)
 
     /** POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur. */
-    fun submitPair(link: PairLink, code: String?, name: String, relation: String, confirmed: Boolean = false) {
+    fun submitPair(link: PairLink, code: String?, name: String, relation: String) {
         if (pairBusy) return
         PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairError = it; return }
-        if (PairingPolicy.needsConfirmation(lastGood != null, confirmed)) {
-            pairError = "Confirmez le remplacement de votre liaison avant de rejoindre."
-            return
-        }
         val c = (link.code ?: code ?: "").filter { it.isDigit() }
         val n = cleanText(name)
         if (c.length != 6) { pairError = "Le code fait 6 chiffres."; return }
@@ -405,11 +549,11 @@ object Helper {
                         return@post
                     }
                     val server = PairingPolicy.responseOrigin(link, r.text("server"))
-                    seniorName = r.text("senior").ifBlank { cleanText(link.senior) }
+                    seniorName = r.text("senior")
                     prefs.edit().putString("seniorName", seniorName).apply()
                     LinkService.refresh(ctx)
                     helperName = r.text("name").ifEmpty { n }
-                    r.text("id").takeIf { it.isNotEmpty() }?.let { helperId = it }
+                    helperId = r.text("id")
                     helperRelation = relation
                     prefs.edit().putString("helperName", helperName).putString("helperId", helperId)
                         .putString("helperRelation", relation).apply()
@@ -472,6 +616,7 @@ object Helper {
 
             "helper_id" -> m.text("id").takeIf { it.isNotEmpty() }?.let {
                 helperId = it; prefs.edit().putString("helperId", it).apply()
+                rememberCurrent()
             }
 
             "dictation" -> {
