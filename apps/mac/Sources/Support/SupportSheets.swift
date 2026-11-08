@@ -151,21 +151,6 @@ struct SupportPairSheet: View {
             }
             sheetLabel("Votre prénom")
             TextField("Claire", text: $name).textFieldStyle(.plain).font(rounded(18)).padding(14).champ()
-            sheetLabel("Votre lien avec la personne aidée")
-            FlowLayout(spacing: 8) {
-                ForEach(PairServer.relations, id: \.value) { r in
-                    let on = relation == r.value
-                    Button { relation = on ? "" : r.value } label: {
-                        Text(r.label).font(rounded(15, .medium))
-                            .foregroundStyle(on ? Color.white : T.ink)
-                            .padding(.horizontal, 16).frame(minHeight: 40)
-                            .background(Capsule().fill(on ? AnyShapeStyle(T.primary) : AnyShapeStyle(T.card))
-                                .overlay(Capsule().strokeBorder(on ? Color.clear : T.line)))
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
             if model.pairBusy {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small)
