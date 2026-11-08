@@ -12,8 +12,9 @@ async function home(microPresent = true) {
     dictation: { phase: 'idle', message: null } };
   const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [], calls = [];
   const root = { innerHTML: '' }, sheet = { innerHTML: '' };
+  const dialog = { focus() { document.activeElement = dialog; } };
   const document = { activeElement: null, documentElement: { style: { setProperty() {} } },
-    getElementById: id => ({ root, sheet }[id] || null),
+    getElementById: id => ({ root, sheet, pairDialog: sheet.innerHTML.includes('pairDialog') ? dialog : null }[id] || null),
     addEventListener: (name, fn) => { listeners[name] = fn; } };
   const window = { pywebview: { api: {
     ready: async () => state,
@@ -24,6 +25,7 @@ async function home(microPresent = true) {
     toggle_pause: () => { calls.push(['toggle_pause']); },
     answer_senior: t => { calls.push(['answer_senior', t]); },
     expand_window: () => { calls.push(['expand_window']); },
+    answer_pair: (accept, id) => { calls.push(['answer_pair', accept, id]); },
   } }, addEventListener: (name, fn) => { windowEvents[name] = fn; } };
   const context = vm.createContext({ window, document, icon: () => '<svg></svg>',
     URLSearchParams, location: { search: '' }, setTimeout });
@@ -35,8 +37,36 @@ async function home(microPresent = true) {
     style: {}, scrollHeight: 30 } });
   context.getComputedStyle = () => ({ lineHeight: '22' });
   const enter = () => listeners.keydown({ key: 'Enter', target: { id: 'req' }, preventDefault() {} });
-  return { state, root, update, click, type, enter, sent, shortcuts, removed, calls, window, listeners };
+  return { state, root, sheet, dialog, document, update, click, type, enter, sent, shortcuts, removed, calls, window, listeners };
 }
+
+test('demande de liaison au-dessus des feuilles, texte échappé et Entrée sans accord', async () => {
+  const h = await home();
+  h.update({ helpers: [] });
+  h.click('openHelpers');
+  h.update({ pairRequest: { req: 'a', name: '<img src=x>', relation: '<b>IT</b>' } });
+  assert.match(h.sheet.innerHTML, /role="dialog" aria-modal="true"/);
+  assert.match(h.sheet.innerHTML, /&lt;img src=x&gt;/);
+  assert.match(h.sheet.innerHTML, /&lt;b&gt;IT&lt;\/b&gt;/);
+  assert.doesNotMatch(h.sheet.innerHTML, /<img src=x>|<b>IT<\/b>/);
+  assert.equal(h.document.activeElement, h.dialog);
+  assert.equal(h.root.inert, true);
+  for (const target of [{ id: 'req' }, { tagName: 'BUTTON', dataset: { act: 'acceptPair' } }]) {
+    let prevented = false;
+    h.listeners.keydown({ key: 'Enter', target, preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+  }
+  h.click('submit');
+  assert.deepEqual(h.calls, []);
+  assert.deepEqual(h.sent, []);
+  h.click('acceptPair', 'a');
+  assert.deepEqual(h.calls.at(-1), ['answer_pair', true, 'a']);
+  h.click('refusePair', 'a');
+  assert.deepEqual(h.calls.at(-1), ['answer_pair', false, 'a']);
+  h.update({ pairRequest: null });
+  assert.equal(h.root.inert, false);
+  assert.doesNotMatch(h.sheet.innerHTML, /pairDialog/);
+});
 
 test('textes Mac #30, avertissement vide identique et titres renforcés', async () => {
   const h = await home(false);

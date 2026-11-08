@@ -437,8 +437,8 @@
       ${r.relation ? `<div class="card" style="padding:24px;${f(26, 5)}">${esc(r.relation)}</div>` : ''}
       ${lead("Cette personne vient de taper votre code à 6 chiffres. Acceptez seulement si vous la connaissez et que vous lui avez donné ce code.")}`, 40, 22) +
       `<div class="row" style="gap:14px;margin-top:18px">
-        ${pill('Refuser', 'refusePair', { filled: false, height: 78, grow: true })}
-        ${pill("Accepter", 'acceptPair', { height: 78, grow: true, disabled: !S.connected })}
+        ${pill('Refuser', 'refusePair', { filled: false, height: 78, grow: true, arg: r.req })}
+        ${pill("Accepter", 'acceptPair', { height: 78, grow: true, disabled: !S.connected, arg: r.req })}
       </div>`;
   }
 
@@ -518,7 +518,6 @@
 
   // ------------------------------------------------------------------- rendu
   function body() {
-    if (S.pairRequest) return pairAsk();
     if (!S.onboarded) return onboarding();
     if (S.remoteRequest) return remote();
     if (S.queued && S.queued.show) return queued();
@@ -540,15 +539,19 @@
     const a = document.activeElement;
     const focusId = a && a.id ? a.id : null;
     const sel = focusId && a.setSelectionRange ? [a.selectionStart, a.selectionEnd] : null;
-    const compact = S.compact && S.screen === 'session' && S.onboarded && !S.remoteRequest;
+    const compact = S.compact && S.screen === 'session' && S.onboarded && !S.remoteRequest && !S.pairRequest;
     if (document.body) document.body.classList.toggle('compact', compact);
     document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${body()}</div>`;
+    document.getElementById('root').inert = !!S.pairRequest;
     document.getElementById('sheet').innerHTML =
-      S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
+      S.alert ? alertSheet() : S.pairRequest ? `<div class="sheet col" id="pairDialog" role="dialog" aria-modal="true"
+        aria-label="Nouveau support" tabindex="-1" style="width:min(820px,calc(100vw - 56px));height:min(580px,calc(100vh - 56px));padding:24px;background:var(--bg)">${pairAsk()}</div>` : ui.sheet === 'settings' ? settingsSheet()
         : ui.sheet === 'helpers' ? helpersSheet() : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
     const req = document.getElementById('req');
     if (req) autosize(req);
-    if (focusId) {
+    if (S.pairRequest && !S.alert) {
+      document.getElementById('pairDialog')?.focus();
+    } else if (focusId) {
       const el = document.getElementById(focusId);
       if (el) { el.focus(); if (sel && el.setSelectionRange) el.setSelectionRange(sel[0], sel[1]); }
     }
@@ -556,7 +559,7 @@
 
   // ----------------------------------------------------------------- gestes
   function submit() {
-    if (S.dictation.phase !== 'idle' || ui.dictating || ui.submitting || S.screen !== 'home' || S.remoteRequest || S.alert) return;
+    if (S.dictation.phase !== 'idle' || ui.dictating || ui.submitting || S.screen !== 'home' || S.remoteRequest || S.pairRequest || S.alert) return;
     const t = ui.request.trim();
     if (!t) { ui.warning = 'Dites en quelques mots ce qui ne va pas.'; render(); focus('req'); return; }
     if (!S.connected) { ui.warning = `Je ne joins pas ${S.helperName} pour le moment. Réessayez dans un instant.`; render(); return; }
@@ -641,8 +644,8 @@
       render();
     }),
     removeHelper: (id) => call('remove_helper', id),
-    acceptPair: () => call('answer_pair', true),
-    refusePair: () => call('answer_pair', false),
+    acceptPair: (id) => call('answer_pair', true, id),
+    refusePair: (id) => call('answer_pair', false, id),
     acceptRemote: () => call('accept_remote'),
     scheduleTicket: (slot) => call('schedule_ticket', slot),
     closeQueued: () => call('close_queued'),
@@ -653,10 +656,12 @@
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b || b.disabled) return;
+    if (S.pairRequest && !S.alert && !['acceptPair', 'refusePair'].includes(b.dataset.act)) return;
     const fn = acts[b.dataset.act];
     if (fn) fn(b.dataset.arg);
   });
   document.addEventListener('input', (e) => {
+    if (S.pairRequest) return;
     const t = e.target;
     if (t.id === 'req') { ui.request = t.value; autosize(t); }
     else if (t.id === 'name') ui.name = t.value;
@@ -671,6 +676,19 @@
   // keyboardShortcut(.cancelAction) / (.defaultAction) des vues Mac
   document.addEventListener('keydown', (e) => {
     if (!S) return;
+    if (S.pairRequest && !S.alert) {
+      if (e.key === 'Enter') { e.preventDefault(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); acts.refusePair(S.pairRequest.req); return; }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const buttons = document.getElementById('pairDialog')?.querySelectorAll('button');
+        if (buttons?.length) {
+          const index = Array.from(buttons).indexOf(document.activeElement);
+          buttons[(index + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
+        }
+      }
+      return;
+    }
     const t = e.target;
     if (e.key === 'Escape') {
       if (S.onboarded && S.screen === 'session' && S.sessionOpen) { ui.sheet = null; return acts.stop(); }
@@ -717,7 +735,7 @@
       if (id === ui.lastDictation) return;
       ui.lastDictation = id;
       ui.dictating = false;
-      if (!text.trim() || S.screen !== 'home' || S.remoteRequest || S.alert) { render(); return; }
+      if (!text.trim() || S.screen !== 'home' || S.remoteRequest || S.pairRequest || S.alert) { render(); return; }
       ui.request = ui.request.trim() ? ui.request.trim() + ' ' + text.trim() : text.trim();
       submit();
       render();
@@ -727,6 +745,7 @@
   // Aperçu dans un navigateur (python -m papai.preview) : l'état de démo vient
   // de Model en mode démonstration ; les gestes ne font que naviguer.
   const preview = {
+    answer_pair: () => { S.pairRequest = null; render(); },
     request_consent: (t) => { S.pendingTask = t; S.screen = 'session'; S.state = 'planning'; render(); },
     cancel_consent: () => { S.screen = 'home'; render(); },
     give_consent: () => { S.screenConsent = true; S.screen = 'session'; S.state = 'planning'; render(); },

@@ -197,6 +197,7 @@ class Model:
                 self._last_state = self.state
                 self.user_expanded = False
             want = (self.session_open and not self.user_expanded and
+                    not self.pair_request and
                     (self.state == "active" or (self.state == "awaiting_helper" and not self.question_for_me)))
             changed = want != self.compact
             self.compact = want
@@ -330,6 +331,8 @@ class Model:
             self._send_profile()
         with self._lock:
             self.connected = ok
+            if not ok:
+                self.pair_request = None
             t = os.environ.get("PAPAI_AUTOTASK", "").strip()
             auto = ok and not self.auto_sent and bool(t)
             if auto:
@@ -441,13 +444,15 @@ class Model:
             return False
         return True
 
-    def answer_pair(self, accept: bool) -> None:
+    def answer_pair(self, accept: bool, request_id=None) -> None:
         """Quelqu'un a tapé le code à 6 chiffres : il ne devient support qu'avec ce clic."""
-        r = self.pair_request
-        if not r:
-            return
-        self.pair_request = None
-        self._send({"type": "pair_decision", "req": r["req"], "accept": bool(accept)})
+        with self._lock:
+            r = self.pair_request
+            if not r or type(accept) is not bool or (request_id is not None and str(request_id) != str(r["req"])):
+                return
+            self.pair_request = None
+            self._send({"type": "pair_decision", "req": r["req"], "accept": accept})
+        self._level()
         self.push()
 
     def remove_helper(self, helper_id: str) -> None:
@@ -633,9 +638,21 @@ class Model:
         elif kind == "pair_confirm":
             if m.get("req") is None:
                 return
-            self.pair_request = {"req": m["req"], "name": str(m.get("name") or "Quelqu'un")[:40],
-                                 "relation": str(m.get("relation") or "")[:60]}
+            with self._lock:
+                if self.pair_request and self.pair_request["req"] == m["req"]:
+                    return
+                if self.pair_request:
+                    self._send({"type": "pair_decision", "req": self.pair_request["req"], "accept": False})
+                self.pair_request = {"req": m["req"], "name": str(m.get("name") or "Quelqu'un")[:40],
+                                     "relation": str(m.get("relation") or "")[:60]}
+            self._level()
             self._on_remote()
+        elif kind == "pair_confirm_closed":
+            with self._lock:
+                if not self.pair_request or self.pair_request["req"] != m.get("req"):
+                    return
+                self.pair_request = None
+            self._level()
         elif kind == "ticket_queued":
             # Aucun support disponible : la demande attend, on revient à l'accueil.
             with self._lock:
@@ -853,6 +870,9 @@ class Model:
         self.helpers = [{"id": "1", "name": "Claire", "relation": "sa fille"}]
         self.apps = [{"label": n, "path": "", "icon": None}
                      for n in ("Mail", "Photos", "Internet", "Visio", "Explorateur", "Calendrier")]
+        if demo == "pair_request":
+            self.pair_request = {"req": "demo", "name": "Marc", "relation": "Service informatique"}
+            return
         if demo == "remote":
             self.remote_request = {"from": "Claire", "task": "Mettre à jour votre ordinateur"}
             return
