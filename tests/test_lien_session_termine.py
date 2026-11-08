@@ -58,7 +58,7 @@ async def scenario(base, fin):
         mac, support = Pont(wm), Pont(wa)
         await mac.envoyer({"type": "hello", "os": "macos"})
         await support.attendre("hello")
-        await mac.envoyer({"type": "help_request", "task": "Ouvrir Images"})
+        await mac.envoyer({"type": "help_request", "task": "Ouvrir Images", "new": True})
         session = await mac.attendre("session")
         assert session, "assistance non créée"
         plan = await support.attendre("status", state="awaiting_approval")
@@ -102,7 +102,7 @@ async def scenario(base, fin):
                     await asyncio.sleep(0.15)
                     check(f"{fin} : reconnexion sans image", not any(m["type"] == "frame" for m in relie.tous))
                     debut = len(lien.tous)
-                    await mac.envoyer({"type": "help_request", "task": "Ranger Images"})
+                    await mac.envoyer({"type": "help_request", "task": "Ranger Images", "new": True})
                     suivante = await mac.attendre("session")
                     assert suivante and suivante["id"] != session["id"]
                     assert await support.attendre("status", state="awaiting_approval")
