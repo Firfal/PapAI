@@ -67,7 +67,7 @@ class Model:
         self.plan: list[str] = []
         self.plan_step: int | None = None
         self.question: str | None = None
-        # Holo pose la question à la personne aidée elle-même (`ask_senior`).
+        # Holo pose la question à l’utilisateur lui-même (`ask_senior`).
         self.question_for_me = False
         self.question_options: list[str] = []
         self.paused = False
@@ -230,7 +230,7 @@ class Model:
         self.push()
 
     def answer_senior(self, text: str) -> None:
-        """Réponse de la personne aidée à une question de Holo qui lui est posée."""
+        """Réponse de l’utilisateur à une question de Holo qui lui est posée."""
         t = str(text or "").strip()[:300]
         if t and self.bridge is not None:
             self.bridge.send({"type": "senior_answer", "text": t})

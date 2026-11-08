@@ -1,6 +1,6 @@
 # PapAI pour Windows
 
-L'app de la personne aidée, avec les mêmes écrans, le même parcours et le même
+L'app de l’utilisateur, avec les mêmes écrans, le même parcours et le même
 design « Soin » que l'app Mac (`apps/mac`). Elle parle au même serveur, par le
 pont `/ws/bridge` (voir `PROTOCOL.md`), et s'annonce avec `{"type":"hello","os":"windows"}`.
 
@@ -104,7 +104,7 @@ dans un dossier ne sert de raccourci d'application.
   `execute` tant que le dernier `status` reçu n'a pas `plan_approved: true` et
   un état `active` ou `awaiting_helper`.
 - La fenêtre PapAI est exclue des captures (`SetWindowDisplayAffinity`, sinon
-  masquée) et les clics dans sa zone sont refusés : seule la personne aidée la
+  masquée) et les clics dans sa zone sont refusés : seul l’utilisateur la
   manipule. Session ouverte, elle reste au premier plan.
 - **Gardien anti-arnaque** : toutes les 8 s, l'app envoie `guard` avec trois
   signaux textuels (processus, titre de la fenêtre active, URL vide faute

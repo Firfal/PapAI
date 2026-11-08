@@ -1,6 +1,6 @@
 """Agent navigateur de H (Agents API) pour les tâches qui se font dans un navigateur.
 
-H pilote « Chrome PapAI », un Chrome à part que l'app de la personne aidée sert
+H pilote « Chrome PapAI », un Chrome à part que l'app de l’utilisateur sert
 avec `holo local browser --session-id <id>`. Le serveur ne fait que créer la
 session H, relayer ses événements aux aidants et répondre à `ask_helper`.
 Rien ici ne dépend du Mac : une autre app qui annonce un `web_agent` suffit.
@@ -16,7 +16,7 @@ import re
 import secrets
 
 # Obligatoire côté serveur : sinon le SDK branche le navigateur ou l'écran du
-# serveur lui-même au lieu de celui de la personne aidée.
+# serveur lui-même au lieu de celui de l’utilisateur.
 os.environ["HAI_AUTO_BRIDGE"] = "0"
 
 from papai_tools import WEB_AGENT_INSTRUCTIONS  # noqa: E402
@@ -37,7 +37,7 @@ ASK_HELPER_DESCRIPTION = (
 )
 
 ASK_SENIOR_DESCRIPTION = (
-    "Demande quelque chose à la personne aidée elle-même, sur son écran, et attends sa réponse. "
+    "Demande quelque chose à l’utilisateur lui-même, sur son écran, et attends sa réponse. "
     "À utiliser quand une page demande de se connecter : elle se connecte elle-même, puis tu continues. "
     "Jamais pour obtenir un mot de passe, un code ou un numéro de carte."
 )
@@ -119,7 +119,7 @@ def describe_web_action(tool: str, args: dict) -> str:
     if t in ("ask_helper",):
         return "Holo vous pose une question"
     if t == "ask_senior":
-        return "Holo pose une question à la personne aidée"
+        return "Holo pose une question à l’utilisateur"
     if "navigate" in t or "goto" in t or "open" in t or url:
         site = re.sub(r"^https?://(www\.)?", "", url).split("/")[0] if url else ""
         return f"Holo ouvre {site}" if site else "Holo ouvre une page"
@@ -332,7 +332,7 @@ class WebAgentRunner:
         if reply is None or not self.s.is_open:
             return
         if self.s.paused:
-            return  # la personne aidée a aussi mis en pause : sa reprise relancera H
+            return  # l’utilisateur a aussi mis en pause : sa reprise relancera H
         self._h_paused = False
         if reply.strip().lower() == "continuer":
             await self.handle.resume()
@@ -360,13 +360,13 @@ class WebAgentRunner:
         return f"Réponse du support : {reply}"
 
     async def _ask_senior_tool(self, question: str) -> str:
-        """Demande à la personne aidée elle-même (se connecter à un site…) et attends sa réponse."""
+        """Demande à l’utilisateur lui-même (se connecter à un site…) et attends sa réponse."""
         self.s.doing = describe_web_action("ask_senior", {})
         self.s.log("tool_call", tool="ask_senior", args={"question": question[:300]})
         reply = await self._escalate(str(question)[:300], to="senior")
         if reply is None:
             return "L'assistance est arrêtée. Arrête-toi tout de suite, sans rien faire d'autre."
-        return f"Réponse de la personne aidée : {reply}"
+        return f"Réponse de l’utilisateur : {reply}"
 
     async def _on_event(self, event) -> None:
         ev = event.model_dump(mode="json") if hasattr(event, "model_dump") else dict(event)

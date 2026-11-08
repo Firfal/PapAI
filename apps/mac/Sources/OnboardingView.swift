@@ -319,7 +319,7 @@ enum QRCode {
     }
 }
 
-/// Un proche propose une session : la personne aidée accepte ou refuse.
+/// Un proche propose une session : l’utilisateur accepte ou refuse.
 struct RemoteRequestView: View {
     @Environment(AppModel.self) private var model
     let request: RemoteRequest

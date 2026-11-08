@@ -4,7 +4,7 @@ Le point du produit n'est pas de rejouer des clics, c'est d'expliquer la logique
 d'une manipulation à quelqu'un qui devra la refaire seul. On donne donc au modèle
 la trajectoire en texte — ce qu'il a visé, pas où il a cliqué — et les vraies
 captures d'écran de la session, et on lui demande une fiche courte, dans des mots
-que la personne aidée comprend. Chaque étape est illustrée par une de ces captures,
+que l’utilisateur comprend. Chaque étape est illustrée par une de ces captures,
 jamais par une image fabriquée.
 
 Rien n'est écrit sur disque avant qu'un proche ait validé la fiche.

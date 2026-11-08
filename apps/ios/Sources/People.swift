@@ -1,6 +1,6 @@
 import Foundation
 
-/// Une personne aidée suivie par ce support : un ordinateur, son espace et sa clé.
+/// Un utilisateur suivie par ce support : un ordinateur, son espace et sa clé.
 struct Person: Codable, Equatable, Identifiable {
     var server: String
     var key: String

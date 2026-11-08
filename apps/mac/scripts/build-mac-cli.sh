@@ -34,7 +34,7 @@ fi
 
 # Exemples d'automates (bibliothèque du mode support au premier lancement).
 mkdir -p "$APP/Contents/Resources/automates"
-cp -X ../../automations/*.papai "$APP/Contents/Resources/automates/" 2>/dev/null || true
+for f in ../../automations/*.papai; do cat "$f" > "$APP/Contents/Resources/automates/$(basename "$f")"; done
 
 xattr -cr "$APP"
 codesign --force --deep --sign - "$APP"

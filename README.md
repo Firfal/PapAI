@@ -11,7 +11,7 @@ Hackathon H Company × 42 AI, 7-8 novembre 2026. Agent : **Holo** (H Company).
 
 ## La boucle
 
-1. **Demander** : la personne aidée appuie sur « Demander une assistance » et explique avec ses mots.
+1. **Demander** : l’utilisateur appuie sur « Demander une assistance » et explique avec ses mots.
 2. **Proposer** : Holo regarde l'écran et propose un plan de 2 à 5 étapes.
 3. **Valider** : le support reçoit une notification sur son iPhone, puis valide, précise ou refuse. Rien ne bouge avant.
 4. **Exécuter** : Holo agit, la personne regarde, et peut tout arrêter à tout moment.
@@ -22,14 +22,14 @@ Hackathon H Company × 42 AI, 7-8 novembre 2026. Agent : **Holo** (H Company).
 
 ## Aperçu
 
-| Personne aidée (Mac) | Aidant (iPhone) |
+| Utilisateur (Mac) | Aidant (iPhone) |
 |---|---|
 | <img src="apps/mac/screenshots/02-awaiting_approval.png" width="520"> | <img src="apps/ios/screenshots/awaiting_approval.png" width="240"> |
 
 ## Architecture
 
 ```
-Mac de la personne aidée         Serveur PapAI (Cloud Run)          H Company
+Mac de l’utilisateur         Serveur PapAI (Cloud Run)          H Company
   apps/mac  (SwiftUI)    ──wss──▶  backend/ (FastAPI)    ──HTTPS──▶  Holo
   capture, clics, Arrêter          plan, validation, agent,
   automates locaux                 garde-fous, journal
@@ -54,7 +54,7 @@ Mac de la personne aidée         Serveur PapAI (Cloud Run)          H Company
 ```
 backend/        serveur FastAPI : sessions, plan, boucle agent Holo, garde-fous
 papai_tools.py  contrat avec Holo : outils, prompts Mac et Windows
-apps/mac/       app SwiftUI de la personne aidée (capture, clics, Arrêter, automates)
+apps/mac/       app SwiftUI de l’utilisateur (capture, clics, Arrêter, automates)
 apps/ios/       app SwiftUI du support (validation, capture en direct, prise de main)
 brand/          logo et icônes (SVG)
 PROTOCOL.md     messages échangés entre le serveur et les apps

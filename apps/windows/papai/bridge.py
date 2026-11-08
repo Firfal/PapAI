@@ -25,7 +25,7 @@ from .core import (ProtectedZone, SensitiveTarget, StopGate, Stopped, UnknownKey
 RECONNECT_S = 3
 MAX_SIZE = 16 * 1024 * 1024
 GUARD_S = 8  # protection en temps réel : un signal toutes les 8 s (PROTOCOL.md)
-STOPPED_TEXT = "Arrêt demandé par la personne aidée."
+STOPPED_TEXT = "Arrêt demandé par l’utilisateur."
 
 
 class Bridge:

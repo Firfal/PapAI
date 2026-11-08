@@ -186,7 +186,7 @@ struct SupportAutomates: View {
                     if !e.platforms.isEmpty { tag(e.platforms.map { $0 == "mac" ? "Mac" : "Windows" }.joined(separator: " · ")) }
                     if !e.publisher.isEmpty { tag(e.publisher) }
                 }
-                let names = model.people.filter { e.applied.contains($0.key) }.map { $0.name.isEmpty ? "Personne aidée" : $0.name }
+                let names = model.people.filter { e.applied.contains($0.key) }.map { $0.name.isEmpty ? "Utilisateur" : $0.name }
                 Text(names.isEmpty ? "Appliqué à personne" : "Appliqué à : " + names.joined(separator: ", "))
                     .font(rounded(14, .semibold)).foregroundStyle(names.isEmpty ? T.muted : T.leaf)
             }
@@ -222,7 +222,7 @@ struct SupportAutomates: View {
     }
 }
 
-/// Choisir les personnes aidées chez qui appliquer un automate.
+/// Choisir les utilisateurs chez qui appliquer un automate.
 struct ApplyAutomateSheet: View {
     let model: HelperModel
     let entry: AutomateLibrary.Entry
@@ -237,7 +237,7 @@ struct ApplyAutomateSheet: View {
             Text("Les personnes cochées pourront le relancer d’un clic. Vous pouvez aussi ne l’appliquer à personne pour l’instant.")
                 .font(rounded(15)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
             if model.people.isEmpty {
-                Text("Aucune personne aidée reliée à ce poste.").font(rounded(16)).foregroundStyle(T.muted)
+                Text("Aucun utilisateur relié à ce poste.").font(rounded(16)).foregroundStyle(T.muted)
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
@@ -246,7 +246,7 @@ struct ApplyAutomateSheet: View {
                         HStack {
                             Toggle(isOn: Binding(get: { chosen.contains(p.key) || already },
                                                  set: { on in if on { chosen.insert(p.key) } else { chosen.remove(p.key) } })) {
-                                Text(p.name.isEmpty ? "Personne aidée" : p.name).font(rounded(17, .semibold))
+                                Text(p.name.isEmpty ? "Utilisateur" : p.name).font(rounded(17, .semibold))
                             }
                             .toggleStyle(.checkbox).disabled(already || sending)
                             Spacer()
