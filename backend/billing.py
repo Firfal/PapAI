@@ -154,10 +154,12 @@ def install(app, find_org, members, public_url):
             event = json.loads(raw)
             obj = event["data"]["object"]
             kind = event["type"]
-            if not isinstance(obj, dict):
+            if not isinstance(obj, dict) or not isinstance(kind, str):
                 raise ValueError()
         except (ValueError, TypeError, KeyError, StopIteration):
             raise HTTPException(400, "Signature ou événement invalide") from None
+        if event.get("livemode"):
+            raise HTTPException(400, "Seul le mode test est accepté")
         if kind not in {"checkout.session.completed", "customer.subscription.created",
                         "customer.subscription.updated", "customer.subscription.deleted"}:
             return {"ok": True}

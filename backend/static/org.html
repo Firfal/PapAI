@@ -46,7 +46,8 @@
 </head>
 <body>
 <h1 id="title">Organisation</h1>
-<p><a href="#" onclick="this.href=location.pathname.replace(/\/$/,'')+'/abonnement'">Abonnement</a></p>
+<p><a id="abonnement" href="#">Abonnement</a></p>
+<script>document.getElementById('abonnement').href=location.pathname.replace(/\/$/,'')+'/abonnement';</script>
 <p class="muted">Tous les postes inscrits avec le jeton de l'organisation. Ils s'ajoutent à « Mes utilisateurs » dans ce navigateur, sans appairage.</p>
 
 <h2>Tickets</h2>

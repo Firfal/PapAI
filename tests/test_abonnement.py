@@ -72,8 +72,8 @@ class Abonnement(unittest.TestCase):
                 pass
             return response.status, raw
 
-    def event(self, kind="checkout.session.completed", obj=None, timestamp=None, signature=None):
-        raw = json.dumps({"type": kind, "data": {"object": obj if obj is not None else {
+    def event(self, kind="checkout.session.completed", obj=None, timestamp=None, signature=None, live=False):
+        raw = json.dumps({"type": kind, "livemode": live, "data": {"object": obj if obj is not None else {
             "client_reference_id": self.org.id, "customer": "cus_test", "subscription": "sub_test"}}}).encode()
         t = str(int(time.time()) if timestamp is None else timestamp)
         sig = hmac.new(b"whsec_local", t.encode() + b"." + raw, hashlib.sha256).hexdigest()
@@ -127,7 +127,8 @@ class Abonnement(unittest.TestCase):
         self.assertFalse(self.request(self.path + "/billing")[1]["abonne"])
 
     def test_signatures_et_corps(self):
-        self.assertEqual(self.event(signature="t=123,v1=bad")[0], 400)
+        self.assertEqual(self.event(signature=f"t={int(time.time())},v1=bad")[0], 400)
+        self.assertEqual(self.event(live=True)[0], 400)
         self.assertEqual(self.event(timestamp=int(time.time()) - 301)[0], 400)
         self.assertEqual(self.event(timestamp=int(time.time()) + 301)[0], 400)
         self.assertEqual(self.request("/stripe/webhook", b"{}")[0], 400)
