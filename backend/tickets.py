@@ -13,6 +13,8 @@ import secrets
 import time
 from pathlib import Path
 
+from . import ticket_stats
+
 OPEN = ("nouveau", "en_attente", "rdv", "en_cours", "a_reprendre")
 STATUSES = (*OPEN, "resolu")
 MAX = 500
@@ -54,12 +56,14 @@ class Tickets:
              number: int | None = None, suggestions: list[dict] | None = None) -> dict:
         items = self._load()
         now = int(time.time())
+        category, sure = ticket_stats.classify(task)
         number = number or max((int(x.get("number", 0)) for x in items), default=0) + 1
         t = {"id": secrets.token_hex(6), "number": number,
              "task": task, "source": source, "by": by[:40], "status": status, "created": now, "updated": now,
              "session": "", "plan": [], "steps_done": 0, "helper": "", "end": "", "stopped_by": "",
              "rdv": None, "rdv_notified": False, "offered": 0, "assignee": "", "notes": [], "tokens": 0,
-             "suggestions": list(suggestions or []), "suggestion_lancee": None}
+             "suggestions": list(suggestions or []), "suggestion_lancee": None,
+             "category": category, "category_by": "regles" if sure else "doute", "resolved": None}
         items.append(t)
         self._save()
         return t
@@ -74,14 +78,26 @@ class Tickets:
         self._save()
 
     def update(self, t: dict, **kw) -> dict:
+        now = int(time.time())
+        if "status" in kw and kw["status"] != t.get("status"):
+            kw["resolved"] = now if kw["status"] == "resolu" else None
         t.update(kw)
-        t["updated"] = int(time.time())
+        t["updated"] = now
         self._save()
         return t
 
     def note(self, t: dict, by: str, text: str) -> None:
         t.setdefault("notes", []).append({"t": int(time.time()), "by": by[:40], "text": text[:1000]})
         self.update(t)
+
+    def categorize(self, t: dict, category: str, by: str, who: str = "") -> bool:
+        """Change la catégorie. Holo ne repasse jamais sur un choix du support."""
+        if category not in ticket_stats.IDS or by not in ticket_stats.BY:
+            return False
+        if by == "holo" and t.get("category_by") == "support":
+            return False
+        self.update(t, category=category, category_by=by, category_who=who[:40] if by == "support" else "")
+        return True
 
     def waiting(self) -> list[dict]:
         return [t for t in self._load() if t.get("status") == "en_attente"]
@@ -109,4 +125,4 @@ class Tickets:
 
 
 def public(t: dict) -> dict:
-    return {k: v for k, v in t.items() if k not in ("rdv_notified", "offered")}
+    return {k: v for k, v in ticket_stats.ensure(dict(t)).items() if k not in ("rdv_notified", "offered")}

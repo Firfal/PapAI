@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
 from . import (
-    automate_draft, automations, guard, orgs as orgs_mod, space, suggest,
+    automate_draft, automations, guard, orgs as orgs_mod, space, suggest, ticket_stats,
     tickets as tickets_mod, voice,
 )
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
@@ -332,10 +332,13 @@ def _rdv_at(v) -> int | None:
 def _open_ticket(task: str, source: str, status: str = "nouveau", by: str = "",
                  suggestions: list[dict] | None = None) -> dict:
     o = orgs.get(S().org) if getattr(S(), "org", "") else None
-    return S().tickets.open(
+    t = S().tickets.open(
         task, source, status=status, by=by, number=o.next_ticket() if o else None,
         suggestions=suggestions,
     )
+    if t.get("category_by") == "doute" and task.strip():
+        _later(_holo_category(S(), t))
+    return t
 
 
 def _ticket_suggestions(task: str) -> list[dict]:
@@ -345,6 +348,16 @@ def _ticket_suggestions(task: str) -> list[dict]:
         if isinstance(a, dict) and a.get("actions")
     ]
     return suggest.suggerer(task, automates, limite=2)
+
+
+async def _holo_category(sp, t: dict) -> None:
+    """Les règles hésitent : Holo choisit dans la liste, sans repasser sur le choix du support."""
+    cat = await ticket_stats.classify_holo(t.get("task", ""))
+    if cat is None:
+        return
+    space.use(sp)
+    if sp.tickets.categorize(t, cat, "holo"):
+        await _tickets_changed()
 
 
 async def _tickets_changed() -> None:
@@ -2052,6 +2065,9 @@ async def _ticket_action(tid: str, body: dict):
         if S().bridge is not None:
             await S().bridge.send({"type": "ticket_scheduled", "ticket": t["id"], "number": t["number"],
                                    "at": at, "by": by})
+    elif act == "category":
+        if not S().tickets.categorize(t, str(body.get("category") or ""), "support", by):
+            return JSONResponse({"error": "Catégorie inconnue."}, status_code=400)
     elif act == "take":
         if t["status"] in ("en_cours", "resolu"):
             return JSONResponse({"error": "Ce ticket n'est pas en attente."}, status_code=409)
@@ -2082,11 +2098,23 @@ async def tickets_js():
     return FileResponse(STATIC / "tickets.js", media_type="text/javascript")
 
 
+@app.get("/ticket_stats.js")
+async def ticket_stats_js():
+    return FileResponse(STATIC / "ticket_stats.js", media_type="text/javascript")
+
+
 @app.get("/k/{fam}/tickets")
 async def tickets_keyed(fam: str):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return {"tickets": [tickets_mod.public(t) for t in S().tickets.all()[:200]]}
+
+
+@app.get("/k/{fam}/tickets/stats")
+async def tickets_stats_keyed(fam: str, weeks: int = ticket_stats.WEEKS):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return ticket_stats.stats(S().tickets.all(), weeks=weeks)
 
 
 @app.post("/k/{fam}/tickets/{tid}")
@@ -2109,6 +2137,19 @@ async def org_tickets(token: str):
                  "online": sp.bridge is not None} for t in sp.tickets.all()[:200]]
     out.sort(key=lambda t: t.get("updated", 0), reverse=True)
     return {"org": o.name, "tickets": out[:1000]}
+
+
+@app.get("/o/{token}/tickets/stats")
+async def org_tickets_stats(token: str, weeks: int = ticket_stats.WEEKS):
+    """Les mêmes agrégats, sur tous les postes de l'organisation."""
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    rows = []
+    for sp in spaces.members(o.id):
+        poste = sp.family.senior or getattr(sp, "label", "") or "Poste"
+        rows += [{**t, "space": sp.key, "poste": poste} for t in sp.tickets.all()]
+    return {"org": o.name, **ticket_stats.stats(rows, weeks=weeks)}
 
 
 @app.post("/o/{token}/tickets/{key}/{tid}")
