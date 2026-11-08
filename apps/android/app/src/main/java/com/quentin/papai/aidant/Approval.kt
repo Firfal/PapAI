@@ -31,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -49,6 +50,10 @@ fun ApprovalScreen() {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)) {
             RequestCard(onThumb = { zoom = true })
+            if (m.linkupVisible) {
+                LinkupCard()
+            } else {
+            TextButton({ m.openLinkup() }) { Text("Rechercher une réponse") }
             Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 T("Plan proposé par Holo", 17.sp, FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 StatusPill("${m.plan.size} étape${if (m.plan.size > 1) "s" else ""}")
@@ -68,8 +73,9 @@ fun ApprovalScreen() {
                     }
                 }
             }
+            }
         }
-        Column(Modifier.fillMaxWidth().background(Soin.bgEnd).padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
+        if (!m.linkupVisible) Column(Modifier.fillMaxWidth().background(Soin.bgEnd).padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 CapsuleButton("Valider le plan", Modifier.weight(1f), enabled = !m.planBusy, content = {
@@ -98,6 +104,28 @@ fun ApprovalScreen() {
     if (refine) Sheet(onClose = { refine = false }) { RefineSheet { refine = false } }
     val f = m.frame
     if (zoom && f != null) ZoomDialog(f) { zoom = false }
+}
+
+@Composable
+fun LinkupCard() {
+    val m = Helper
+    val links = LocalUriHandler.current
+    Column(Modifier.fillMaxWidth().soinCard().padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        T("Réponse proposée", 22.sp, FontWeight.Bold)
+        SoinField(m.linkupQuery, { m.linkupQuery = it }, "Question à rechercher", single = false)
+        TextButton({ m.searchLinkup() }, enabled = !m.linkupBusy && m.linkupQuery.isNotBlank()) { Text("Rechercher") }
+        if (m.linkupBusy) CircularProgressIndicator()
+        if (m.linkupError) T("Recherche indisponible pour le moment", 17.sp)
+        if (m.linkupId.isNotEmpty() && !m.linkupError) {
+            T("Relisez et corrigez la réponse avant de la montrer à l’utilisateur.", 15.sp)
+            SoinField(m.linkupText, { m.linkupText = it }, "Réponse proposée, modifiable", single = false, minLines = 5)
+            m.linkupSources.forEach { (name, url) ->
+                TextButton({ runCatching { links.openUri(url) } }) { Text(name.ifEmpty { url }) }
+            }
+            CapsuleButton("Valider", enabled = m.linkupText.isNotBlank()) { m.approveLinkup() }
+        }
+        TextButton({ m.refuseLinkup() }, enabled = !m.linkupBusy) { Text(if (m.linkupPending) "Refuser" else "Annuler") }
+    }
 }
 
 @Composable

@@ -12,13 +12,6 @@ struct Helper: Identifiable, Equatable {
     var online = false
 }
 
-/// Quelqu'un a tapé le code à 6 chiffres sans clé : il ne devient support qu'avec l'accord de la personne.
-struct PairRequest: Equatable {
-    var req: String
-    var name: String
-    var relation: String
-}
-
 struct RemoteRequest: Equatable {
     var from: String
     var task: String
@@ -28,11 +21,18 @@ struct RemoteRequest: Equatable {
 }
 
 /// Demande partie en ticket sans support disponible.
+struct QueuedSuggestion: Equatable, Identifiable {
+    var id: String
+    var title: String
+}
+
 struct QueuedTicket: Equatable {
     var ticket: String
     var number: Int
     var task: String
     var rdv: Date?
+    var suggestions: [QueuedSuggestion] = []
+    var suggestionLancee: String?
 }
 
 enum SessionState: String {
@@ -61,7 +61,11 @@ final class AppModel {
     var questionForMe = false
     var questionOptions: [String] = []
     var answer: String?
-    var currentAction: String?
+    var currentAction: String? {
+        didSet { if let currentAction { narration.say(currentAction) } }
+    }
+    @ObservationIgnored let narration = LocalNarration.shared
+    var answerSources: [[String: String]] = []
     var lessons: [Lesson] = []
     var notice: String?
     var lesson: Lesson?
@@ -78,35 +82,25 @@ final class AppModel {
     var screenConsent = UserDefaults.standard.bool(forKey: "screenConsent")
     var showSettings = false
     var captureError: String?
-    /// Plus de pages d'introduction : l'app s'ouvre directement sur l'accueil.
-    /// (L'accueil en 4 étapes reste dans le code, sans être montré.)
-    var onboarded = true
-    /// Dans le modèle et non dans la vue : changer la taille du texte recrée
-    /// toute la fenêtre (`.id(textScale)`), l'accueil doit garder son étape.
-    var onboardingStep = 0
     var textScale = TextScale.current
     var realtimeProtection = GuardSignals.enabled
+    /// Les agents du support IT connus de ce poste (`helpers` du serveur), avec leur présence.
     var helpers: [Helper] = []
-    var pairCode: String?
-    var pairURL: String?
-    /// Lien `papai://` du QR, envoyé par le serveur (`app_url`) ou construit depuis `pairURL`.
-    var pairAppURL: String?
-    var pairAdded: String?
-    /// Vrai pour une invitation à envoyer (SMS, WhatsApp…), valable 24 h.
-    var pairLong = false
-    var pairExpires = 600
     var remoteRequest: RemoteRequest?
     var queued: QueuedTicket?
     var queuedShown = false
-    var pairRequest: PairRequest?
-    var showHelpers = false
-    var pairingWhenConnected = false
+    /// Nom de l'organisation qui gère ce poste, connu après l'inscription par jeton.
+    var orgName = UserDefaults.standard.string(forKey: "orgName") ?? ""
     var pendingTask = ""
     var pendingAutomation: Lesson?
+    var pendingAutomationTicket: String?
     var actions: [String] = []
     var guardAlert: GuardAlert?
     var stoppedBy: String?
     var guardAcknowledged = false
+    /// Dernier rangement guidé, annulable d'un clic (journal local, `Rangement.swift`).
+    var lastTidy: TidyRecord? = TidyJournal.standard.last
+    @ObservationIgnored private var tidyScan: TidyScan?
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored private var planApproved = false
@@ -129,46 +123,40 @@ final class AppModel {
     @ObservationIgnored private var homeTimer: Task<Void, Never>?
 
     var sessionOpen: Bool { state?.isOpen ?? false }
-    var serverURL: String {
-        let stored = UserDefaults.standard.string(forKey: "server")?.trimmingCharacters(in: .whitespaces) ?? ""
-        if !stored.isEmpty { return stored }
-        if let env = ProcessInfo.processInfo.environment["PAPAI_SERVER"], !env.isEmpty { return env }
-        return "ws://localhost:8000/ws/bridge"
-    }
-    /// Serveur PapAI officiel : sans réglage, le Mac y crée son espace au premier lancement.
+    /// Serveur PapAI officiel : sans serveur géré, le poste y crée son espace au premier lancement.
     static let officialHTTP = "https://papai-450417131702.europe-west1.run.app"
-    /// Jeton d'inscription d'une organisation (service IT) : préférence gérée
-    /// (`defaults write … orgToken ins-…` ou profil MDM), ou PAPAI_ORG.
-    var orgToken: String {
-        let t = (ProcessInfo.processInfo.environment["PAPAI_ORG"]
-                 ?? UserDefaults.standard.string(forKey: "orgToken") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.hasPrefix("ins-") && t.count <= 100 ? t : ""
+    /// Serveur géré (`server`, profil MDM ou `defaults write`), sinon PAPAI_SERVER.
+    var managedServer: String? {
+        Poste.managed("server") ?? ProcessInfo.processInfo.environment["PAPAI_SERVER"].flatMap { $0.isEmpty ? nil : $0 }
     }
-    var orgName: String { UserDefaults.standard.string(forKey: "orgName") ?? "" }
+    /// Jeton d'inscription de l'organisation (service IT) : préférence gérée `orgToken`, ou PAPAI_ORG.
+    var orgToken: String {
+        Poste.orgToken(ProcessInfo.processInfo.environment["PAPAI_ORG"] ?? Poste.managed("orgToken"))
+    }
+    /// Vrai quand le jeton vient d'un profil de configuration (et non d'un `defaults write`).
+    var orgTokenForced: Bool { Poste.isForced("orgToken") }
+    /// Où se connecter : le pont de l'espace du poste, ou créer cet espace d'abord.
+    var route: Poste.Route {
+        Poste.route(server: managedServer, stored: Poste.managed("bridgeURL"),
+                    orgToken: orgToken, official: Self.officialHTTP)
+    }
+    var serverURL: String {
+        if case .bridge(let b) = route { return b }
+        return ""
+    }
     private var machineName: String {
         [NSFullUserName(), Host.current().localizedName ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
     }
-    var needsSpace: Bool {
-        let stored = UserDefaults.standard.string(forKey: "server")?.trimmingCharacters(in: .whitespaces) ?? ""
-        return stored.isEmpty && (ProcessInfo.processInfo.environment["PAPAI_SERVER"] ?? "").isEmpty
-    }
     var httpBase: String {
-        var s = serverURL
-        s = s.replacingOccurrences(of: "wss://", with: "https://").replacingOccurrences(of: "ws://", with: "http://")
-        if s.hasSuffix("/ws/bridge") { s.removeLast("/ws/bridge".count) }
-        while s.hasSuffix("/") { s.removeLast() }
-        return s
+        switch route {
+        case .bridge(let b): Poste.httpBase(b)
+        case .createSpace(let base): base
+        }
     }
-    /// Propriété observée (et non lue dans UserDefaults à chaque fois) : l'accueil
-    /// « Bonsoir <prénom> » se met à jour dès qu'on change le prénom dans les Réglages.
-    var firstName = AppModel.storedFirstName
-
-    /// Prénom par défaut tant que la personne n'en a pas choisi un dans les Réglages.
-    static let defaultFirstName = "Christine"
-    static var storedFirstName: String {
-        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
-        return n.isEmpty ? defaultFirstName : n
-    }
+    /// Le nom affiché sur l'accueil : celui du compte macOS de l'employé, ou `displayName` géré.
+    /// Il n'y a rien à saisir.
+    let displayName = Poste.displayName(managed: Poste.managed("displayName"),
+                                        fullName: NSFullUserName(), userName: NSUserName())
 
     /// Qui aide : toujours au singulier pour accorder le verbe qui suit.
     var helperName: String {
@@ -192,22 +180,14 @@ final class AppModel {
         return helpers.count == 1 ? helpers[0].name : "Votre support"
     }
 
-    // MARK: Accueil et proches
+    // MARK: Profil et support
 
-    func setFirstName(_ name: String) {
-        firstName = name.trimmingCharacters(in: .whitespaces)
-        UserDefaults.standard.set(firstName, forKey: "firstName")
-        sendProfile()
-    }
-
-    /// Le prénom réellement saisi (sans la valeur d'exemple), transmis au serveur
-    /// pour que l'aidant lise « Vous allez aider Sophie » et non un nom figé.
+    /// Le nom du poste, transmis au serveur pour que le support lise « Vous allez aider Christine ».
     func sendProfile() {
-        let n = Self.storedFirstName
-        // Les proches connus voyagent avec le profil : le serveur les retrouve après un redémarrage.
+        // Les agents connus voyagent avec le profil : le serveur les retrouve après un redémarrage.
         let known = helpers.isEmpty ? Self.cachedHelpers() : helpers.map { ["id": $0.id, "name": $0.name, "relation": $0.relation] }
         var msg: [String: Any] = ["type": "profile", "known_helpers": known, "protection": realtimeProtection]
-        if !n.isEmpty { msg["name"] = n }
+        if !displayName.isEmpty { msg["name"] = displayName }
         client.send(msg)
     }
 
@@ -215,8 +195,6 @@ final class AppModel {
     static func cachedHelpers() -> [[String: String]] {
         UserDefaults.standard.array(forKey: helpersKey) as? [[String: String]] ?? []
     }
-    /// Retire un proche aussi de la copie locale (sinon il reviendrait au prochain démarrage).
-    private var removing = false
 
     func setTextScale(_ v: Double) {
         TextScale.current = v
@@ -229,91 +207,12 @@ final class AppModel {
         sendProfile()
     }
 
-    func finishOnboarding() {
-        // L'inscription vaut accord de partage d'écran pendant les demandes d'aide.
-        UserDefaults.standard.set(true, forKey: "screenConsent")
-        screenConsent = true
-        UserDefaults.standard.set(true, forKey: "onboarded")
-        onboarded = true
-        // « Revoir l'accueil » doit repartir de la bienvenue, pas de la dernière étape (prénom sauté).
-        onboardingStep = 0
-        permissionsDismissed = true
-        stopPairing()
-    }
-
-    func startPairing(long: Bool = true) {
-        pairingWhenConnected = false
-        pairAdded = nil
-        client.send(long ? ["type": "pair_start", "long": true] : ["type": "pair_start"])
-    }
-
-    /// Le texte de l'invitation envoyée au proche, avec le lien d'appairage.
-    var invitationText: String {
-        let n = Self.storedFirstName
-        let who = n.isEmpty ? "Une personne de votre entourage" : n
-        return "\(who) aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre téléphone pour vous relier (valable 24 heures) :"
-    }
-
-    func stopPairing() {
-        pairingWhenConnected = false
-        pairCode = nil
-        pairURL = nil
-        pairAppURL = nil
-        pairLong = false
-    }
-
-    func openSupportPairing() {
-        showHelpers = true
-        pairingWhenConnected = true
-        startPendingPairing()
-    }
-
-    func startPendingPairing() {
-        guard connected, showHelpers, pairingWhenConnected else { return }
-        startPairing()
-    }
-
-    /// `papai://pair?u=<url encodée>` : l'appareil photo de l'iPhone ouvre l'app, pas Safari.
-    static func appPairingURL(_ url: String) -> String {
-        var allowed = CharacterSet.alphanumerics
-        allowed.insert(charactersIn: "-._~")
-        let safe = pairingURLWithoutKey(url)
-        return "papai://pair?u=" + (safe.addingPercentEncoding(withAllowedCharacters: allowed) ?? safe)
-    }
-
-    static func pairingURLWithoutKey(_ url: String) -> String {
-        guard var c = URLComponents(string: url) else { return url }
-        if c.scheme?.lowercased() == "papai" {
-            let original = c.queryItems
-            c.queryItems = c.queryItems?.map { item in
-                guard item.name == "u", let value = item.value,
-                      ["http", "https"].contains(URLComponents(string: value)?.scheme?.lowercased() ?? "") else { return item }
-                return URLQueryItem(name: item.name, value: pairingURLWithoutKey(value))
-            }
-            if c.queryItems == original { return url }
-        } else {
-            c.path = c.path.replacingOccurrences(of: "/k/[^/]+/p/", with: "/p/", options: .regularExpression)
-        }
-        return c.string ?? url
-    }
-
-    func removeHelper(_ h: Helper) {
-        removing = true
-        client.send(["type": "remove_helper", "id": h.id])
-    }
-
-    /// Le proche propose une session : rien ne démarre sans ce clic.
+    /// Le support propose une assistance : rien ne démarre sans ce clic.
     func acceptRemote() {
         guard let r = remoteRequest else { return }
         remoteRequest = nil
         let task = r.task.isEmpty ? "\(r.from) propose de m'aider sur l'ordinateur" : r.task
         askHelp(task: task, requestedBy: r.from, ticket: r.ticket)
-    }
-
-    func answerPair(_ accept: Bool) {
-        guard let r = pairRequest else { return }
-        pairRequest = nil
-        client.send(["type": "pair_decision", "req": r.req, "accept": accept])
     }
 
     func refuseRemote() {
@@ -350,6 +249,9 @@ final class AppModel {
         webHost.onChange = { [weak self] id in
             self?.client.send(["type": "web_agent", "session_id": id ?? NSNull()])
         }
+        webHost.onOffSite = { [weak self] url in
+            self?.client.send(["type": "web_off_site", "url": url])
+        }
         InputLock.shared.allowedRect = { [weak self] in self?.protectedRect() }
         InputLock.shared.onEscape = { [weak self] in self?.stop() }
         Task { [weak self] in
@@ -365,9 +267,10 @@ final class AppModel {
         client.onConnection = { [weak self] ok in
             guard let self else { return }
             self.connected = ok
+            if ok { Task { await self.refreshLessons() } }
             // Plus de connexion : la personne ne doit jamais rester bloquée.
             if !ok {
-                self.pairRequest = nil
+                self.narration.context(assistance: self.sessionOpen, speakingAllowed: false)
                 self.webHost.stopLocal()
                 InputLock.shared.set(false)
             }
@@ -376,7 +279,6 @@ final class AppModel {
                 self.awaitingInitialHelpers = ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil
                 self.sendProfile()
             }
-            self.startPendingPairing()
             // Test : PAPAI_AUTOTASK lance une demande dès la connexion.
             if ok, !self.autoSent, let t = ProcessInfo.processInfo.environment["PAPAI_AUTOTASK"], !t.isEmpty {
                 self.autoSent = true
@@ -407,28 +309,15 @@ final class AppModel {
         if let demo = ProcessInfo.processInfo.environment["PAPAI_DEMO"] {
             permissionsDismissed = true
             connected = true
-            if demo.hasPrefix("onboarding") { onboarded = false; return }
-            onboarded = true
-            helpers = [Helper(id: "1", name: "Claire", relation: "sa fille")]
-            if demo == "pair_request" {
-                pairRequest = PairRequest(req: "demo", name: "Marc", relation: "Service informatique")
-                return
-            }
-            if demo == "settings" || demo == "helpers_pair" {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                    if demo == "settings" { self.showSettings = true }
-                    else {
-                        self.pairCode = "482913"
-                        self.pairURL = "https://papai.example/p/482913"
-                        self.pairAppURL = Self.appPairingURL(self.pairURL!)
-                        self.pairLong = true
-                        self.showHelpers = true
-                    }
-                }
+            helpers = [Helper(id: "1", name: "Marc", relation: "Service informatique", online: true)]
+            if orgName.isEmpty { orgName = "Acme" }
+            if demo == "settings" || demo == "settings_none" {
+                if demo == "settings_none" { orgName = ""; helpers = [] }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showSettings = true }
                 return
             }
             if demo == "remote" {
-                remoteRequest = RemoteRequest(from: "Claire", task: "Mettre à jour votre ordinateur")
+                remoteRequest = RemoteRequest(from: "Marc", task: "Mettre à jour votre ordinateur")
                 return
             }
             let json = #"[{"id":"a","title":"Dossier comptabilité","shortcut":{"folder":"documents"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes téléchargements","shortcut":{"folder":"downloads"}}]"#
@@ -457,14 +346,18 @@ final class AppModel {
 
     func reconnect() {
         guard ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil else { return }
-        if needsSpace {
-            Task { [weak self] in await self?.createSpace() }
+        let bridge: String
+        switch route {
+        case .createSpace(let base):
+            Task { [weak self] in await self?.createSpace(base: base) }
             return
+        case .bridge(let b):
+            bridge = b
         }
-        guard let url = URL(string: serverURL) else { return }
+        guard let url = URL(string: bridge) else { return }
         client.start(url: url)
         let tok = orgToken
-        if !tok.isEmpty, UserDefaults.standard.string(forKey: "orgJoined") != tok, serverURL.contains("/k/") {
+        if !tok.isEmpty, UserDefaults.standard.string(forKey: "orgJoined") != tok, bridge.contains("/k/") {
             Task { [weak self] in await self?.joinOrg(tok) }
         }
     }
@@ -490,7 +383,8 @@ final class AppModel {
             if status == 200, let data = r?.0,
                let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 UserDefaults.standard.set(tok, forKey: "orgJoined")
-                UserDefaults.standard.set(d["org"] as? String ?? "", forKey: "orgName")
+                orgName = d["org"] as? String ?? ""
+                UserDefaults.standard.set(orgName, forKey: "orgName")
                 await refreshLessons()
                 return
             }
@@ -500,9 +394,10 @@ final class AppModel {
         }
     }
 
-    /// Premier lancement : `POST /spaces` donne l'adresse du pont, clé comprise. Rien à régler.
-    private func createSpace(withOrg: Bool = true) async {
-        guard let url = URL(string: Self.officialHTTP + "/spaces") else { return }
+    /// Premier lancement : `POST <serveur>/spaces`, avec le jeton de l'organisation, donne
+    /// l'adresse du pont, clé comprise. Rien à régler sur le poste.
+    private func createSpace(base: String, withOrg: Bool = true) async {
+        guard let url = URL(string: base + "/spaces") else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         let tok = withOrg ? orgToken : ""
@@ -513,17 +408,19 @@ final class AppModel {
         let r = try? await URLSession.shared.data(for: req)
         if !tok.isEmpty, (r?.1 as? HTTPURLResponse)?.statusCode == 403 {
             // Jeton refusé : le poste a quand même son espace, hors organisation.
-            await createSpace(withOrg: false)
+            await createSpace(base: base, withOrg: false)
             return
         }
         if let data = r?.0,
            let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let b = d["bridge_url"] as? String, b.hasPrefix("wss://") || b.hasPrefix("ws://"), b.contains("/k/") {
+           let returned = d["bridge_url"] as? String, let b = Poste.bridge(from: returned, base: base) {
             if let org = d["org"] as? String, !tok.isEmpty {
                 UserDefaults.standard.set(tok, forKey: "orgJoined")
+                orgName = org
                 UserDefaults.standard.set(org, forKey: "orgName")
             }
-            UserDefaults.standard.set(b, forKey: "server")
+            // Clé à part de `server` : celle-ci peut être imposée par un profil.
+            UserDefaults.standard.set(b, forKey: "bridgeURL")
             reconnect()
             return
         }
@@ -539,12 +436,17 @@ final class AppModel {
         if let (data, _) = try? await URLSession.shared.data(for: req),
            let list = try? JSONDecoder().decode([Lesson].self, from: data) {
             lessons = list
+            OfflineLessons.save(data, base: httpBase)
+        } else if lessons.isEmpty {
+            lessons = OfflineLessons.load(base: httpBase)  // pas de réseau : ceux qui n'ont pas besoin de Holo
         }
     }
 
     // MARK: Fenêtre
 
     func applyLevel() {
+        narration.context(assistance: sessionOpen,
+                          speakingAllowed: connected && state == .active && !paused && guardAlert == nil)
         // La grande fenêtre ne reste plus au premier plan : elle masquerait Holo.
         window?.level = .normal
         if state != lastState {
@@ -657,9 +559,11 @@ final class AppModel {
         screenConsent = true
         if let a = pendingAutomation {
             pendingAutomation = nil
+            let ticket = pendingAutomationTicket
+            pendingAutomationTicket = nil
             pendingTask = ""
             screen = .home
-            runAutomation(a)
+            runAutomation(a, ticket: ticket)
             return
         }
         askHelp(task: pendingTask)
@@ -673,11 +577,23 @@ final class AppModel {
     func cancelConsent() {
         pendingTask = ""
         pendingAutomation = nil
+        pendingAutomationTicket = nil
         screen = .home
     }
 
     func askHelp(task: String, requestedBy: String? = nil, ticket: String? = nil) {
         guard guardAlert == nil else { return }
+        // « Range mes documents » : seuls les noms des fichiers partent, avec la demande.
+        tidyScan = nil
+        if Tidy.isRequest(task) {
+            guard let folder = Tidy.folder(in: task) ?? chooseTidyFolder() else { return }
+            do {
+                tidyScan = try Tidy.scan(folder, home: FileManager.default.homeDirectoryForCurrentUser)
+            } catch {
+                showNotice(error.localizedDescription)
+                return
+            }
+        }
         queuedShown = false
         if let ticket, queued?.ticket == ticket { queued = nil }
         gate.reset()
@@ -689,7 +605,7 @@ final class AppModel {
         homeTimer?.cancel()
         self.task = task
         pendingTask = ""
-        plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
+        plan = []; planStep = nil; question = nil; answer = nil; answerSources = []; currentAction = nil; actions = []
         sessionHelper = nil
         AppUsage.shared.noteRequest(task)
         webFronted = false
@@ -699,7 +615,18 @@ final class AppModel {
         var msg: [String: Any] = ["type": "help_request", "task": task]
         if let requestedBy { msg["requested_by"] = requestedBy }
         if let ticket { msg["ticket"] = ticket }
+        if let tidyScan { msg["tidy"] = tidyScan.payload }
         client.send(msg)
+    }
+
+    private func chooseTidyFolder() -> TidyFolder? {
+        let alert = NSAlert()
+        alert.messageText = "Quel dossier ranger ?"
+        alert.informativeText = "Holo ne lit que les noms des fichiers, jamais leur contenu. \(helperName) validera le rangement, et vous pourrez l'annuler."
+        for f in TidyFolder.allCases { alert.addButton(withTitle: f.label) }
+        alert.addButton(withTitle: "Annuler")
+        let i = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        return TidyFolder.allCases.indices.contains(i) ? TidyFolder.allCases[i] : nil
     }
 
     /// Le verrou local passe d'abord, puis le serveur est prévenu.
@@ -733,14 +660,24 @@ final class AppModel {
         case "execute":
             guard let req = m["req"] as? String, let action = m["action"] as? [String: Any] else { return }
             Task { await doExecute(req, action) }
+        case "tidy_execute":
+            guard let req = m["req"] as? String else { return }
+            doTidy(req, m)
         case "status":
             applyStatus(m)
         case "web_agent_start":
+            webHost.updateSites(m["sites"] as? [String] ?? [], hosts: m["hosts"] as? [String] ?? [])
             if sessionOpen && !gate.isStopped { webHost.start() }
+        case "web_sites":
+            webHost.updateSites(m["sites"] as? [String] ?? [], hosts: m["hosts"] as? [String] ?? [])
         case "web_agent_stop":
             webHost.stopLocal(notifyServer: false)
+        case "linkup_answer":
+            answer = m["content"] as? String
+            answerSources = m["sources"] as? [[String: String]] ?? []
         case "answer":
             answer = m["content"] as? String
+            answerSources = []
         case "helpers":
             let list = (m["helpers"] as? [[String: Any]]) ?? []
             helpers = list.compactMap { d in
@@ -755,31 +692,21 @@ final class AppModel {
                 guardAlert = nil
             }
             // Une liste vide d'un serveur qui vient de redémarrer n'efface pas la copie locale.
-            if !helpers.isEmpty || removing {
+            if !helpers.isEmpty {
                 UserDefaults.standard.set(helpers.map { ["id": $0.id, "name": $0.name, "relation": $0.relation] },
                                           forKey: Self.helpersKey)
-                removing = false
             } else if !Self.cachedHelpers().isEmpty {
                 sendProfile()
-            }
-            if let added = m["added"] as? String {
-                pairAdded = added
-                stopPairing()
             }
         case "lessons_changed":
             Task {
                 await refreshLessons()
                 if let t = m["title"] as? String { showNotice("Nouvel automate : « \(t) »") }
             }
-        case "pair_code":
-            pairCode = m["code"] as? String
-            pairURL = (m["url"] as? String).map(Self.pairingURLWithoutKey)
-            pairAppURL = (m["app_url"] as? String).map(Self.pairingURLWithoutKey) ?? pairURL.map(Self.appPairingURL)
-            pairLong = m["long"] as? Bool ?? false
-            pairExpires = m["expires_in"] as? Int ?? 600
         case "alert":
+            narration.context(assistance: sessionOpen, speakingAllowed: false)
             webHost.stopLocal()
-            // Le gardien a reconnu une situation : le proche est prévenu en même temps.
+            // Le gardien a reconnu une situation : le support est prévenu en même temps.
             gate.raise()
             InputLock.shared.set(false)
             guardAlert = GuardAlert(level: m["level"] as? String ?? "attention",
@@ -808,20 +735,19 @@ final class AppModel {
             queuedShown = false
             showNotice(m["reason"] as? String ?? "Ce rendez-vous n'est pas possible.")
         case "pair_confirm":
+            // Poste d'entreprise : le support vient de l'organisation, aucune liaison manuelle.
+            // Quelqu'un qui tape un code de liaison est refusé sans rien afficher.
             guard let req = (m["req"] as? String) ?? (m["req"] as? Int).map(String.init) else { return }
-            if pairRequest?.req == req { return }
-            answerPair(false)
-            pairRequest = PairRequest(req: req, name: m["name"] as? String ?? "Quelqu'un",
-                                      relation: m["relation"] as? String ?? "")
-            NSApp.activate(ignoringOtherApps: true)
-            window?.makeKeyAndOrderFront(nil)
-        case "pair_confirm_closed":
-            guard let req = (m["req"] as? String) ?? (m["req"] as? Int).map(String.init) else { return }
-            if pairRequest?.req == req { pairRequest = nil }
+            client.send(["type": "pair_decision", "req": req, "accept": false])
         case "ticket_queued":
             // Aucun support disponible : la demande attend, retour à l'accueil.
+            let suggestions = (m["suggestions"] as? [[String: Any]] ?? []).compactMap { suggestion -> QueuedSuggestion? in
+                guard let id = suggestion["id"] as? String, let title = suggestion["title"] as? String else { return nil }
+                return QueuedSuggestion(id: id, title: title)
+            }
             queued = QueuedTicket(ticket: m["ticket"] as? String ?? "", number: m["number"] as? Int ?? 0,
-                                  task: m["task"] as? String ?? task, rdv: nil)
+                                  task: m["task"] as? String ?? task, rdv: nil, suggestions: suggestions,
+                                  suggestionLancee: m["suggestion_lancee"] as? String)
             queuedShown = true
             state = nil
             screen = .home
@@ -930,6 +856,53 @@ final class AppModel {
         }
     }
 
+    /// Plan de rangement validé par le support : les garde-fous de `Tidy` revérifient tout.
+    private func doTidy(_ req: String, _ m: [String: Any]) {
+        func reply(_ text: String, refused: Bool, _ r: TidyResult = TidyResult()) {
+            client.send(["type": "result", "req": req, "result": text, "refused": refused,
+                         "moved": r.moved, "renamed": r.renamed, "skipped": r.skipped])
+        }
+        if gate.isStopped || guardAlert != nil { reply("Assistance arrêtée ou alerte du gardien en attente.", refused: true); return }
+        guard planApproved && executionState == "active" else {
+            reply("Rangement refusé : aucun plan validé par le support.", refused: true)
+            return
+        }
+        guard let scan = tidyScan, (m["folder"] as? String) == scan.folder.rawValue else {
+            reply("Rangement refusé : ce dossier n'a pas été demandé sur cet ordinateur.", refused: true)
+            return
+        }
+        let moves = ((m["moves"] as? [[String: Any]]) ?? []).compactMap { d -> TidyMove? in
+            guard let from = d["from"] as? String, let to = d["to"] as? String else { return nil }
+            return TidyMove(from: from, to: to)
+        }
+        currentAction = "Holo range vos fichiers dans \(scan.folder.label)"
+        actions.append(currentAction ?? "")
+        let stop = gate.pin()
+        do {
+            let r = try Tidy.execute(scan.folder, moves: moves, allowed: Set(scan.files),
+                                     home: FileManager.default.homeDirectoryForCurrentUser,
+                                     journal: .standard, shouldStop: { stop.isStopped })
+            lastTidy = TidyJournal.standard.last
+            tidyScan = nil
+            reply(r.text, refused: r.stopped, r)
+        } catch {
+            reply(error.localizedDescription, refused: true)
+        }
+    }
+
+    func undoTidy() {
+        do {
+            let r = try Tidy.undo(home: FileManager.default.homeDirectoryForCurrentUser, journal: .standard)
+            var text = "Rangement annulé : \(r.restored) fichier\(r.restored > 1 ? "s" : "") remis à leur place."
+            if r.renamed > 0 { text += " \(r.renamed) renommé\(r.renamed > 1 ? "s" : "") avec « (2) », la place étant prise." }
+            if r.missing > 0 { text += " \(r.missing) introuvable\(r.missing > 1 ? "s" : "") (déplacé\(r.missing > 1 ? "s" : "") depuis)." }
+            showNotice(text)
+        } catch {
+            showNotice(error.localizedDescription)
+        }
+        lastTidy = TidyJournal.standard.last
+    }
+
     // MARK: Automates
 
     func runShortcut(_ l: Lesson) {
@@ -949,7 +922,20 @@ final class AppModel {
 
     /// Un automate importé par un support, lancé en un clic. Pas de
     /// validation à chaque fois : le support l'a validé à l'import.
-    func runAutomation(_ l: Lesson) {
+    func runSuggestedAutomation(_ suggestion: QueuedSuggestion, ticket: String) {
+        guard queued?.ticket == ticket,
+              queued?.suggestions.contains(where: { $0.id == suggestion.id }) == true,
+              let lesson = lessons.first(where: { $0.id == suggestion.id }) else { return }
+        queuedShown = false
+        runAutomation(lesson, ticket: ticket)
+    }
+
+    func runAutomation(_ l: Lesson, ticket: String? = nil) {
+        var launchTicket = ticket
+        if let ticket, (queued?.ticket != ticket
+                        || !(queued?.suggestions.contains(where: { $0.id == l.id }) ?? false)) {
+            launchTicket = nil
+        }
         let acts = l.actions ?? []
         if let p = l.platforms, !p.contains("mac") {
             showNotice("Cet automate est prévu pour un autre ordinateur.")
@@ -958,9 +944,14 @@ final class AppModel {
         let holo = acts.first { $0.kind == "holo" }
         if holo != nil && !screenConsent {
             pendingAutomation = l
+            pendingAutomationTicket = launchTicket
             pendingTask = l.title
             screen = .consent
             return
+        }
+        if let launchTicket {
+            client.send(["type": "ticket_automate_launched", "ticket": launchTicket, "lesson": l.id])
+            if queued?.ticket == launchTicket { queued?.suggestionLancee = l.id }
         }
         gate.reset()
         showRunStatus(l.id, "En cours…", enCours: true)
@@ -981,7 +972,7 @@ final class AppModel {
             runStatus = nil
             homeTimer?.cancel()
             task = holo.goal ?? l.title
-            plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
+            plan = []; planStep = nil; question = nil; answer = nil; answerSources = []; currentAction = nil; actions = []
             sessionHelper = nil
             state = .planning
             screen = .session

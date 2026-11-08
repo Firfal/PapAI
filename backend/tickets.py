@@ -8,11 +8,11 @@ rendez-vous. Rien que du texte : aucune capture d'écran n'est gardée.
 
 from __future__ import annotations
 
-import json
 import secrets
 import time
 from pathlib import Path
 
+from . import storage, ticket_stats
 OPEN = ("nouveau", "en_attente", "rdv", "en_cours", "a_reprendre")
 STATUSES = (*OPEN, "resolu")
 MAX = 500
@@ -29,7 +29,7 @@ class Tickets:
     def _load(self) -> list[dict]:
         if self._items is None:
             try:
-                d = json.loads(self.path.read_text("utf-8"))
+                d = storage.read_json(self.path, [])
                 self._items = [t for t in d if isinstance(t, dict) and t.get("id")] if isinstance(d, list) else []
             except (OSError, ValueError):
                 self._items = []
@@ -38,10 +38,7 @@ class Tickets:
     def _save(self) -> None:
         items = self._load()[-MAX:]
         self._items = items
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(self.path)
+        storage.write_json(self.path, items)
 
     def all(self) -> list[dict]:
         return list(reversed(self._load()))
@@ -50,14 +47,18 @@ class Tickets:
         tid = str(tid or "")
         return next((t for t in self._load() if t["id"] == tid), None) if tid else None
 
-    def open(self, task: str, source: str, status: str = "nouveau", by: str = "", number: int | None = None) -> dict:
+    def open(self, task: str, source: str, status: str = "nouveau", by: str = "",
+             number: int | None = None, suggestions: list[dict] | None = None) -> dict:
         items = self._load()
         now = int(time.time())
+        category, sure = ticket_stats.classify(task)
         number = number or max((int(x.get("number", 0)) for x in items), default=0) + 1
         t = {"id": secrets.token_hex(6), "number": number,
              "task": task, "source": source, "by": by[:40], "status": status, "created": now, "updated": now,
              "session": "", "plan": [], "steps_done": 0, "helper": "", "end": "", "stopped_by": "",
-             "rdv": None, "rdv_notified": False, "offered": 0, "assignee": "", "notes": [], "tokens": 0}
+             "rdv": None, "rdv_notified": False, "offered": 0, "assignee": "", "notes": [], "tokens": 0,
+             "suggestions": list(suggestions or []), "suggestion_lancee": None,
+             "category": category, "category_by": "regles" if sure else "doute", "resolved": None}
         items.append(t)
         self._save()
         return t
@@ -72,14 +73,26 @@ class Tickets:
         self._save()
 
     def update(self, t: dict, **kw) -> dict:
+        now = int(time.time())
+        if "status" in kw and kw["status"] != t.get("status"):
+            kw["resolved"] = now if kw["status"] == "resolu" else None
         t.update(kw)
-        t["updated"] = int(time.time())
+        t["updated"] = now
         self._save()
         return t
 
     def note(self, t: dict, by: str, text: str) -> None:
         t.setdefault("notes", []).append({"t": int(time.time()), "by": by[:40], "text": text[:1000]})
         self.update(t)
+
+    def categorize(self, t: dict, category: str, by: str, who: str = "") -> bool:
+        """Change la catégorie. Holo ne repasse jamais sur un choix du support."""
+        if category not in ticket_stats.IDS or by not in ticket_stats.BY:
+            return False
+        if by == "holo" and t.get("category_by") == "support":
+            return False
+        self.update(t, category=category, category_by=by, category_who=who[:40] if by == "support" else "")
+        return True
 
     def waiting(self) -> list[dict]:
         return [t for t in self._load() if t.get("status") == "en_attente"]
@@ -107,4 +120,4 @@ class Tickets:
 
 
 def public(t: dict) -> dict:
-    return {k: v for k, v in t.items() if k not in ("rdv_notified", "offered")}
+    return {k: v for k, v in ticket_stats.ensure(dict(t)).items() if k not in ("rdv_notified", "offered")}

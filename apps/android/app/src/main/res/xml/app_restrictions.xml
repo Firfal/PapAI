@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Configuration gérée, déposée par le service informatique (EMM / Android Enterprise). -->
+<restrictions xmlns:android="http://schemas.android.com/apk/res/android">
+    <restriction
+        android:key="supportToken"
+        android:title="@string/restriction_token_title"
+        android:description="@string/restriction_token_description"
+        android:restrictionType="string" />
+    <restriction
+        android:key="server"
+        android:title="@string/restriction_server_title"
+        android:description="@string/restriction_server_description"
+        android:restrictionType="string" />
+    <restriction
+        android:key="supportName"
+        android:title="@string/restriction_name_title"
+        android:description="@string/restriction_name_description"
+        android:restrictionType="string" />
+</restrictions>

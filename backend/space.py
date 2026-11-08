@@ -22,6 +22,7 @@ from pathlib import Path
 from .family import Family
 from .sessions import Registry
 from .tickets import Tickets
+from . import storage
 
 ROOT = Path(__file__).parent.parent
 DATA_DIR = Path(os.environ.get("PAPAI_DATA_DIR") or ROOT / "data") / "spaces"
@@ -53,13 +54,12 @@ class Spaces:
     def __init__(self, default_key: str) -> None:
         self.default = Space(default_key, ROOT)
         self._by_key: dict[str, Space] = {default_key: self.default}
-        if DATA_DIR.is_dir():
-            for f in sorted(DATA_DIR.glob("*/space.json")):
-                try:
-                    d = json.loads(f.read_text("utf-8"))
-                    self._add(str(d["key"]), f.parent.name, str(d.get("org", "")), str(d.get("label", "")))
-                except (OSError, ValueError, KeyError):
-                    continue
+        for f in storage.files(DATA_DIR, "*/space.json"):
+            try:
+                d = storage.read_json(f)
+                self._add(str(d["key"]), f.parent.name, str(d.get("org", "")), str(d.get("label", "")))
+            except (OSError, ValueError, KeyError):
+                continue
 
     def _add(self, key: str, sid: str, org: str = "", label: str = "") -> Space:
         sp = Space(key, DATA_DIR / sid, sid, org, label)
@@ -85,15 +85,13 @@ class Spaces:
         if not KEY_RE.match(key):
             raise ValueError("clé invalide")
         sid = secrets.token_hex(6)
-        (DATA_DIR / sid).mkdir(parents=True, exist_ok=True)
         sp = self._add(key, sid, org, label)
         self._write(sp)
         return sp
 
     def _write(self, sp: Space) -> None:
-        (sp.folder / "space.json").write_text(json.dumps(
-            {"key": sp.key, "created": int(time.time()), "org": sp.org, "label": sp.label},
-            ensure_ascii=False), encoding="utf-8")
+        storage.write_json(sp.folder / "space.json",
+            {"key": sp.key, "created": int(time.time()), "org": sp.org, "label": sp.label})
 
     def join(self, sp: Space, org: str, label: str = "") -> bool:
         """Rattache un poste existant à une organisation. L'espace historique

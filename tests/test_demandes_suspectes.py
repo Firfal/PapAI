@@ -422,13 +422,13 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
             other.send_json.assert_not_awaited()
             unknown.send_json.assert_not_awaited()
 
-    async def test_alerte_raccourci_historique_diffusee_aux_liens_session(self):
+    async def test_alerte_raccourci_historique_pas_diffusee_a_une_ancienne_session(self):
         old = Mock(send_json=AsyncMock())
         app.S().helper_sockets.update([self.ws, old])
         app.S().helper_alert_scopes[old] = "ancienne-session"
         alert = {"type": "alert", "title": "Raccourci introuvable", "detail": "Le dossier a changé."}
         await self.real_broadcast(alert)
-        old.send_json.assert_awaited_with(alert)
+        old.send_json.assert_not_awaited()
         self.ws.send_json.assert_awaited_with(alert)
         self.link.send.assert_awaited_with(alert)
 
