@@ -29,7 +29,10 @@ private val json = "application/json".toMediaType()
 private val supportHttp by lazy {
     OkHttpClient.Builder().connectTimeout(10, TimeUnit.SECONDS).readTimeout(20, TimeUnit.SECONDS).build()
 }
+/** Requêtes HTTP vers les postes ; jamais d'attente sur ce pool depuis lui-même. */
 private val pool by lazy { Executors.newFixedThreadPool(4) }
+/** Enchaîne lectures et actions (une à la fois), et attend les requêtes sur `pool`. */
+private val coordinator by lazy { Executors.newSingleThreadExecutor() }
 private val mainThread by lazy { Handler(Looper.getMainLooper()) }
 
 /** Adresse HTTP de l'espace d'un utilisateur (`<serveur>/k/<clé>`). */
@@ -115,7 +118,7 @@ object TicketBoard {
         tickets.removeAll { it.person.key !in keys }
         if (people.isEmpty()) { errors.clear(); return }
         loading = true
-        pool.execute {
+        coordinator.execute {
             val results = pool.invokeAll(people.map { p -> Callable { fetch(p) } }).map { it.get() }
             val all = SupportTicket.merge(results.map { it.first })
             val errs = results.mapNotNull { it.second }.sorted()
@@ -142,7 +145,7 @@ object TicketBoard {
     /** `take`, `close` ou `reopen`, puis relit la liste. `done` reçoit le message d'erreur, ou null. */
     fun act(t: SupportTicket, action: String, by: String, people: List<Person>, done: (String?) -> Unit) {
         busy = t.id
-        pool.execute {
+        coordinator.execute {
             val error = try {
                 val body = JSONObject().put("action", action).put("by", by).toString().toRequestBody(json)
                 val req = Request.Builder().url(spaceBase(t.person) + "/tickets/" + t.tid).post(body).build()
@@ -233,7 +236,7 @@ object AutomateLibrary {
 
     /** Applique l'automate chez chacun ; `done` reçoit, par clé, "" si appliqué ou le message d'erreur. */
     fun apply(e: AutomateEntry, people: List<Person>, done: (Map<String, String>) -> Unit) {
-        pool.execute {
+        coordinator.execute {
             val results = people.associate { it.key to (applyTo(e, it) ?: "") }
             mainThread.post {
                 markApplied(e, results.filterValues { it.isEmpty() }.keys)
