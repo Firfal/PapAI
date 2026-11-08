@@ -489,11 +489,11 @@ async def _support_request(tid: str) -> dict | None:
         s.support_requested = True
         s.log("support_requested")
         n = s.plan_step
-        S().tickets.update(t, blocked={"step": n, "label": s.plan[n - 1] if n and s.plan else "",
-                                       "reason": "Demande d'assistance pendant l'automate."})
-    elif t["status"] != "en_attente":
-        S().tickets.update(t, status="en_attente", offered=0)
-    b = t.get("blocked") or {}
+        b = {"step": n, "label": s.plan[n - 1] if n and s.plan else ""}
+    else:
+        if t["status"] != "en_attente":
+            S().tickets.update(t, status="en_attente", offered=0)
+        b = t.get("blocked") or {}
     where = f" à l'étape {b['step']} ({b.get('label') or '?'})" if b.get("step") else ""
     S().tickets.note(t, who, f"Demande une assistance{where}.")
     if live:
