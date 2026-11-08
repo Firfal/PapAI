@@ -22,6 +22,7 @@ from pathlib import Path
 from papai_tools import MODEL, TEMPERATURE, make_client, observation
 
 from .sessions import Session
+from . import storage
 
 def lessons_dir() -> Path:
     """Les fiches et automatismes de l'espace en cours."""
@@ -296,7 +297,6 @@ def approve_and_save(lesson: dict, session: Session) -> dict:
     lesson["approved_at"] = time.time()
 
     folder = lessons_dir() / lesson["id"]
-    folder.mkdir(parents=True, exist_ok=True)
 
     for i, step in enumerate(lesson["steps"], start=1):
         b64 = session.frames.get(step.get("frame", ""))
@@ -304,23 +304,19 @@ def approve_and_save(lesson: dict, session: Session) -> dict:
             step["image"] = ""
             continue
         name = f"step-{i}.png"
-        (folder / name).write_bytes(base64.b64decode(b64))
+        storage.write(folder / name, base64.b64decode(b64))
         step["image"] = name
 
-    (folder / "lesson.json").write_text(
-        json.dumps(lesson, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    storage.write_json(folder / "lesson.json", lesson)
     session.log("lesson_approved", id=lesson["id"])
     return lesson
 
 
 def list_lessons() -> list[dict]:
-    if not lessons_dir().exists():
-        return []
     out = []
-    for f in sorted(lessons_dir().glob("*/lesson.json")):
+    for f in storage.files(lessons_dir(), "*/lesson.json"):
         try:
-            out.append(json.loads(f.read_text(encoding="utf-8")))
+            out.append(storage.read_json(f))
         except (OSError, json.JSONDecodeError):
             continue
     return sorted(out, key=lambda x: x.get("approved_at", 0), reverse=True)

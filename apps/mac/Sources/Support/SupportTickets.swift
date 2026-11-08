@@ -1,5 +1,10 @@
 import SwiftUI
 
+struct SupportTicketSuggestion: Identifiable {
+    var id: String
+    var title: String
+}
+
 /// Un ticket d'un utilisateur (`GET …/k/<clé>/tickets`), avec la personne d'où il vient.
 struct SupportTicket: Identifiable {
     var id: String { person.key + "/" + tid }
@@ -14,6 +19,11 @@ struct SupportTicket: Identifiable {
     var assignee: String
     /// Où un automate s'est arrêté : « Étape 2 (Ouvrir Photos) : bouton introuvable ».
     var blocked: String?
+    var suggestions: [SupportTicketSuggestion] = []
+    var suggestionLancee: String?
+    var category: String
+    var categoryBy: String
+    var resolved: Double?
     var person: Person
 
     var label: String { String(format: "T-%04d", number) }
@@ -35,6 +45,14 @@ struct SupportTicket: Identifiable {
             let reason = (b["reason"] as? String).flatMap { $0.isEmpty ? nil : " : \($0)" } ?? ""
             blocked = "Bloqué à l’étape \(n)\(label)\(reason)"
         }
+        suggestions = (d["suggestions"] as? [[String: Any]] ?? []).compactMap { item in
+            guard let id = item["id"] as? String, let title = item["title"] as? String else { return nil }
+            return SupportTicketSuggestion(id: id, title: title)
+        }
+        suggestionLancee = d["suggestion_lancee"] as? String
+        category = d["category"] as? String ?? "autre"
+        categoryBy = d["category_by"] as? String ?? ""
+        resolved = (d["resolved"] as? NSNumber)?.doubleValue
         self.person = person
     }
 }
@@ -50,8 +68,15 @@ struct SupportTickets: View {
     @State private var errors: [String] = []
     @State private var filter = 0   // 0 ouverts, 1 tous
     @State private var busy: String?
+    @State private var stats: TicketStats?
+    @State private var focus: String?        // catégorie choisie dans les statistiques
+    @State private var highlight: String?    // ticket ouvert depuis un exemple
+    @State private var suggestion: TicketStats.Suggestion?
+    @State private var applying: AutomateLibrary.Entry?
 
-    private var shown: [SupportTicket] { filter == 0 ? tickets.filter(\.isOpen) : tickets }
+    private var shown: [SupportTicket] {
+        (filter == 0 ? tickets.filter(\.isOpen) : tickets).filter { focus == nil || $0.category == focus }
+    }
 
     var body: some View {
         Panneau {
@@ -77,19 +102,46 @@ struct SupportTickets: View {
                 ForEach(errors, id: \.self) { e in
                     Label(e, systemImage: "exclamationmark.triangle").font(rounded(14)).foregroundStyle(T.danger)
                 }
+                ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 10) {
+                        if let stats, stats.count > 0 {
+                            TicketStatsPanel(stats: stats, focus: $focus,
+                                             openExample: { ex in
+                                                 filter = 1; focus = nil; highlight = ex.id
+                                                 // La liste « Tous » doit être affichée avant de défiler.
+                                                 Task { @MainActor in
+                                                     try? await Task.sleep(nanoseconds: 150_000_000)
+                                                     withAnimation { proxy.scrollTo(ex.id, anchor: .center) }
+                                                 }
+                                             },
+                                             suggest: { suggestion = $0 })
+                        }
                         if model.people.isEmpty {
                             empty("Aucun utilisateur relié. Reliez un ordinateur depuis l’onglet Utilisateurs.")
                         } else if shown.isEmpty && !loading {
                             empty(filter == 0 ? "Rien à traiter. Les nouvelles demandes de vos utilisateurs arriveront ici."
                                               : "Aucun ticket pour l’instant.")
                         }
-                        ForEach(shown) { t in row(t) }
+                        ForEach(shown) { t in row(t).id(t.id) }
                     }
                     .padding(.bottom, 8)
                 }
+                }
             }
+        }
+        .sheet(item: $suggestion) { sug in
+            SupportCreateAutomate(model: model, prefill: sug.draft) { pack in
+                suggestion = nil
+                if let pack, let d = try? JSONSerialization.data(withJSONObject: pack),
+                   let e = AutomateLibrary.shared.add(pack: d) {
+                    model.showToast("« \(e.title) » ajouté à vos automates")
+                    applying = e
+                }
+            }
+        }
+        .sheet(item: $applying) { e in
+            ApplyAutomateSheet(model: model, entry: e) { applying = nil }
         }
         .task {
             while !Task.isCancelled {
@@ -110,6 +162,11 @@ struct SupportTickets: View {
                 HStack(spacing: 8) {
                     Text(t.label).font(rounded(14, .semibold)).foregroundStyle(T.muted).monospacedDigit()
                     status(t)
+                    Pastille(texte: TicketCategory.label(t.category) + (t.categoryBy == "doute" ? " ?" : ""),
+                             icone: "tag.fill", ton: t.categoryBy == "doute" ? .gris : .bleu, taille: 12)
+                        .help(t.categoryBy == "support" ? "Catégorie corrigée par le support"
+                              : t.categoryBy == "holo" ? "Catégorie choisie par Holo"
+                              : t.categoryBy == "doute" ? "Catégorie à vérifier" : "Catégorie choisie par les règles")
                     Text(t.person.name.isEmpty ? "Utilisateur" : t.person.name).font(rounded(14, .semibold))
                     if !t.assignee.isEmpty {
                         Text("· pris par \(t.assignee)").font(rounded(13)).foregroundStyle(T.muted)
@@ -121,6 +178,11 @@ struct SupportTickets: View {
                     Label(b, systemImage: "exclamationmark.circle").font(rounded(14, .medium))
                         .foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
                 }
+                ForEach(t.suggestions) { suggestion in
+                    Text("Automate proposé : \(suggestion.title) · \(t.suggestionLancee == suggestion.id ? "lancé" : "pas lancé")")
+                        .font(rounded(14)).foregroundStyle(T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Text(when(t)).font(rounded(13)).foregroundStyle(T.muted)
             }
             Spacer(minLength: 0)
@@ -131,6 +193,14 @@ struct SupportTickets: View {
                 }
                 Button("Voir l’utilisateur") { openUser(t.person) }
                     .buttonStyle(PillStyle(filled: false, height: 36))
+                Menu("Catégorie") {
+                    ForEach(TicketCategory.all, id: \.id) { c in
+                        Button(c.label + (c.id == t.category ? " ✓" : "")) {
+                            Task { await act(t, "category", ["category": c.id]) }
+                        }
+                    }
+                }
+                .menuStyle(.borderlessButton).fixedSize().font(rounded(13, .semibold)).disabled(busy != nil)
                 if t.isOpen && t.status != "en_cours" {
                     Button("Clore") { Task { await act(t, "close") } }
                         .buttonStyle(.plain).font(rounded(13, .semibold)).foregroundStyle(T.muted).disabled(busy != nil)
@@ -141,6 +211,7 @@ struct SupportTickets: View {
             }
         }
         .padding(14).carte()
+        .overlay(RoundedRectangle(cornerRadius: T.r).stroke(T.accent, lineWidth: highlight == t.id ? 3 : 0))
     }
 
     private func status(_ t: SupportTicket) -> some View {
@@ -166,14 +237,30 @@ struct SupportTickets: View {
 
     private func load() async {
         let people = model.people
-        guard !people.isEmpty else { tickets = []; return }
+        guard !people.isEmpty else { tickets = []; stats = nil; return }
         loading = true; defer { loading = false }
         var all: [SupportTicket] = []
         var errs: [String] = []
+        var parts: [TicketStats] = []
+        await withTaskGroup(of: TicketStats?.self) { g in
+            for p in people {
+                let base = AutomateLibrary.base(p)
+                g.addTask {
+                    guard let url = URL(string: base + "/tickets/stats"),
+                          let (d, r) = try? await URLSession.shared.data(from: url),
+                          (r as? HTTPURLResponse)?.statusCode == 200,
+                          let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
+                    else { return nil }
+                    return TicketStats(obj, personKey: p.key)
+                }
+            }
+            for await s in g { if let s { parts.append(s) } }
+        }
         await withTaskGroup(of: ([SupportTicket], String?).self) { g in
             for p in people {
+                let base = AutomateLibrary.base(p)
                 g.addTask {
-                    guard let url = URL(string: AutomateLibrary.base(p) + "/tickets"),
+                    guard let url = URL(string: base + "/tickets"),
                           let (d, r) = try? await URLSession.shared.data(from: url),
                           (r as? HTTPURLResponse)?.statusCode == 200,
                           let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
@@ -186,19 +273,22 @@ struct SupportTickets: View {
         }
         tickets = all.sorted { $0.updated > $1.updated }
         errors = errs
+        stats = parts.isEmpty ? nil : TicketStats.merge(parts)
     }
 
-    private func act(_ t: SupportTicket, _ action: String) async {
+    private func act(_ t: SupportTicket, _ action: String, _ extra: [String: String] = [:]) async {
         guard let url = URL(string: AutomateLibrary.base(t.person) + "/tickets/" + t.tid) else { return }
         busy = t.id; defer { busy = nil }
         var req = URLRequest(url: url, timeoutInterval: 15)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["action": action, "by": model.helperName ?? "Support"])
+        req.httpBody = try? JSONSerialization.data(withJSONObject: extra.merging(["action": action, "by": model.helperName ?? "Support"]) { a, _ in a })
         if let (d, r) = try? await URLSession.shared.data(for: req) {
             if (r as? HTTPURLResponse)?.statusCode != 200 {
                 let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
                 model.showToast(obj?["error"] as? String ?? "Action refusée")
+            } else if action == "category" {
+                model.showToast("Catégorie : \(TicketCategory.label(extra["category"] ?? ""))")
             } else if action == "take" {
                 model.showToast("Demande proposée à \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
                 openUser(t.person)
@@ -207,5 +297,127 @@ struct SupportTickets: View {
             model.showToast("Serveur injoignable")
         }
         await load()
+    }
+}
+
+/// Statistiques en tête de l'onglet Tickets : chiffres clés, suggestion
+/// d'automate, tickets par semaine et catégories, avec des demandes réelles.
+struct TicketStatsPanel: View {
+    let stats: TicketStats
+    @Binding var focus: String?
+    var openExample: (TicketStats.Example) -> Void
+    var suggest: (TicketStats.Suggestion) -> Void
+
+    static func duration(_ s: Double?) -> String {
+        guard let s else { return "—" }
+        if s < 3600 { return "\(max(1, Int((s / 60).rounded()))) min" }
+        if s < 86400 { return String(format: "%.1f h", s / 3600).replacingOccurrences(of: ".", with: ",") }
+        return String(format: "%.1f j", s / 86400).replacingOccurrences(of: ".", with: ",")
+    }
+
+    private static func day(_ iso: String) -> String {
+        let p = DateFormatter(); p.dateFormat = "yyyy-MM-dd"; p.timeZone = TimeZone(identifier: "UTC")
+        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "d MMM"; f.timeZone = p.timeZone
+        return p.date(from: iso).map { f.string(from: $0) } ?? iso
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                kpi("\(stats.count)", "tickets depuis le \(Self.day(stats.since))")
+                kpi("\(stats.resolved)", "résolus")
+                kpi(Self.duration(stats.medianResolution), "temps de résolution (médian)")
+                kpi("\(Int((stats.automateShare * 100).rounded())) %", "réglés par un automate")
+            }
+            ForEach(stats.suggestions) { s in
+                HStack(spacing: 12) {
+                    Label(s.text, systemImage: "sparkles").font(rounded(16, .semibold))
+                    Spacer(minLength: 0)
+                    if SupportAutomates.creationActive {
+                        Button("Créer l’automate") { suggest(s) }.buttonStyle(PillStyle(height: 38))
+                    }
+                }
+                .padding(12).background(T.mint, in: RoundedRectangle(cornerRadius: 14))
+            }
+            Text("Par semaine" + (focus.map { " · " + TicketCategory.label($0) } ?? ""))
+                .font(rounded(14, .semibold)).foregroundStyle(T.muted)
+            weeks
+            Text("Catégories qui reviennent le plus").font(rounded(14, .semibold)).foregroundStyle(T.muted)
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(stats.categories) { c in category(c) }
+            }
+        }
+        .padding(16).carte()
+    }
+
+    private func kpi(_ v: String, _ l: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(v).font(rounded(22, .bold)).monospacedDigit()
+            Text(l).font(rounded(12)).foregroundStyle(T.muted).lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(T.line))
+    }
+
+    private var weeks: some View {
+        let top = max(1, stats.weeks.map(\.total).max() ?? 1)
+        let h: CGFloat = 96
+        return HStack(alignment: .bottom, spacing: 8) {
+            ForEach(stats.weeks) { w in
+                let part = focus.map { w.by[$0] ?? 0 } ?? w.total
+                VStack(spacing: 4) {
+                    Text(w.total == 0 ? " " : focus == nil ? "\(w.total)" : "\(part)/\(w.total)")
+                        .font(rounded(11, .semibold)).monospacedDigit()
+                    ZStack(alignment: .bottom) {
+                        RoundedRectangle(cornerRadius: 6).fill(T.field).frame(height: h)
+                        RoundedRectangle(cornerRadius: 6).fill(focus == nil ? T.accent : T.mint)
+                            .frame(height: h * CGFloat(w.total) / CGFloat(top))
+                        if focus != nil {
+                            RoundedRectangle(cornerRadius: 6).fill(T.accent).frame(height: h * CGFloat(part) / CGFloat(top))
+                        }
+                    }
+                    Text(Self.day(w.start)).font(rounded(11)).foregroundStyle(T.muted).lineLimit(1)
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Semaine du \(Self.day(w.start)) : \(focus == nil ? w.total : part) tickets")
+            }
+        }
+    }
+
+    private func category(_ c: TicketStats.Category) -> some View {
+        let top = max(1, stats.categories.map(\.count).max() ?? 1)
+        return VStack(alignment: .leading, spacing: 6) {
+            Button { withAnimation { focus = focus == c.id ? nil : c.id } } label: {
+                HStack(spacing: 10) {
+                    Text(c.label).font(rounded(15, .medium)).frame(width: 190, alignment: .leading)
+                    GeometryReader { g in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(T.field)
+                            Capsule().fill(T.accent).opacity(focus == nil || focus == c.id ? 1 : 0.35)
+                                .frame(width: g.size.width * CGFloat(c.count) / CGFloat(top))
+                        }
+                    }
+                    .frame(height: 12)
+                    Text("\(c.count)").font(rounded(15, .semibold)).monospacedDigit().frame(minWidth: 24, alignment: .trailing)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("\(c.count) tickets, \(c.resolved) résolus, \(c.byAutomate) par un automate, médiane \(Self.duration(c.medianResolution))")
+            if focus == nil || focus == c.id, !c.examples.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(c.examples) { e in
+                        Button { openExample(e) } label: {
+                            Text("« \(e.task) »").font(rounded(13)).lineLimit(1)
+                                .padding(.horizontal, 10).padding(.vertical, 4)
+                                .background(T.field, in: Capsule())
+                        }
+                        .buttonStyle(.plain).help(e.label)
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 2)
     }
 }

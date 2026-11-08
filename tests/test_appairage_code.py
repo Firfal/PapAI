@@ -28,7 +28,8 @@ import websockets
 
 RACINE = Path(__file__).resolve().parent.parent
 CLE = "cle-de-test-appairage"
-INVALIDE = "Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de la personne aidée."
+INVALIDE = "Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de l’utilisateur."
+TEST_DATA_DIR: Path | None = None
 fails = 0
 
 
@@ -241,7 +242,7 @@ async def parcours(base: str) -> None:
         ta = asyncio.create_task(repondre(wa, False, []))
         st, r = await post(f"{base}/p/{ca}", {"name": "Intrus", "relation": ""})
         check("refusé sur l'ordinateur : pas de liaison", st == 403 and r.get("refused") is True and sans_secret(r)
-              and r.get("error") == "La personne aidée a refusé. Rien n'a été partagé.")
+              and r.get("error") == "L’utilisateur a refusé. Rien n'a été partagé.")
         ta.cancel()
         await asyncio.gather(ta, return_exceptions=True)
         st, r = await post(f"{base}/p/{ca}", {"name": "Intrus"})
@@ -382,15 +383,17 @@ async def parcours(base: str) -> None:
 
 
 def main() -> None:
+    global TEST_DATA_DIR
     politique()
     tmp = Path(tempfile.mkdtemp(prefix="papai-code-"))
     shutil.copytree(RACINE / "backend", tmp / "backend", ignore=shutil.ignore_patterns("__pycache__", "family.json"))
     for module in RACINE.glob("*.py"):
         shutil.copy(module, tmp)
+    TEST_DATA_DIR = tmp / "data"
     port = port_libre()
     base = f"http://127.0.0.1:{port}"
     env = {**os.environ, "HAI_API_KEY": "faux", "PAPAI_PUBLIC": "1", "PAPAI_AIDANT_KEY": CLE,
-           "PAPAI_DATA_DIR": str(tmp / "data"),
+           "PAPAI_DATA_DIR": str(TEST_DATA_DIR),
            "PORT": str(port), "PAPAI_PUBLIC_URL": base, "PAPAI_PAIR_CONFIRM_S": "1.5"}
     env.pop("GLADIA_API_KEY", None)
     log = open(tmp / "serveur.log", "w")

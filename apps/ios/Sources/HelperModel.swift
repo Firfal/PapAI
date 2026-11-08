@@ -7,6 +7,36 @@ import AppKit
 
 private let log = Logger(subsystem: "com.quentin.papai.aidant", category: "connexion")
 
+struct LinkupReview: View {
+    @Bindable var model: HelperModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Réponse proposée").font(.title2.bold())
+            TextField("Question à rechercher", text: $model.linkupQuery, axis: .vertical)
+                .textFieldStyle(.roundedBorder).disabled(model.linkupBusy)
+            Button("Rechercher") { model.searchLinkup() }
+                .disabled(model.linkupBusy || model.linkupQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            if model.linkupBusy { ProgressView("Recherche en cours…") }
+            if model.linkupError { Text("Recherche indisponible pour le moment").foregroundStyle(.secondary) }
+            if !model.linkupId.isEmpty && !model.linkupError {
+                Text("Relisez et corrigez la réponse avant de la montrer à l’utilisateur.").font(.callout)
+                TextEditor(text: $model.linkupText).frame(minHeight: 160)
+                    .accessibilityLabel("Réponse proposée, modifiable")
+                ForEach(Array(model.linkupSources.enumerated()), id: \.offset) { _, source in
+                    if let url = URL(string: source["url"] ?? ""), ["https", "http"].contains(url.scheme ?? "") {
+                        Link(destination: url) { Text(verbatim: source["name"] ?? source["url"] ?? "Source") }
+                    }
+                }
+                Button("Valider") { model.approveLinkup() }.buttonStyle(.borderedProminent)
+                    .disabled(model.linkupText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            Button(model.linkupPending ? "Refuser" : "Annuler") { model.refuseLinkup() }
+                .disabled(model.linkupBusy)
+        }.padding(18).frame(maxWidth: .infinity, alignment: .leading)
+            .background(.background, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
 struct PlanStep: Identifiable {
     let id: Int
     let title: String
@@ -50,15 +80,9 @@ struct DraftStep: Identifiable {
 
 enum Screen { case idle, waiting, planning, approval, active, helper, done, stopped }
 
-enum AppSheet: Identifiable {
-    case settings, scanner, pair(PairLink)
-    var id: String {
-        switch self {
-        case .settings: "settings"
-        case .scanner: "scanner"
-        case .pair(let l): "pair-\(l.id)"
-        }
-    }
+enum AppSheet: String, Identifiable {
+    case settings
+    var id: String { rawValue }
 }
 
 @MainActor @Observable
@@ -66,13 +90,13 @@ final class HelperModel {
     // Réglages mémorisés
     var serverURL: String
     var helperKey: String
-    var helperName: String? = UserDefaults.standard.string(forKey: "helperName")
-    /// Identifiant de cet aidant chez le serveur : il apparaît dans « Mes proches » sur l'ordinateur.
-    private var helperId: String = UserDefaults.standard.string(forKey: "helperId") ?? ""
-    private var helperRelation: String = UserDefaults.standard.string(forKey: "helperRelation") ?? ""
+    /// Nom affiché du support (préférence gérée `supportName`, facultative).
+    var helperName: String? = UserDefaults.standard.string(forKey: "supportName")
+    /// Identifiant de ce support chez le serveur, par poste : il apparaît dans « Mon support » sur l'ordinateur.
+    private var helperId: String = ""
 
-    // Mes utilisateurs : une liaison par ordinateur, une seule suivie en détail à la fois.
-    var people: [Person] = People.load()
+    // Les postes de l'organisation : un seul suivi en détail à la fois, les autres surveillés.
+    var people: [Person] = []
     /// Pour les autres personnes : clé → ordinateur connecté / demande en attente.
     var othersOnline: [String: Bool] = [:]
     var othersAsking: [String: Bool] = [:]
@@ -90,19 +114,21 @@ final class HelperModel {
     /// Le serveur a refusé la clé : inutile de réessayer en boucle.
     var keyRefused = false
 
-    // Feuilles et appairage
     var sheet: AppSheet?
-    var pairBusy = false
-    var pairError: String?
-    var pairRefused = false
-    var pairNeedsNew = false
-    var pairDone = false
 
     // Session
     var state: String?
     var sessionWhere: String?
     var task = ""
     var plan: [String] = []
+    var linkupVisible = false
+    var linkupPending = false
+    var linkupQuery = ""
+    var linkupText = ""
+    var linkupSources: [[String: String]] = []
+    var linkupId = ""
+    var linkupError = false
+    var linkupBusy = false
     /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
     var planStep: Int?
     /// Ce que Holo est en train de faire, en une phrase (envoyée par le serveur).
@@ -163,75 +189,95 @@ final class HelperModel {
     private var toastTask: Task<Void, Never>?
     static let frameTTL: Double = 30
 
-    init() {
-        #if DEBUG
-        // `-serverURL …` et `-helperKey …` au lancement (dépannage, démo) : on les garde.
-        let args = ProcessInfo.processInfo.arguments
-        for k in ["serverURL", "helperKey"] {
-            if let i = args.firstIndex(of: "-" + k), i + 1 < args.count {
-                let v = args[i + 1].trimmingCharacters(in: .whitespacesAndNewlines)
-                if !v.isEmpty { UserDefaults.standard.set(v, forKey: k) }
+    init(org: SupportOrg? = SupportConfig.current()) {
+        self.org = org
+        // Le dernier poste suivi, s'il est bien sur le serveur de l'organisation : on s'y
+        // reconnecte tout de suite, la liste des postes arrive juste après.
+        let s = UserDefaults.standard.string(forKey: "serverURL") ?? ""
+        let k = UserDefaults.standard.string(forKey: "helperKey") ?? ""
+        if let org, !k.isEmpty, s == "\(org.server)/k/\(k)" {
+            serverURL = s; helperKey = k
+            helperId = Self.helperIds()[k] ?? ""
+        } else {
+            serverURL = ""; helperKey = ""; seniorName = ""
+        }
+    }
+
+    // MARK: Organisation (service IT) : tous les postes inscrits, sans liaison.
+
+    /// Jeton support et serveur déposés par l'administrateur ; nil : rien n'est configuré.
+    let org: SupportOrg?
+    var orgName: String?
+    /// Dernier échec de lecture de la liste des postes (nil si tout va bien).
+    var orgError: String?
+    /// La liste des postes a été lue au moins une fois.
+    var orgLoaded = false
+    private var orgTask: Task<Void, Never>?
+
+    var orgConfigured: Bool { org != nil }
+    /// « Support IT · Acme », ou « Support IT » tant que le nom n'est pas connu.
+    var orgTitle: String { orgName.map { "Support IT · \($0)" } ?? "Support IT" }
+
+    /// Relit la liste des postes toutes les 30 s : un poste inscrit après coup apparaît seul.
+    private func startOrg() {
+        guard org != nil, orgTask == nil else { return }
+        orgTask = Task {
+            while !Task.isCancelled {
+                await refreshOrg()
+                try? await Task.sleep(for: .seconds(30))
             }
         }
-        #endif
-        serverURL = UserDefaults.standard.string(forKey: "serverURL") ?? ""
-        helperKey = UserDefaults.standard.string(forKey: "helperKey") ?? ""
-        rememberCurrent()
-        Task { await refreshOrgs() }
     }
 
-    // MARK: Organisations (service IT) : chaque poste inscrit devient un utilisateur, sans code.
-
-    var orgs: [Org] = Orgs.load()
-    var orgError: String?
-    var orgBusy = false
-
-    func addOrg(_ input: String) async -> Bool {
-        guard let o = Orgs.parse(input, officialHost: PairServer.officialHost) else {
-            orgError = "Lien d’organisation non reconnu."; return false
-        }
-        guard PairServer.allowed(o.server) else { orgError = PairServer.refusal; return false }
-        orgError = nil; orgBusy = true
-        defer { orgBusy = false }
-        return await fetchOrg(o, manual: true)
-    }
-
-    func refreshOrgs() async {
-        for o in orgs { await fetchOrg(o, manual: false) }
-    }
-
-    @discardableResult
-    private func fetchOrg(_ o: Org, manual: Bool) async -> Bool {
-        guard let url = URL(string: "\(o.server)/o/\(o.token)/spaces") else { return false }
+    func refreshOrg() async {
+        guard let o = org, let url = URL(string: "\(o.server)/o/\(o.token)/spaces") else { return }
+        let host = URL(string: o.server)?.host ?? o.server
         do {
             let (d, resp) = try await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 20))
-            let r = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
-            guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
-                if manual { orgError = r["error"] as? String ?? "Lien d’organisation invalide." }
-                return false
+            let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            guard code == 200, let r = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else {
+                orgError = code == 404 || code == 403
+                    ? "Jeton d’organisation refusé par \(host). Contactez votre administrateur."
+                    : "Le serveur \(host) répond une erreur \(code)."
+                return
             }
-            let name = r["org"] as? String ?? ""
-            var kept = o
-            if !name.isEmpty { kept.name = name }
-            orgs = orgs.filter { $0.token != o.token } + [kept]
-            Orgs.save(orgs)
+            orgError = nil; orgLoaded = true
+            if let n = (r["org"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty { orgName = n }
             let spaces = r["spaces"] as? [[String: Any]] ?? []
-            for s in spaces {
-                guard let k = s["key"] as? String, !k.isEmpty else { continue }
-                people = People.upsert(people, Person(server: "\(o.server)/k/\(k)", key: k, name: s["name"] as? String ?? ""))
-            }
-            People.save(people)
-            if !isConfigured, let first = people.first { switchTo(first) }
-            watchOthers()
-            if manual {
-                let n = spaces.count
-                showToast("\(n) poste\(n > 1 ? "s" : "") ajouté\(n > 1 ? "s" : "")" + (name.isEmpty ? "." : " (\(name))."))
-            }
-            return true
+            apply(People.fromSpaces(spaces, server: o.server, known: people), spaces: spaces)
         } catch {
-            if manual { orgError = "Le serveur ne répond pas." }
-            return false
+            orgError = "Le serveur \(host) ne répond pas."
         }
+    }
+
+    /// La liste du serveur fait foi : un poste retiré de l'organisation disparaît d'ici.
+    private func apply(_ list: [Person], spaces: [[String: Any]]) {
+        people = list
+        for s in spaces {
+            // Un canal de surveillance ouvert sait mieux ; sinon l'état renvoyé par la liste.
+            if let k = s["key"] as? String, watchSockets[k] == nil { othersOnline[k] = s["online"] as? Bool ?? false }
+        }
+        if let i = people.firstIndex(where: isCurrent) {
+            if people[i].name.isEmpty { people[i].name = seniorName } else { setSenior(people[i].name) }
+        } else if isConfigured {
+            leaveCurrent()
+        }
+        if !isConfigured, let first = people.first { switchTo(first) }
+        watchOthers()
+    }
+
+    /// Quitte le poste suivi (retiré de l'organisation, ou plus aucun poste).
+    private func leaveCurrent() {
+        runTask?.cancel(); socket?.cancel(with: .goingAway, reason: nil)
+        runTask = nil; socket = nil; connected = false
+        serverURL = ""; helperKey = ""; seniorName = ""; helperId = ""
+        for k in ["serverURL", "helperKey", "seniorName"] { UserDefaults.standard.removeObject(forKey: k) }
+        clearSession()
+        syncLive()
+    }
+
+    private static func helperIds() -> [String: String] {
+        UserDefaults.standard.dictionary(forKey: "helperIds") as? [String: String] ?? [:]
     }
 
     var isConfigured: Bool { !serverURL.trimmingCharacters(in: .whitespaces).isEmpty && !helperKey.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -269,72 +315,32 @@ final class HelperModel {
         guard let u = URL(string: baseHTTP), let h = u.host else { return serverURL }
         return u.port.map { "\(h):\($0)" } ?? h
     }
-    var lastGood: (server: String, key: String)? {
-        guard let s = UserDefaults.standard.string(forKey: "lastGoodServerURL"),
-              let k = UserDefaults.standard.string(forKey: "lastGoodHelperKey") else { return nil }
-        return (s, k)
-    }
+    // MARK: Postes
 
-    /// Enregistre de nouveaux réglages. Jamais de valeur vide : une configuration
-    /// qui marche n'est pas effacée par un champ laissé blanc.
-    @discardableResult
-    func applySettings(server: String, key: String) -> Bool {
-        let s = server.trimmingCharacters(in: .whitespacesAndNewlines)
-        let k = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !s.isEmpty, !k.isEmpty else { return false }
-        guard PairServer.allowed(s) else { pairError = PairServer.refusal; return false }
-        pairError = nil
-        serverURL = s; helperKey = k
-        UserDefaults.standard.set(s, forKey: "serverURL")
-        UserDefaults.standard.set(k, forKey: "helperKey")
-        rememberCurrent()
-        reconnect()
-        return true
-    }
-
-    // MARK: Mes utilisateurs
-
+    /// Garde ce qu'on a appris du poste suivi (prénom, identifiant de support).
     private func rememberCurrent() {
-        guard isConfigured else { return }
-        people = People.upsert(people, Person(server: serverURL.trimmingCharacters(in: .whitespacesAndNewlines),
-                                              key: helperKey.trimmingCharacters(in: .whitespacesAndNewlines),
-                                              name: seniorName, helperId: helperId, relation: helperRelation))
-        People.save(people)
+        guard isConfigured, let i = people.firstIndex(where: isCurrent) else { return }
+        if !seniorName.isEmpty { people[i].name = seniorName }
+        if !helperId.isEmpty { people[i].helperId = helperId }
     }
 
     func isCurrent(_ p: Person) -> Bool { p.key == helperKey.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// Suivre une autre personne : la liaison active change, les autres restent surveillées.
+    /// Suivre un autre poste : la connexion détaillée change, les autres restent surveillés.
     func switchTo(_ p: Person) {
         sensitiveRefusal = nil
         guard !isCurrent(p) else { return }
         rememberCurrent()
         serverURL = p.server; helperKey = p.key; seniorName = p.name
-        helperId = p.helperId; helperRelation = p.relation
+        helperId = p.helperId.isEmpty ? (Self.helperIds()[p.key] ?? "") : p.helperId
         let d = UserDefaults.standard
         d.set(p.server, forKey: "serverURL"); d.set(p.key, forKey: "helperKey"); d.set(p.name, forKey: "seniorName")
-        d.set(p.helperId, forKey: "helperId"); d.set(p.relation, forKey: "helperRelation")
         clearSession()
         reconnect()
     }
 
-    func forget(_ p: Person) {
-        let wasCurrent = isCurrent(p)
-        people.removeAll { $0.key == p.key }
-        People.save(people)
-        guard wasCurrent else { watchOthers(); return }
-        helperKey = ""
-        if let next = people.first { switchTo(next); return }
-        runTask?.cancel(); socket?.cancel(with: .goingAway, reason: nil)
-        runTask = nil; socket = nil; connected = false
-        serverURL = ""; seniorName = ""
-        for k in ["serverURL", "helperKey", "seniorName"] { UserDefaults.standard.removeObject(forKey: k) }
-        clearSession()
-        watchOthers()
-        syncLive()
-    }
-
     private func clearSession() {
+        clearLinkup()
         state = nil; sessionWhere = nil; sessionId = ""; task = ""; plan = []; planStep = nil
         doing = nil; question = nil; questionToSenior = false; liveDictation = nil; seniorPaused = false
         frame = nil; frameId = nil; frameAt = nil; aiming = false; target = nil
@@ -410,8 +416,6 @@ final class HelperModel {
             }
         case "alert_cleared":
             othersAsking[key] = false
-        case "helper_added":
-            if let name = m["name"] as? String { showToast("\(name) est maintenant support.") }
         case "alert":
             othersAsking[key] = true
             notifyLocal(title: "\(who) : \(m["title"] as? String ?? "alerte")", body: m["detail"] as? String ?? "")
@@ -423,10 +427,10 @@ final class HelperModel {
         let n = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !n.isEmpty, let i = people.firstIndex(where: { $0.key == key }), people[i].name != n else { return }
         people[i].name = n
-        People.save(people)
     }
 
     func start() {
+        startOrg()
         watchOthers()
         guard runTask == nil, isConfigured else { return }
         syncLive()
@@ -436,12 +440,13 @@ final class HelperModel {
 
     func reconnect() {
         runTask?.cancel(); socket?.cancel(with: .goingAway, reason: nil)
-        runTask = nil; connected = false; keyRefused = false; linkError = nil; retryAt = nil
+        runTask = nil; connected = false; keyRefused = false; linkError = nil; retryAt = nil; linkupBusy = false
         start()
     }
 
     /// Retour au premier plan : on n'attend pas la fin du délai d'attente.
     func wakeUp() {
+        if org != nil { Task { await refreshOrg() } }   // un poste a pu s'inscrire entre-temps
         guard isConfigured else { return }
         #if os(iOS)
         LiveAlert.shared.resume()
@@ -488,13 +493,12 @@ final class HelperModel {
                             // Le serveur refuse la clé avant même `hello`.
                             keyRefused = true
                             let reason = (try? JSONSerialization.jsonObject(with: Data(s.utf8)) as? [String: Any])?["reason"] as? String
-                            linkError = "Clé refusée par \(host)" + (reason.map { " (\($0))" } ?? "") + "."
+                            linkError = "Accès refusé par \(host)" + (reason.map { " (\($0))" } ?? "") + "."
                             log.error("clé refusée : \(reason ?? "", privacy: .public)")
                             t.cancel(with: .normalClosure, reason: nil)
                             break
                         }
-                        hello = true; connected = true; linkError = nil; retryAt = nil; delay = 1
-                        rememberGood()
+                        hello = true; connected = true; linkError = nil; retryAt = nil; delay = 1; linkupBusy = false
                         log.info("connecté à \(host, privacy: .public)")
                     }
                     handle(m)
@@ -514,8 +518,11 @@ final class HelperModel {
             // Une tâche annulée par `reconnect()` finit après le départ de la suivante :
             // elle ne doit pas effacer l'état de la nouvelle connexion.
             if Task.isCancelled { return }
-            connected = false; socket = nil; seniorOnline = nil
-            if keyRefused { retryAt = nil; return }   // on attend « Vérifier les réglages » ou le premier plan
+            connected = false; socket = nil; seniorOnline = nil; linkupBusy = false
+            if keyRefused {
+                // Poste retiré de l'organisation ? La liste des postes le dira.
+                retryAt = nil; Task { await refreshOrg() }; return
+            }
             retryAt = Date().addingTimeInterval(delay)
             try? await Task.sleep(for: .seconds(delay))
             delay = min(delay * 2, 8)   // backoff jusqu'à 8 s
@@ -541,25 +548,18 @@ final class HelperModel {
     }
 
     private func describe(_ error: Error, http: Int, hello: Bool, host: String) -> String {
-        if http == 401 || http == 403 { keyRefused = true; return "Clé refusée par \(host)." }
-        if http == 404 { return "Adresse introuvable sur \(host) : vérifiez l’adresse du serveur." }
+        if http == 401 || http == 403 { keyRefused = true; return "Accès refusé par \(host)." }
+        if http == 404 { return "Poste introuvable sur \(host)." }
         if http >= 400 { return "Le serveur \(host) répond une erreur \(http)." }
         if hello { return "Connexion coupée" }
         if let u = error as? URLError, u.code == .notConnectedToInternet { return "Ce téléphone n’a pas de connexion internet." }
         return "Le serveur ne répond pas à \(host)"
     }
 
-    private func rememberGood() {
-        UserDefaults.standard.set(serverURL, forKey: "lastGoodServerURL")
-        UserDefaults.standard.set(helperKey, forKey: "lastGoodHelperKey")
-    }
-
-    // MARK: Appairage
-
     // MARK: Utilisateur
 
-    /// Prénom saisi sur l'ordinateur de l’utilisateur (`hello.senior`, `senior`,
-    /// réponse d'appairage, paramètre `n` du lien). Jamais un nom figé.
+    /// Prénom de l'employé, envoyé par son ordinateur (`hello.senior`, `senior`, liste des
+    /// postes). Jamais un nom figé.
     var seniorName: String = UserDefaults.standard.string(forKey: "seniorName") ?? ""
     /// Dans une phrase : « Rien à signaler pour Sophie », sinon « de l’utilisateur ».
     var senior: String { seniorName.isEmpty ? "l’utilisateur" : seniorName }
@@ -582,84 +582,24 @@ final class HelperModel {
         syncLive()
     }
 
-    func open(url: URL) {
-        if url.host == "open" { return }   // touché depuis la carte de l'écran verrouillé
-        if url.host == "org" { Task { _ = await addOrg(url.absoluteString) }; return }
-        guard let link = PairLink.parse(url.absoluteString) else { showToast(PairServer.refusal); return }
-        openPair(link)
-    }
-
-    func openPair(_ link: PairLink) {
-        pairDone = false; pairError = nil; pairBusy = false; pairRefused = false; pairNeedsNew = false
-        sheet = .pair(link)
-    }
-
-    /// Saisie du code à la main : serveur déjà réglé, sinon le serveur PapAI officiel.
-    func manualPairLink() -> PairLink? {
-        let s = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        if s.isEmpty { return PairLink(base: "https://" + PairServer.officialHost, code: nil) }
-        // `/p/<code>` sans le préfixe `/k/<clé>` : le code peut viser un autre utilisateur.
-        let origin = PairLink(base: baseHTTP, code: nil).origin
-        return PairServer.allowed(origin) ? PairLink(base: origin, code: nil) : nil
-    }
-
-    /// POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur.
-    /// Une nouvelle personne s'ajoute à la liste : la liaison précédente est gardée.
-    func submitPair(_ link: PairLink, code: String?, name: String, relation: String) async {
-        guard !pairBusy, !pairNeedsNew else { return }
-        pairRefused = false
-        guard PairServer.allowed(link.base) else { pairError = PairServer.refusal; return }
-        let c = (link.code ?? code ?? "").filter(\.isNumber)
-        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard link.token != nil || c.count == 6 else { pairError = "Le code fait 6 chiffres."; return }
-        guard !n.isEmpty else { pairError = "Indiquez votre prénom."; return }
-        guard let url = URL(string: link.endpoint(code: c)) else { pairError = "Adresse invalide."; return }
-        pairBusy = true; pairError = nil
-        defer { pairBusy = false }
-        var req = URLRequest(url: url, timeoutInterval: 150)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["name": n, "relation": relation])
-        do {
-            let (d, response) = try await URLSession.shared.data(for: req)
-            let r = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
-            guard (response as? HTTPURLResponse)?.statusCode == 200, r["ok"] as? Bool == true else {
-                pairRefused = r["refused"] as? Bool == true
-                pairNeedsNew = PairServer.needsNew(status: (response as? HTTPURLResponse)?.statusCode ?? 0, refused: pairRefused)
-                pairError = r["error"] as? String ?? "Le serveur a refusé la liaison."
-                return
-            }
-            guard let key = r["key"] as? String, !key.isEmpty else {
-                pairError = "Le serveur n’a pas renvoyé de clé : réglez la connexion à la main."
-                return
-            }
-            var server = (r["server"] as? String) ?? link.origin
-            if !PairServer.allowed(server) || !PairServer.sameOrigin(server, link.origin) { server = link.origin }
-            while server.hasSuffix("/") { server.removeLast() }
-            // Pas setSenior : il renommerait la personne suivie jusqu'ici.
-            seniorName = (r["senior"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            UserDefaults.standard.set(seniorName, forKey: "seniorName")
-            helperName = r["name"] as? String ?? n
-            UserDefaults.standard.set(helperName, forKey: "helperName")
-            helperId = r["id"] as? String ?? ""; UserDefaults.standard.set(helperId, forKey: "helperId")
-            helperRelation = relation; UserDefaults.standard.set(relation, forKey: "helperRelation")
-            log.info("appairé avec \(server, privacy: .public)")
-            pairDone = true
-            applySettings(server: server + "/k/" + key, key: key)
-        } catch {
-            pairError = "Le serveur ne répond pas à \(link.host)."
-            log.error("appairage : \(String(describing: error), privacy: .public)")
-        }
-    }
+    /// Lien `papai://open` (carte de l'écran verrouillé) : l'app est déjà ouverte, rien d'autre.
+    func open(url: URL) {}
 
     func send(_ o: [String: Any]) {
         guard let socket, connected, let d = try? JSONSerialization.data(withJSONObject: o),
               let s = String(data: d, encoding: .utf8) else {
-            planBusy = false; sending = false
+            planBusy = false; sending = false; linkupBusy = false
             showToast("Pas de connexion au serveur."); return
         }
         if o["type"] as? String != "helper_hello" { sensitiveRefusal = nil }
-        socket.send(.string(s)) { _ in }
+        let searching = o["type"] as? String == "linkup_search"
+        socket.send(.string(s)) { [weak self] error in
+            guard error != nil && searching else { return }
+            Task { @MainActor [weak self] in
+                self?.linkupBusy = false
+                self?.linkupError = true
+            }
+        }
     }
 
     func loadLessons() async {
@@ -694,13 +634,15 @@ final class HelperModel {
             // Une alerte toujours en attente est renvoyée juste après `hello` :
             // sinon elle a été réglée ailleurs pendant la coupure.
             clearGuardAlert()
-            // On se présente : l'ordinateur doit voir ce support dans sa liste.
-            send(["type": "helper_hello", "id": helperId, "name": helperName ?? "Support",
-                  "relation": helperRelation])
+            // On se présente : l'ordinateur voit son support dans « Mon support ».
+            send(["type": "helper_hello", "id": helperId, "name": helperName ?? orgTitle,
+                  "relation": "le service informatique"])
 
         case "helper_id":
             if let id = m["id"] as? String, !id.isEmpty {
-                helperId = id; UserDefaults.standard.set(id, forKey: "helperId")
+                helperId = id
+                var ids = Self.helperIds(); ids[helperKey] = id
+                UserDefaults.standard.set(ids, forKey: "helperIds")
                 rememberCurrent()
             }
 
@@ -719,6 +661,7 @@ final class HelperModel {
             let sid = "\(m["session"] ?? "")"
             var wasWebLive = webLive
             if sid != sessionId {
+                clearLinkup()
                 wasWebLive = false
                 liveDictation = nil
                 sessionId = sid; requestStart = Date(); iRefusedPlan = false
@@ -767,7 +710,19 @@ final class HelperModel {
         case "question":
             if let t = m["question"] as? String { question = (t, m["options"] as? [String] ?? []) }
 
-        case "answer":
+        case "linkup_proposed":
+            guard m["session"] as? String == sessionId else { return }
+            linkupVisible = true; linkupPending = true
+            linkupQuery = m["query"] as? String ?? task
+            linkupText = ""; linkupSources = []; linkupId = ""; linkupError = false
+        case "linkup_result":
+            guard m["session"] as? String == sessionId else { return }
+            linkupVisible = true; linkupBusy = false
+            linkupId = m["id"] as? String ?? ""
+            linkupText = m["summary"] as? String ?? ""
+            linkupSources = m["sources"] as? [[String: String]] ?? []
+            linkupError = m["error"] != nil
+        case "linkup_answer", "answer":
             doneAnswer = m["content"] as? String
 
         case "guard_advice":
@@ -813,7 +768,7 @@ final class HelperModel {
                 if reason.contains("n'est plus en attente") { clearGuardAlert() }
                 showToast(reason)
             }
-            sending = false; planBusy = false; lessonBusy = false
+            sending = false; planBusy = false; lessonBusy = false; linkupBusy = false
 
         case "ack":
             if m["what"] as? String == "click" {
@@ -842,9 +797,6 @@ final class HelperModel {
             hasDraft = false; lessonBusy = false
             savedTitle = (m["lesson"] as? [String: Any])?["title"] as? String ?? draftTitle
             Task { await loadLessons() }
-
-        case "helper_added":
-            if let name = m["name"] as? String { showToast("\(name) est maintenant support.") }
 
         default: break
         }
@@ -931,6 +883,22 @@ final class HelperModel {
     }
 
     func approvePlan() { planBusy = true; send(["type": "approve_plan"]) }
+    func clearLinkup() {
+        linkupVisible = false; linkupPending = false; linkupQuery = ""; linkupText = ""
+        linkupSources = []; linkupId = ""; linkupError = false; linkupBusy = false
+    }
+    func openLinkup() { clearLinkup(); linkupVisible = true; linkupQuery = task }
+    func searchLinkup() {
+        linkupBusy = true; linkupText = ""; linkupSources = []; linkupId = ""; linkupError = false
+        send(["type": "linkup_search", "session": sessionId, "query": linkupQuery])
+    }
+    func approveLinkup() {
+        send(["type": "linkup_approve", "session": sessionId, "id": linkupId, "approved": true, "text": linkupText])
+    }
+    func refuseLinkup() {
+        if linkupPending { send(["type": "linkup_approve", "session": sessionId, "approved": false]) }
+        else { clearLinkup() }
+    }
     func refinePlan(_ text: String) { planBusy = true; send(["type": "refine_plan", "text": text]) }
     func refusePlan() { iRefusedPlan = true; send(["type": "refuse_plan"]) }
     func answer(_ t: String) { send(["type": "answer", "text": t]) }

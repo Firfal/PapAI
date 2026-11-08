@@ -1,0 +1,10 @@
+# Démo sans EMM : copier en support.local.properties (ignoré par git) puis reconstruire l'APK.
+# En production, le service informatique pousse ces valeurs en configuration gérée
+# (restrictions supportToken, server, supportName), qui l'emportent sur ce fichier.
+# Le jeton est inclus dans l'APK construit : ne pas diffuser cet APK.
+
+# Jeton support de l'organisation (sup-… , 14 à 104 caractères A-Z a-z 0-9 _ -).
+supportToken=sup-remplacez-par-votre-jeton
+
+# Facultatif : serveur PapAI (https). Vide ou absent : serveur PapAI officiel.
+server=

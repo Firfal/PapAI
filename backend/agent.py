@@ -29,7 +29,7 @@ from papai_tools import (
 )
 
 from .sessions import Owner, Refused, Session, State
-from . import space
+from . import linkup, space
 
 import os
 
@@ -71,6 +71,13 @@ async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> l
         {"role": "user", "content": f"Demande de la personne : « {session.task} »"
             + (f"\nPrécision de son support : {note}" if note else "")},
     ]
+    if linkup.enabled():
+        messages[0]["content"] += (
+            '\nSi la demande porte sur une procédure, une documentation de logiciel ou un '
+            'message d’erreur à comprendre plutôt qu’un geste à l’écran, propose une recherche '
+            'documentaire au support au lieu du plan : réponds uniquement avec '
+            '{"linkup_query":"question à rechercher"}. Aucune action ne sera exécutée.'
+        )
     if frame is not None:
         session.set_frame(frame)
         await broadcast({"type": "frame", "frame_id": frame.frame_id, "png_b64": frame.png_b64})
@@ -84,6 +91,10 @@ async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> l
         raw = resp.choices[0].message.content or ""
         m = re.search(r"\{.*\}", raw, re.S)
         data = json.loads(m.group(0))
+        query = linkup.plain(data.get("linkup_query"), 1000)
+        if query and linkup.enabled() and not session.linkup_query:
+            session.linkup_query = query
+            return []
         steps = [str(x).strip() for x in data.get("steps", []) if str(x).strip()][:5]
         where = str(data.get("where", "")).strip().lower()
         sites = _validated_sites(data.get("sites"))

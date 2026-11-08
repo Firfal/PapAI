@@ -5,6 +5,7 @@ Faux Agents API local (tests/faux_agents_api.py), aucune clé ni navigateur.
     .venv-mac/bin/python tests/test_agent_navigateur.py
 """
 import asyncio
+from urllib.parse import urlsplit
 import json
 import os
 import sys
@@ -109,7 +110,7 @@ class Base(unittest.IsolatedAsyncioTestCase):
         return task
 
     def h(self):
-        return next(iter(self.api.sessions.values()), None)
+        return next(reversed(self.api.sessions.values()), None)
 
 
 class ChoixDuMode(Base):
@@ -293,7 +294,7 @@ class ChoixDuMode(Base):
 
     async def test_web_si_propose_et_annonce(self):
         s, bureau, web = await self.mode("web", NAV)
-        self.assertIn({"type": "web_agent_start"}, self.bridge_sent)
+        self.assertIn({"type": "web_agent_start", "sites": [], "hosts": []}, self.bridge_sent)
         web.assert_called_once()
         self.assertEqual(web.call_args.args[1], NAV)
         bureau.assert_not_called()
@@ -602,6 +603,7 @@ class BasculeDepuisLeBureau(Base):
         self.assertEqual(journal.count("[donnée sensible masquée]"), 4)
 
     async def executer_bascule(self, sites, url=None):
+        self.api.navigation_url = url or f"https://{sites[0]}"
         self.frame()
         s = self.session()
         task = await self.lancer(s, "mixed", sites=sites)
@@ -698,7 +700,7 @@ class BasculeDepuisLeBureau(Base):
         s, appels = await self.executer_bascule(["ameli.fr"], "https://www.ameli.fr/compte")
 
         self.assertEqual(s.state, State.DONE)
-        self.assertIn({"type": "web_agent_start"}, self.bridge_sent)
+        self.assertIn({"type": "web_agent_start", "sites": ["ameli.fr"], "hosts": []}, self.bridge_sent)
         self.assertIn("https://www.ameli.fr/compte", self.api.sessions["h1"].corps["messages"])
         self.assertIn("Reste sur ces domaines ou leurs sous-domaines.", self.api.sessions["h1"].corps["messages"])
         self.assertIn("open_browser", [t["function"]["name"] for t in appels[0]["tools"]])
@@ -859,7 +861,8 @@ class BasculeDepuisLeBureau(Base):
             if i > index_web_message and m.get("type") == "status" and m.get("where") == "desktop"
         )
         self.assertTrue(any(m.get("type") == "frame" for m in messages[index_retour_bureau + 1:]))
-        self.assertIn({"type": "web_agent_start"}, self.bridge_sent)
+        self.assertIn({"type": "web_agent_start", "sites": ["meteofrance.com"], "hosts": []},
+                      self.bridge_sent)
         self.assertIn({"type": "web_agent_stop"}, self.bridge_sent)
         entree = next(e for e in s.journal if e["kind"] == "browser_handoff")
         self.assertIn("Consulter la météo", entree["goal"])
@@ -1069,6 +1072,202 @@ class LimitesOutilNavigateur(Base):
 
         handoff.assert_not_awaited()
         self.link.execute.assert_not_awaited()
+
+
+
+class SitesValides(Base):
+    scenario = "long"
+
+    async def demarrer(self, sites=None):
+        s = self.session()
+        s.preapprove_plan(PLAN, by="test")
+        s.plan_sites = ["meteofrance.com"] if sites is None else sites
+        s.helper_name = "Claire"
+        runner = web_agent.WebAgentRunner(s, NAV, self.diffuser, send_sites=self.link.send)
+        self.link.active_web_session = s
+        self.link.active_web_runner = runner
+        task = asyncio.create_task(runner.run())
+
+        async def terminer():
+            s.stop(by="test")
+            await asyncio.wait_for(task, 6)
+        self.addAsyncCleanup(terminer)
+        self.assertTrue(await attendre(lambda: runner._running))
+        return s, runner
+
+    async def diffuser(self, msg):
+        self.envoyes.append(msg)
+
+    async def question_site(self, s, url):
+        self.link.receive_web_off_site(url)
+        self.assertTrue(await attendre(lambda: s.question is not None))
+        self.assertEqual(self.h().status, "paused")
+        self.assertIn("Holo a quitté les sites validés", s.question["question"])
+        chemin = urlsplit(url).path if isinstance(url, str) else ""
+        if len(chemin) > 1:
+            self.assertNotIn(chemin, s.question["question"])
+        self.assertEqual(s.question["options"],
+                         ["Autoriser ce site une fois", "Arrêter l'assistance"])
+
+    async def repondre(self, s, runner, text):
+        s.answer_from_helper(text)
+        await asyncio.wait_for(asyncio.shield(runner._off_site_task), 6)
+
+    async def test_pause_autorisation_exacte_et_journal_sans_jeton(self):
+        s, runner = await self.demarrer()
+        await self.question_site(s, "https://autre.fr/compte?jeton=SECRET#fragment")
+        self.assertEqual(s.status()["off_site"], {"host": "autre.fr", "url": "https://autre.fr/compte"})
+        self.assertEqual(s.doing, "Holo attend l'accord du support pour un autre site")
+        self.assertTrue(any(m.get("off_site") for m in self.envoyes if m["type"] == "status"))
+        pending = runner._off_site_task
+        self.link.receive_web_off_site("https://encore.fr")
+        self.assertIs(runner._off_site_task, pending)
+        await self.repondre(s, runner, "Autoriser ce site une fois")
+        self.assertEqual(s.web_hosts, ["autre.fr"])
+        self.assertIsNone(s.status()["off_site"])
+        self.assertEqual(self.h().status, "running")
+        self.assertIn({"type": "web_sites", "sites": ["meteofrance.com"],
+                       "hosts": ["autre.fr"]}, self.bridge_sent)
+        self.assertIsNone(runner.report_off_site("https://autre.fr/autre"))
+        self.assertNotIn("SECRET", json.dumps(s.journal))
+        event = next(e for e in s.journal if e["kind"] == "web_off_site")
+        self.assertEqual(event["host"], "autre.fr")
+        allowed = next(e for e in s.journal if e["kind"] == "web_site_allowed")
+        self.assertEqual(allowed["by"], "Claire")
+        await self.question_site(s, "https://sous.autre.fr")
+        await self.repondre(s, runner, "Arrêter l'assistance")
+        self.assertEqual(s.state, State.STOPPED)
+        self.assertEqual(s.stopped_by, "support")
+        self.assertEqual(self.h().status, "interrupted")
+        self.assertTrue(self.api.a_appele("DELETE", "/h1"))
+        self.assertEqual(self.session().web_hosts, [])
+
+    async def test_texte_libre_refuse_et_relance(self):
+        s, runner = await self.demarrer()
+        await self.question_site(s, "https://autre.fr/?jeton=SECRET")
+        question = s.question["question"]
+        options = list(s.question["options"])
+        s.answer_from_helper("Revenir à la météo")
+        self.assertTrue(await attendre(
+            lambda: len([m for m in self.envoyes if m.get("type") == "question"]) == 2
+        ))
+        self.assertEqual(s.web_hosts, [])
+        self.assertEqual(self.h().status, "paused")
+        self.assertEqual(s.question["question"], question)
+        self.assertEqual(s.question["options"], options)
+        message = json.dumps(self.h().messages, ensure_ascii=False)
+        self.assertNotIn("Revenir à la météo", message)
+        self.assertNotIn("Consigne du support", message)
+        self.assertNotIn("SECRET", message)
+        await self.repondre(s, runner, "Arrêter l'assistance")
+        self.assertEqual(s.state, State.STOPPED)
+        self.assertEqual(s.stopped_by, "support")
+        self.assertEqual(self.h().status, "interrupted")
+
+    async def test_sites_valides_et_redirection_finale(self):
+        s, runner = await self.demarrer()
+        for url in ("https://meteofrance.com", "https://a.meteofrance.com", "about:blank"):
+            self.assertIsNone(runner.report_off_site(url))
+        await asyncio.sleep(0.1)
+        self.assertIsNone(s.question)
+        await self.question_site(s, "https://meteofrance.com.evil.fr/retour")
+        await self.repondre(s, runner, "Arrêter l'assistance")
+
+    async def test_ip_et_sosie_punycode_non_autorisables_ou_non_valides(self):
+        s, runner = await self.demarrer()
+        await self.question_site(s, "https://2130706433/?secret=SECRET")
+        s.answer_from_helper("Autoriser ce site une fois")
+        self.assertTrue(await attendre(
+            lambda: len([m for m in self.envoyes if m.get("type") == "question"]) == 2
+        ))
+        self.assertNotIn("2130706433", s.web_hosts)
+        self.assertEqual(self.h().status, "paused")
+        await self.repondre(s, runner, "Arrêter l'assistance")
+
+        s, runner = await self.demarrer()
+        await self.question_site(s, "https://xn--meli-43d.fr")
+        await self.repondre(s, runner, "Autoriser ce site une fois")
+        self.assertIn("xn--meli-43d.fr", s.web_hosts)
+        self.assertNotIn("SECRET", json.dumps(s.journal))
+
+    async def test_absence_runner_et_web_pur_ignores(self):
+        self.link.receive_web_off_site("https://autre.fr")
+        s, runner = await self.demarrer(sites=[])
+        self.assertIsNone(runner.report_off_site("https://autre.fr"))
+        await asyncio.sleep(0.1)
+        self.assertIsNone(s.question)
+        self.assertFalse(self.api.a_appele("POST", "/pause"))
+
+    async def test_url_outil_declenche_le_meme_controle(self):
+        s, runner = await self.demarrer()
+        event = {"data": {"kind": "policy_event", "tool_reqs": [
+            {"tool_name": "navigate", "args": {"url": "https://autre.fr/?jeton=SECRET"}}
+        ]}}
+        task = asyncio.create_task(runner._on_event(event))
+        self.assertTrue(await attendre(lambda: s.question is not None))
+        self.assertEqual(self.h().status, "paused")
+        await self.repondre(s, runner, "Arrêter l'assistance")
+        await task
+        self.assertNotIn("SECRET", json.dumps(s.journal))
+
+    async def test_pause_utilisateur_conservee_autorisation(self):
+        s, runner = await self.demarrer()
+        await self.question_site(s, "https://autre.fr")
+        s.paused = True
+        await self.repondre(s, runner, "Autoriser ce site une fois")
+        await asyncio.sleep(0.15)
+        self.assertEqual(self.h().status, "paused")
+        self.assertFalse(self.api.a_appele("POST", "/resume"))
+        s.paused = False
+        self.assertTrue(await attendre(lambda: self.h().status == "running"))
+
+    async def test_texte_libre_ne_reprend_pas_holo_pendant_pause_utilisateur(self):
+        s, runner = await self.demarrer()
+        await self.question_site(s, "https://autre.fr")
+        s.paused = True
+        s.answer_from_helper("Retour")
+        self.assertTrue(await attendre(
+            lambda: len([m for m in self.envoyes if m.get("type") == "question"]) == 2
+        ))
+        self.assertEqual(self.h().messages, [])
+        self.assertEqual(self.h().status, "paused")
+        s.paused = False
+        self.assertEqual(self.h().messages, [])
+        await self.repondre(s, runner, "Autoriser ce site une fois")
+        self.assertEqual(self.h().status, "running")
+        self.assertEqual(self.h().messages, [])
+
+    async def test_pause_support_attend_la_decision_hors_site(self):
+        s, runner = await self.demarrer()
+        await self.question_site(s, "https://autre.fr")
+        s.pause_requested = True
+        await self.repondre(s, runner, "Autoriser ce site une fois")
+        self.assertTrue(await attendre(lambda: s.question is not None))
+        self.assertIn("mis l'assistance en pause", s.question["question"])
+        self.assertEqual(self.h().status, "paused")
+        s.answer_from_helper("Continuer")
+        self.assertTrue(await attendre(lambda: self.h().status == "running"))
+
+    async def test_question_existante_non_ecrasee(self):
+        s, runner = await self.demarrer()
+        question = asyncio.create_task(runner._ask_helper_tool("Question initiale"))
+        self.assertTrue(await attendre(lambda: s.question is not None))
+        self.link.receive_web_off_site("https://autre.fr")
+        self.assertTrue(await attendre(lambda: s.off_site is not None))
+        self.assertEqual(s.question["question"], "Question initiale")
+        s.answer_from_helper("Oui")
+        await question
+        self.assertTrue(await attendre(lambda: s.question is not None))
+        self.assertIn("Holo a quitté", s.question["question"])
+        await self.repondre(s, runner, "Arrêter l'assistance")
+
+    async def test_demarrage_transmet_les_listes(self):
+        s = self.session()
+        s.plan_sites = ["ameli.fr"]
+        s.web_hosts = ["autre.fr"]
+        self.assertEqual(await self.link.start_web_agent(s), NAV)
+        self.assertEqual(self.bridge_sent[-1], {"type": "web_agent_start",
+                                              "sites": ["ameli.fr"], "hosts": ["autre.fr"]})
 
 
 if __name__ == "__main__":

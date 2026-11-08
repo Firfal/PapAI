@@ -8,6 +8,8 @@ import time
 from collections.abc import Iterable
 from pathlib import Path
 
+from . import storage
+
 DATA = Path(__file__).parent.parent / "family.json"
 CODE_TTL = 600
 # Invitation envoyée par SMS, WhatsApp… à un proche absent : il a le temps de l'ouvrir.
@@ -36,13 +38,12 @@ class Family:
         self._tries = 0
         self._invitation: str | None = None
         self._invitation_expires = 0.0
-        if path.is_file():
-            try:
-                data = json.loads(path.read_text("utf-8"))
-                self.helpers = data.get("helpers", [])
-                self.senior = str(data.get("senior", ""))
-            except (OSError, ValueError):
-                self.helpers = []
+        try:
+            data = storage.read_json(path, {})
+            self.helpers = data.get("helpers", [])
+            self.senior = str(data.get("senior", ""))
+        except (OSError, ValueError):
+            self.helpers = []
 
     # ------------------------------------------------------------ code
 
@@ -166,4 +167,4 @@ class Family:
                 for h in self.helpers]
 
     def _save(self) -> None:
-        self.path.write_text(json.dumps({"helpers": self.helpers, "senior": self.senior}, ensure_ascii=False, indent=1), "utf-8")
+        storage.write_json(self.path, {"helpers": self.helpers, "senior": self.senior})

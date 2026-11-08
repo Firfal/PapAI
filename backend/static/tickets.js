@@ -4,8 +4,14 @@
     nouveau: 'Nouveau', en_attente: "En attente d'un support", rdv: 'Rendez-vous',
     en_cours: 'En cours', a_reprendre: 'À reprendre', resolu: 'Résolu',
   };
-  const SOURCE = { personne: 'Demandé par la personne', support: 'Proposé par le support', automatisme: 'Automate' };
+  const SOURCE = { personne: 'Demandé par l’utilisateur', support: 'Proposé par le support', automatisme: 'Automate' };
   const OPEN = ['nouveau', 'en_attente', 'rdv', 'a_reprendre'];
+  const CATEGORY = {
+    wifi: 'Wi-Fi et réseau', imprimante: 'Imprimante', comptes: 'Comptes et mots de passe', logiciels: 'Logiciels',
+    messagerie: 'Messagerie', fichiers: 'Fichiers', securite: 'Sécurité', autre: 'Autre',
+  };
+  const CATEGORY_BY = { regles: 'catégorie choisie par les règles', holo: 'catégorie choisie par Holo',
+    support: 'catégorie corrigée par le support', doute: 'catégorie à vérifier' };
 
   const css = document.createElement('style');
   css.textContent = `
@@ -21,6 +27,12 @@
     .tk-st.rdv { background: #F1EBFF; color: #6236C9; }
     .tk-st.en_cours { background: #E6EEFF; color: #1F4FD1; box-shadow: inset 0 0 0 1px rgba(31,79,209,.25); }
     .tk-st.resolu { background: #E5F5EC; color: #1B7A43; }
+    .tk-cat { font-size: 13px; font-weight: 600; padding: 3px 9px; border-radius: 7px; background: var(--sky, #EAF0FF);
+              color: var(--accent, #1F5AE8); }
+    .tk-cat.doute { background: transparent; box-shadow: inset 0 0 0 1px rgba(31,90,232,.35); }
+    .tk.tk-focus { box-shadow: 0 0 0 3px rgba(43,107,255,.55), var(--shadow, 0 8px 24px rgba(30,60,150,.07)); }
+    .tk-acts select { font: inherit; font-size: 14px; min-height: 44px; border-radius: 999px; border: 0; padding: 0 12px;
+                      background: var(--field, #F1F3F9); color: var(--ink, #141A2E); }
     .tk-meta { font-size: 14px; color: var(--muted, #5B6478); }
     .tk-notes { font-size: 14px; margin: 0; padding: 8px 12px 8px 28px; border-radius: 12px; background: var(--field, #F1F3F9); }
     .tk-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; padding-top: 12px;
@@ -63,9 +75,31 @@
     for (const t of list) {
       const c = el('div', 'tk');
       const head = el('div', 'tk-head');
-      head.append(el('span', 'tk-num', num(t)), el('span', 'tk-st ' + t.status, STATUS[t.status] || t.status),
+      const cat = CATEGORY[t.category] ? t.category : 'autre';
+      const chip = el('span', 'tk-cat' + (t.category_by === 'doute' ? ' doute' : ''),
+                      CATEGORY[cat] + (t.category_by === 'doute' ? ' ?' : ''));
+      chip.title = CATEGORY_BY[t.category_by] || '';
+      c.id = 'tk-' + t.id;
+      head.append(el('span', 'tk-num', num(t)), el('span', 'tk-st ' + t.status, STATUS[t.status] || t.status), chip,
                   el('span', 'tk-task', t.task || '(sans texte)'));
       c.append(head, el('div', 'tk-meta', meta(t)));
+      if (Array.isArray(t.suggestions) && t.suggestions.length) {
+        const suggestions = el('div', 'tk-meta', '');
+        for (const suggestion of t.suggestions) {
+          if (!suggestion || !suggestion.title) continue;
+          const state = suggestion.id === t.suggestion_lancee ? 'lancé' : 'pas lancé';
+          suggestions.append(el('div', '', `Automate proposé : ${suggestion.title} · ${state}`));
+        }
+        c.append(suggestions);
+      }
+      if (t.linkup_answer) {
+        c.append(el('p', 'tk-meta', t.linkup_answer.content || ''));
+        for (const s of t.linkup_answer.sources || []) {
+          if (!/^https?:\/\//.test(s.url || '')) continue;
+          const a = el('a', 'tk-meta', s.name || s.url);
+          a.href = s.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; c.append(a);
+        }
+      }
       if (t.notes && t.notes.length) {
         const ul = el('ul', 'tk-notes');
         for (const n of t.notes.slice(-3)) ul.append(el('li', '', `${n.by ? n.by + ' : ' : ''}${n.text}`));
@@ -86,6 +120,12 @@
       if (t.status !== 'en_cours' && t.status !== 'resolu') btn('Clore', () => act(t, 'close', { text: prompt('Résolution (facultatif) :') || '' }));
       if (t.status === 'resolu') btn('Rouvrir', () => act(t, 'reopen'));
       btn('Note', () => { const text = prompt('Note pour ce ticket :'); if (text) act(t, 'note', { text }); });
+      const sel = el('select');
+      sel.setAttribute('aria-label', 'Catégorie du ticket');
+      for (const [k, v] of Object.entries(CATEGORY)) { const o = el('option', '', v); o.value = k; sel.append(o); }
+      sel.value = cat;
+      sel.onchange = () => act(t, 'category', { category: sel.value });
+      acts.append(sel);
       c.append(acts);
       box.append(c);
     }
@@ -93,7 +133,7 @@
 
   function csv(list) {
     const cols = [['Ticket', num], ['Poste', t => t.poste || ''], ['Statut', t => STATUS[t.status] || t.status],
-      ['Demande', t => t.task], ['Source', t => SOURCE[t.source] || t.source], ['Créé', t => new Date(t.created * 1000).toISOString()],
+      ['Demande', t => t.task], ['Catégorie', t => CATEGORY[t.category] || ''], ['Source', t => SOURCE[t.source] || t.source], ['Créé', t => new Date(t.created * 1000).toISOString()],
       ['Mis à jour', t => new Date(t.updated * 1000).toISOString()], ['Rendez-vous', t => t.rdv ? new Date(t.rdv * 1000).toISOString() : ''],
       ['Pris par', t => t.assignee || ''], ['Utilisateur par', t => t.helper || ''],
       ['Étapes', t => (t.plan || []).length ? `${t.steps_done || 0}/${t.plan.length}` : ''],
@@ -105,5 +145,5 @@
     return [cols.map(c => q(c[0])).join(';'), ...list.map(t => cols.map(c => q(c[1](t))).join(';'))].join('\r\n');
   }
 
-  window.PapaiTickets = { render, csv, OPEN, STATUS };
+  window.PapaiTickets = { render, csv, OPEN, STATUS, CATEGORY };
 })();

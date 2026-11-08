@@ -151,6 +151,9 @@ struct SessionView: View {
             }
         } corps: {
             VStack(alignment: .leading, spacing: 18) {
+                if state == .active, !model.paused, let action = model.currentAction {
+                    Text(action).font(rounded(24, .medium)).fixedSize(horizontal: false, vertical: true)
+                }
                 if let sub = subtitle {
                     Text(sub).font(rounded(24, .medium)).foregroundStyle(state == .active ? T.ink : T.muted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -251,6 +254,12 @@ struct SessionView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.peach))
                 endNote("lock.fill", "Votre écran n'est plus partagé.")
+                ForEach(Array(model.answerSources.enumerated()), id: \.offset) { _, source in
+                    if let url = URL(string: source["url"] ?? ""), ["http", "https"].contains(url.scheme ?? "") {
+                        Link(destination: url) { Text(verbatim: source["name"] ?? source["url"] ?? "Source") }
+                            .font(rounded(14)).foregroundStyle(T.muted)
+                    }
+                }
                 if model.sessionWhere == "web" {
                     endNote("globe", "Holo a fermé sa fenêtre Chrome.")
                 }
