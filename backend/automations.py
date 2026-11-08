@@ -8,6 +8,12 @@ tâche à l'écran. Jamais de commande, de script ni de chemin libre : l'app ne
 sait jouer que ces actions-là, avec des paramètres vérifiés ici puis sur
 l'ordinateur.
 
+Le pas à pas « Montrez-moi » peut montrer une capture par étape :
+`"steps": [{"instruction": "...", "image": "etape-1.png"}]` et, dans le pack,
+`"images": {"etape-1.png": "<base64>"}`. Nom `[a-z0-9-]+.(png|jpg)`, PNG ou
+JPEG vérifié par signature, 1,5 Mo et 12 images au plus ; seules les images
+citées par une étape sont écrites, à côté de lesson.json.
+
 Le support valide l'automate en l'important : la personne le lance ensuite
 seule, en un clic.
 """
@@ -35,6 +41,11 @@ MAX_FILES = 5
 MAX_FILE_BYTES = 2_000_000
 MAX_TEXT = 300
 _BAD_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+# Captures du pas à pas « Montrez-moi » : un nom simple, jamais un chemin.
+MAX_IMAGES = 12
+MAX_IMAGE_BYTES = 1_500_000
+IMAGE_NAME = re.compile(r"[a-z0-9-]{1,60}\.(png|jpg)")
+_SIGNATURES = {"png": b"\x89PNG\r\n\x1a\n", "jpg": b"\xff\xd8\xff"}
 
 
 class Invalid(ValueError):
@@ -116,6 +127,50 @@ def _action(a, files: dict[str, bytes]) -> dict:
     raise Invalid(f"Action inconnue : {do or '(vide)'}. Aucune commande ni script n'est accepté.")
 
 
+def _images(raw) -> dict[str, bytes]:
+    """Les captures fournies dans le pack : {"etape-1.png": "<base64>"}.
+
+    Nom en minuscules, chiffres et tirets, extension .png ou .jpg ; contenu
+    PNG ou JPEG vérifié par sa signature (qui doit aller avec l'extension).
+    """
+    if raw in (None, {}):
+        return {}
+    if not isinstance(raw, dict):
+        raise Invalid("images : un objet {\"nom.png\": \"base64\"}.")
+    if len(raw) > MAX_IMAGES:
+        raise Invalid(f"images : {MAX_IMAGES} au plus.")
+    out: dict[str, bytes] = {}
+    for name, b64 in raw.items():
+        m = IMAGE_NAME.fullmatch(name) if isinstance(name, str) else None
+        if not m:
+            raise Invalid(f"Nom d'image invalide : {str(name)[:80]} (lettres minuscules, chiffres, tirets, .png ou .jpg).")
+        if not isinstance(b64, str) or len(b64) > MAX_IMAGE_BYTES * 4 // 3 + 8:
+            raise Invalid(f"Image trop grosse ou illisible : {name}")
+        try:
+            data = base64.b64decode(b64, validate=True)
+        except (binascii.Error, ValueError):
+            raise Invalid(f"Image illisible : {name}") from None
+        if not data or len(data) > MAX_IMAGE_BYTES:
+            raise Invalid(f"Image vide ou trop grosse (1,5 Mo au plus) : {name}")
+        if not data.startswith(_SIGNATURES[m.group(1)]):
+            raise Invalid(f"Ce n'est pas une image {m.group(1).upper()} : {name}")
+        out[name] = data
+    return out
+
+
+def _step(s, images: dict[str, bytes], used: set[str]) -> dict:
+    if not isinstance(s, dict):
+        return {"instruction": _text(s, "Étape")}
+    step = {"instruction": _text(s.get("instruction"), "Étape")}
+    name = s.get("image")
+    if name not in (None, ""):
+        if not isinstance(name, str) or name not in images:
+            raise Invalid(f"Image d'étape absente du pack : {str(name)[:80]}")
+        step["image"] = name
+        used.add(name)
+    return step
+
+
 def validate(pack) -> tuple[dict, dict[str, bytes]]:
     """Vérifie un automate importé ; renvoie sa fiche et ses fichiers."""
     if not isinstance(pack, dict):
@@ -138,6 +193,13 @@ def validate(pack) -> tuple[dict, dict[str, bytes]]:
     steps = pack.get("steps") or []
     if not isinstance(steps, list):
         raise Invalid("steps : une liste.")
+    images = _images(pack.get("images"))
+    used: set[str] = set()
+    steps = [_step(s, images, used) for s in steps[:12]]
+    for name in sorted(used):  # seules les images montrées sont gardées
+        if name in files:
+            raise Invalid(f"Fichier en double : {name}")
+        files[name] = images[name]
     lesson = {
         "id": "imp-" + secrets.token_hex(6),
         "title": _text(pack.get("title"), "Titre", 120),
@@ -145,8 +207,7 @@ def validate(pack) -> tuple[dict, dict[str, bytes]]:
         "publisher": _text(pack.get("publisher"), "Éditeur (qui fournit l'automate)", 80),
         "platforms": sorted(set(platforms)),
         "actions": actions,
-        "steps": [{"instruction": _text(s.get("instruction") if isinstance(s, dict) else s, "Étape")}
-                  for s in steps[:12]],
+        "steps": steps,
         "source": "import",
         "approved_by": "",
         "approved_at": 0.0,
