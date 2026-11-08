@@ -407,6 +407,7 @@ final class HelperModel {
 
     /// Retour au premier plan : on n'attend pas la fin du délai d'attente.
     func wakeUp() {
+        if org != nil { Task { await refreshOrg() } }   // un poste a pu s'inscrire entre-temps
         guard isConfigured else { return }
         #if os(iOS)
         LiveAlert.shared.resume()
