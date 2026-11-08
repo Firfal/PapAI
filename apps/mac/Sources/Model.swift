@@ -519,7 +519,8 @@ final class AppModel {
             MiniPanel.shared.show(model: self)
         }
         // Souris et clavier réservés à Holo et à l'aidant pendant qu'il agit.
-        let holoActs = (state == .active || state == .awaiting_helper) && !paused && !gate.isStopped
+        // Une question posée à la personne (se connecter à un site…) lui rend la main.
+        let holoActs = (state == .active || (state == .awaiting_helper && !questionForMe)) && !paused && !gate.isStopped
         InputLock.shared.set(holoActs)
     }
 
