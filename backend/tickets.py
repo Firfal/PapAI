@@ -62,6 +62,15 @@ class Tickets:
         self._save()
         return t
 
+    def renumber(self, next_number) -> None:
+        """Le poste rejoint une organisation : ses tickets prennent des numéros uniques dans l'organisation."""
+        items = self._load()
+        if not items:
+            return
+        for t in sorted(items, key=lambda x: int(x.get("number", 0))):
+            t["number"] = next_number()
+        self._save()
+
     def update(self, t: dict, **kw) -> dict:
         t.update(kw)
         t["updated"] = int(time.time())

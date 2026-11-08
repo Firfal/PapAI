@@ -60,6 +60,10 @@ def stockage() -> None:
     relu = Tickets(p).get(t["id"])
     check("un ticket survit au redémarrage du serveur", relu is not None and relu["number"] == 1)
     check("numéros qui se suivent", Tickets(p).open("Wi-Fi", "personne")["number"] == 2)
+    seq = iter(range(41, 50))
+    Tickets(p).renumber(lambda: next(seq))
+    check("le poste rejoint une organisation : ses tickets sont renumérotés",
+          sorted(t["number"] for t in Tickets(p).all()) == [41, 42])
 
 
 async def parcours(base: str) -> None:
