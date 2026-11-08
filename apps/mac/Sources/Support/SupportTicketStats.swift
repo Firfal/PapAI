@@ -3,7 +3,7 @@ import Foundation
 /// Les catégories des tickets, mêmes identifiants que `backend/ticket_stats.py`.
 enum TicketCategory {
     static let all: [(id: String, label: String)] = [
-        ("wifi", "Wi-Fi et réseau"), ("imprimante", "Imprimante"), ("comptes", "Comptes et mots de passe"),
+        ("wifi", String(localized: "Wi-Fi et réseau")), ("imprimante", "Imprimante"), ("comptes", String(localized: "Comptes et mots de passe")),
         ("logiciels", "Logiciels"), ("messagerie", "Messagerie"), ("fichiers", "Fichiers"),
         ("securite", "Sécurité"), ("autre", "Autre"),
     ]
@@ -128,10 +128,10 @@ struct TicketStats {
         categories.compactMap { c in
             guard var d = c.draft, c.monthPeople >= Self.suggestMin else { return nil }
             let ex = c.examples.map(\.task).filter { !$0.isEmpty }
-            d["description"] = "Préparé à partir des demandes reçues"
+            d["description"] = String(localized: "Préparé à partir des demandes reçues")
                 + (ex.isEmpty ? "" : " : " + ex.map { "« \($0) »" }.joined(separator: " ; ")) + "."
             return Suggestion(category: c.id, count: c.monthPeople,
-                              text: "\(c.monthPeople) demandes \(c.phrase) ce mois-ci : créer un automate ?", draft: d)
+                              text: String(localized: "\(c.monthPeople) demandes \(c.phrase) ce mois-ci : créer un automate ?"), draft: d)
         }
     }
 

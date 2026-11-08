@@ -77,10 +77,10 @@ struct SupportTickets: View {
                                          suggest: { suggestion = $0 })
                     }
                     if model.people.isEmpty {
-                        empty("Aucun utilisateur relié pour l’instant.")
+                        empty(String(localized: "Aucun utilisateur relié pour l’instant."))
                     } else if shown.isEmpty && !loading {
-                        empty(filter == 0 ? "Rien à traiter. Les demandes de vos utilisateurs arriveront ici."
-                                          : "Aucun ticket pour l’instant.")
+                        empty(filter == 0 ? String(localized: "Rien à traiter. Les demandes de vos utilisateurs arriveront ici.")
+                                          : String(localized: "Aucun ticket pour l’instant."))
                     }
                     ForEach(shown) { t in row(t).id(t.id) }
                 }
@@ -94,13 +94,14 @@ struct SupportTickets: View {
                 suggestion = nil
                 if let pack, let d = try? JSONSerialization.data(withJSONObject: pack),
                    let e = AutomateLibrary.shared.add(pack: d) {
-                    model.showToast("« \(e.title) » ajouté à vos automates")
+                    model.showToast(String(localized: "« \(e.title) » ajouté à vos automates"))
                     applying = e
                 }
             }
         }
         .sheet(item: $editing) { t in
-            EditPlanSheet(titre: t.plan?.titre ?? "", etapes: t.plan?.etapes ?? []) { titre, etapes in
+            EditPlanSheet(titre: t.plan?.titre ?? "", etapes: t.plan?.etapes ?? [],
+                          refaire: { consigne in await refine(t, consigne) }) { titre, etapes in
                 editing = nil
                 guard let titre else { return }
                 Task { await validateEdited(t, titre: titre, etapes: etapes) }
@@ -138,14 +139,14 @@ struct SupportTickets: View {
                     status(t)
                     Text("\(t.label) · \(TicketCategory.label(t.category))\(t.categoryBy == "doute" ? " ?" : "")")
                         .font(rounded(13)).foregroundStyle(T.muted).monospacedDigit()
-                        .help(t.categoryBy == "support" ? "Catégorie corrigée par le support"
-                              : t.categoryBy == "holo" ? "Catégorie choisie par Holo"
-                              : t.categoryBy == "doute" ? "Catégorie à vérifier" : "Catégorie choisie par les règles")
+                        .help(t.categoryBy == "support" ? String(localized: "Catégorie corrigée par le support")
+                              : t.categoryBy == "holo" ? String(localized: "Catégorie choisie par Holo")
+                              : t.categoryBy == "doute" ? String(localized: "Catégorie à vérifier") : String(localized: "Catégorie choisie par les règles"))
                     if !t.assignee.isEmpty {
                         Text("· pris par \(t.assignee)").font(rounded(13)).foregroundStyle(T.muted)
                     }
                 }
-                Text(t.task.isEmpty ? "Demande sans texte" : "« \(t.task) »").font(rounded(18, .semibold))
+                Text(t.task.isEmpty ? String(localized: "Demande sans texte") : "« \(t.task) »").font(rounded(18, .semibold))
                     .fixedSize(horizontal: false, vertical: true)
                 if let p = t.plan {
                     VStack(alignment: .leading, spacing: 4) {
@@ -209,7 +210,7 @@ struct SupportTickets: View {
                         .disabled(busy != nil)
                         .help("Recherche documentaire : Holo refait le plan avec les sources trouvées")
                 } else if t.isOpen && t.status != "en_cours" {
-                    Button(busy == t.id ? "…" : "Prendre en charge") { Task { await act(t, "take") } }
+                    Button(busy == t.id ? "…" : String(localized: "Prendre en charge")) { Task { await act(t, "take") } }
                         .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
                 }
                 // Le reste dans un seul menu, pour garder la carte lisible.
@@ -245,9 +246,9 @@ struct SupportTickets: View {
     private func status(_ t: SupportTicket) -> some View {
         let (txt, ton): (String, Pastille.Ton) = switch t.status {
         case "nouveau": ("Nouveau", .bleu)
-        case "en_attente": ("En attente", .orange)
+        case "en_attente": (String(localized: "En attente"), .orange)
         case "rdv": ("Rendez-vous", .violet)
-        case "en_cours": ("En cours", .vert)
+        case "en_cours": (String(localized: "En cours"), .vert)
         case "a_reprendre": ("À reprendre", .orange)
         case "resolu": ("Résolu", .gris)
         default: (t.status, .gris)
@@ -257,8 +258,8 @@ struct SupportTickets: View {
 
     private func when(_ t: SupportTicket) -> String {
         let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "d MMM 'à' HH:mm"
-        if t.status == "rdv", let r = t.rdv { return "Rendez-vous le " + f.string(from: Date(timeIntervalSince1970: r)) }
-        return "Mis à jour le " + f.string(from: Date(timeIntervalSince1970: t.updated))
+        if t.status == "rdv", let r = t.rdv { return String(localized: "Rendez-vous le ") + f.string(from: Date(timeIntervalSince1970: r)) }
+        return String(localized: "Mis à jour le ") + f.string(from: Date(timeIntervalSince1970: t.updated))
     }
 
     // MARK: Réseau
@@ -304,6 +305,27 @@ struct SupportTickets: View {
         stats = parts.isEmpty ? nil : TicketStats.merge(parts)
     }
 
+    /// Holo refait tout le plan du ticket d'après la consigne du support.
+    private func refine(_ t: SupportTicket, _ consigne: String) async -> (String, [String])? {
+        guard let url = URL(string: AutomateLibrary.base(t.person) + "/tickets/" + t.tid) else { return nil }
+        var req = URLRequest(url: url, timeoutInterval: 60)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "action": "refine", "by": model.helperName ?? "Support", "text": consigne,
+            "lang": AppLangue.anglais ? "en" : "fr"])
+        guard let (d, r) = try? await URLSession.shared.data(for: req),
+              let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else {
+            model.showToast(String(localized: "Serveur injoignable")); return nil
+        }
+        guard (r as? HTTPURLResponse)?.statusCode == 200,
+              let a = (obj["ticket"] as? [String: Any])?["automate"] as? [String: Any] else {
+            model.showToast(obj["error"] as? String ?? String(localized: "Action refusée")); return nil
+        }
+        await load()
+        return (a["title"] as? String ?? "", a["steps"] as? [String] ?? [])
+    }
+
     /// Valide le plan corrigé par le support : l'automate est créé avec ces étapes.
     private func validateEdited(_ t: SupportTicket, titre: String, etapes: [String]) async {
         guard let url = URL(string: AutomateLibrary.base(t.person) + "/tickets/" + t.tid) else { return }
@@ -320,10 +342,10 @@ struct SupportTickets: View {
                 model.showToast("Solution lancée chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
             } else {
                 let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
-                model.showToast(obj?["error"] as? String ?? "Action refusée")
+                model.showToast(obj?["error"] as? String ?? String(localized: "Action refusée"))
             }
         } else {
-            model.showToast("Serveur injoignable")
+            model.showToast(String(localized: "Serveur injoignable"))
         }
         await load()
     }
@@ -338,7 +360,7 @@ struct SupportTickets: View {
         if let (d, r) = try? await URLSession.shared.data(for: req) {
             if (r as? HTTPURLResponse)?.statusCode != 200 {
                 let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
-                model.showToast(obj?["error"] as? String ?? "Action refusée")
+                model.showToast(obj?["error"] as? String ?? String(localized: "Action refusée"))
             } else if action == "category" {
                 model.showToast("Catégorie : \(TicketCategory.label(extra["category"] ?? ""))")
             } else if action == "validate" {
@@ -346,15 +368,15 @@ struct SupportTickets: View {
             } else if action == "run" {
                 model.showToast("Solution lancée chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
             } else if action == "linkup" {
-                model.showToast("Plan mis à jour avec Linkup")
+                model.showToast(String(localized: "Plan mis à jour avec Linkup"))
             } else if action == "close" {
-                model.showToast("Ticket résolu, solution enregistrée")
+                model.showToast(String(localized: "Ticket résolu, solution enregistrée"))
             } else if action == "take" {
                 model.showToast("Demande proposée à \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
                 openUser(t.person)
             }
         } else {
-            model.showToast("Serveur injoignable")
+            model.showToast(String(localized: "Serveur injoignable"))
         }
         await load()
     }
@@ -374,15 +396,15 @@ struct TicketWeekCard: View {
                 Text("Aucune demande ces 7 derniers jours.").font(rounded(15)).foregroundStyle(T.muted)
             } else {
                 HStack(spacing: 10) {
-                    kpi("\(week.count)", "demandes reçues")
+                    kpi("\(week.count)", String(localized: "demandes reçues"))
                     kpi("\(week.resolved)", "réglées")
-                    kpi("\(Int((week.automateShare * 100).rounded())) %", "réglées par un automate")
+                    kpi("\(Int((week.automateShare * 100).rounded())) %", String(localized: "réglées par un automate"))
                     kpi(TicketStatsPanel.duration(week.meanResolution), "temps moyen")
                 }
                 if !week.top.isEmpty {
-                    line("En tête", week.top.map { "\($0.label) (\($0.count))" }.joined(separator: ", "))
+                    line(String(localized: "En tête"), week.top.map { "\($0.label) (\($0.count))" }.joined(separator: ", "))
                 }
-                line("Automate le plus utile", week.automate.map {
+                line(String(localized: "Automate le plus utile"), week.automate.map {
                     "« \($0.title) », \($0.count) demande\($0.count > 1 ? "s" : "") réglée\($0.count > 1 ? "s" : "")"
                 } ?? "aucun cette semaine")
             }
@@ -445,10 +467,10 @@ struct TicketStatsPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                kpi("\(stats.count)", "tickets depuis le \(Self.day(stats.since))")
+                kpi("\(stats.count)", String(localized: "tickets depuis le \(Self.day(stats.since))"))
                 kpi("\(stats.resolved)", "résolus")
-                kpi(Self.duration(stats.medianResolution), "temps de résolution (médian)")
-                kpi("\(Int((stats.automateShare * 100).rounded())) %", "réglés par un automate")
+                kpi(Self.duration(stats.medianResolution), String(localized: "temps de résolution (médian)"))
+                kpi("\(Int((stats.automateShare * 100).rounded())) %", String(localized: "réglés par un automate"))
             }
             ForEach(stats.panelSuggestions) { s in
                 HStack(spacing: 12) {
@@ -548,6 +570,10 @@ struct TicketStatsPanel: View {
 struct EditPlanSheet: View {
     @State var titre: String
     @State var etapes: [String]
+    /// Refait tout le plan avec une consigne du support ; rend le nouveau plan, ou nil.
+    var refaire: ((String) async -> (String, [String])?)? = nil
+    @State private var consigne = ""
+    @State private var enCours = false
     /// (nil, _) si annulé ; sinon le titre et les étapes non vides.
     var done: (String?, [String]) -> Void
 
@@ -557,6 +583,22 @@ struct EditPlanSheet: View {
                 .padding(24).frame(maxWidth: .infinity, alignment: .leading).background(T.header)
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
+                    if let refaire {
+                        Text("Dites à Holo ce qu’il doit changer").font(rounded(14, .semibold)).foregroundStyle(T.muted)
+                        HStack(spacing: 10) {
+                            TextField("Par exemple : tout faire dans Safari et mettre google.fr en page d’accueil", text: $consigne, axis: .vertical)
+                                .lineLimit(1...3).textFieldStyle(.plain).font(rounded(16)).padding(10).champ(T.r)
+                            Button(enCours ? "…" : String(localized: "Refaire le plan")) {
+                                enCours = true
+                                Task {
+                                    if let (t, e) = await refaire(consigne) { titre = t; etapes = e; consigne = "" }
+                                    enCours = false
+                                }
+                            }
+                            .buttonStyle(PillStyle(height: 40, icone: "wand.and.stars"))
+                            .disabled(enCours || consigne.trimmingCharacters(in: .whitespaces).count < 3)
+                        }
+                    }
                     Text("Titre de l’automate").font(rounded(14, .semibold)).foregroundStyle(T.muted)
                     TextField("Titre", text: $titre).textFieldStyle(.plain).font(rounded(17))
                         .padding(12).champ(T.r)

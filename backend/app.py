@@ -2593,6 +2593,27 @@ async def _ticket_action(tid: str, body: dict):
         S().tickets.update(t, assignee=by, status="en_attente", offered=int(time.time()))
         await S().bridge.send({"type": "remote_request", "from": by or "Votre support", "task": t["task"],
                                "ticket": t["id"], "number": t["number"], "rdv": False})
+    elif act == "refine":
+        # Le support réécrit tout le plan d'une phrase : Holo refait le plan avec sa consigne.
+        if not t.get("automate") or t["status"] == "resolu":
+            return JSONResponse({"error": "Ce ticket n'a pas de plan à modifier."}, status_code=409)
+        consigne = str(body.get("text") or "").strip()[:600]
+        if len(consigne) < 3:
+            return JSONResponse({"error": "Dites à Holo ce qu'il doit changer."}, status_code=400)
+        actuel = " ; ".join(t["automate"].get("steps", []))
+        try:
+            new = await automate_draft.draft({
+                "kind": "request", "os": (t["automate"].get("platforms") or ["mac"])[0],
+                "lang": str(body.get("lang") or ""),
+                "text": f"{t['task']}\n\nPlan actuel : {actuel}\nConsigne du support, à suivre : {consigne}"})
+        except automate_draft.DraftError as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
+        except Exception as e:  # noqa: BLE001
+            print(f"[tickets] plan non refait : {type(e).__name__}")
+            return JSONResponse({"error": "Holo ne répond pas pour le moment. Réessayez."}, status_code=502)
+        new.pop("linkup", None)
+        S().tickets.update(t, automate=new)
+        S().tickets.note(t, by, f"Plan refait : {consigne}")
     elif act == "linkup":
         # Le support demande une recherche Linkup : Holo refait le plan avec la documentation.
         if not t.get("automate") or t["status"] == "resolu":

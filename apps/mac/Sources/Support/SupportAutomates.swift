@@ -51,12 +51,12 @@ struct SupportAutomates: View {
             let access = url.startAccessingSecurityScopedResource()
             defer { if access { url.stopAccessingSecurityScopedResource() } }
             if let d = try? Data(contentsOf: url), let e = lib.add(pack: d) {
-                error = nil; model.showToast("« \(e.title) » ajouté à vos automates")
+                error = nil; model.showToast(String(localized: "« \(e.title) » ajouté à vos automates"))
             } else {
-                error = "Ce fichier n’est pas un automate .papai."
+                error = String(localized: "Ce fichier n’est pas un automate .papai.")
             }
         }
-        .confirmationDialog("Supprimer cet automate de votre bibliothèque ?",
+        .confirmationDialog(String(localized: "Supprimer cet automate de votre bibliothèque ?"),
                             isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } })) {
             Button("Supprimer « \(toDelete?.title ?? "") »", role: .destructive) { if let e = toDelete { Task { await lib.removeEverywhere(e, people: model.people) } } }
             Button("Annuler", role: .cancel) {}
@@ -82,7 +82,7 @@ struct SupportAutomates: View {
                     if !e.publisher.isEmpty { tag(e.publisher) }
                 }
                 let names = AutomateLibrary.appliedTo(e, people: model.people, org: model.org, orgName: model.orgName)
-                Text(names.isEmpty ? "Appliqué à personne" : "Appliqué à : " + names.joined(separator: ", "))
+                Text(names.isEmpty ? String(localized: "Appliqué à personne") : String(localized: "Appliqué à : ") + names.joined(separator: ", "))
                     .font(rounded(14, .semibold)).foregroundStyle(names.isEmpty ? T.muted : T.leaf)
             }
             Spacer(minLength: 0)
@@ -152,7 +152,7 @@ struct ApplyAutomateSheet: View {
                             Toggle(isOn: Binding(get: { chosenOrgs.contains(o.token) || already || done },
                                                  set: { on in if on { chosenOrgs.insert(o.token) } else { chosenOrgs.remove(o.token) } })) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(o.name.isEmpty ? "Toute l’organisation" : "Toute l’organisation \(o.name)").font(rounded(17, .semibold))
+                                    Text(o.name.isEmpty ? String(localized: "Toute l’organisation") : String(localized: "Toute l’organisation \(o.name)")).font(rounded(17, .semibold))
                                     Text(o.detail).font(rounded(13)).foregroundStyle(T.muted)
                                 }
                             }
@@ -189,7 +189,7 @@ struct ApplyAutomateSheet: View {
             }
             HStack {
                 Spacer()
-                Button(results.isEmpty ? "Plus tard" : "Fermer") { close() }.buttonStyle(PillStyle(filled: false, height: 46))
+                Button(results.isEmpty ? String(localized: "Plus tard") : "Fermer") { close() }.buttonStyle(PillStyle(filled: false, height: 46))
                 Button(sending ? "Envoi…" : "Appliquer") { Task { await apply() } }
                     .buttonStyle(PillStyle(height: 46, icone: "checkmark.circle"))
                     .disabled((chosen.isEmpty && chosenOrgs.isEmpty) || sending)
@@ -233,13 +233,13 @@ struct SupportCreateAutomate: View {
     @State private var sending = false
     @State private var error: String?
 
-    private static let kinds: [(String, Kind)] = [("Holo s’en charge", .holo), ("Ouvrir un dossier", .folder),
-                                                  ("Page des Réglages", .settings), ("Ouvrir un site", .url)]
+    private static let kinds: [(String, Kind)] = [(String(localized: "Holo s’en charge"), .holo), (String(localized: "Ouvrir un dossier"), .folder),
+                                                  (String(localized: "Page des Réglages"), .settings), (String(localized: "Ouvrir un site"), .url)]
     private static let folders: [(String, String)] = [("Images", "pictures"), ("Documents", "documents"),
         ("Téléchargements", "downloads"), ("Bureau", "desktop"), ("Vidéos", "videos"), ("Musique", "music")]
     private static let pages: [(String, String)] = [("Wi-Fi", "wifi"), ("Imprimantes", "printers"),
-        ("Mises à jour", "updates"), ("Bluetooth", "bluetooth"), ("Son", "sound"), ("Écran", "display"),
-        ("Applications par défaut", "default_apps"), ("Antivirus", "antivirus")]
+        (String(localized: "Mises à jour"), "updates"), ("Bluetooth", "bluetooth"), ("Son", "sound"), ("Écran", "display"),
+        (String(localized: "Applications par défaut"), "default_apps"), ("Antivirus", "antivirus")]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -248,25 +248,25 @@ struct SupportCreateAutomate: View {
                 .frame(maxWidth: .infinity, alignment: .leading).background(T.header)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    field("Titre (un verbe, par exemple « Retrouver mes photos »)", $title, "Se connecter au Wi-Fi")
-                    field("Description (facultatif)", $detail, "Ce que fait l’automate, en une phrase")
+                    field(String(localized: "Titre (un verbe, par exemple « Retrouver mes photos »)"), $title, String(localized: "Se connecter au Wi-Fi"))
+                    field("Description (facultatif)", $detail, String(localized: "Ce que fait l’automate, en une phrase"))
                     VStack(alignment: .leading, spacing: 8) {
-                        label("Ce que fait l’automate")
+                        label(String(localized: "Ce que fait l’automate"))
                         Onglets(options: Self.kinds, selection: $kind)
                     }
                     switch kind {
                     case .holo:
-                        field("Objectif donné à Holo", $goal, "Ouvrir le dossier de la comptabilité")
+                        field(String(localized: "Objectif donné à Holo"), $goal, String(localized: "Ouvrir le dossier de la comptabilité"))
                     case .folder:
                         picker("Dossier", Self.folders, $folder)
                         field("Sous-dossier (facultatif)", $subfolder, "Comptabilité 2025")
                     case .settings:
                         picker("Page", Self.pages, $page)
                     case .url:
-                        field("Adresse (https seulement)", $link, "https://")
+                        field(String(localized: "Adresse (https seulement)"), $link, "https://")
                     }
                     VStack(alignment: .leading, spacing: 8) {
-                        label("Pas à pas « Montrez-moi » : une étape par ligne (facultatif)")
+                        label(String(localized: "Pas à pas « Montrez-moi » : une étape par ligne (facultatif)"))
                         TextEditor(text: $stepsText).font(rounded(16)).frame(minHeight: 96)
                             .scrollContentBackground(.hidden).padding(10).champ()
                     }
@@ -325,15 +325,15 @@ struct SupportCreateAutomate: View {
 
     private func create() async {
         let t = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { error = "Donnez un titre à l’automate."; return }
-        guard mac || windows else { error = "Choisissez au moins Mac ou Windows."; return }
+        guard !t.isEmpty else { error = String(localized: "Donnez un titre à l’automate."); return }
+        guard mac || windows else { error = String(localized: "Choisissez au moins Mac ou Windows."); return }
         let steps = stepsText.split(whereSeparator: \.isNewline)
             .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         var action: [String: Any]
         switch kind {
         case .holo:
             let g = goal.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !g.isEmpty else { error = "Dites à Holo ce qu’il doit faire."; return }
+            guard !g.isEmpty else { error = String(localized: "Dites à Holo ce qu’il doit faire."); return }
             action = ["do": "holo", "goal": g, "steps": steps]
         case .folder:
             action = ["do": "open_folder", "folder": folder, "subfolder": subfolder.trimmingCharacters(in: .whitespaces)]
@@ -345,7 +345,7 @@ struct SupportCreateAutomate: View {
         let pack: [String: Any] = [
             "papai": 1, "title": t,
             "description": detail.trimmingCharacters(in: .whitespacesAndNewlines),
-            "publisher": model.helperName?.isEmpty == false ? model.helperName! : "Mon support",
+            "publisher": model.helperName?.isEmpty == false ? model.helperName! : String(localized: "Mon support"),
             "platforms": (mac ? ["mac"] : []) + (windows ? ["windows"] : []),
             "actions": [action],
             "steps": steps.map { ["instruction": $0] },

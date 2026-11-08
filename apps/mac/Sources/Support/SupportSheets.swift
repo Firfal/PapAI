@@ -46,9 +46,9 @@ struct SupportRefineSheet: View {
     private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
-        SupportSheet(titre: "Préciser le plan",
-                     sousTitre: "Dites ou écrivez à Holo ce qu’il doit changer. Il proposera un nouveau plan.") {
-            SupportDictationField(text: $text, placeholder: "Par exemple : le dossier est dans Documents > Comptabilité 2025",
+        SupportSheet(titre: String(localized: "Préciser le plan"),
+                     sousTitre: String(localized: "Dites ou écrivez à Holo ce qu’il doit changer. Il proposera un nouveau plan.")) {
+            SupportDictationField(text: $text, placeholder: String(localized: "Par exemple : le dossier est dans Documents > Comptabilité 2025"),
                                   dictation: dictation, httpBase: model.baseHTTP)
         } bas: {
             Spacer()
@@ -74,9 +74,9 @@ struct SupportStepEditSheet: View {
     private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
-        SupportSheet(titre: "Modifier l’étape \(step.index + 1)",
-                     sousTitre: "Corrigez le texte, ou dites la nouvelle étape. Holo proposera un nouveau plan, que vous validerez.") {
-            SupportDictationField(text: $text, placeholder: "La nouvelle étape", dictation: dictation,
+        SupportSheet(titre: String(localized: "Modifier l’étape \(step.index + 1)"),
+                     sousTitre: String(localized: "Corrigez le texte, ou dites la nouvelle étape. Holo proposera un nouveau plan, que vous validerez.")) {
+            SupportDictationField(text: $text, placeholder: String(localized: "La nouvelle étape"), dictation: dictation,
                                   httpBase: model.baseHTTP, replacing: step.text)
             if trimmed != step.text {
                 VStack(alignment: .leading, spacing: 4) {
@@ -125,14 +125,14 @@ struct SupportNoPoste: View {
         Panneau {
             VStack(alignment: .leading, spacing: 8) {
                 Text(model.orgTitle).font(rounded(32, .bold))
-                Text(!model.orgLoaded && model.orgError == nil ? "Chargement des postes…"
-                     : model.orgError == nil ? "Aucun poste inscrit pour l’instant" : "Postes indisponibles")
+                Text(!model.orgLoaded && model.orgError == nil ? String(localized: "Chargement des postes…")
+                     : model.orgError == nil ? String(localized: "Aucun poste inscrit pour l’instant") : String(localized: "Postes indisponibles"))
                     .font(rounded(18, .medium)).opacity(0.92)
             }
         } corps: {
             HStack(spacing: 16) {
                 if !model.orgLoaded && model.orgError == nil { ProgressView().controlSize(.small) }
-                Text(model.orgError ?? "Les postes de l’organisation apparaissent ici dès que PapAI y est installé.")
+                Text(model.orgError ?? String(localized: "Les postes de l’organisation apparaissent ici dès que PapAI y est installé."))
                     .font(rounded(18)).foregroundStyle(model.orgError == nil ? T.muted : T.danger)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
@@ -153,15 +153,16 @@ struct SupportSettings: View {
 
     var body: some View {
         SupportSheet(titre: "Réglages", sousTitre: model.helperName.map { "Support : \($0)" }, width: 560, height: 420) {
+            LangueReglage()
             sheetLabel("Organisation")
-            Text(model.orgConfigured ? model.orgTitle : "Aucune organisation configurée").font(rounded(20, .bold))
+            Text(model.orgConfigured ? model.orgTitle : String(localized: "Aucune organisation configurée")).font(rounded(20, .bold))
             if let o = model.org {
                 Text(URL(string: o.server)?.host ?? o.server).font(rounded(15)).foregroundStyle(T.muted)
                 Text("\(model.people.count) poste\(model.people.count > 1 ? "s" : "")").font(rounded(15)).foregroundStyle(T.muted)
             }
             if let e = model.orgError { Text(e).font(rounded(14, .semibold)).foregroundStyle(T.danger) }
-            Text(model.orgConfigured ? "Configuré par votre administrateur. Rien à régler sur ce Mac."
-                 : "Contactez votre administrateur : il dépose le jeton du support de votre organisation sur ce Mac.")
+            Text(model.orgConfigured ? String(localized: "Configuré par votre administrateur. Rien à régler sur ce Mac.")
+                 : String(localized: "Contactez votre administrateur : il dépose le jeton du support de votre organisation sur ce Mac."))
                 .font(rounded(15)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
             if model.isConfigured {
                 HStack(spacing: 8) {

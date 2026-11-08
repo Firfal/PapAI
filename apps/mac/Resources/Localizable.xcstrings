@@ -3371,6 +3371,1706 @@
           }
         }
       }
+    },
+    "%@ a arrêté l’assistance": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ stopped the assistance"
+          }
+        }
+      }
+    },
+    "%@ a besoin de vous": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ needs you"
+          }
+        }
+      }
+    },
+    "%@ a mis l’aide en pause. Holo attend la reprise.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ paused the help. Holo is waiting to resume."
+          }
+        }
+      }
+    },
+    "%@ demande une assistance": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is asking for assistance"
+          }
+        }
+      }
+    },
+    "%@ est disponible pour vous aider": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is available to help you"
+          }
+        }
+      }
+    },
+    "%@ propose de vous aider": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ offers to help you"
+          }
+        }
+      }
+    },
+    "%@ s'en occupe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is handling it"
+          }
+        }
+      }
+    },
+    "%@ vérifie": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is checking"
+          }
+        }
+      }
+    },
+    "Action refusée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Action refused"
+          }
+        }
+      }
+    },
+    "Adresse (https seulement)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Address (https only)"
+          }
+        }
+      }
+    },
+    "Aide en pause": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help paused"
+          }
+        }
+      }
+    },
+    "Ajustez si besoin, puis confirmez.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjust if needed, then confirm."
+          }
+        }
+      }
+    },
+    "Antivirus": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antivirus"
+          }
+        }
+      }
+    },
+    "Applications par défaut": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default apps"
+          }
+        }
+      }
+    },
+    "Appliquer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply"
+          }
+        }
+      }
+    },
+    "Appliqué": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applied"
+          }
+        }
+      }
+    },
+    "Appliqué à personne": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not applied to anyone"
+          }
+        }
+      }
+    },
+    "Arrêté": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped"
+          }
+        }
+      }
+    },
+    "Aucun poste inscrit pour l’instant": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No computer enrolled yet"
+          }
+        }
+      }
+    },
+    "Aucun ticket pour l’instant.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No tickets yet."
+          }
+        }
+      }
+    },
+    "Aucun utilisateur relié pour l’instant.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No user linked yet."
+          }
+        }
+      }
+    },
+    "Automate le plus utile": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Most useful automation"
+          }
+        }
+      }
+    },
+    "Autre": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Other"
+          }
+        }
+      }
+    },
+    "Avant": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before"
+          }
+        }
+      }
+    },
+    "Bluetooth": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bluetooth"
+          }
+        }
+      }
+    },
+    "Bureau": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desktop"
+          }
+        }
+      }
+    },
+    "Catégorie choisie par Holo": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Category chosen by Holo"
+          }
+        }
+      }
+    },
+    "Catégorie choisie par les règles": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Category chosen by rules"
+          }
+        }
+      }
+    },
+    "Catégorie corrigée par le support": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Category corrected by support"
+          }
+        }
+      }
+    },
+    "Catégorie à vérifier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Category to check"
+          }
+        }
+      }
+    },
+    "Ce fichier n’est pas un automate .papai.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file isn't a .papai automation."
+          }
+        }
+      }
+    },
+    "Ce que fait l’automate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What the automation does"
+          }
+        }
+      }
+    },
+    "Ce que fait l’automate, en une phrase": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What the automation does, in one sentence"
+          }
+        }
+      }
+    },
+    "Cette capture est trop ancienne : l’écran a pu changer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This screenshot is too old: the screen may have changed."
+          }
+        }
+      }
+    },
+    "Chargement des postes…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading computers…"
+          }
+        }
+      }
+    },
+    "Choisissez au moins Mac ou Windows.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose at least Mac or Windows."
+          }
+        }
+      }
+    },
+    "Cliquer ici": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click here"
+          }
+        }
+      }
+    },
+    "Cliquez sur le micro et parlez": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click the microphone and speak"
+          }
+        }
+      }
+    },
+    "Cliquez sur l’écran de %@ à l’endroit où il faut cliquer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click on %@'s screen where the click should go."
+          }
+        }
+      }
+    },
+    "Comptes et mots de passe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accounts and passwords"
+          }
+        }
+      }
+    },
+    "Configuré par votre administrateur. Rien à régler sur ce Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configured by your administrator. Nothing to set on this Mac."
+          }
+        }
+      }
+    },
+    "Connecté à %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected to %@"
+          }
+        }
+      }
+    },
+    "Connexion à %@…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting to %@…"
+          }
+        }
+      }
+    },
+    "Contactez votre administrateur : il dépose le jeton du support de votre organisation sur ce Mac.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contact your administrator: they install your organization's support token on this Mac."
+          }
+        }
+      }
+    },
+    "Corriger le plan proposé par Holo avant de le valider": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct Holo's plan before approving it"
+          }
+        }
+      }
+    },
+    "Corrigez le texte, ou dites la nouvelle étape. Holo proposera un nouveau plan, que vous validerez.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Correct the text, or say the new step. Holo will propose a new plan for you to approve."
+          }
+        }
+      }
+    },
+    "Créer un automate avec ce plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create an automation with this plan"
+          }
+        }
+      }
+    },
+    "Dans 1 heure": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In 1 hour"
+          }
+        }
+      }
+    },
+    "Demande sans texte": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request without text"
+          }
+        }
+      }
+    },
+    "Demande une assistance": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Requests assistance"
+          }
+        }
+      }
+    },
+    "Description (facultatif)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Description (optional)"
+          }
+        }
+      }
+    },
+    "Dicter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dictate"
+          }
+        }
+      }
+    },
+    "Dites ou écrivez à Holo ce qu’il doit changer. Il proposera un nouveau plan.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say or write what Holo should change. It will propose a new plan."
+          }
+        }
+      }
+    },
+    "Dites à Holo ce qu’il doit faire.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tell Holo what to do."
+          }
+        }
+      }
+    },
+    "Documents": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documents"
+          }
+        }
+      }
+    },
+    "Donnez un titre à l’automate.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Give the automation a title."
+          }
+        }
+      }
+    },
+    "Dossier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder"
+          }
+        }
+      }
+    },
+    "Démarche à vérifier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request to check"
+          }
+        }
+      }
+    },
+    "D’accord": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "En attente de la première capture d’écran…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for the first screenshot…"
+          }
+        }
+      }
+    },
+    "En attente de la première image de Chrome PapAI…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for the first image from PapAI Chrome…"
+          }
+        }
+      }
+    },
+    "En attente de l’autorisation de %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for %@'s permission"
+          }
+        }
+      }
+    },
+    "En tête": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top"
+          }
+        }
+      }
+    },
+    "Envoi…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending…"
+          }
+        }
+      }
+    },
+    "Envoyée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent"
+          }
+        }
+      }
+    },
+    "Exécuter ce plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run this plan"
+          }
+        }
+      }
+    },
+    "Fait : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done: %@"
+          }
+        }
+      }
+    },
+    "Fichiers": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Files"
+          }
+        }
+      }
+    },
+    "Garder comme automate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep as automation"
+          }
+        }
+      }
+    },
+    "Holo a terminé.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is done."
+          }
+        }
+      }
+    },
+    "Holo agit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is acting"
+          }
+        }
+      }
+    },
+    "Holo attend votre aide.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is waiting for your help."
+          }
+        }
+      }
+    },
+    "Holo regarde l’écran de %@…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is looking at %@'s screen…"
+          }
+        }
+      }
+    },
+    "Holo regarde l’écran…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is looking at the screen…"
+          }
+        }
+      }
+    },
+    "Holo s’en charge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo takes care of it"
+          }
+        }
+      }
+    },
+    "Holo travaille dans %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is working in %@"
+          }
+        }
+      }
+    },
+    "Hors ligne": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offline"
+          }
+        }
+      }
+    },
+    "Il est aussi retiré chez les utilisateurs qui l’ont.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It is also removed from users who have it."
+          }
+        }
+      }
+    },
+    "Images": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pictures"
+          }
+        }
+      }
+    },
+    "Imprimante": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Printer"
+          }
+        }
+      }
+    },
+    "Imprimantes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Printers"
+          }
+        }
+      }
+    },
+    "Interrompue": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Interrupted"
+          }
+        }
+      }
+    },
+    "Je vous écoute… cliquez pour finir": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listening… click to finish"
+          }
+        }
+      }
+    },
+    "J’écris ce que vous avez dit…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Writing down what you said…"
+          }
+        }
+      }
+    },
+    "La nouvelle étape": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The new step"
+          }
+        }
+      }
+    },
+    "Lance la solution sur l’ordinateur de l’utilisateur, sans créer d’automate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Runs the solution on the user's computer, without creating an automation"
+          }
+        }
+      }
+    },
+    "Lancer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run"
+          }
+        }
+      }
+    },
+    "Lancé": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Started"
+          }
+        }
+      }
+    },
+    "Les postes de l’organisation apparaissent ici dès que PapAI y est installé.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your organization's computers appear here as soon as PapAI is installed on them."
+          }
+        }
+      }
+    },
+    "Logiciels": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Software"
+          }
+        }
+      }
+    },
+    "L’ordinateur de %@ est allumé": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@'s computer is on"
+          }
+        }
+      }
+    },
+    "L’ordinateur de %@ est éteint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@'s computer is off"
+          }
+        }
+      }
+    },
+    "Messagerie": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email"
+          }
+        }
+      }
+    },
+    "Mis à jour le ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated on "
+          }
+        }
+      }
+    },
+    "Mises à jour": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        }
+      }
+    },
+    "Modifier cette étape": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit this step"
+          }
+        }
+      }
+    },
+    "Musique": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Music"
+          }
+        }
+      }
+    },
+    "Nouveau": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New"
+          }
+        }
+      }
+    },
+    "Objectif donné à Holo": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goal given to Holo"
+          }
+        }
+      }
+    },
+    "Ordinateur allumé": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Computer on"
+          }
+        }
+      }
+    },
+    "Ordinateur éteint": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Computer off"
+          }
+        }
+      }
+    },
+    "Organisation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organization"
+          }
+        }
+      }
+    },
+    "Ouvrir un dossier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open a folder"
+          }
+        }
+      }
+    },
+    "Ouvrir un site": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open a website"
+          }
+        }
+      }
+    },
+    "Page": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Page"
+          }
+        }
+      }
+    },
+    "Page des Réglages": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings page"
+          }
+        }
+      }
+    },
+    "Pas à pas « Montrez-moi » : une étape par ligne (facultatif)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“Show me” walkthrough: one step per line (optional)"
+          }
+        }
+      }
+    },
+    "Pause demandée…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause requested…"
+          }
+        }
+      }
+    },
+    "Plan mis à jour avec Linkup": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan updated with Linkup"
+          }
+        }
+      }
+    },
+    "Plan validé": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan approved"
+          }
+        }
+      }
+    },
+    "Plus d’actions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More actions"
+          }
+        }
+      }
+    },
+    "Postes indisponibles": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Computers unavailable"
+          }
+        }
+      }
+    },
+    "Pour": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For"
+          }
+        }
+      }
+    },
+    "Préciser le plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refine the plan"
+          }
+        }
+      }
+    },
+    "Préparé à partir des demandes reçues": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prepared from received requests"
+          }
+        }
+      }
+    },
+    "Question posée à %@ sur son écran. Vous pouvez aussi répondre.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Question asked to %@ on their screen. You can answer too."
+          }
+        }
+      }
+    },
+    "Recherche documentaire : Holo refait le plan avec les sources trouvées": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documentation search: Holo redoes the plan with the sources found"
+          }
+        }
+      }
+    },
+    "Refuser ce plan ?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Decline this plan?"
+          }
+        }
+      }
+    },
+    "Rendez-vous": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appointment"
+          }
+        }
+      }
+    },
+    "Rendez-vous le ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appointment on "
+          }
+        }
+      }
+    },
+    "Retirer cette étape": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove this step"
+          }
+        }
+      }
+    },
+    "Retirer le filtre de catégorie": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove category filter"
+          }
+        }
+      }
+    },
+    "Rien à traiter. Les demandes de vos utilisateurs arriveront ici.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing to handle. Your users' requests will arrive here."
+          }
+        }
+      }
+    },
+    "Rédaction en cours…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drafting…"
+          }
+        }
+      }
+    },
+    "Réglée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resolved"
+          }
+        }
+      }
+    },
+    "Résolu": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resolved"
+          }
+        }
+      }
+    },
+    "Se connecter au Wi-Fi": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect to Wi-Fi"
+          }
+        }
+      }
+    },
+    "Serveur injoignable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server unreachable"
+          }
+        }
+      }
+    },
+    "Son": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sound"
+          }
+        }
+      }
+    },
+    "Source": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source"
+          }
+        }
+      }
+    },
+    "Sous-dossier (facultatif)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subfolder (optional)"
+          }
+        }
+      }
+    },
+    "Support": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support"
+          }
+        }
+      }
+    },
+    "Support : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support: %@"
+          }
+        }
+      }
+    },
+    "Supprimer cet automate de votre bibliothèque ?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove this automation from your library?"
+          }
+        }
+      }
+    },
+    "Sécurité": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Security"
+          }
+        }
+      }
+    },
+    "Ticket résolu, solution enregistrée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ticket resolved, solution saved"
+          }
+        }
+      }
+    },
+    "Titre (un verbe, par exemple « Retrouver mes photos »)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Title (a verb, e.g. “Find my photos”)"
+          }
+        }
+      }
+    },
+    "Toute l’organisation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The whole organization"
+          }
+        }
+      }
+    },
+    "Toute l’organisation %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The whole organization %@"
+          }
+        }
+      }
+    },
+    "Téléchargements": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads"
+          }
+        }
+      }
+    },
+    "Utilisateur": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "User"
+          }
+        }
+      }
+    },
+    "Vidéos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Videos"
+          }
+        }
+      }
+    },
+    "Votre réponse à Holo…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your answer to Holo…"
+          }
+        }
+      }
+    },
+    "Vous avez refusé le plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You declined the plan"
+          }
+        }
+      }
+    },
+    "Wi-Fi et réseau": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wi-Fi and network"
+          }
+        }
+      }
+    },
+    "aucun cette semaine": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "none this week"
+          }
+        }
+      }
+    },
+    "demandes reçues": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "requests received"
+          }
+        }
+      }
+    },
+    "en route": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "on the way"
+          }
+        }
+      }
+    },
+    "il y a %@ min": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ min ago"
+          }
+        }
+      }
+    },
+    "mise à jour le ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "updated on "
+          }
+        }
+      }
+    },
+    "rendez-vous le ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "appointment on "
+          }
+        }
+      }
+    },
+    "réglées": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "resolved"
+          }
+        }
+      }
+    },
+    "réglées par un automate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "resolved by an automation"
+          }
+        }
+      }
+    },
+    "réglés par un automate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "resolved by an automation"
+          }
+        }
+      }
+    },
+    "résolus": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "resolved"
+          }
+        }
+      }
+    },
+    "temps de résolution (médian)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "resolution time (median)"
+          }
+        }
+      }
+    },
+    "temps moyen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "average time"
+          }
+        }
+      }
+    },
+    "« %@ » ajouté à vos automates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” added to your automations"
+          }
+        }
+      }
+    },
+    "À reprendre": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To resume"
+          }
+        }
+      }
+    },
+    "Écran": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen"
+          }
+        }
+      }
+    },
+    "Étape %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step %@"
+          }
+        }
+      }
+    },
+    "à l’instant": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "just now"
+          }
+        }
+      }
+    },
+    "Dites à Holo ce qu’il doit changer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tell Holo what to change"
+          }
+        }
+      }
+    },
+    "Refaire le plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redo the plan"
+          }
+        }
+      }
+    },
+    "Par exemple : tout faire dans Safari et mettre google.fr en page d’accueil": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For example: do everything in Safari and set google.fr as the homepage"
+          }
+        }
+      }
+    },
+    "Solution lancée chez %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solution started on %@'s computer"
+          }
+        }
+      }
+    },
+    "Automate créé chez %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automation created for %@"
+          }
+        }
+      }
+    },
+    "Catégorie : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Category: %@"
+          }
+        }
+      }
+    },
+    "Demande proposée à %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request offered to %@"
+          }
+        }
+      }
+    },
+    "Chercher avec Linkup": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search with Linkup"
+          }
+        }
+      }
     }
   }
 }

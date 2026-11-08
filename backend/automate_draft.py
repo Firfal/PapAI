@@ -103,7 +103,7 @@ def build_messages(req: dict) -> list[dict]:
                   "la demande n'est pas une tâche informatique faisable sur l'ordinateur.")
         return [
             {"role": "system", "content": PROMPT.format(source=source)},
-            {"role": "user", "content": text[:600]},
+            {"role": "user", "content": text[:2000]},
         ]
     if kind == "document":
         text = str(req.get("text", "")).strip()

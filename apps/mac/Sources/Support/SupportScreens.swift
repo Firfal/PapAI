@@ -30,7 +30,7 @@ struct SupportIdle: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 20) {
                     if let online = model.seniorOnline {
-                        Pastille(texte: online ? "L’ordinateur de \(model.senior) est allumé" : "L’ordinateur de \(model.senior) est éteint",
+                        Pastille(texte: online ? String(localized: "L’ordinateur de \(model.senior) est allumé") : String(localized: "L’ordinateur de \(model.senior) est éteint"),
                                  icone: online ? "desktopcomputer" : "moon.zzz", ton: online ? .vert : .gris, taille: 15)
                     }
                     if let live = model.liveDictation {
@@ -183,7 +183,7 @@ struct SupportApproval: View {
         .sheet(isPresented: $refine) { SupportRefineSheet(model: model) }
         .sheet(item: $editing) { e in SupportStepEditSheet(model: model, step: e) }
         .sheet(isPresented: $zoom) { SupportZoom(image: model.frame) }
-        .confirmationDialog("Refuser ce plan ?", isPresented: $confirmRefuse) {
+        .confirmationDialog(String(localized: "Refuser ce plan ?"), isPresented: $confirmRefuse) {
             Button("Refuser le plan", role: .destructive) { model.refusePlan() }
             Button("Annuler", role: .cancel) {}
         } message: { Text("Rien ne sera fait, et l’ordinateur de \(model.senior) l’indiquera.") }
@@ -203,8 +203,8 @@ struct EditedStepMac: Identifiable {
     var id: Int { index }
     func instruction(_ new: String) -> String {
         let current = plan.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: " ; ")
-        return "Étape \(index + 1) : remplacer « \(text) » par « \(new) ». "
-            + "Plan actuel : \(current). Garde les autres étapes telles quelles et propose le plan corrigé."
+        return String(localized: "Étape \(index + 1) : remplacer « \(text) » par « \(new) ». ")
+            + String(localized: "Plan actuel : \(current). Garde les autres étapes telles quelles et propose le plan corrigé.")
     }
 }
 
@@ -213,9 +213,9 @@ struct EditedStepMac: Identifiable {
 struct SupportActive: View {
     let model: HelperModel
     private var caption: String {
-        if model.seniorPaused { return "Aide en pause" }
+        if model.seniorPaused { return String(localized: "Aide en pause") }
         if let n = model.planStep, !model.plan.isEmpty { return "Étape \(min(n, model.plan.count)) sur \(model.plan.count)" }
-        return "Holo agit"
+        return String(localized: "Holo agit")
     }
     var body: some View {
         Panneau {
@@ -227,10 +227,10 @@ struct SupportActive: View {
                         .background(Capsule().fill(.white.opacity(0.2)))
                 }
                 Text(model.webLive
-                     ? "Holo travaille dans \(model.webBrowserTitle)"
+                     ? String(localized: "Holo travaille dans \(model.webBrowserTitle)")
                      : model.seniorPaused
-                         ? "\(model.seniorTitle) a mis l’aide en pause. Holo attend la reprise."
-                         : (model.doing ?? "Holo regarde l’écran de \(model.senior)…"))
+                         ? String(localized: "\(model.seniorTitle) a mis l’aide en pause. Holo attend la reprise.")
+                         : (model.doing ?? String(localized: "Holo regarde l’écran de \(model.senior)…")))
                     .font(rounded(24, .bold)).lineLimit(3).fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.opacity)
                     .animation(.easeInOut(duration: 0.25), value: model.doing)
@@ -243,7 +243,7 @@ struct SupportActive: View {
                         Text("« \(model.task) »").font(rounded(16, .semibold)).foregroundStyle(T.muted)
                     }
                     ScrollView { SupportPlanProgress(plan: model.plan, current: model.planStep) }
-                    Button(model.pausing ? "Pause demandée…" : "Mettre en pause") { model.pause() }
+                    Button(model.pausing ? String(localized: "Pause demandée…") : String(localized: "Mettre en pause")) { model.pause() }
                         .buttonStyle(supportSecondary(52, icone: "pause.fill")).disabled(model.pausing)
                 }
                 .frame(width: 290)
@@ -260,16 +260,16 @@ struct SupportHelperView: View {
     @State private var dictation = Dictation()
 
     private var headline: String {
-        if model.webLive { return "Holo a une question" }
-        if model.questionToSenior { return "Question posée à \(model.senior) sur son écran. Vous pouvez aussi répondre." }
-        return "\(model.seniorTitle) a besoin de vous"
+        if model.webLive { return String(localized: "Holo a une question") }
+        if model.questionToSenior { return String(localized: "Question posée à \(model.senior) sur son écran. Vous pouvez aussi répondre.") }
+        return String(localized: "\(model.seniorTitle) a besoin de vous")
     }
 
     var body: some View {
         Panneau {
             VStack(alignment: .leading, spacing: 8) {
                 Text(headline).font(rounded(15, .semibold)).opacity(0.92)
-                Text(model.question?.text ?? "Holo attend votre aide.").font(rounded(26, .bold))
+                Text(model.question?.text ?? String(localized: "Holo attend votre aide.")).font(rounded(26, .bold))
                     .fixedSize(horizontal: false, vertical: true)
             }
         } corps: {
@@ -310,7 +310,7 @@ struct SupportHelperView: View {
                 }
             }
         }
-        SupportDictationField(text: $reply, placeholder: "Votre réponse à Holo…", dictation: dictation, httpBase: model.baseHTTP)
+        SupportDictationField(text: $reply, placeholder: String(localized: "Votre réponse à Holo…"), dictation: dictation, httpBase: model.baseHTTP)
         HStack(spacing: 10) {
             Button("Envoyer") { sendReply() }
                 .buttonStyle(PillStyle(height: 50, icone: "arrow.up"))
@@ -337,17 +337,17 @@ struct SupportHelperView: View {
             let stale = age >= HelperModel.frameTTL
             VStack(alignment: .leading, spacing: 14) {
                 Text(model.target == nil
-                     ? "Cliquez sur l’écran de \(model.senior) à l’endroit où il faut cliquer."
-                     : "Ajustez si besoin, puis confirmez.")
+                     ? String(localized: "Cliquez sur l’écran de \(model.senior) à l’endroit où il faut cliquer.")
+                     : String(localized: "Ajustez si besoin, puis confirmez."))
                     .font(rounded(18, .semibold)).fixedSize(horizontal: false, vertical: true)
-                Text(stale ? "Cette capture est trop ancienne : l’écran a pu changer."
-                     : "Capture d’il y a \(Int(age)) s, valable encore \(Int(HelperModel.frameTTL) - Int(age)) s.")
+                Text(stale ? String(localized: "Cette capture est trop ancienne : l’écran a pu changer.")
+                     : String(localized: "Capture d’il y a \(Int(age)) s, valable encore \(Int(HelperModel.frameTTL) - Int(age)) s."))
                     .font(rounded(14)).foregroundStyle(stale ? T.ink : T.muted)
                 if stale {
                     Button("Rafraîchir") { model.refresh() }.buttonStyle(.plain)
                         .font(rounded(15, .semibold)).foregroundStyle(T.leaf)
                 }
-                Button(model.sending ? "Envoi…" : "Cliquer ici") { model.confirmClick() }
+                Button(model.sending ? "Envoi…" : String(localized: "Cliquer ici")) { model.confirmClick() }
                     .buttonStyle(PillStyle(height: 52, icone: "cursorarrow.rays"))
                     .disabled(model.target == nil || stale || model.sending)
                 Button("Annuler") { model.setAiming(false) }.buttonStyle(supportSecondary(48))
@@ -374,7 +374,7 @@ struct SupportDone: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Terminé", systemImage: "checkmark.circle.fill").font(rounded(15, .semibold)).opacity(0.92)
                     if !model.task.isEmpty { Text("« \(model.task) »").font(rounded(17, .medium)).opacity(0.92) }
-                    Text(model.doneAnswer ?? "Holo a terminé.").font(rounded(26, .bold))
+                    Text(model.doneAnswer ?? String(localized: "Holo a terminé.")).font(rounded(26, .bold))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
@@ -396,7 +396,7 @@ struct SupportDone: View {
                         Button { model.requestLesson() } label: {
                             HStack(spacing: 10) {
                                 if model.lessonBusy { ProgressView().controlSize(.small).tint(.white) }
-                                Text(model.lessonBusy ? "Rédaction en cours…" : "Garder comme automate")
+                                Text(model.lessonBusy ? String(localized: "Rédaction en cours…") : String(localized: "Garder comme automate"))
                             }
                         }
                         .buttonStyle(PillStyle(height: 56, icone: model.lessonBusy ? nil : "square.and.arrow.down"))
@@ -420,7 +420,7 @@ struct SupportDone: View {
                 Image(systemName: "folder").font(.system(size: 16, weight: .semibold)).foregroundStyle(T.accent)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("La tuile ouvrira").font(rounded(13, .semibold)).foregroundStyle(T.muted)
-                    Text(model.draftTarget ?? "Aucun dossier : \(model.senior) aura seulement les étapes.")
+                    Text(model.draftTarget ?? String(localized: "Aucun dossier : \(model.senior) aura seulement les étapes."))
                         .font(rounded(16, .semibold))
                 }
             }
@@ -462,8 +462,8 @@ struct SupportStopped: View {
     let model: HelperModel
     var body: some View {
         Panneau(alerte: model.stoppedBy == "gardien") {
-            Text(model.stoppedBy == "gardien" ? "PapAI a arrêté l'assistance : démarche suspecte"
-                 : model.iRefusedPlan ? "Vous avez refusé le plan" : "\(model.seniorTitle) a arrêté l’assistance")
+            Text(model.stoppedBy == "gardien" ? String(localized: "PapAI a arrêté l'assistance : démarche suspecte")
+                 : model.iRefusedPlan ? String(localized: "Vous avez refusé le plan") : String(localized: "\(model.seniorTitle) a arrêté l’assistance"))
                 .font(rounded(28, .bold))
         } corps: {
             VStack(spacing: 14) {
@@ -499,7 +499,7 @@ struct SupportGuardView: View {
                     Image(systemName: "hand.raised.fill").font(.system(size: 26, weight: .semibold))
                         .frame(width: 58, height: 58).background(Circle().fill(.white.opacity(0.2)))
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(model.lastAlert?.title ?? "Démarche à vérifier").font(rounded(28, .bold))
+                        Text(model.lastAlert?.title ?? String(localized: "Démarche à vérifier")).font(rounded(28, .bold))
                         Text("PapAI a arrêté l'assistance : démarche suspecte").font(rounded(17, .semibold)).opacity(0.95)
                     }
                 }
