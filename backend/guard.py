@@ -250,7 +250,14 @@ def evaluer_demande(texte: str) -> Alerte | None:
         r"(?:un|une)\s+inconnu(?:e)?)\b", t
     ))
     appel_ou_demarche = bool(re.search(
-        r"\b(?:appel\w*|telephone|agent|conseiller|demarchage|monsieur\s+des\s+impots)\b", t
+        r"\bm'a\s+(?:appel\w*|telephone\w*|contacte\w*)\b|"
+        r"\bon\s+m'a\s+appel\w*\b|"
+        r"\bqui\s+m'a\s+(?:appel|telephon)\w*\b|"
+        r"\bappel\w*\s+(?:de|du|par)\s+(?:l'|un\s+|une\s+|le\s+|la\s+)?"
+        r"(?:agent|conseiller|impots|banque|technicien)\b|"
+        r"\b(?:au|par)\s+telephone\b|"
+        r"\b(?:agent|conseiller|demarchage|monsieur\s+des\s+impots)\b",
+        t,
     ))
     lien_sms_mail = bool(re.search(r"\b(?:liens?|sms|textos?|mails?|courriels?)\b", t))
     domaines = re.findall(
