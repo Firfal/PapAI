@@ -263,21 +263,21 @@
       <p id="idleSub">Vous serez prévenu dès que la personne aidée demande de l'aide.</p>
     </div>
     <div class="card remote" id="remote">
-      <h3 class="section-title">Proposer une session</h3>
+      <h3 class="section-title">Proposer une assistance</h3>
       <p>La personne aidée devra l'accepter sur son ordinateur.</p>
-      <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Pourquoi cette session">
+      <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Objet de l'assistance">
       <button class="capsule" id="remoteSend" type="button">Proposer</button>
     </div>
     <div id="ticketsCard" class="stack" hidden>
       <h3 class="section-title">Tickets</h3>
       <div id="tickets"></div>
     </div>
-    <h3 class="section-title">Derniers automatismes</h3>
-    <div id="lessons" class="stack"><p class="muted" style="font-size:15px">Aucun automatisme pour l'instant.</p></div>
+    <h3 class="section-title">Derniers automates</h3>
+    <div id="lessons" class="stack"><p class="muted" style="font-size:15px">Aucun automate pour l'instant.</p></div>
     <div class="card stack" id="importCard" hidden>
-      <h3 class="section-title">Importer un automatisme</h3>
-      <p>Un fichier <code>.papai</code> fourni par un support informatique ou préparé par vous. En l'important, vous le validez : la personne aidée pourra le lancer seul, en un clic.</p>
-      <input type="file" id="importFile" accept=".papai,application/json" aria-label="Fichier d'automatisme">
+      <h3 class="section-title">Importer un automate</h3>
+      <p>Un fichier <code>.papai</code> fourni par un support informatique ou préparé par vous. En l'important, vous le validez : la personne aidée pourra le lancer seule, en un clic.</p>
+      <input type="file" id="importFile" accept=".papai,application/json" aria-label="Fichier d'automate">
       <p class="muted" id="importMsg" role="status" style="font-size:15px"></p>
     </div>
   </section>
@@ -351,12 +351,12 @@
       <h2 id="doneAnswer">Holo a terminé.</h2>
     </div>
     <div id="makeWrap">
-      <button class="capsule" id="makeLesson" type="button">Garder comme automatisme</button>
-      <p class="hint">Holo transforme cette session en pas à pas que la personne aidée pourra relancer seul.</p>
+      <button class="capsule" id="makeLesson" type="button">Garder comme automate</button>
+      <p class="hint">Holo transforme cette assistance en automate que la personne aidée pourra relancer sans aide.</p>
     </div>
     <div class="draft" id="draft" hidden>
-      <h3>Brouillon de l'automatisme</h3>
-      <input type="text" id="lessonTitle" placeholder="Titre" aria-label="Titre de l'automatisme">
+      <h3>Brouillon de l'automate</h3>
+      <input type="text" id="lessonTitle" placeholder="Titre" aria-label="Titre de l'automate">
       <div id="steps"></div>
       <button class="capsule" id="approve" type="button">Valider</button>
     </div>
@@ -679,9 +679,9 @@ function render() {
   $('makeWrap').hidden = !!savedTitle || hasDraft;
   $('draft').hidden = !hasDraft || !!savedTitle;
   $('saved').hidden = !savedTitle;
-  if (savedTitle) $('savedText').textContent = `Automatisme « ${savedTitle} » enregistré.`;
+  if (savedTitle) $('savedText').textContent = `Automate « ${savedTitle} » enregistré.`;
   $('makeLesson').disabled = lessonBusy;
-  $('makeLesson').innerHTML = lessonBusy ? '<div class="spinner"></div>Rédaction en cours…' : 'Garder comme automatisme';
+  $('makeLesson').innerHTML = lessonBusy ? '<div class="spinner"></div>Rédaction en cours…' : 'Garder comme automate';
 
   $('stoppedTitle').textContent = stoppedBy === 'gardien' ? "PapAI a arrêté l'assistance : démarche suspecte"
     : refusedByMe ? 'Vous avez refusé le plan' : "La personne aidée a arrêté l'assistance";
@@ -699,7 +699,7 @@ function tickSince() {
 }
 setInterval(tickSince, 20000);
 
-/* ----------------------------------------------------- les automatismes */
+/* ----------------------------------------------------- les automates */
 
 // Tickets de la personne suivie : demandes en attente, rendez-vous, historique.
 async function loadTickets() {
@@ -730,12 +730,12 @@ async function loadLessons() {
     const list = await r.json();
     const items = Array.isArray(list) ? list : (list.lessons || []);
     $('lessons').innerHTML = items.length ? '' :
-      '<p class="muted" style="font-size:15px">Aucun automatisme pour l\'instant.</p>';
+      '<p class="muted" style="font-size:15px">Aucun automate pour l\'instant.</p>';
     items.slice(0, 8).forEach(l => {
       const d = document.createElement('div');
       d.className = 'card lesson';
       d.innerHTML = '<span class="check"><svg class="i"><use href="#i-check"/></svg></span><div><strong></strong><small></small></div>';
-      d.querySelector('strong').textContent = l.title || 'Automatisme';
+      d.querySelector('strong').textContent = l.title || 'Automate';
       const n = (l.steps || []).length, a = (l.actions || []).length;
       d.querySelector('small').textContent = l.source === 'import'
         ? `Fourni par ${l.publisher || '?'} · ${a} action${a > 1 ? 's' : ''}`
@@ -876,7 +876,7 @@ function onMessage(ev) {
       $('thumb').hidden = true;
       if (armed) setArmed(false);
     }
-    // Un automatisme importé commence directement en `active` : plan déjà validé.
+    // Un automate importé commence directement en `active` : plan déjà validé.
     const debut = ['waiting_consent', 'planning'].includes(state) || (nouvelle && state === 'active');
     if (debut && prev !== state) {
       home = false;
@@ -997,7 +997,7 @@ function onMessage(ev) {
   else if (m.type === 'senior') { seniorName = m.name || ''; rememberHere(); render(); }
 
   else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. La personne aidée doit l’accepter sur son ordinateur.');
-  else if (m.type === 'remote_refused') toast('La personne aidée a refusé la session pour le moment.');
+  else if (m.type === 'remote_refused') toast('La personne aidée a refusé l’assistance pour le moment.');
   else if (m.type === 'remote_accepted') toast('La personne aidée a accepté. Holo prépare un plan.');
 
   else if (m.type === 'answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
@@ -1051,7 +1051,7 @@ function onMessage(ev) {
   }
 
   else if (m.type === 'lesson_saved') {
-    savedTitle = (m.lesson && m.lesson.title) || 'Automatisme';
+    savedTitle = (m.lesson && m.lesson.title) || 'Automate';
     hasDraft = false;
     loadLessons();
     render();
@@ -1138,7 +1138,7 @@ $('confirm').onclick = () => {
   tickFreshness();
 };
 
-// L'automatisme se rédige une fois la session terminée, jamais pendant.
+// L'automate se rédige une fois la session terminée, jamais pendant.
 $('makeLesson').onclick = () => { if (send({ type: 'draft_lesson' })) { lessonBusy = true; render(); } };
 $('approve').onclick = () => {
   const steps = [...$('steps').querySelectorAll('textarea')].map(t => ({ instruction: t.value.trim() }));

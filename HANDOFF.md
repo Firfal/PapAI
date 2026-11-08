@@ -173,7 +173,7 @@ gcloud run deploy papai --source . --project papai-h42-ifiy5 --region europe-wes
   |---|---|
   | `Bridge.swift` | WebSocket, capture ScreenCaptureKit sans les fenêtres PapAI, actions CGEvent (click, double_click, type_text, press_key, scroll), verrou d'arrêt, refus des clics sur la fenêtre PapAI |
   | `Model.swift` | état et réglages ; `serverURL` est lu dans `defaults` à la clé `server`, puis dans `PAPAI_SERVER`, puis vaut `ws://localhost:8000/ws/bridge` |
-  | `HomeView.swift` | accueil « Soin » : carte menthe, champ de demande, micro, gros bouton noir, « Mes raccourcis », « Mes applications » |
+  | `HomeView.swift` | accueil « Soin » : carte menthe, champ de demande, micro, gros bouton noir (raccourcis retirés le 8 nov.) |
   | `SessionView.swift` | écrans planning, plan en attente, action en cours, question, fin, arrêt |
   | `OnboardingView.swift` | accueil en 5 écrans et proches (snarbe) |
   | `Dictation.swift` | enregistrement wav de 30 s maximum, envoi à `/transcribe`, secours avec SFSpeechRecognizer fr-FR sur l'appareil |

@@ -598,7 +598,7 @@ object Helper {
                 main.post {
                     pairBusy = false
                     if (!r.optBoolean("ok")) {
-                        pairError = r.text("error").ifEmpty { "Le serveur a refusé l'appairage." }
+                        pairError = r.text("error").ifEmpty { "Le serveur a refusé la liaison." }
                         return@post
                     }
                     val key = r.text("key")

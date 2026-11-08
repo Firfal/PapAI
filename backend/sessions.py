@@ -146,10 +146,10 @@ class Session:
 
     def require_open(self) -> None:
         if self.state in TERMINAL_STATES:
-            raise Refused("Cette session est terminée.")
+            raise Refused("Cette assistance est terminée.")
         if self.expired:
             self.state = State.STOPPED
-            raise Refused("Cette session a expiré.")
+            raise Refused("Cette assistance a expiré.")
 
     def grant_consent(self) -> None:
         self.require_open()
@@ -265,7 +265,7 @@ class Session:
         return self._plan_decision
 
     def preapprove_plan(self, steps: list[str], by: str) -> None:
-        """Automatisme importé : le support a validé le plan à l'import.
+        """Automate importé : le support a validé le plan à l'import.
         La personne le lance seule ; Arrêter et les garde-fous restent les mêmes."""
         self.require_open()
         if not self.consented:

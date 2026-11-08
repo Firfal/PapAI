@@ -112,11 +112,11 @@
     }).join('');
     const running = S.automationRunning ? `<div class="card row" style="padding:18px;gap:14px;align-items:center">
         <span class="grow" style="${f(18, 6)}">En cours : ${esc(S.automationRunning)}</span>
-        <button class="row press" data-act="stop" aria-label="Arrêter l'automatisme (Échap)"
+        <button class="row press" data-act="stop" aria-label="Arrêter l'automate (Échap)"
           style="gap:10px;height:52px;padding:0 20px;border-radius:999px;background:var(--ink);color:#fff">
           ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
     if (!S.lessons.length && !notice && !running) return '';
-    return `<div class="col" style="gap:14px">${running}${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes tutoriels</div>` : ''}${tiles}</div>`;
+    return `<div class="col" style="gap:14px">${running}${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes automates</div>` : ''}${tiles}</div>`;
   }
 
   const APP_STYLE = {
@@ -247,7 +247,7 @@
       return `<div class="col" style="gap:16px">
         <div class="card" style="padding:28px;${f(26, 5)}">${esc(S.answer || 'Voilà, c\'est fait.')}</div>
         ${endNote('lock', "Votre écran n'est plus partagé.")}
-        ${endNote('book', `${S.HelperName} peut en faire un tutoriel. Vous le retrouverez dans « Mes tutoriels » pour le refaire sans aide.`)}
+        ${endNote('book', `${S.HelperName} peut en faire un automate. Vous le retrouverez dans « Mes automates » pour le refaire sans aide.`)}
       </div>`;
     }
     if (guardStopped(st)) {
@@ -320,7 +320,7 @@
     const i = Math.min(ui.lessonIndex, Math.max(0, steps.length - 1));
     let body;
     if (!steps.length) {
-      body = `<div style="${f(30, 6)}">Pas de pas à pas pour ce raccourci.</div>`;
+      body = `<div style="${f(30, 6)}">Cet automate n'a pas encore d'étapes.</div>`;
     } else {
       const s = steps[i];
       const img = s.image ? `<img alt="" src="${esc(S.httpBase)}/lessons/${encodeURIComponent(l.id)}/${encodeURIComponent(s.image)}"

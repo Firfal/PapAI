@@ -40,7 +40,7 @@ data class PairLink(
 }
 
 object PairingPolicy {
-    const val refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
+    const val refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
     const val officialHost = "papai-450417131702.europe-west1.run.app"
 
     fun isOfficial(base: String): Boolean = runCatching {

@@ -51,10 +51,10 @@
 <h2>Postes</h2>
 <div class="card" id="spaces"><p class="empty">Chargement…</p></div>
 
-<h2>Automatismes de l'organisation</h2>
+<h2>Automates de l'organisation</h2>
 <p class="muted" style="margin-bottom:10px">Importés une fois, proposés sur chaque poste, y compris ceux inscrits plus tard. L'importer, c'est le valider : la personne le lance seule, en un clic.</p>
 <div class="card" id="autos"><p class="empty">Chargement…</p></div>
-<p style="margin-top:12px"><button class="light" id="import">Importer un automatisme (.papai)</button>
+<p style="margin-top:12px"><button class="light" id="import">Importer un automate (.papai)</button>
 <input type="file" id="file" accept=".papai,application/json" hidden></p>
 <div id="toast" hidden></div>
 
@@ -121,7 +121,7 @@ async function loadAutos() {
   const list = r.ok ? await r.json() : [];
   const box = $('autos');
   box.replaceChildren();
-  if (!list.length) box.append(el('p', 'empty', 'Aucun automatisme partagé.'));
+  if (!list.length) box.append(el('p', 'empty', 'Aucun automate partagé.'));
   for (const l of list) {
     const row = el('div', 'row');
     const g = el('div', 'grow', l.title || l.id);
