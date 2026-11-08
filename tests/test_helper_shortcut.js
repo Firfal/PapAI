@@ -129,7 +129,8 @@ test('cible retirable et refus sensible persistant jusqu’à Compris ou au gest
 test('ticket documentaire : réponse et liens affichés sans HTML actif', () => {
   function element() {
     return { children: [], textContent: '', append(...children) { this.children.push(...children); },
-      appendChild(child) { this.children.push(child); }, replaceChildren() { this.children = []; } };
+      appendChild(child) { this.children.push(child); }, replaceChildren() { this.children = []; },
+      setAttribute() {} };
   }
   const context = { window: {}, document: { head: element(), createElement: element } };
   vm.createContext(context);
