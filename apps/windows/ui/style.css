@@ -189,6 +189,9 @@ body.compact #root { padding: 0; gap: 0; }
 .sheet { border-radius: var(--rBig); box-shadow: 0 24px 60px rgba(20,30,80,.25), 0 0 0 .5px rgba(20,40,110,.12);
   max-height: calc(100vh - 56px); overflow: auto; }
 .sheet input { box-shadow: inset 0 0 0 1px var(--line); }
+.requestsSheet > .requestItem { flex-shrink: 0; overflow-wrap: anywhere; }
+.requestText { white-space: pre-wrap; }
+.requestItem ol { margin: 0; padding-left: 24px; }
 /* Alerte du gardien : bandeau rouge épais, impossible à manquer */
 .alertDanger { box-shadow: 0 0 0 3px var(--danger), 0 24px 60px rgba(120,20,10,.3); }
 .alertInfo { box-shadow: 0 24px 60px rgba(20,30,80,.25); }
