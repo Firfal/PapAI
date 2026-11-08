@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#2B6BFF">
-<title>PapAI · Devenir support</title>
+<title>PapAI · Support</title>
 <style>
   /* Direction « Ciel », comme helper.html. */
   :root { --bg:#F3F5FD; --card:#fff; --ink:#141A2E; --muted:#5B6478; --line:rgba(20,40,100,.08);
@@ -56,98 +56,13 @@
 <body>
 <div class="brand">PapAI</div>
 
-<form class="card" id="form">
-  <h1>Devenir support</h1>
-  <p>Vous serez prévenu quand la personne aidée demande de l'aide sur son ordinateur. Rien ne se passe sur son écran sans votre accord.</p>
-  <div id="appRow" hidden>
-    <a class="btn app" id="openApp" href="#">Ouvrir dans l'app PapAI</a>
-    <p class="hint">Pas d'app sur ce téléphone ? Remplissez simplement ce formulaire.</p>
-  </div>
-  <div id="codeRow" hidden>
-    <label for="code">Code affiché sur l'ordinateur</label>
-    <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000">
-  </div>
-  <label for="name">Votre prénom</label>
-  <input id="name" autocomplete="given-name" maxlength="40" placeholder="Claire" required>
-  <label for="relation">Votre lien avec la personne aidée</label>
-  <select id="relation">
-    <option value="sa fille">Je suis sa fille</option>
-    <option value="son fils">Je suis son fils</option>
-    <option value="un proche">Un ou une proche</option>
-    <option value="un collègue">Un ou une collègue</option>
-    <option value="le service informatique">Le service informatique</option>
-    <option value="un voisin">Un voisin, une voisine</option>
-    <option value="">Autre</option>
-  </select>
-  <div class="err" id="err"></div>
-  <div id="waiting" role="status" hidden><progress aria-label="En attente"></progress><p>Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).</p></div>
-  <button id="go" type="submit">Rejoindre</button>
-</form>
-
-<div class="card" id="done" hidden>
-  <div class="ok">✓</div>
-  <h1 id="doneTitle">C'est fait</h1>
-  <p>Votre prénom apparaît maintenant sur l'ordinateur de la personne aidée. Gardez la page support ouverte ou ajoutez-la à l'écran d'accueil de votre téléphone.</p>
-  <a class="btn" id="aidant" href="#">Ouvrir l'espace support</a>
+<!-- La liaison par code, QR code ou invitation n'existe plus : le support est connecté
+     d'office à l'organisation (jeton support déposé par le service informatique).
+     La version avec liaison est archivée dans la branche archive/particuliers. -->
+<div class="card">
+  <h1>Pas de liaison à faire</h1>
+  <p>PapAI relie maintenant le support à tous les postes de son organisation, sans code ni QR code.</p>
+  <p>Vous êtes au support informatique : ouvrez le lien de votre organisation donné par votre administrateur. Vous êtes employé : rien à faire, votre support est déjà rattaché à votre ordinateur.</p>
 </div>
-
-<script>
-  // QR code, invitation ou code tapé à la main.
-  const invitation = location.pathname.match(/^(.*)\/i\/([A-Za-z0-9_-]+)\/?$/);
-  const m = location.pathname.match(/^(.*)\/p(?:\/(\d{6}))?\/?$/);
-  const base = m ? m[1] : "";
-  let code = m && m[2] ? m[2] : "";
-  let needsNew = false;
-  const manual = !code && !invitation;
-  const $ = (id) => document.getElementById(id);
-  try { $("name").value = localStorage.getItem("papai_name") || ""; } catch (e) {}
-  if (!code && !invitation) $("codeRow").hidden = false;
-  else {
-    // L'app iPhone fait elle-même l'appairage à partir de cette adresse.
-    const path = invitation ? invitation[0] : `${base.replace(/\/k\/[^/]+$/, "")}/p/${code}`;
-    $("openApp").href = "papai://pair?u=" + encodeURIComponent(`${location.origin}${path}`);
-    $("appRow").hidden = false;
-  }
-
-  $("form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (needsNew || $("go").disabled) return;
-    $("err").textContent = "";
-    const c = code || $("code").value.trim();
-    if (!invitation && !/^\d{6}$/.test(c)) { $("err").textContent = "Le code fait 6 chiffres."; return; }
-    const name = $("name").value.trim();
-    if (!name) { $("err").textContent = "Indiquez votre prénom."; return; }
-    $("go").disabled = true;
-    $("waiting").hidden = false;
-    try {
-      const r = await fetch(invitation ? invitation[0] : `${base}/p/${c}`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, relation: $("relation").value }),
-      });
-      const data = await r.json();
-      if (r.status === 408 || r.status === 409 || (r.status === 403 && data.refused === true)) {
-        needsNew = true;
-        code = "";
-        $("code").value = "";
-      }
-      if (r.status !== 200 || data.ok !== true) throw new Error(data.error || "Impossible de valider.");
-      try { localStorage.setItem("papai_name", data.name); } catch (e) {}
-      $("doneTitle").textContent = `C'est fait, ${data.name} !`;
-      $("aidant").href = data.aidant_url;
-      $("form").hidden = true;
-      $("done").hidden = false;
-    } catch (err) {
-      $("err").textContent = err.message;
-    } finally {
-      $("go").disabled = needsNew;
-      $("waiting").hidden = true;
-    }
-  });
-  $("code").addEventListener("input", () => {
-    if (!manual) return;
-    needsNew = !/^[0-9]{6}$/.test($("code").value.trim());
-    $("go").disabled = needsNew;
-  });
-</script>
 </body>
 </html>
