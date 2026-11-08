@@ -230,10 +230,12 @@ final class AutomateLibrary {
     }
 
     /// Pour « Appliqué à : … » : l'organisation entière, puis les autres utilisateurs.
-    static func appliedTo(_ e: Entry, people: [Person], orgName: String?) -> [String] {
+    static func appliedTo(_ e: Entry, people: [Person], org: SupportOrg?, orgName: String?) -> [String] {
         let whole = e.orgKeys ?? [:]
         let inOrgs = Set(whole.values.flatMap { $0 })
-        let orgNames = whole.isEmpty ? [] : [orgName.map { "toute l’organisation \($0)" } ?? "toute l’organisation"]
+        let orgNames = whole.keys.sorted().map { t in
+            t == org?.token ? orgName.map { "toute l’organisation \($0)" } ?? "toute l’organisation" : "toute une organisation"
+        }
         return orgNames + people.filter { e.applied.contains($0.key) && !inOrgs.contains($0.key) }
             .map { $0.name.isEmpty ? "Utilisateur" : $0.name }
     }

@@ -272,7 +272,7 @@ struct AutomatesTab: View {
                 if !e.platforms.isEmpty { tag(e.platforms.map { $0 == "mac" ? "Mac" : "Windows" }.joined(separator: " · ")) }
                 if !e.publisher.isEmpty { tag(e.publisher) }
             }
-            let names = AutomateLibrary.appliedTo(e, people: model.people, orgName: model.orgName)
+            let names = AutomateLibrary.appliedTo(e, people: model.people, org: model.org, orgName: model.orgName)
             Text(names.isEmpty ? "Appliqué à personne" : "Appliqué à : " + names.joined(separator: ", "))
                 .font(.footnote.weight(.semibold)).foregroundStyle(names.isEmpty ? T.muted : T.leaf)
             HStack(spacing: 8) {
