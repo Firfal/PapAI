@@ -256,11 +256,20 @@ class Integration(unittest.TestCase):
             self.assertEqual(target.collection.writes, writes)
             for key in keys:
                 self.assertEqual(target.read(key), source.read(key))
+            target.write("defaut/family.json", b"version plus recente")
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                migrer(args, target=target)
+            self.assertEqual(target.read("defaut/family.json"), b"version plus recente")
+            self.assertIn("defaut/family.json : 1 fichier(s) ; 1 déjà présent, ignoré(s)", output.getvalue())
+            with contextlib.redirect_stdout(io.StringIO()):
+                migrer(args + ["--ecraser"], target=target)
+            self.assertEqual(target.read("defaut/family.json"), source.read("defaut/family.json"))
             with patch.object(target, "write", side_effect=RuntimeError("écriture refusée")), \
                     contextlib.redirect_stdout(io.StringIO()):
                 source.write("defaut/family.json", b"nouveau")
                 with self.assertRaisesRegex(RuntimeError, "écriture refusée"):
-                    migrer(args, target=target)
+                    migrer(args + ["--ecraser"], target=target)
             self.assertEqual(source.read("defaut/family.json"), b"nouveau")
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(sum(migrer(["--root", tmp, "--dry-run"]).values()), 0)

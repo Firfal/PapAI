@@ -45,6 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| Devin | `devin/1794127160-stockage-durable` | Relecture stockage : migration prudente, suppression Cloud et dossiers locaux | `scripts/migrer_stockage.py`, `backend/storage.py`, `tests/test_stockage.py` | 8 nov. |
 
 ## Journal
 
