@@ -153,12 +153,7 @@ fun MicButton(base: () -> String, onText: (String) -> Unit, onError: (String) ->
 
 /** Titre de feuille : bandeau arrondi en dégradé bleu, titre blanc. */
 @Composable
-fun SheetTitle(s: String, size: TextUnit = 28.sp) {
-    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Soin.headerBrush)
-        .padding(horizontal = 20.dp, vertical = 18.dp)) {
-        T(s, size, FontWeight.Bold, Color.White)
-    }
-}
+fun SheetTitle(s: String, size: TextUnit = 28.sp) = T(s, size, FontWeight.Bold, Soin.ink)
 
 /** Pastille d'état pâle et arrondie (même rendu que `Pastille` sur Mac et `StatusPill` sur iPhone). */
 @Composable
