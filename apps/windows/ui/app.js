@@ -336,13 +336,13 @@
         <div>Appelez ${esc(who)} à son numéro habituel.</div>
         ${S.guardAcknowledged ? "<div>Votre support a vu l'alerte et s'en occupe</div>" : ''}${webClosed()}</div>`;
     }
-    if (st === 'stopped' && S.sessionWhere === 'web') return `<div class="col" style="gap:16px">${webClosed()}</div>`;
     const a = automate();
     if (st === 'stopped' && a) {
       const n = a.number ? ` n° ${a.number}` : '';
       return endNote('book', a.asked ? `${S.HelperName} a reçu la demande${n}, avec l’étape où l’automate s’est arrêté.`
         : `L’étape est notée${a.number ? ` sur la demande n° ${a.number}` : ''}. Rien n’est envoyé à ${S.helperName} sans votre accord.`);
     }
+    if (st === 'stopped' && S.sessionWhere === 'web') return `<div class="col" style="gap:16px">${webClosed()}</div>`;
     return '';
   }
 
