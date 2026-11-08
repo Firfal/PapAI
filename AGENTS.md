@@ -45,6 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| Devin | `devin/1794129480-iphone-support-onglets` | « Appliquer… » à tous les utilisateurs d'une organisation d'un coup (iPhone et Mac) | `apps/ios/Sources/SupportData.swift`, `apps/ios/Sources/SupportTabs.swift`, `apps/mac/Sources/Support/SupportAutomates.swift` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
