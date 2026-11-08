@@ -772,7 +772,7 @@ function onMessage(ev) {
   else if (m.type === 'senior') { seniorName = m.name || ''; render(); }
 
   else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. La personne aidée doit l’accepter sur son ordinateur.');
-  else if (m.type === 'remote_refused') toast('La personne aidée a refusé l'assistance pour le moment.');
+  else if (m.type === 'remote_refused') toast('La personne aidée a refusé l’assistance pour le moment.');
   else if (m.type === 'remote_accepted') toast('La personne aidée a accepté. Holo prépare un plan.');
 
   else if (m.type === 'answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }

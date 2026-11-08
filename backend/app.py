@@ -752,7 +752,7 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
         raise Refused("Le PC n'est pas connecté.")
 
     session.take_control(Owner.HELPER)
-    args = {"element": "clic du proche", "x": round(x * 1000), "y": round(y * 1000)}
+    args = {"element": "clic du support", "x": round(x * 1000), "y": round(y * 1000)}
     session.log("helper_click", x=args["x"], y=args["y"])
     session.execution_started = True
     result = await bridge.execute("click", args)
