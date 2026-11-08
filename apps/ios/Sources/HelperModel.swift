@@ -716,6 +716,10 @@ final class HelperModel {
                 aiming = false; target = nil; sending = false
                 frame = nil; frameId = nil; frameAt = nil
             }
+            if wasWebLive && !newWebLive {
+                frame = nil; frameId = nil; frameAt = nil
+                target = nil; sending = false
+            }
             sessionWhere = newWhere
             // La question d'abord : la notification ci-dessous en reprend le texte.
             if let q = m["question"] as? [String: Any], let t = q["question"] as? String {

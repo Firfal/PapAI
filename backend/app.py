@@ -18,7 +18,7 @@ import re
 import secrets
 import time
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -715,6 +715,121 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 await broadcast_helper({"type": "protection", "on": None})
 
 
+def _safe_handoff_log_text(text: str) -> str:
+    value = re.sub(r"https?://\S+", "[URL masquée]", str(text or ""), flags=re.I)
+    value = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", "[adresse masquée]", value)
+    value = re.sub(r"\b[A-Z]{2}\d{2}(?:[\s-]?[A-Z0-9]){10,30}\b", "[IBAN masqué]", value, flags=re.I)
+    value = re.sub(
+        r"\b(?:mot de passe|mdp|password|pass|pin|cryptogramme|code(?: de sécurité)?|"
+        r"iban|numéro de carte|identifiant|carte bancaire)\b[^.!?\n]*",
+        "[donnée sensible masquée]", value, flags=re.I
+    )
+    value = re.sub(
+        r"\b\d[\d\s.,]*\s*(?:euros?|eur|dollars?)\b",
+        "[montant masqué]", value, flags=re.I
+    )
+    value = re.sub(r"\b\d[\d\s.,]*\s*[€$]", "[montant masqué]", value)
+    value = re.sub(r"(?<!\w)\+?\d[\d\s().-]{5,}\d(?!\w)", "[numéro masqué]", value)
+    return value[:240]
+
+
+def _browser_site_allowed(url: str, sites: list[str]) -> bool:
+    if not isinstance(url, str):
+        return False
+    try:
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        port = parsed.port
+    except (TypeError, ValueError):
+        return False
+    return (
+        parsed.scheme.lower() == "https"
+        and parsed.username is None
+        and parsed.password is None
+        and bool(host)
+        and (port is None or 1 <= port <= 65535)
+        and not any(char.isspace() for char in url)
+        and any(host == site or host.endswith("." + site) for site in sites)
+    )
+
+
+async def browser_handoff(session, link: BridgeLink, notes: list[str],
+                          goal: str, url: str | None) -> str | None:
+    if url is None and session.plan_sites:
+        url = f"https://{session.plan_sites[0]}"
+    if not url or not _browser_site_allowed(url, session.plan_sites):
+        result = (
+            "Ce site n'était pas dans le plan validé par le support. Continue sur le bureau, "
+            "ou pose la question au support avec ask_helper."
+        )
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal), result=result)
+        return result
+
+    alerte = guard.evaluer([], "", url=url)
+    if alerte:
+        await publish_guard(alerte, "browser", session)
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result="bloquée par le Gardien")
+        return None
+
+    demande = goal + (f"\nURL de départ : {url}" if url else "")
+    if await check_request(session, demande, "browser"):
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result=("bloquée par le Gardien" if session.stopped_by == "gardien"
+                            else "session arrêtée"))
+        return None
+
+    try:
+        browser = await link.start_web_agent()
+    except asyncio.CancelledError:
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result="annulée pendant le démarrage")
+        raise
+    except Exception:
+        await link.stop_web_agent()
+        browser = None
+    if not session.is_open:
+        if browser is not None:
+            await link.stop_web_agent()
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result="session arrêtée avant l'ouverture")
+        return None
+    if browser is None:
+        result = "Le navigateur PapAI n'a pas démarré : continue sur le bureau."
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal), result=result)
+        return result
+
+    session.where = "web"
+    session.last_frame = None
+    session.log("mode", where="web")
+    link.active_web_session = session
+    link.active_web_browser_session = browser
+    result_log = "session arrêtée pendant la sous-tâche"
+    try:
+        await broadcast_helper(session.status())
+        summary = await WebAgentRunner(
+            session, browser, broadcast_helper, notes,
+            goal=goal, url=url, finish_session=False,
+        ).run()
+        if not session.is_open or summary is None:
+            return None
+        result = f"Partie navigateur terminée : {summary}"
+        result_log = _safe_handoff_log_text(result)
+        return result
+    finally:
+        await asyncio.shield(link.stop_web_agent())
+        if link.active_web_session is session:
+            link.active_web_session = None
+            link.active_web_browser_session = None
+        if session.is_open and session.where == "web":
+            session.where = "desktop"
+            session.last_frame = None
+            session.doing = "Holo reprend sur le bureau"
+            session.log("mode", where="desktop")
+            await asyncio.shield(broadcast_helper(session.status()))
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal), result=result_log)
+
+
 def _os_family(name: str) -> str:
     n = (name or "").lower()
     return "mac" if n.startswith(("mac", "darwin", "osx")) else "windows"
@@ -758,7 +873,16 @@ async def run_session(session, link: "BridgeLink") -> None:
             steps = await propose_plan(session, link, broadcast_helper, " ; ".join(notes))
             if not session.is_open:
                 return
-            if await check_request(session, "\n".join([session.task, *notes, *steps]), "plan"):
+            for site in session.plan_sites:
+                alerte = guard.evaluer([], "", url=f"https://{site}")
+                if alerte:
+                    await publish_guard(alerte, "plan", session)
+                    return
+            plan_text = "\n".join([
+                session.task, *notes, *steps,
+                *(f"https://{site}" for site in session.plan_sites),
+            ])
+            if await check_request(session, plan_text, "plan"):
                 return
             if not session.is_open:
                 return
@@ -800,7 +924,12 @@ async def run_session(session, link: "BridgeLink") -> None:
                     link.active_web_session = None
                     link.active_web_browser_session = None
         else:
-            await AgentRunner(session, link, broadcast_helper, notes).run()
+            handoff = None
+            if session.plan_mode == "mixed" and link.web_agent_available:
+                async def handoff(goal, url):
+                    return await browser_handoff(session, link, notes, goal, url)
+            await AgentRunner(session, link, broadcast_helper, notes,
+                              browser_handoff=handoff).run()
     except asyncio.CancelledError:
         session.stop(by="annulation")
         raise

@@ -707,6 +707,10 @@ object Helper {
                     aiming = false; target = null; sending = false
                     frame = null; frameId = null; frameAt = null
                 }
+                if (wasWebLive && !newWebLive) {
+                    frame = null; frameId = null; frameAt = null
+                    target = null; sending = false
+                }
                 sessionWhere = newWhere
                 val q = m.optJSONObject("question")
                 val toSenior = q?.text("to") == "senior"
