@@ -45,6 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| Devin | `devin/1794127230-linkup` | Bascule vers Linkup pour les questions complexes (préalable clé + chantier 1) | `backend/linkup.py`, `backend/app.py`, `backend/agent.py`, `backend/core.py`, `tests/faux_linkup.py`, `tests/test_linkup.py`, `tests/faux_holo.py`, `.env.example`, `PROTOCOL.md`, `TODO.md` ; apps réservées à la prochaine étape | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
