@@ -49,7 +49,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794132846-point-semaine` | Point de la semaine pour le support : carte « Cette semaine » (console, accueil support Mac), suggestion d'automate | `backend/ticket_stats.py`, `backend/static/ticket_stats.js`, `backend/static/org.html`, `apps/mac/Sources/Support/SupportTicketStats.swift`, `apps/mac/Sources/Support/SupportTickets.swift`, `apps/mac/tests/ticket_stats_test.swift`, `tests/test_point_semaine.py` | 8 nov. |
 
 ## Journal
 
