@@ -664,7 +664,8 @@ class Model:
         if ok:
             self.show_run_status(lesson_id, "C'est ouvert")
         else:
-            self.run_status = None
+            if not self.automation_running:
+                self.run_status = None
             hn = self.helper_name
             self.show_notice(f"Je ne retrouve pas ce dossier. {hn[:1].upper() + hn[1:]} "
                              "a reçu un message pour s'en occuper.")
@@ -755,6 +756,9 @@ class Model:
             self.show_notice("Cette application n'est pas disponible sur cet ordinateur.")
 
     def show_run_status(self, lesson_id: str, text: str, running: bool = False) -> None:
+        # Un automate tourne : son « En cours… » et son bouton Arrêter restent affichés.
+        if not running and self.automation_running and (self.run_status or {}).get("running"):
+            return
         self._cancel(self._run_timer)
         self.run_status = {"id": lesson_id, "text": text, "running": running}
         if not running:
