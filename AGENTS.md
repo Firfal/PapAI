@@ -51,7 +51,23 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Claude Code (reprise de Devin) | `devin/1794132587-integration-suite` (PR #98) | Finir l'intégration et fusionner #98 dans `main` : voir « Reprise » ci-dessous | `tests/test_protocole.py`, `apps/windows/tests/test_windows_app.py` | 8 nov. |
+
+### Reprise : intégration #98 (laissée par Devin le 8 nov.)
+
+Corentin a demandé : « Merge tout et regarde où on en est ». Devin a tout regroupé sur `devin/1794132587-integration-suite` (PR #98 : #78, #88, #89, #94, #92, #91, #93, plus `main` jusqu'à `5950ba0`, point de la semaine #97 compris). La PR #98 est ouverte et sans conflit, Devin Review au vert. Rien n'est fusionné dans `main`. #88 (retrait du verrou souris/clavier) est déjà comprise dans #98.
+
+À faire, dans l'ordre :
+1. `git fetch` et remettre la branche à jour sur `main` si `main` a bougé. Lors des conflits, garder : pas d'`InputLock` (garder `StopGate`), pas de création d'automate à partir de rien (garder les suggestions issues des tickets), onglets Tickets / Utilisateurs / Mes automates côté support, agent navigateur Windows, automates autonomes avec étape de blocage (`blocked`, `automationRun`), point de la semaine.
+2. Tests serveur avec Python 3.11 (version de prod), `PYTHONPATH=.`, faux Holo (`tests/faux_holo.py`, `HOLO_BASE_URL=http://127.0.0.1:8999/v1/`, `HAI_API_KEY=stub-key`, `PAPAI_AIDANT_KEY=demo`) et un serveur lancé avec un `PAPAI_DATA_DIR` **vide**.
+   - `tests/test_protocole.py <url> demo` échoue : « l'aidant reçoit l'état de la demande » reste à `None`, puis délai dépassé. À vérifier : données d'un serveur déjà utilisé, ou vrai bug venu de la fusion. Corriger si c'est un bug.
+   - `apps/windows/tests/test_windows_app.py --serveur` échouait sur « plan proposé à l'aidant » (serveur déjà utilisé, cause non confirmée). Dans ce même fichier, le patch `papai.model.play_actions` renvoie `(True, "")` alors que la fonction renvoie maintenant 3 valeurs : passer à `(True, "", 0)`.
+   - Corentin a demandé de mettre en pause les tests Windows et APK : ne les relancer que s'il le redemande. Android compilait et ses tests passaient au dernier essai.
+3. Quand les tests serveur passent : fusionner #98 dans `main` (Corentin l'a demandé), vérifier que GitHub marque #88 fusionnée, puis déplacer cette ligne dans le Journal.
+
+Problème sur `main` : le serveur ne démarre pas avec Python 3.11. À la ligne 392 de `backend/web_agent.py`, la f-string contient des guillemets doubles imbriqués et lève une `SyntaxError`. C'est corrigé sur la branche d'intégration, et `main` le sera quand #98 y sera fusionnée.
+
+Reste ouvert, à part : effacer le profil Chrome PapAI au démarrage de PapAI Windows (relecture #91/#98 : le profil reste si PapAI est fermé pendant une assistance web), dans une PR séparée, à faire valider par Corentin. Swift (Mac, iPhone) n'a pas été compilé, faute de Mac. Rien n'a été essayé sur de vrais appareils. Ne pas publier l'APK sans demande.
 
 ## Journal
 
