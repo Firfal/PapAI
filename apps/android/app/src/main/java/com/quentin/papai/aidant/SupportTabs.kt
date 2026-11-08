@@ -78,7 +78,12 @@ fun SupportHome() {
             2 -> AutomatesTab()
             else -> {
                 PeopleRow()
-                IdleScreen()
+                // Fin ou arrêt d'une assistance : affichés dans Utilisateurs, les autres onglets restent accessibles (comme sur Mac).
+                when (m.screen) {
+                    Screen.DONE -> DoneScreen()
+                    Screen.STOPPED -> StoppedScreen()
+                    else -> IdleScreen()
+                }
             }
         }
     }

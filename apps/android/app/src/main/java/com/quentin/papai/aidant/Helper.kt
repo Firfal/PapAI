@@ -46,7 +46,12 @@ class DraftStep(instruction: String, val checkpoint: String?, val preview: Image
     var instruction by mutableStateOf(instruction)
 }
 
-enum class Screen { IDLE, WAITING, PLANNING, APPROVAL, ACTIVE, HELPER, DONE, STOPPED }
+enum class Screen {
+    IDLE, WAITING, PLANNING, APPROVAL, ACTIVE, HELPER, DONE, STOPPED;
+
+    /** Écrans montrés sous les onglets de l'accueil (rien n'attend le support). */
+    val isHome get() = this == IDLE || this == DONE || this == STOPPED
+}
 
 sealed interface AppSheet {
     data object Settings : AppSheet

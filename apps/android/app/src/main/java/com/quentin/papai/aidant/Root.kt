@@ -70,7 +70,7 @@ fun Root() {
         LaunchedEffect(m.screen) { if (m.screen != Screen.IDLE) m.supportTab = 1 }
         Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
             Header(m.helperName ?: m.orgTitle) { m.sheet = AppSheet.Settings }
-            if (m.isConfigured && m.screen != Screen.IDLE) PeopleRow()
+            if (m.isConfigured && !m.screen.isHome) PeopleRow()
             if (m.isConfigured && !m.connected) {
                 LostBanner(Modifier.padding(horizontal = 20.dp).padding(bottom = 10.dp))
             }
@@ -88,14 +88,12 @@ fun Root() {
                 if (!m.orgConfigured) NoOrgScreen()
                 else if (!m.isConfigured) NoPosteScreen()
                 else when (m.screen) {
-                    Screen.IDLE -> SupportHome()
+                    Screen.IDLE, Screen.DONE, Screen.STOPPED -> SupportHome()
                     Screen.WAITING -> WaitingScreen("En attente de l'autorisation de ${m.senior}")
                     Screen.PLANNING -> WaitingScreen("Holo regarde l'écran…")
                     Screen.APPROVAL -> ApprovalScreen()
                     Screen.ACTIVE -> ActiveScreen()
                     Screen.HELPER -> HelperScreen()
-                    Screen.DONE -> DoneScreen()
-                    Screen.STOPPED -> StoppedScreen()
                 }
             }
         }
