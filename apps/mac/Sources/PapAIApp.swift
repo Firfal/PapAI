@@ -3,14 +3,29 @@ import SwiftUI
 @main
 struct PapAIApp: App {
     @State private var model = AppModel()
+    /// Rôle de ce Mac : rien tant qu'il n'est pas choisi (voir `AppRole`).
+    @State private var role = AppRole.saved
 
     var body: some Scene {
         WindowGroup("PapAI") {
-            RootView()
-                .environment(model)
-                .preferredColorScheme(.light)
-                .frame(minWidth: 900, minHeight: 640)
-                .onAppear { model.start(); Snapshot.scheduleIfAsked(model) }
+            Group {
+                switch role {
+                case .aide:
+                    // L'app de la personne aidée, inchangée.
+                    RootView()
+                        .environment(model)
+                        .onAppear { model.start(); Snapshot.scheduleIfAsked(model) }
+                case .support:
+                    SupportApp()
+                case nil:
+                    RoleChoiceView { r in
+                        UserDefaults.standard.set(r.rawValue, forKey: AppRole.key)
+                        withAnimation(.easeInOut(duration: 0.25)) { role = r }
+                    }
+                }
+            }
+            .preferredColorScheme(.light)
+            .frame(minWidth: 900, minHeight: 640)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1100, height: 720)
@@ -23,11 +38,9 @@ struct RootView: View {
     var body: some View {
         @Bindable var model = model
         VStack(alignment: .leading, spacing: 22) {
-            Header().padding(.top, 24)
+            Header()
             Group {
-                if let p = model.pairRequest {
-                    PairRequestView(request: p)
-                } else if !model.onboarded {
+                if !model.onboarded {
                     OnboardingView()
                 } else if let r = model.remoteRequest {
                     RemoteRequestView(request: r)
@@ -47,21 +60,34 @@ struct RootView: View {
             }
         }
         .padding(.horizontal, 28).padding(.bottom, 28)
-        .background(T.bg.ignoresSafeArea())
+        .background(T.fond.ignoresSafeArea())
         .background(WindowGrabber { model.window = $0 })
         .disabled(model.guardAlert != nil)
+        .overlay { if let l = model.docLesson, model.guardAlert == nil { LessonDocView(lesson: l) } }
         .overlay { if let a = model.guardAlert { GuardAlertView(alert: a) } }
         .id(model.textScale)
-        .sheet(isPresented: $model.showSettings) { SettingsView() }
-        .sheet(isPresented: $model.showHelpers) {
-            VStack(alignment: .trailing, spacing: 18) {
-                ScrollView { HelpersPanel() }
-                Button("Fermer") { model.stopPairing(); model.showHelpers = false }
-                    .buttonStyle(PillStyle(height: 54)).keyboardShortcut(.cancelAction)
+        .sheet(isPresented: Binding(
+            get: { model.showSettings || model.showHelpers || model.pairRequest != nil },
+            set: { if !$0 { model.showSettings = false; model.showHelpers = false } }
+        )) {
+            Group {
+                if let p = model.pairRequest {
+                    PairRequestView(request: p).padding(24)
+                        .frame(width: 820, height: 580).background(T.bg)
+                } else if model.showSettings {
+                    SettingsView()
+                } else {
+                    VStack(alignment: .trailing, spacing: 18) {
+                        ScrollView { HelpersPanel() }
+                        Button("Fermer") { model.stopPairing(); model.showHelpers = false }
+                            .buttonStyle(PillStyle(height: 54)).keyboardShortcut(.cancelAction)
+                    }
+                    .padding(24).frame(width: 820, height: 580).background(T.bg)
+                    .onDisappear { model.stopPairing() }
+                }
             }
-            .padding(24).frame(width: 820, height: 580).background(T.mint)
             .environment(model)
-            .onDisappear { model.stopPairing() }
+            .interactiveDismissDisabled(model.pairRequest != nil)
         }
     }
 }

@@ -106,6 +106,8 @@ object Helper {
     var sheet by mutableStateOf<AppSheet?>(null)
     var pairBusy by mutableStateOf(false)
     var pairError by mutableStateOf<String?>(null)
+    var pairRefused by mutableStateOf(false)
+    var pairNeedsNew by mutableStateOf(false)
     var pairDone by mutableStateOf(false)
     var pairingRefused by mutableStateOf(false)
 
@@ -152,6 +154,7 @@ object Helper {
     var lessons by mutableStateOf<List<Lesson>>(emptyList())
 
     var toast by mutableStateOf<String?>(null)
+    var sensitiveRefusal by mutableStateOf<String?>(null)
     var lastAlert by mutableStateOf<AlertInfo?>(null)
 
     /** L'app est au premier plan : pas besoin de notification, l'écran change déjà. */
@@ -314,6 +317,7 @@ object Helper {
 
     /** Suivre une autre personne : la liaison active change, les autres restent surveillées. */
     fun switchTo(p: Person) {
+        sensitiveRefusal = null
         if (isCurrent(p)) return
         rememberCurrent()
         serverURL = p.server; helperKey = p.key; seniorName = p.name
@@ -394,6 +398,7 @@ object Helper {
                             }
                         }
                         "alert_cleared" -> othersAsking[p.key] = false
+                        "helper_added" -> showToast("${m.text("name")} est maintenant support.")
                         "alert" -> {
                             othersAsking[p.key] = true
                             notifyLocal("$who : ${m.text("title").ifEmpty { "alerte" }}", m.text("detail"), otherNotificationId(p.key))
@@ -566,7 +571,7 @@ object Helper {
         if (pairBusy) return
         PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairingRefused = true; return }
         pairingRefused = false
-        pairDone = false; pairError = null; pairBusy = false
+        pairDone = false; pairError = null; pairBusy = false; pairRefused = false; pairNeedsNew = false
         sheet = AppSheet.Pair(link)
     }
 
@@ -576,19 +581,20 @@ object Helper {
 
     /** POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur. */
     fun submitPair(link: PairLink, code: String?, name: String, relation: String) {
-        if (pairBusy) return
+        if (pairBusy || pairNeedsNew) return
+        pairRefused = false
         PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairError = it; return }
         val c = (link.code ?: code ?: "").filter { it.isDigit() }
         val n = cleanText(name)
-        if (c.length != 6) { pairError = "Le code fait 6 chiffres."; return }
+        if (link.token == null && c.length != 6) { pairError = "Le code fait 6 chiffres."; return }
         if (n.isEmpty()) { pairError = "Indiquez votre prénom."; return }
         val body = JSONObject().put("name", n).put("relation", relation).toString()
             .toRequestBody("application/json".toMediaType())
         val req = try {
-            Request.Builder().url(link.base + "/p/" + c).post(body).build()
+            Request.Builder().url(link.endpoint(c)).post(body).build()
         } catch (_: IllegalArgumentException) { pairError = "Adresse invalide."; return }
         pairBusy = true; pairError = null
-        rest.newBuilder().followRedirects(false).followSslRedirects(false).build().newCall(req).enqueue(object : Callback {
+        rest.newBuilder().readTimeout(150, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build().newCall(req).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 main.post { pairBusy = false; pairError = "Le serveur ne répond pas à ${link.host}." }
             }
@@ -597,7 +603,9 @@ object Helper {
                 val r = try { JSONObject(response.body?.string() ?: "{}") } catch (_: Exception) { JSONObject() }
                 main.post {
                     pairBusy = false
-                    if (!r.optBoolean("ok")) {
+                    if (!PairingPolicy.isSuccess(response.code, r.opt("ok"))) {
+                        pairRefused = r.opt("refused") == true
+                        pairNeedsNew = PairingPolicy.needsNew(response.code, pairRefused)
                         pairError = r.text("error").ifEmpty { "Le serveur a refusé la liaison." }
                         return@post
                     }
@@ -628,6 +636,7 @@ object Helper {
             planBusy = false; sending = false
             showToast("Pas de connexion au serveur."); return
         }
+        if (o.text("type") != "helper_hello") sensitiveRefusal = null
         s.send(o.toString())
     }
 
@@ -707,6 +716,10 @@ object Helper {
                     aiming = false; target = null; sending = false
                     frame = null; frameId = null; frameAt = null
                 }
+                if (wasWebLive && !newWebLive) {
+                    frame = null; frameId = null; frameAt = null
+                    target = null; sending = false
+                }
                 sessionWhere = newWhere
                 val q = m.optJSONObject("question")
                 val toSenior = q?.text("to") == "senior"
@@ -758,7 +771,10 @@ object Helper {
             }
 
             "refused" -> {
-                showToast(m.text("reason").ifEmpty { "Refusé" })
+                if (m.text("blocked") == "sensitive") {
+                    sensitiveRefusal = m.text("reason").ifEmpty { "Cette fenêtre est protégée (réglages ou mots de passe)." }
+                    toast = null
+                } else showToast(m.text("reason").ifEmpty { "Refusé" })
                 sending = false; planBusy = false; lessonBusy = false
             }
 
@@ -795,6 +811,7 @@ object Helper {
                 savedTitle = m.optJSONObject("lesson")?.text("title")?.ifEmpty { null } ?: draftTitle
                 loadLessons()
             }
+            "helper_added" -> showToast("${m.text("name")} est maintenant support.")
         }
     }
 
@@ -837,7 +854,7 @@ object Helper {
                 .setContentIntent(pi)
                 .build())
             .setSmallIcon(R.drawable.ic_notif)
-            .setColor(0xFF2E9E5B.toInt())
+            .setColor(0xFF1F5BE8.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

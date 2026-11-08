@@ -155,7 +155,8 @@ def _normaliser(texte: str) -> str:
                                (r"dringend", "urgent"), (r"bezahlen", "payer"),
                                (r"kaufen", "acheter"), (r"senden|schicken", "envoyer")):
         texte = re.sub(r"\b(?:" + allemand + r")\b", francais, texte)
-    return re.sub(r"\bcartes?[.·_-]+cadeaux?\b", "carte cadeau", texte)
+    texte = re.sub(r"\bcartes[.·_-]+cadeaux?\b", "cartes cadeau", texte)
+    return re.sub(r"\bcarte[.·_-]+cadeaux?\b", "carte cadeau", texte)
 
 
 def _montant(texte: str) -> Decimal:
@@ -212,8 +213,19 @@ def evaluer_demande(texte: str) -> Alerte | None:
     gros_montant = any(_montant(m) >= 1000 for m in montants)
     gros_montant |= bool(re.search(r"\b(mille|milliers?|million|dix mille|cent mille)\b", t))
     etranger = bool(re.search(r"\b(etranger|international|afrique|senegal|cote d'ivoire|benin|nigeria|maroc|ghana|cameroun|togo|mali|chine|hong kong|turquie|russie|dubai|thailande|etats.unis)\b", t))
+    compte_vers_pays = bool(re.search(
+        r"\b(?:compte|banque)"
+        r"(?:\s+(?:en\s+(?:ligne|banque|commun)|bancaire|courant|joint|epargne))?"
+        r"\s+(?:au|en|aux)\s+"
+        r"(?!(?:banque|ligne|commun|cours|attente|france|euros?|direct|question|joint|"
+        r"janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|"
+        r"decembre|debut|fin|avance|retard|regle|ordre|positif|negatif|cas)\b)[a-z]+\b|"
+        r"\ba\s+l'etranger\b", t
+    ))
     iban = re.search(r"\b([a-z]{2})\s*\d{2}\s*(?:\d{4}|[a-z]{4}\s*\d{4})(?:\s*[a-z0-9]){6,26}\b", t)
-    compte_etranger = etranger and bool(re.search(r"\b(compte|iban|rib|banque|argent|euros?)\b|€", t))
+    compte_etranger = (etranger or compte_vers_pays) and bool(
+        re.search(r"\b(compte|iban|rib|banque|argent|euros?)\b|€", t)
+    )
     pression = bool(re.search(r"\b(urgent\w*|urgence|immediat\w*|secret|confidentiel|ne le dis|compte securise|compte de securite|compte de secours)\b", t))
     compte_inconnu = bool(re.search(
         r"\b(?:(?:nouveau|nouvel|autre)\s+(?:compte|iban|rib|numero)|"
@@ -236,27 +248,203 @@ def evaluer_demande(texte: str) -> Alerte | None:
         r"\b(?:perdu|casse|vole)\s+(?:(?:son|mon|le|un)\s+)?(?:telephone|portable)\b|"
         r"\b(?:telephone|portable)\s+(?:perdu|casse|vole)\b", t
     ))
+    tiers_inconnu = bool(re.search(
+        r"\b(?:tiers?\s+inconnu|destinataire\s+inconnu|beneficiaire\s+inconnu|"
+        r"personne\s+inconnue|(?:payer|regler|virer|verser|envoyer)\s+(?:a|vers)\s+"
+        r"(?:un|une)\s+inconnu(?:e)?)\b", t
+    ))
+    appel_ou_demarche = bool(re.search(
+        r"\bm'a\s+(?:appel\w*|telephone\w*|contacte\w*)\b|"
+        r"\bon\s+m'a\s+appel\w*\b|"
+        r"\bqui\s+m'a\s+(?:appel|telephon)\w*\b|"
+        r"\bappel\w*\s+(?:de|du|d'|par)\s+"
+        r"(?:(?:l'|un\s+|une\s+|le\s+|la\s+|ma\s+|mon\s+|sa\s+|son\s+|notre\s+|votre\s+))?"
+        r"(?:agent|conseiller|impots|banque|technicien|banquier|police|"
+        r"gendarmerie|support|service)\b|"
+        r"\b(?:apres|suite a|suite au|j'ai recu|recu)\s+"
+        r"(?:un\s+|l'|cet\s+|ce\s+)?appel\w*\b|"
+        r"\b(?:au|par)\s+telephone\b|"
+        r"\b(?:agent|conseiller|demarchage|monsieur\s+des\s+impots)\b",
+        t,
+    ))
+    lien_sms_mail = bool(re.search(r"\b(?:liens?|sms|textos?|mails?|courriels?)\b", t))
+    domaines = re.findall(
+        r"(?<![\w-])[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
+        r"(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,63}\b",
+        t,
+    )
+    # Seul impots.gouv.fr (ou un de ses sous-domaines) est toléré ; tout autre site cité
+    # (impots-remboursement.fr, impots.gouv.fr.exemple.com…) empêche l'exception impôts.
+    # « impots.gouv » seul (raccourci dicté, .gouv n'existe pas) désigne le même site.
+    def site_impots(hote):
+        return hote in {"impots.gouv", "impots.gouv.fr"} or hote.endswith(".impots.gouv.fr")
+
+    hotes_url = re.findall(r"\b(?:https?://|www\.)([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)", t)
+    site_non_autorise = (
+        bool(re.search(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", t))
+        or any(not site_impots(domaine) for domaine in domaines)
+        or any(not site_impots(hote) for hote in hotes_url)
+    )
+    # Donner, dicter, envoyer… un code ou un numéro à quelqu'un : signal d'arnaque.
+    code_communique = bool(re.search(
+        r"\b(?:donner|donne|transmettre|communiquer|dicter|lire|envoyer|partager|"
+        r"give|send|share|read)\b.{0,40}\b(?:codes?|numeros?|numbers?)\b|"
+        r"\b(?:codes?|numeros?)\b.{0,40}\b(?:au|a la|a un|a une)\s+"
+        r"(?:conseiller|monsieur|madame|personne|agent|technicien|telephone)\b",
+        t,
+    ))
+    telephone_cite = bool(re.search(r"\b(?:telephone|telephonique)\b", t))
+    transfert_non_securise = bool(re.search(
+        r"\b(?:western\s+union|westernunion|moneygram|mandat\s+cash|ria|wise)\b", t
+    ))
+    nouveau_beneficiaire = bool(re.search(
+        r"\b(?:nouveau|nouvel|nouvelle|nouveaux|nouvelles)\s+"
+        r"(?:proprietaires?|bailleurs?|comptes?|beneficiaires?|agences?|ribs?|ibans?)\b",
+        t,
+    ))
+    autre_signal = (
+        etranger or pression or compte_inconnu or code_recu or support
+        or bool(iban) or telephone_perdu or tiers_inconnu or compte_vers_pays
+        or appel_ou_demarche or lien_sms_mail or site_non_autorise
+        or transfert_non_securise or nouveau_beneficiaire
+        or code_communique or telephone_cite
+    )
     facture_habituelle = (
         r"\b(?:payer|regler|paie|paye)\s+(?:(?:ma|la|mes|les|mon|le|une|un)\s+)?"
-        r"(?:factures?\s+(?:de\s+|d')?)?(?:edf|engie|orange|sfr|free|bouygues|impots|eau|loyer)\s+"
+        r"(?:factures?\s+(?:de\s+|d')?)?"
+        r"(?P<fournisseur>edf|engie|orange|sfr|free|bouygues|impots(?:\.gouv)?|"
+        r"taxe\s+fonciere|taxe\s+d'habitation|eau|loyer)\s+"
         r"(?:de\s+)?(?P<montant>\d[\d\s.,]*)\s*(?:euros?\b|eur\b|€)"
     )
-    facture = any(_montant(m["montant"]) <= 1500 for m in re.finditer(facture_habituelle, t))
+
+    factures = list(re.finditer(facture_habituelle, t))
+
+    def fournisseur_facture(m):
+        fournisseur = m["fournisseur"].split(".", 1)[0]
+        if fournisseur in {"taxe fonciere", "taxe d'habitation"}:
+            return "impots"
+        return fournisseur
+
+    total_impots_loyer = sum(
+        (_montant(m["montant"]) for m in factures
+         if fournisseur_facture(m) in {"impots", "loyer"}),
+        Decimal(0),
+    )
+    plafond_impots_loyer = (
+        5000 if not autre_signal and total_impots_loyer <= 5000 else 1500
+    )
+
+    def facture_autorisee(m):
+        fournisseur = fournisseur_facture(m)
+        if fournisseur in {"impots", "loyer"}:
+            return total_impots_loyer <= plafond_impots_loyer
+        return _montant(m["montant"]) <= 1500
+
+    facture = any(facture_autorisee(m) for m in factures)
     reste = re.sub(transfert_famille, "", t)
-    reste = re.sub(facture_habituelle, lambda m: "" if _montant(m["montant"]) <= 1500 else m[0], reste)
+    reste = re.sub(facture_habituelle, lambda m: "" if facture_autorisee(m) else m[0], reste)
     autres_montants = re.findall(r"\d[\d\s.,]*\s*(?:euros?\b|eur\b|€|dollars?\b|\$)", reste)
     destinataire_habituel = (famille or facture) and not autres_montants and not re.search(r"\b(mille|million)\b", reste)
-    autre_signal = etranger or pression or compte_inconnu or code_recu or support or bool(iban) or telephone_perdu
     if famille and operation_argent and (telephone_perdu or compte_inconnu):
         return _risque("Demande d'argent d'un proche annonçant un téléphone perdu ou un nouveau compte/numéro.")
     if operation_argent and argent and ((gros_montant and not (destinataire_habituel and not autre_signal))
-                                      or compte_etranger or compte_inconnu or (iban and iban[1] != "fr")):
+                                      or compte_etranger or compte_inconnu or tiers_inconnu
+                                      or (iban and iban[1] != "fr")):
         return _risque("Transfert d'argent important ou vers un compte à l'étranger.")
-    cadeau = bool(re.search(r"\b(cartes?[- ]cadeaux?|gift cards?)\b", t))
+    carte_marque_stricte = (
+        r"(?:google\s*play|play\s*store|steam|pcs|transcash|neosurf|paysafecard)"
+    )
+    carte_marque_grand_public = r"(?:amazon|apple|itunes)"
+    carte_marque = (
+        r"(?:" + carte_marque_stricte + r"|" + carte_marque_grand_public + r")"
+    )
+    carte_cadeau_pattern = (
+        r"\b(?:cartes?[- ]cadeaux?|gift\s+cards?|bons?\s+d'achat|"
+        r"cartes?\s+prepay(?:e|ee|ees|es)|"
+        r"cartes?\s+" + carte_marque + r"|recharges?\s+(?:prepay(?:e|ee|ees|es)|"
+        + carte_marque + r"))\b"
+    )
+    cadeau = bool(re.search(carte_cadeau_pattern, t))
     code_cadeau = cadeau and bool(re.search(r"\bcodes?\b", t)) and payer
     payer_en_cadeau = cadeau and bool(re.search(r"\b(payer|regler|pay)\b.*\b(avec|par|en|with|using)\b", t))
+    demande_carte_suspecte = False
+    segments = re.split(r"[;\n]+|\.(?!\d)|(?<!\d)\.|\b(?:puis|ensuite)\b", t)
+    for segment in segments:
+        if not re.search(carte_cadeau_pattern, segment):
+            continue
+        montants_carte = re.findall(
+            r"(?<!\w)(\d[\d\s.,]*)\s*(?:euros?\b|eur\b|€|dollars?\b|\$)", segment
+        )
+        quantites_en_mots = {
+            "deux": 2, "trois": 3, "quatre": 4, "cinq": 5,
+            "six": 6, "sept": 7, "huit": 8, "neuf": 9, "dix": 10,
+        }
+        quantite_match = re.search(
+            r"\b(\d+|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s+"
+            r"(?:cartes?|bons?|recharges?)\b",
+            segment,
+        )
+        quantite_carte = 1
+        if quantite_match:
+            valeur = quantite_match.group(1)
+            quantite_carte = int(valeur) if valeur.isdigit() else quantites_en_mots[valeur]
+        montant_carte_total = (
+            sum((_montant(m) for m in montants_carte), Decimal(0)) * quantite_carte
+        )
+        carte_a_risque = bool(re.search(carte_marque_stricte, segment)) or bool(re.search(
+            r"\b(?:cartes?\s+prepay(?:e|ee|ees|es)|"
+            r"recharges?\s+prepay(?:e|ee|ees|es))\b", segment
+        ))
+        carte_grand_public = bool(re.search(carte_marque_grand_public, segment))
+        montant_carte_100_en_mots = bool(re.search(
+            r"\b(?:cent|mille|millier|milliers|million|millions)\b", segment
+        ))
+        montant_carte_500_en_mots = bool(re.search(
+            r"\b(?:(?:cinq|six|sept|huit|neuf)\s+cents?|"
+            r"mille|millier|milliers|million|millions)\b", segment
+        ))
+        montant_carte_100 = montant_carte_total >= 100 or montant_carte_100_en_mots
+        montant_carte_500 = montant_carte_total >= 500 or montant_carte_500_en_mots
+        cartes_multiples = bool(re.search(
+            r"\bcartes\b|\brecharges\b|\b\d+\s+exemplaires?\b|"
+            r"\b(?:2|[3-9]\d*|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|"
+            r"plusieurs|quelques)\s+(?:cartes?|recharges?|codes?|bons?)\b",
+            segment
+        ))
+        payer_une_personne = bool(re.search(
+            r"\b(?:payer|regler|rembourser|pay)\b.{0,80}\b(?:quelqu'un|une personne|un tiers|"
+            r"(?:la|un|une)\s+personne|(?:un|une|le|la)\s+tiers|"
+            r"(?:un|une|le|la)\s+(?:fournisseur|technicien|conseiller|artisan|reparateur)|"
+            r"mon fils|ma fille|mon petit.fils|ma petite.fille|un ami|une amie)\b", segment
+        ))
+        contexte_cadeau = bool(re.search(
+            r"\boffrir\b|\bpour\s+(?:noel|son anniversaire|mon anniversaire|un anniversaire)\b|"
+            r"\b(?:mon fils|ma fille|mes petits[ .-]enfants?|ma petite[ .-]fille|"
+            r"mon petit[ .-]fils|mes enfants|ma soeur|mon frere|ma niece|mon neveu)\b",
+            segment,
+        ))
+        if carte_a_risque:
+            suspecte = montant_carte_100 or cartes_multiples or payer_une_personne
+        elif carte_grand_public:
+            cadeau_public_autorise = (
+                contexte_cadeau and quantite_carte <= 5 and not payer_une_personne
+                and montant_carte_total < 500 and not montant_carte_500_en_mots
+            )
+            suspecte = not cadeau_public_autorise and (
+                montant_carte_100 or cartes_multiples or payer_une_personne
+            )
+        else:
+            suspecte = (
+                montant_carte_500 or payer_une_personne
+                or (cartes_multiples and (not contexte_cadeau or quantite_carte > 5))
+            )
+        if suspecte:
+            demande_carte_suspecte = True
+            break
     if (payer and re.search(r"\b(coupons?|transcash|paysafecard|neosurf|pcs|recharges? prepayees?)\b", t)
-            or code_cadeau or payer_en_cadeau or (cadeau and payer and (pression or support))):
+            or code_cadeau or payer_en_cadeau or demande_carte_suspecte
+            or (cadeau and code_communique)
+            or (cadeau and payer and (pression or support))):
         return _risque("Paiement ou transmission de cartes cadeaux ou de coupons prépayés.")
     if (payer or transfert) and re.search(r"\b(crypto\w*|bitcoins?|ethereum|usdt|portefeuille numerique)\b", t):
         return _risque("Envoi, achat ou conversion en cryptomonnaie, difficile à annuler.")

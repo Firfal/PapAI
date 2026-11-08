@@ -7,23 +7,103 @@ extension Color {
     }
 }
 
-/// Palette « Soin » réchauffée par la papaye du logo. Les textes secondaires
-/// gardent un contraste d'au moins 4,5:1 sur le fond et sur la menthe.
+/// Palette « Bleu clair » : fond bleu-lavande très clair, cartes blanches à
+/// ombre douce, un seul accent bleu. Textes secondaires et bleus de texte à au
+/// moins 4,5:1 sur le blanc et sur le fond ; le rouge des alertes ne change pas.
 enum T {
-    static let bg = Color(hex: 0xF6F1EA)
+    /// Fond uni (feuilles, encart) ; la fenêtre principale prend `fond`, en dégradé.
+    static let bg = Color(hex: 0xF1F4FD)
     static let card = Color.white
-    static let ink = Color(hex: 0x111312)
-    static let muted = Color(hex: 0x5C625E)
-    static let accent = Color(hex: 0x2E9E5B)
-    /// Vert du texte sur menthe ou blanc (le vert d'accent y est trop clair).
-    static let leaf = Color(hex: 0x1C7240)
-    static let mint = Color(hex: 0xE2F2E7)
+    static let ink = Color(hex: 0x141A33)
+    static let muted = Color(hex: 0x5A6178)
+    /// Bleu d'accent (4,5:1 sur blanc) : icônes, barres d'avancement, boutons.
+    static let accent = Color(hex: 0x2F6EF7)
+    /// Bleu de texte sur blanc ou bleu pâle.
+    static let leaf = Color(hex: 0x1D4FD7)
+    /// Bleu pâle : pastilles, ronds d'icône, encarts d'information.
+    static let mint = Color(hex: 0xEAF1FF)
+    /// Pépin du logo, réservé à la marque.
     static let papaya = Color(hex: 0xF58A3A)
-    /// Chair de papaye : fond des moments heureux (fin d'aide, bienvenue).
-    static let peach = Color(hex: 0xFFE7D2)
+    /// Violet pâle : moments heureux (fin d'aide, bienvenue).
+    static let peach = Color(hex: 0xF1ECFF)
     static let danger = Color(hex: 0xC8442F)
-    static let r: CGFloat = 28
-    static let rBig: CGFloat = 36
+    /// Champs et surfaces dans une carte blanche.
+    static let field = Color(hex: 0xF2F4FA)
+    /// Séparateurs et bords fins.
+    static let line = Color(hex: 0xE3E7F2)
+    static let r: CGFloat = 18
+    static let rBig: CGFloat = 24
+
+    static let blueLight = Color(hex: 0x4C8DFF)
+    static let blueDeep = Color(hex: 0x1A56E0)
+    /// En-tête : dégradé bleu vif, titre blanc.
+    /// Blanc à 5:1 à gauche (où sont les titres), 3,7:1 à droite : réservé aux grands titres.
+    static let header = LinearGradient(colors: [Color(hex: 0x1F5FF0), Color(hex: 0x3D7FFF)], startPoint: .leading, endPoint: .trailing)
+    /// Bouton principal : bleu assez soutenu pour un texte blanc à 4,5:1 partout.
+    static let primary = LinearGradient(colors: [accent, blueDeep], startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// Fond de la fenêtre : bleuté en haut, lavande en bas.
+    static let fond = LinearGradient(colors: [Color(hex: 0xEDF2FE), Color(hex: 0xF2EFFC)], startPoint: .top, endPoint: .bottom)
+    static let ombre = Color(hex: 0x2A3F8F)
+}
+
+extension View {
+    /// Carte blanche arrondie, ombre douce et diffuse.
+    func carte(_ radius: CGFloat = T.r, fill: Color = T.card) -> some View {
+        background(
+            RoundedRectangle(cornerRadius: radius, style: .continuous).fill(fill)
+                .shadow(color: T.ombre.opacity(0.08), radius: 18, y: 6)
+        )
+    }
+
+    /// Champ de saisie gris très clair, arrondi.
+    func champ(_ radius: CGFloat = 14, actif: Bool = false) -> some View {
+        background(
+            RoundedRectangle(cornerRadius: radius, style: .continuous).fill(T.field)
+                .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(actif ? T.accent : T.line, lineWidth: actif ? 2 : 1))
+        )
+    }
+}
+
+/// Pastille d'état pâle et arrondie.
+struct Pastille: View {
+    enum Ton {
+        case bleu, violet, vert, orange, gris
+        var fond: Color {
+            switch self {
+            case .bleu: T.mint
+            case .violet: Color(hex: 0xF1EAFE)
+            case .vert: Color(hex: 0xE4F5EA)
+            case .orange: Color(hex: 0xFFF0E0)
+            case .gris: Color(hex: 0xEEF0F5)
+            }
+        }
+        /// Textes à au moins 4,5:1 sur leur fond.
+        var texte: Color {
+            switch self {
+            case .bleu: T.leaf
+            case .violet: Color(hex: 0x6236C7)
+            case .vert: Color(hex: 0x1C6E3F)
+            case .orange: Color(hex: 0x9A4706)
+            case .gris: Color(hex: 0x4D5468)
+            }
+        }
+    }
+    var texte: String
+    var icone: String? = nil
+    var ton: Ton = .bleu
+    var taille: CGFloat = 15
+
+    var body: some View {
+        HStack(spacing: 7) {
+            if let icone { Image(systemName: icone).font(.system(size: taille - 2, weight: .semibold)) }
+            Text(texte).font(rounded(taille, .semibold))
+        }
+        .foregroundStyle(ton.texte)
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(Capsule().fill(ton.fond))
+        .accessibilityElement(children: .combine)
+    }
 }
 
 /// Taille du texte choisie à l'accueil. Grande par défaut, l'interface est
@@ -37,26 +117,52 @@ enum TextScale {
 }
 
 func rounded(_ size: CGFloat, _ weight: Font.Weight = .medium) -> Font {
-    .system(size: size * CGFloat(TextScale.current), weight: weight, design: .rounded)
+    // Sans-serif nette (nom gardé pour ne pas toucher tous les écrans).
+    .system(size: size * CGFloat(TextScale.current), weight: weight, design: .default)
 }
 
-/// Bouton pilule : encre pleine par défaut, blanc en secondaire.
+/// Bouton pilule : bleu dégradé avec une légère ombre bleue par défaut,
+/// blanc bordé en secondaire. `icone` ajoute un symbole après le libellé.
 struct PillStyle: ButtonStyle {
     var filled = true
     var height: CGFloat = 64
+    var icone: String? = nil
+    /// Avec une icône : le bouton prend toute la largeur, l'icône reste collée au libellé.
+    var plein = false
+    @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(rounded(20, .semibold))
-            .foregroundStyle(filled ? Color.white : T.ink)
-            .padding(.horizontal, 30)
-            .frame(height: height)
-            .background(Capsule().fill(filled ? T.ink : T.card))
-            .overlay(Capsule().strokeBorder(filled ? Color.clear : T.ink.opacity(0.08), lineWidth: 1.5))
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(duration: 0.25, bounce: 0), value: configuration.isPressed)
+        HStack(spacing: 10) {
+            if let icone {
+                configuration.label.fixedSize(horizontal: true, vertical: false)
+                Image(systemName: icone).font(.system(size: 19, weight: .semibold)).accessibilityHidden(true)
+            } else {
+                configuration.label
+            }
+        }
+        .frame(maxWidth: plein ? .infinity : nil)
+        .font(rounded(20, .semibold))
+        .foregroundStyle(filled ? Color.white : T.ink)
+        .padding(.horizontal, 30)
+        .frame(height: max(height, 44))
+        .background {
+            if filled {
+                Capsule().fill(T.primary)
+                    .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                    .shadow(color: T.accent.opacity(enabled ? 0.35 : 0), radius: 14, y: 7)
+            } else {
+                Capsule().fill(T.card)
+                    .overlay(Capsule().strokeBorder(T.line, lineWidth: 1.5))
+                    .shadow(color: T.ombre.opacity(0.06), radius: 8, y: 3)
+            }
+        }
+        .opacity(enabled ? 1 : 0.5)
+        .scaleEffect(configuration.isPressed ? 0.97 : 1)
+        .animation(.spring(duration: 0.25, bounce: 0), value: configuration.isPressed)
     }
 }
 
+/// Barre du haut, pâle comme l'en-tête « Help Center » de la maquette : chaque
+/// écran porte son propre en-tête bleu (`Panneau`).
 struct Header: View {
     @Environment(AppModel.self) private var model
     var body: some View {
@@ -65,28 +171,78 @@ struct Header: View {
             Spacer()
             // Rien quand tout va bien : la personne aidée n'a pas à se soucier de la connexion.
             if !model.connected {
-                HStack(spacing: 10) {
-                    Circle().fill(T.muted.opacity(0.5)).frame(width: 10, height: 10)
-                    Text("Pas de connexion pour le moment").font(rounded(16, .medium))
-                }
-                .padding(.horizontal, 18).padding(.vertical, 11)
-                .background(Capsule().fill(T.card))
+                Pastille(texte: "Pas de connexion pour le moment", icone: "wifi.slash", ton: .gris, taille: 16)
             }
             Button { model.showSettings = true } label: {
-                Image(systemName: "gearshape").font(.system(size: 17, weight: .medium))
-                    .frame(width: 42, height: 42).background(Circle().fill(T.card))
+                Image(systemName: "gearshape").font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(T.ink)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(T.card).shadow(color: T.ombre.opacity(0.1), radius: 10, y: 3))
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Réglages")
         }
-        .foregroundStyle(T.ink)
+        .padding(.top, 24)
+    }
+}
+
+/// Carte d'écran : en-tête en dégradé bleu vif au titre blanc, puis corps blanc.
+/// `alerte` passe l'en-tête au rouge du gardien.
+struct Panneau<Tete: View, Corps: View>: View {
+    var alerte = false
+    var padding: CGFloat = 34
+    @ViewBuilder var tete: Tete
+    @ViewBuilder var corps: Corps
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            tete
+                .foregroundStyle(.white)
+                .padding(.horizontal, padding).padding(.vertical, padding * 0.7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(alerte ? AnyShapeStyle(T.danger) : AnyShapeStyle(T.header))
+            corps
+                .foregroundStyle(T.ink)
+                .padding(padding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .background(T.card)
+        .clipShape(RoundedRectangle(cornerRadius: T.rBig, style: .continuous))
+        .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.card)
+            .shadow(color: T.ombre.opacity(0.1), radius: 22, y: 8))
+    }
+}
+
+/// Choix exclusif façon barre d'onglets : libellé bleu et trait bleu sous l'onglet choisi.
+struct Onglets<V: Hashable>: View {
+    var options: [(label: String, value: V)]
+    @Binding var selection: V
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(options, id: \.value) { o in
+                let on = o.value == selection
+                Button { selection = o.value } label: {
+                    VStack(spacing: 0) {
+                        Text(o.label).font(rounded(17, on ? .semibold : .medium))
+                            .foregroundStyle(on ? T.leaf : T.muted)
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                        Rectangle().fill(on ? T.accent : T.line).frame(height: on ? 3 : 1)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
     }
 }
 
 struct LogotypePapai: View {
+    var lettres: Color = T.ink
     var body: some View {
         ZStack {
-            LettresPapai().fill(T.ink)
+            LettresPapai().fill(lettres)
             PapayePapai().fill(Color(hex: 0xF58A3A))
         }
         .aspectRatio(235.0 / 101.0, contentMode: .fit)
@@ -450,7 +606,8 @@ struct Bulle<Content: View>: View {
         content
             .padding(.horizontal, 22).padding(.vertical, 16)
             .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous).fill(fill)
+                RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(fill)
+                .shadow(color: T.ombre.opacity(0.08), radius: 18, y: 6)
                     .overlay(alignment: .leading) {
                         PointeBulle().fill(fill).frame(width: 16, height: 22).offset(x: -12)
                     }

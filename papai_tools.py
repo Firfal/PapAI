@@ -126,11 +126,17 @@ Règles :
   une dernière étape « Demander confirmation au support avant de valider ».
 - Français simple et correct, aucun mot anglais.
 
-Indique aussi où se fait la tâche : "web" si tout se passe dans un navigateur
-(un site, une page internet, un webmail), sinon "desktop".
+Indique aussi où se fait la tâche :
+- "desktop" si tout se passe sur l'ordinateur ;
+- "web" si tout se passe dans un navigateur ;
+- "mixed" si la tâche commence sur l'ordinateur et passe ensuite par un ou
+  plusieurs sites. Dans ce cas seulement, ajoute "web_steps" (numéros des étapes
+  web, à partir de 1) et "sites" (1 à 3 domaines en minuscules, sans schéma ni
+  chemin). Au moins une étape web doit être visible dans le plan que le support
+  validera.
 
 Réponds UNIQUEMENT par un objet JSON, sans texte autour :
-{{"steps": ["...", "..."], "where": "desktop"}}"""
+{{"steps": ["...", "..."], "where": "mixed", "web_steps": [2], "sites": ["ameli.fr"]}}"""
 
 
 # Consignes de l'agent navigateur de H (backend/web_agent.py), mot pour mot.
@@ -156,7 +162,8 @@ WEB_AGENT_INSTRUCTIONS = (
 
 
 def system_prompt(os_name: str) -> str:
-    return MAC_SYSTEM_PROMPT if os_name == "macos" else SYSTEM_PROMPT
+    prompt = MAC_SYSTEM_PROMPT if os_name == "macos" else SYSTEM_PROMPT
+    return prompt + '\nUn résultat commençant par « Action refusée par PapAI » signifie qu’une zone sensible a été bloquée par l’ordinateur : ne réessaie pas, appelle ask_helper.\n'
 
 
 TOOLS = [
@@ -286,9 +293,30 @@ TOOLS = [
     },
 ]
 
+OPEN_BROWSER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "open_browser",
+        "description": (
+            "À utiliser uniquement pour une étape web du plan validé, quand les "
+            "prochaines étapes se passent sur un site web. "
+            "Un agent navigateur les réalise dans une fenêtre Chrome PapAI séparée "
+            "et renvoie un résumé."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "goal": {"type": "string", "description": "Ce qu'il faut faire sur le web, en une phrase"},
+                "url": {"type": "string", "description": "URL HTTPS de départ, facultative"},
+            },
+            "required": ["goal"],
+        },
+    },
+}
+
 # Holo annonce l'étape du plan validé qu'il exécute : le serveur la retire des
 # arguments avant l'envoi à l'app et la publie dans `status.plan_step`.
-for _tool in TOOLS:
+for _tool in [*TOOLS, OPEN_BROWSER_TOOL]:
     if _tool["function"]["name"] != "answer":
         _tool["function"]["parameters"].setdefault("properties", {})["plan_step"] = {
             "type": "integer",

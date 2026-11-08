@@ -88,6 +88,9 @@ class Session:
     # Le plan proposé par Holo. Rien ne bouge sur le PC tant que le proche ne
     # l'a pas validé : c'est la règle « jamais sans aval ».
     plan: list[str] | None = None
+    plan_mode: str | None = None
+    plan_sites: list[str] = field(default_factory=list)
+    web_steps: list[int] = field(default_factory=list)
     plan_approved: bool = False
     # Numéro (à partir de 1) de l'étape du plan validé en cours d'exécution.
     plan_step: int | None = None

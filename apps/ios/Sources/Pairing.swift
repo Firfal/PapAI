@@ -1,9 +1,14 @@
 import SwiftUI
+#if os(iOS)
 import AVFoundation
+#endif
 
 enum PairServer {
     static let refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
     static let officialHost = "papai-450417131702.europe-west1.run.app"
+    static func needsNew(status: Int, refused: Bool) -> Bool {
+        status == 408 || status == 409 || (status == 403 && refused)
+    }
 
     static func allowed(_ text: String) -> Bool {
         guard let c = URLComponents(string: text), let host = c.host?.lowercased(),
@@ -46,6 +51,12 @@ struct PairLink: Identifiable, Equatable {
     /// nil : le code sera tapé à la main.
     var code: String?
     var senior: String?
+    var token: String? = nil
+    var isManual: Bool { code == nil && token == nil }
+    func endpoint(code manual: String) -> String {
+        if let token { return origin + "/i/" + token }
+        return (isManual ? origin : base) + "/p/" + (code ?? manual)
+    }
 
     var isOfficial: Bool {
         guard let url = URL(string: base), let h = url.host?.lowercased() else { return false }
@@ -66,23 +77,33 @@ struct PairLink: Identifiable, Equatable {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let c = URLComponents(string: t), let scheme = c.scheme?.lowercased() else { return nil }
         if scheme == "papai" {
+            guard c.host == "pair" else { return nil }
             guard let inner = c.queryItems?.first(where: { $0.name == "u" })?.value,
                   !inner.lowercased().hasPrefix("papai:") else { return nil }
             guard var link = parse(inner) else { return nil }
             link.senior = c.queryItems?.first(where: { $0.name == "n" })?.value ?? link.senior
             return link
         }
-        guard PairServer.allowed(t), let host = c.host, !host.isEmpty,
-              let m = c.path.wholeMatch(of: /(.*)\/p\/(\d{6})\/?/) else { return nil }
+        guard PairServer.allowed(t), let host = c.host, !host.isEmpty else { return nil }
         let origin = "\(scheme)://\(host)" + (c.port.map { ":\($0)" } ?? "")
+        if let m = c.path.wholeMatch(of: /\/i\/([A-Za-z0-9_-]{22,128})\/?/) {
+            return PairLink(base: origin, code: nil, token: String(m.1))
+        }
+        guard let m = c.path.wholeMatch(of: /((?:\/k\/[^\/]+)?)\/p\/([0-9]{6})\/?/) else { return nil }
         return PairLink(base: origin + m.1, code: String(m.2))
     }
 }
 
-private let relations: [(label: String, value: String)] = [
-    ("Fille", "sa fille"), ("Fils", "son fils"), ("Proche", "un proche"),
-    ("Collègue", "un collègue"), ("Service informatique", "le service informatique"), ("Voisin, voisine", "un voisin"),
-]
+extension PairServer {
+    /// Lien avec la personne aidée, proposé à la liaison (iPhone et Mac).
+    static let relations: [(label: String, value: String)] = [
+        ("Fille", "sa fille"), ("Fils", "son fils"), ("Proche", "un proche"),
+        ("Collègue", "un collègue"), ("Service informatique", "le service informatique"), ("Voisin, voisine", "un voisin"),
+    ]
+}
+
+// Feuilles de liaison et scanner : iPhone seulement (le Mac a les siennes, sans caméra).
+#if os(iOS)
 
 /// « Rejoindre <prénom> » : prénom et lien, puis POST et réglage automatique.
 struct PairSheet: View {
@@ -101,7 +122,7 @@ struct PairSheet: View {
             .padding(24)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Soin.bg.ignoresSafeArea())
+        .background { SoinBackground() }
         .presentationDetents([.large])
         .interactiveDismissDisabled(model.pairBusy)
         .onAppear { if name.isEmpty { name = model.helperName ?? "" } }
@@ -111,30 +132,52 @@ struct PairSheet: View {
         Text("Relier ce téléphone").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
         Text("Vous serez prévenu dès qu’une demande d’aide arrive sur son ordinateur. Rien ne bouge sans votre accord.")
             .font(.system(size: 15)).foregroundStyle(Soin.secondary)
-        if link.code == nil {
+        if link.isManual {
             label("Code affiché sur l’ordinateur")
             TextField("000000", text: $code)
                 .keyboardType(.numberPad).textContentType(.oneTimeCode)
                 .font(.system(size: 28, weight: .semibold)).tracking(8).multilineTextAlignment(.center)
-                .padding(16).soinCard(radius: 18)
-                .onChange(of: code) { _, v in code = String(v.filter(\.isNumber).prefix(6)) }
+                .padding(16).soinField()
+                .onChange(of: code) { _, v in
+                    code = String(v.filter { $0.isASCII && $0.isNumber }.prefix(6))
+                    if !code.isEmpty { model.pairNeedsNew = false }
+                }
         }
         label("Votre prénom")
         TextField("Claire", text: $name)
-            .textContentType(.givenName).font(.system(size: 17)).padding(16).soinCard(radius: 18)
+            .textContentType(.givenName).font(.system(size: 17)).padding(16).soinField()
         label("Votre lien avec la personne aidée")
         FlowLayout(spacing: 8) {
-            ForEach(relations, id: \.value) { r in
+            ForEach(PairServer.relations, id: \.value) { r in
                 Button { relation = relation == r.value ? "" : r.value } label: {
                     Text(r.label).font(.system(size: 15, weight: .medium))
                         .foregroundStyle(relation == r.value ? .white : Soin.ink)
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .background(relation == r.value ? Soin.ink : Soin.card, in: Capsule())
+                        .padding(.horizontal, 16).frame(minHeight: 44)
+                        .background(relation == r.value ? Soin.accent : Soin.card, in: Capsule())
+                        .overlay(Capsule().strokeBorder(relation == r.value ? Color.clear : Soin.hairline, lineWidth: 1))
                 }
             }
         }
+        if model.pairBusy {
+            HStack {
+                ProgressView()
+                Text("En attente de l'accord sur l'ordinateur…")
+                    .font(.system(size: 17)).foregroundStyle(Soin.ink)
+            }
+            Text("Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).")
+                .font(.system(size: 17)).foregroundStyle(Soin.ink)
+        }
         if let e = model.pairError {
-            Text(e).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.danger)
+            if model.pairRefused {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Demande refusée").font(.system(size: 22, weight: .bold))
+                    Text(verbatim: e).font(.system(size: 15))
+                }
+                .foregroundStyle(Soin.ink).frame(maxWidth: .infinity, alignment: .leading)
+                .padding(18).soinCard()
+            } else {
+                Text(verbatim: e).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.danger)
+            }
         }
         VStack(alignment: .leading, spacing: 8) {
             if link.isOfficial {
@@ -154,7 +197,11 @@ struct PairSheet: View {
             if model.pairBusy { ProgressView().tint(.white) } else { Text("Rejoindre") }
         }
         .buttonStyle(CapsuleButtonStyle())
-        .disabled(model.pairBusy)
+        .disabled(model.pairBusy || model.pairNeedsNew || (link.isManual && code.count != 6))
+        .opacity(model.pairNeedsNew || (link.isManual && code.count != 6) ? 0.45 : 1)
+        .onChange(of: model.pairNeedsNew) { _, needsNew in
+            if needsNew { code = "" }
+        }
         Button("Annuler") { dismiss() }
             .font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.secondary)
             .frame(maxWidth: .infinity)
@@ -169,7 +216,7 @@ struct PairSheet: View {
             .frame(maxWidth: .infinity).multilineTextAlignment(.center)
         HStack(spacing: 8) {
             if model.connected {
-                Circle().fill(Soin.accent).frame(width: 8, height: 8)
+                Circle().fill(Soin.online).frame(width: 8, height: 8)
                 Text("Connecté. Vous serez prévenu dès qu’une demande d’aide arrive.")
             } else if let e = model.linkError {
                 Text(e).foregroundStyle(Soin.danger)
@@ -225,7 +272,7 @@ struct ScannerSheet: View {
                 .frame(maxWidth: .infinity)
         }
         .padding(24)
-        .background(Soin.bg.ignoresSafeArea())
+        .background { SoinBackground() }
         .presentationDetents([.large])
     }
 
@@ -316,3 +363,4 @@ final class ScannerController: UIViewController, AVCaptureMetadataOutputObjectsD
         }
     }
 }
+#endif

@@ -18,7 +18,7 @@ import re
 import secrets
 import time
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -26,9 +26,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
 from . import automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
-from .agent import AgentRunner, propose_plan
+from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
 from .web_agent import WebAgentRunner, valid_browser_session
-from .family import CODE_TTL, INVITE_TTL, Family, PairingError
+from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
 from .caremamory import lessons_dir, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
 
@@ -132,7 +132,7 @@ def _same_machine(conn: HTTPConnection) -> bool:
 
 # Jamais de clé ni de jeton dans les journaux : les chemins qui en portent un
 # sont masqués, y compris dans les journaux d'accès d'uvicorn.
-_SECRET_PATH = re.compile(r"/(k|a|h|p|o|ws/aidant|ws/helper)/[^/?#\s\"']+")
+_SECRET_PATH = re.compile(r"/(k|a|h|p|i|o|ws/aidant|ws/helper)/[^/?#\s\"']+")
 
 
 def masquer(texte: str) -> str:
@@ -158,6 +158,7 @@ class BridgeLink:
     def __init__(self, ws: WebSocket) -> None:
         self.ws = ws
         self._pending: dict[str, asyncio.Future] = {}
+        self.connected = True
         self.os = "windows"  # annoncé par le pont dans son message hello
         self.web_agent_available = False
         # Protection en temps réel, annoncée par l'app (None : app qui ne la connaît pas).
@@ -175,14 +176,23 @@ class BridgeLink:
         except Exception:  # noqa: BLE001 — déjà fermé
             pass
 
-    async def _request(self, payload: dict, timeout: float = 20.0):
-        req = secrets.token_hex(6)
+    def disconnect(self) -> None:
+        self.connected = False
+        for fut in self._pending.values():
+            if not fut.done():
+                fut.set_result(None)
+
+    async def _request(self, payload: dict, timeout: float = 20.0, *, req: str | None = None):
+        req = req or secrets.token_hex(6)
         fut = asyncio.get_running_loop().create_future()
         self._pending[req] = fut
         try:
             await self.ws.send_json({**payload, "req": req})
             return await asyncio.wait_for(fut, timeout)
-        except (asyncio.TimeoutError, WebSocketDisconnect, RuntimeError):
+        except asyncio.TimeoutError:
+            return None
+        except (WebSocketDisconnect, RuntimeError, OSError):
+            self.disconnect()
             return None
         finally:
             self._pending.pop(req, None)
@@ -211,6 +221,8 @@ class BridgeLink:
             return None
         if data.get("refused"):
             return None  # le pont a refusé : arrêt local, la session s'arrête
+        if data.get("blocked") == "sensitive":
+            return SensitiveBlocked(data.get("result", ""))
         return data.get("result", "")
 
     async def send(self, payload: dict) -> None:
@@ -483,6 +495,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
     link = BridgeLink(ws)
     old, S().bridge = S().bridge, link
     if old is not None:
+        old.disconnect()
         # Un seul pont. Le nouveau a passé le même contrôle que l'ancien :
         # c'est en général le même Mac qui se reconnecte après une coupure.
         # La session de l'ancien lien ne peut plus agir : on l'arrête.
@@ -531,11 +544,13 @@ async def _ws_bridge(ws: WebSocket) -> None:
             if kind == "pair_start":
                 # Ajout d'un proche : un code à 6 chiffres et son lien (QR).
                 # `long` : invitation à envoyer par SMS ou WhatsApp, valable 24 h.
-                ttl = INVITE_TTL if msg.get("long") else CODE_TTL
-                code = S().family.new_code(ttl)
-                await ws.send_json({"type": "pair_code", "code": code, "url": pairing_url(code),
-                                    "app_url": app_pairing_url(code), "expires_in": ttl,
-                                    "long": bool(msg.get("long"))})
+                invitation = bool(msg.get("long"))
+                value = S().family.new_invitation() if invitation else spaces.new_code(S())
+                await ws.send_json({"type": "pair_code", "code": None if invitation else value,
+                                    "url": pairing_url(value, invitation=invitation),
+                                    "app_url": app_pairing_url(value, invitation=invitation),
+                                    "expires_in": INVITE_TTL if invitation else CODE_TTL,
+                                    "long": invitation})
                 continue
 
             if kind == "remove_helper":
@@ -706,6 +721,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
     except (WebSocketDisconnect, RuntimeError, ValueError):
         print("[pont] déconnecté")
     finally:
+        link.disconnect()
         # Un nouveau pont a pu prendre la place entre-temps : on ne le
         # débranche pas, et ses sessions continuent.
         if S().bridge is link:
@@ -713,6 +729,121 @@ async def _ws_bridge(ws: WebSocket) -> None:
             await _stop_open_sessions("pont déconnecté")
             if link.protection is not None:
                 await broadcast_helper({"type": "protection", "on": None})
+
+
+def _safe_handoff_log_text(text: str) -> str:
+    value = re.sub(r"https?://\S+", "[URL masquée]", str(text or ""), flags=re.I)
+    value = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", "[adresse masquée]", value)
+    value = re.sub(r"\b[A-Z]{2}\d{2}(?:[\s-]?[A-Z0-9]){10,30}\b", "[IBAN masqué]", value, flags=re.I)
+    value = re.sub(
+        r"\b(?:mot de passe|mdp|password|pass|pin|cryptogramme|code(?: de sécurité)?|"
+        r"iban|numéro de carte|identifiant|carte bancaire)\b[^.!?\n]*",
+        "[donnée sensible masquée]", value, flags=re.I
+    )
+    value = re.sub(
+        r"\b\d[\d\s.,]*\s*(?:euros?|eur|dollars?)\b",
+        "[montant masqué]", value, flags=re.I
+    )
+    value = re.sub(r"\b\d[\d\s.,]*\s*[€$]", "[montant masqué]", value)
+    value = re.sub(r"(?<!\w)\+?\d[\d\s().-]{5,}\d(?!\w)", "[numéro masqué]", value)
+    return value[:240]
+
+
+def _browser_site_allowed(url: str, sites: list[str]) -> bool:
+    if not isinstance(url, str):
+        return False
+    try:
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        port = parsed.port
+    except (TypeError, ValueError):
+        return False
+    return (
+        parsed.scheme.lower() == "https"
+        and parsed.username is None
+        and parsed.password is None
+        and bool(host)
+        and (port is None or 1 <= port <= 65535)
+        and not any(char.isspace() for char in url)
+        and any(host == site or host.endswith("." + site) for site in sites)
+    )
+
+
+async def browser_handoff(session, link: BridgeLink, notes: list[str],
+                          goal: str, url: str | None) -> str | None:
+    if url is None and session.plan_sites:
+        url = f"https://{session.plan_sites[0]}"
+    if not url or not _browser_site_allowed(url, session.plan_sites):
+        result = (
+            "Ce site n'était pas dans le plan validé par le support. Continue sur le bureau, "
+            "ou pose la question au support avec ask_helper."
+        )
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal), result=result)
+        return result
+
+    alerte = guard.evaluer([], "", url=url)
+    if alerte:
+        await publish_guard(alerte, "browser", session)
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result="bloquée par le Gardien")
+        return None
+
+    demande = goal + (f"\nURL de départ : {url}" if url else "")
+    if await check_request(session, demande, "browser"):
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result=("bloquée par le Gardien" if session.stopped_by == "gardien"
+                            else "session arrêtée"))
+        return None
+
+    try:
+        browser = await link.start_web_agent()
+    except asyncio.CancelledError:
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result="annulée pendant le démarrage")
+        raise
+    except Exception:
+        await link.stop_web_agent()
+        browser = None
+    if not session.is_open:
+        if browser is not None:
+            await link.stop_web_agent()
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result="session arrêtée avant l'ouverture")
+        return None
+    if browser is None:
+        result = "Le navigateur PapAI n'a pas démarré : continue sur le bureau."
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal), result=result)
+        return result
+
+    session.where = "web"
+    session.last_frame = None
+    session.log("mode", where="web")
+    link.active_web_session = session
+    link.active_web_browser_session = browser
+    result_log = "session arrêtée pendant la sous-tâche"
+    try:
+        await broadcast_helper(session.status())
+        summary = await WebAgentRunner(
+            session, browser, broadcast_helper, notes,
+            goal=goal, url=url, finish_session=False,
+        ).run()
+        if not session.is_open or summary is None:
+            return None
+        result = f"Partie navigateur terminée : {summary}"
+        result_log = _safe_handoff_log_text(result)
+        return result
+    finally:
+        await asyncio.shield(link.stop_web_agent())
+        if link.active_web_session is session:
+            link.active_web_session = None
+            link.active_web_browser_session = None
+        if session.is_open and session.where == "web":
+            session.where = "desktop"
+            session.last_frame = None
+            session.doing = "Holo reprend sur le bureau"
+            session.log("mode", where="desktop")
+            await asyncio.shield(broadcast_helper(session.status()))
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal), result=result_log)
 
 
 def _os_family(name: str) -> str:
@@ -758,7 +889,16 @@ async def run_session(session, link: "BridgeLink") -> None:
             steps = await propose_plan(session, link, broadcast_helper, " ; ".join(notes))
             if not session.is_open:
                 return
-            if await check_request(session, "\n".join([session.task, *notes, *steps]), "plan"):
+            for site in session.plan_sites:
+                alerte = guard.evaluer([], "", url=f"https://{site}")
+                if alerte:
+                    await publish_guard(alerte, "plan", session)
+                    return
+            plan_text = "\n".join([
+                session.task, *notes, *steps,
+                *(f"https://{site}" for site in session.plan_sites),
+            ])
+            if await check_request(session, plan_text, "plan"):
                 return
             if not session.is_open:
                 return
@@ -800,7 +940,12 @@ async def run_session(session, link: "BridgeLink") -> None:
                     link.active_web_session = None
                     link.active_web_browser_session = None
         else:
-            await AgentRunner(session, link, broadcast_helper, notes).run()
+            handoff = None
+            if session.plan_mode == "mixed" and link.web_agent_available:
+                async def handoff(goal, url):
+                    return await browser_handoff(session, link, notes, goal, url)
+            await AgentRunner(session, link, broadcast_helper, notes,
+                              browser_handoff=handoff).run()
     except asyncio.CancelledError:
         session.stop(by="annulation")
         raise
@@ -938,6 +1083,8 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
                 raise Refused("Aucun automate à valider.")
             # Le proche a pu corriger le texte : on reprend le sien.
             edited = msg.get("lesson") or {}
+            if "shortcut" in edited and edited["shortcut"] is None:
+                session.lesson["shortcut"] = None
             for i, step in enumerate(session.lesson["steps"]):
                 if i < len(edited.get("steps", [])):
                     step["instruction"] = str(
@@ -1018,6 +1165,10 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
 
     if result is None:
         raise Refused("Le PC a refusé l'action.")
+    if isinstance(result, SensitiveBlocked):
+        session.log("sensitive_blocked", tool="click", source="helper", reason=result.reason)
+        await ws.send_json({"type": "refused", "blocked": "sensitive", "reason": protected_window_support_text(click=True)})
+        return
 
     await ws.send_json({"type": "ack", "what": "click", "result": result})
     session.answer_from_helper("J'ai cliqué moi-même sur l'écran. Reprends à partir de là.")
@@ -1027,18 +1178,17 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
 # ------------------------------------------------------------------ proches
 
 
-def pairing_url(code: str) -> str:
-    base = f"{PUBLIC_URL}/k/{S().key}" if PUBLIC_MODE else PUBLIC_URL
-    return f"{base}/p/{code}"
+def pairing_url(code: str, *, invitation: bool = False) -> str:
+    return f"{PUBLIC_URL}/{'i' if invitation else 'p'}/{code}"
 
 
-def app_pairing_url(code: str) -> str:
+def app_pairing_url(code: str, *, invitation: bool = False) -> str:
     """Le lien du QR : ouvre l'app iPhone, qui fait elle-même le POST sur `url`.
 
     `n` porte le prénom de la personne aidée, pour que l'aidant lise « Rejoindre
     Sophie » avant même d'avoir validé.
     """
-    link = "papai://pair?u=" + quote(pairing_url(code), safe="")
+    link = "papai://pair?u=" + quote(pairing_url(code, invitation=invitation), safe="")
     if S().family.senior:
         link += "&n=" + quote(S().family.senior, safe="")
     return link
@@ -1052,30 +1202,69 @@ async def _pair_page(code: str):
     return FileResponse(STATIC / "pair.html")
 
 
-async def _pair_submit(code: str, request: Request, confirm: bool = False):
+async def _pair_submit(code: str, request: Request, confirm: bool = False, *, find_space: bool = False,
+                       invitation: bool = False):
     try:
         body = await request.json()
     except ValueError:
         body = {}
     if not isinstance(body, dict):
         body = {}
-    if confirm:
-        # Code tapé sans clé : avec plusieurs espaces, 6 chiffres se devinent.
-        # La personne aidée accepte donc ce support sur son écran.
-        name = str(body.get("name", "")).strip()[:40]
-        if not name:
-            return JSONResponse({"ok": False, "error": "Indiquez votre prénom."}, status_code=400)
-        if S().bridge is None:
-            return JSONResponse({"ok": False, "error": "L'ordinateur n'est pas connecté."}, status_code=400)
-        answer = await S().bridge._request({"type": "pair_confirm", "name": name,
-                                            "relation": str(body.get("relation", ""))[:60]}, timeout=PAIR_CONFIRM_S)
-        if not (isinstance(answer, dict) and answer.get("accept") is True):
-            return JSONResponse({"ok": False, "error": "La personne aidée n'a pas accepté."}, status_code=403)
+    name = clean_label(str(body.get("name") or ""), 40)
+    relation = clean_label(str(body.get("relation") or ""), 60)
+    if not name:
+        return JSONResponse({"ok": False, "error": "Indiquez votre prénom."}, status_code=400)
+    ip = _client_ip(request)
+    if find_space and not _rate_ok(_global_wrong_codes, "all", GLOBAL_WRONG_CODES_MAX, 600, record=False):
+        return JSONResponse({"ok": False, "error": INVALID_CODE}, status_code=400)
+    if not _rate_ok(_wrong_codes, ip, WRONG_CODES_MAX, 600, record=False):
+        return JSONResponse({"ok": False, "error": "Trop d'essais. Réessayez dans quelques minutes."}, status_code=429)
+    sp = next((x for x in spaces.all() if
+               (x.family.invitation_valid(code) if invitation else x.family.code_valid(code))), None) if find_space else S()
     try:
-        helper = S().family.pair(code, str(body.get("name", "")), str(body.get("relation", "")))
-    except PairingError as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
-    print("[proches] un proche ajouté")
+        if sp is None or sp.key in _pair_waiting:
+            raise PairingError(INVALID_CODE)
+        if not invitation:
+            sp.family.check_code(code)
+    except PairingError:
+        _rate_ok(_wrong_codes, ip, WRONG_CODES_MAX, 600)
+        if find_space:
+            _rate_ok(_global_wrong_codes, "all", GLOBAL_WRONG_CODES_MAX, 600)
+        return JSONResponse({"ok": False, "error": INVALID_CODE}, status_code=400)
+    space.use(sp)
+    link = sp.bridge
+    try:
+        if invitation:
+            sp.family.consume_invitation(code)
+        else:
+            sp.family.consume_code(code)
+    except PairingError:
+        _rate_ok(_wrong_codes, ip, WRONG_CODES_MAX, 600)
+        return JSONResponse({"ok": False, "error": INVALID_CODE}, status_code=400)
+    if confirm and (link is None or not link.connected):
+        return JSONResponse({"ok": False, "error": INVALID_CODE}, status_code=400)
+    # En local, pas d'accord : parcours de développement uniquement.
+    if confirm:
+        _pair_waiting.add(sp.key)
+        req = secrets.token_hex(6)
+        decided = False
+        try:
+            answer = await link._request({"type": "pair_confirm", "name": name, "relation": relation},
+                                         timeout=PAIR_CONFIRM_S, req=req)
+            if sp.bridge is not link or not link.connected:
+                return JSONResponse({"ok": False, "error": PAIR_OFFLINE}, status_code=409)
+            if answer is None:
+                return JSONResponse({"ok": False, "error": "Pas de réponse sur l'ordinateur. Demandez un nouveau code sur l'ordinateur de la personne aidée."}, status_code=408)
+            decided = True
+            if not (isinstance(answer, dict) and answer.get("accept") is True):
+                return JSONResponse({"ok": False, "refused": True, "error": "La personne aidée a refusé. Rien n'a été partagé."}, status_code=403)
+        finally:
+            _pair_waiting.discard(sp.key)
+            if not decided:
+                await link.send({"type": "pair_confirm_closed", "req": req})
+    await broadcast_helper({"type": "helper_added", "name": name}, to_bridge=False)
+    helper = sp.family.add_helper(name, relation)
+    print("[supports] un support ajouté")
     if S().bridge is not None:
         await S().bridge.send({"type": "helpers", "helpers": S().family.public(_online_ids()), "added": helper["name"]})
     return {"ok": True, "name": helper["name"], "id": helper["id"], "senior": S().family.senior or None,
@@ -1083,13 +1272,14 @@ async def _pair_submit(code: str, request: Request, confirm: bool = False):
             "server": PUBLIC_URL, "key": S().key}
 
 
-# Sans clé, même en ligne : le support tape seulement le code à 6 chiffres.
-# Le code est le secret (10 min ou 24 h, une seule fois, invalidé après
-# MAX_TRIES essais faux) et la réponse lui donne l'adresse et la clé.
-PAIR_CONFIRM_S = 120
+PAIR_CONFIRM_S = float(os.environ.get("PAPAI_PAIR_CONFIRM_S", "120"))
+PAIR_OFFLINE = "L'ordinateur de la personne aidée n'est pas connecté. Allumez-le, ouvrez PapAI, puis réessayez."
+_pair_waiting: set[str] = set()
 WRONG_CODES_MAX = 10
+GLOBAL_WRONG_CODES_MAX = 300
 SPACES_PER_HOUR = 5
 _wrong_codes: dict[str, list[float]] = {}
+_global_wrong_codes: dict[str, list[float]] = {}
 _space_creations: dict[str, list[float]] = {}
 # Postes d'une même organisation (souvent derrière la même adresse IP) : plafond par organisation.
 ORG_ENROLLS_PER_HOUR = int(os.environ.get("PAPAI_ORG_ENROLLS_PER_HOUR", "200"))
@@ -1106,12 +1296,14 @@ def _client_ip(request: HTTPConnection) -> str:
     return request.client.host if request.client else ""
 
 
-def _rate_ok(book: dict[str, list[float]], who: str, limit: int, window: float) -> bool:
+def _rate_ok(book: dict[str, list[float]], who: str, limit: int, window: float, *, record: bool = True) -> bool:
     now = time.time()
     hits = [t for t in book.get(who, []) if now - t < window]
     ok = len(hits) < limit
-    if ok:
+    if ok and record:
         hits.append(now)
+    if who not in book and len(book) >= 10_000:
+        book.pop(next(iter(book)))
     book[who] = hits
     return ok
 
@@ -1135,13 +1327,17 @@ async def pair_page(code: str):
 
 @app.post("/p/{code}")
 async def pair_submit(code: str, request: Request):
-    sp = next((x for x in spaces.all() if x.family.code_valid(code)), None)
-    if sp is None:
-        if not _rate_ok(_wrong_codes, _client_ip(request), WRONG_CODES_MAX, 600):
-            return JSONResponse({"ok": False, "error": "Trop d'essais. Réessayez dans 10 minutes."}, status_code=429)
-        return JSONResponse({"ok": False, "error": "Code incorrect ou expiré."}, status_code=400)
-    space.use(sp)
-    return await _pair_submit(code, request, confirm=PUBLIC_MODE)
+    return await _pair_submit(code, request, confirm=PUBLIC_MODE, find_space=True)
+
+
+@app.get("/i/{token}")
+async def invitation_page(token: str):
+    return await _pair_page(token)
+
+
+@app.post("/i/{token}")
+async def invitation_submit(token: str, request: Request):
+    return await _pair_submit(token, request, confirm=PUBLIC_MODE, find_space=True, invitation=True)
 
 
 # Création d'un espace : au premier lancement, l'ordinateur aidé reçoit sa clé.
@@ -1301,7 +1497,7 @@ async def pair_page_keyed(fam: str, code: str):
 async def pair_submit_keyed(fam: str, code: str, request: Request):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    return await _pair_submit(code, request)
+    return await _pair_submit(code, request, confirm=PUBLIC_MODE)
 
 
 async def handle_remote_request(msg: dict, ws: WebSocket) -> None:

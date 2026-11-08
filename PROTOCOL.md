@@ -37,9 +37,10 @@ Envoie :
 - `{"type":"help_request","task":"…"}` quand elle appuie sur « Demander une assistance ».
 - `{"type":"stop"}` bouton Arrêter. **Le verrou local passe d'abord** : plus aucune action exécutée, même hors ligne.
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
-- `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt ou action interdite.
+- `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt, alerte du gardien affichée ou absence de plan validé (état requis : `active` ou `awaiting_helper`). Sur Mac et Windows, un refus local d'action sensible ajoute `"blocked":"sensitive"` avec `refused:false` : la session reste ouverte, le texte demande à Holo de ne pas réessayer et d'appeler `ask_helper`.
+  Le serveur transmet ce refus comme résultat d'outil à Holo et journalise `sensitive_blocked`. Tant que le support n'a pas répondu à `ask_helper`, toute nouvelle action d'écran proposée par Holo (`click`, `double_click`, `type_text`, `press_key`, `scroll`) est remplacée côté serveur par une question au support, sans envoi au pont ni arrêt de session. `refused:true` conserve sa priorité et entraîne l'arrêt habituel.
 - `{"type":"automation_failed","title":"…","detail":"…"}` quand un automate ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
-- `{"type":"pair_start"}` pour ajouter un proche (QR, 10 min) ; `{"type":"pair_start","long":true}` pour une **invitation à envoyer** par SMS, WhatsApp, Mail… (24 h). Le serveur répond `pair_code`.
+- `{"type":"pair_start"}` pour ajouter un support (QR code, 10 min) ; `{"type":"pair_start","long":true}` pour une **invitation opaque à envoyer** par SMS, WhatsApp, Mail… (24 h). Le serveur répond `pair_code`.
 - `{"type":"remove_helper","id":"…"}` retire un proche.
 - `{"type":"remote_answer","accepted":false}` refus d'une session proposée par un proche. En cas d'accord, l'app envoie directement `help_request` avec `"requested_by":"Claire"`.
 
@@ -51,11 +52,19 @@ Reçoit :
 - `{"type":"session","id":…,"helper_url":…}`
 - `{"type":"helpers","helpers":[{"id","name","relation"}],"added":"Claire"?}` à chaque `hello` et après chaque ajout ou retrait.
 - `{"type":"pair_code","code":"482913","url":"http://…/p/482913","app_url":"papai://pair?u=http%3A%2F%2F…%2Fp%2F482913","expires_in":600}` code à afficher.
+- Invitation : `{"type":"pair_code","code":null,"url":"https://…/i/<jeton>","app_url":"papai://pair?u=https%3A%2F%2F…%2Fi%2F<jeton>","expires_in":86400,"long":true}`. Aucun code numérique pour l'invitation ; afficher/partager `url` ou `app_url`, sans reconstruire de lien avec la clé.
   Le QR contient `app_url` (ouvre l'app iPhone) ; le code et `url` restent affichés en texte pour le secours web.
   Ancien serveur sans `app_url` : l'app le construit, `papai://pair?u=` + `url` encodée (tous caractères réservés).
 - `{"type":"lessons_changed","title":"…"}` le proche vient de valider un automate : l'app relit `/lessons`.
 - `{"type":"remote_request","from":"Claire","task":"…"}` un proche propose une session : rien ne démarre sans l'accord de la personne aidée.
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
+
+Sous Windows, avant chaque caractère et avant une touche, PapAI vérifie le style natif `ES_PASSWORD` et la propriété UI Automation `IsPassword` de l'élément focalisé, via `comtypes`. Un champ protégé ou une propriété illisible (UIA/COM indisponible, erreur) entraîne un refus sensible ; l'absence du style natif ne suffit pas à autoriser une saisie web/WinUI.
+
+Une fenêtre Explorer `CabinetWClass` dont la cible est illisible (erreur COM, cible absente ou vide) est refusée avec la raison « fenêtre protégée », quelle que soit la langue du titre. Une cible lisible de dossier utilisateur reste autorisée ; les titres reconnus et cibles shell du Panneau de configuration restent sensibles.
+
+Toute alerte affichée, même `info` ou `attention`, lève le verrou local sur Mac et Windows : la frappe en cours s'arrête avant le caractère suivant et fermer l'alerte ne relance pas le geste. Un clic du support bloqué comme sensible renvoie `refused` (« Clic non effectué »), sans accusé de réussite ni réponse automatique à Holo ; l'assistance reste en `awaiting_helper`.
+Le refus sensible d'un clic du support est `{"type":"refused","blocked":"sensitive","reason":"Clic non effectué : cette fenêtre est protégée (réglages ou mots de passe). Guidez <prénom> par téléphone pour faire cette étape sur l'ordinateur."}`. Le prénom vient du profil de l'espace, sinon « la personne aidée ». Les clients affichent ce message en carte persistante, fermée avec « Compris » ou à la prochaine action du support ; les autres refus restent des notifications temporaires. Après refus sensible, la question au support invite à guider la personne par téléphone puis à répondre pour reprendre Holo ; aucune raison technique n'est exposée au support, mais elle reste dans le résultat Holo et le journal.
 
 ## App de l'aidant (iPhone) : `ws://SERVEUR/ws/aidant/CLÉ`
 
@@ -80,7 +89,8 @@ Envoie :
 - `{"type":"pause"}` · `{"type":"refresh"}` · `{"type":"click","frame_id":"…","x":0..1,"y":0..1}` (seulement en `awaiting_helper`)
 - `{"type":"remote_request","text":"…","from":"Claire"}` proposer une session (seulement s'il n'y en a pas d'ouverte). Réponses : `ack` `remote_request`, puis `remote_refused` ou `remote_accepted`.
 - `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automate »
-  Si Holo n'a pas pu rédiger l'automate, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
+  Le brouillon peut contenir `lesson.shortcut = {"folder":"pictures","subfolder":"Noël 2025"}`. L'aidant peut retirer cette cible avec `lesson.shortcut:null` dans `approve_lesson` ; toute autre valeur reçue est ignorée, jamais utilisée pour créer ou remplacer une cible. Le serveur revalide la cible avant l'enregistrement. `folder` est un dossier connu (`downloads`, `pictures`, `documents`, `desktop`, `videos`, `music`). Après suppression des espaces de bord, `subfolder` est vide (racine) ou contient 1 à 100 caractères Unicode : lettres, chiffres décimaux, espace et `- _ ' ’ ( ) , & +` uniquement. Aucun point, chemin ou accolade. Les apps vérifient le dossier réel avant de l'ouvrir explicitement dans le Finder ou l'Explorateur ; une cible hors du dossier connu est refusée, ainsi que les liens/jonctions sous Windows.
+  Si Holo n'a pas pu rédiger l’automate, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
 
 ## Dictée de la demande
 
@@ -200,8 +210,10 @@ sont aussi analysés. Confirmer un virement, même sans montant, est signalé.
 Une demande suspecte termine la session en `stopped`, sans `execute` ni plan à
 approuver. Les alertes de veille arrêtent aussi l'assistance en cours.
 
-`alert` peut porter `alert_id` (opaque), `source` (`request`, `plan`, `environment`),
+`alert` peut porter `alert_id` (opaque), `source` (`request`, `plan`, `browser`, `environment`),
 `blocked: true`, `session` (si liée à une demande) et `task` (texte de la demande).
+La source `browser` désigne un objectif web bloqué après que l'assistance a pu
+agir sur le bureau ; son alerte ne prétend donc pas que rien n'a été exécuté.
 **`title` et `detail` sont adaptés au destinataire** : sur le Mac, avertissement
 et « Contactez votre petit-fils Quentin avant d'aller plus loin » (prénom et lien
 familial connus, sinon « votre proche ») ; côté aidant, demande de rappel,
@@ -351,23 +363,31 @@ Lancement, côté app :
 
 ## Proches
 
-La personne aidée affiche un code à 6 chiffres et son QR (`pair_code`). Le proche ouvre
+La personne aidée affiche un code à 6 chiffres et son QR code (`pair_code`). Le support ouvre
 `/p/{code}` (ou `/p` pour taper le code), donne son prénom et son lien, et reçoit le lien
-de l'espace aidant. Le code sert une fois, expire en 10 minutes et tombe après 5 essais ratés.
-En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gardés dans `family.json`.
+de l'espace support après accord. Le code sert une fois, expire en 10 minutes et est invalidé
+après 5 erreurs (`MAX_TRIES`) quand l'espace est connu (route avec clé).
+Les liens de liaison générés ne contiennent jamais la clé : QR code = `PUBLIC_URL/p/<code>` ;
+invitation = `PUBLIC_URL/i/<jeton>`. Le jeton est créé par `secrets.token_urlsafe(16)` (128 bits),
+lié à un espace, valable 24 h, à usage unique. Créer une invitation remplace la précédente,
+sans remplacer le code court. Code et jeton sont en mémoire (redémarrage : invalidation).
+`GET /i/<jeton>` sert `pair.html` ; `POST /i/<jeton>` reçoit le même corps et suit exactement
+le même accord `pair_confirm`/`pair_decision` que le code, en cherchant parmi tous les espaces.
+`/k/{clé}/p/…` reste accepté pour compatibilité seulement, jamais généré pour une liaison.
+Les supports sont gardés dans `family.json`.
 
 `POST …/p/{code}` avec `{"name","relation"}` répond `{"ok":true,"name","aidant_url","server","key"}`
 (ou `{"ok":false,"error"}` en 400). L'app iPhone s'en sert pour se régler seule :
 
 - **Lien d'app** `papai://pair?u=<URL d'appairage encodée>` (QR du Mac, bouton de `pair.html`).
-  L'app lit `u` (`https://…[/k/<clé>]/p/<code>`), demande prénom et lien, fait le POST sur `u`,
+  L'app lit `u` (`PUBLIC_URL/p/<code>` ou `PUBLIC_URL/i/<jeton>`), demande prénom et lien, fait le POST sur `u`,
   puis enregistre `serverURL = server + "/k/" + key` et `helperKey = key`, et se connecte.
 - Le scanner de l'app accepte `papai://pair?u=…` comme l'ancien `https://…/p/<code>`.
 - Saisie du code à la main : le support ne tape que le code, jamais d'adresse. POST sur
   `<serverURL réglé>/p/<code>`, ou sur `https://papai-450417131702.europe-west1.run.app/p/<code>`
   (serveur officiel) si l'app n'est pas encore réglée. En ligne, `GET /p`, `GET /p/<code>` et
   `POST /p/<code>` répondent donc aussi sans clé : le code est le secret (une seule fois, 10 min
-  ou 24 h), et la réponse donne `server` et `key`. Voir « Plusieurs espaces » : le code tapé
+  pour le code ; 24 h pour le jeton d'invitation), et la réponse donne `server` et `key` après accord. Voir « Plusieurs espaces » : le code tapé
   sans clé cherche son espace et doit être accepté sur l'ordinateur aidé.
 - Arguments de lancement `-serverURL` et `-helperKey` (dépannage, démo) : l'app les enregistre.
 
@@ -385,14 +405,41 @@ personnes aidées en gardant une clé par espace.
 - **Clé inconnue mais bien formée** (12 à 64 caractères `A-Za-z0-9_-`) sur `/k/<clé>/ws/bridge` :
   l'ordinateur revient après un redéploiement qui a effacé le disque, un espace est recréé à sa
   clé (même limite). Les supports sont restaurés par `known_helpers`.
-- **Code tapé sans clé** (`POST /p/<code>`) : le serveur cherche l'espace dont le code est valide.
-  Code inconnu → 400 ; plus de 10 codes faux en 10 min depuis une même adresse → 429.
-  En ligne (`PAPAI_PUBLIC=1`), avec plusieurs espaces 6 chiffres se devinent : l'ordinateur aidé
-  doit accepter le support.
+- **Liaison** (`POST /p/<code>`, `POST /i/<jeton>` ou compatibilité `POST /k/<clé>/p/<code>`) :
+  sans clé, le serveur cherche l'espace dont le code est valide. Prénom nettoyé (40 caractères)
+  et lien nettoyé (60) : lettres accentuées, chiffres, espace et `-'.` conservés, contrôles et
+  caractères HTML retirés. Prénom vide → 400 « Indiquez votre prénom. », sans compter d'essai.
+  En ligne (`PAPAI_PUBLIC=1`), l'ordinateur doit accepter le support sur toutes ces routes :
+  même une URL contenant la clé peut être photographiée.
   - serveur → pont : `{"type":"pair_confirm","req":N,"name","relation"}` ;
   - pont → serveur : `{"type":"pair_decision","req":N,"accept":true|false}`.
-  Sans réponse en 120 s, ou refus : 403 `{"ok":false,"error"}`. Les liens avec clé (QR, SMS :
-  `/k/<clé>/p/<code>`) ne demandent pas cette confirmation.
+  Le code ou jeton est consommé immédiatement avant l'envoi (aussi si l'ordinateur est déjà hors ligne),
+  une seule demande en attente par espace/ordinateur. Accord, refus, délai ou ordinateur absent :
+  la valeur consommée ne ressert jamais. Un jeton inconnu, expiré ou consommé donne INVALID_CODE.
+  Un code qui expire pendant l'attente n'empêche pas l'ajout après accord. Délai : 120 s,
+  surchargeable par `PAPAI_PAIR_CONFIRM_S`. Sur délai/annulation, serveur → pont :
+  `{"type":"pair_confirm_closed","req":N}` ferme la demande sans réponse ; identifiant inconnu ignoré.
+  - 200 après accord seulement : `{"ok":true,"name","id","senior","aidant_url","server","key"}`.
+    Les supports déjà reliés reçoivent `{"type":"helper_added","name":…}` avant l'ajout du nouveau support,
+    sans inclure celui-ci. Notice : « <prénom> est maintenant support. » (texte littéral).
+    Le pont reçoit `helpers` avec `added` comme auparavant.
+  - 400 pour code/jeton faux, expiré, consommé, ordinateur déjà hors ligne ou demande déjà en attente :
+    « Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de la personne aidée. »
+  - 403 : `{"ok":false,"refused":true,"error":"La personne aidée a refusé. Rien n'a été partagé."}`.
+  - 408 : « Pas de réponse sur l'ordinateur. Demandez un nouveau code sur l'ordinateur de la personne aidée. »
+  - 409 si pont déconnecté ou remplacé pendant l'attente : « L'ordinateur de la personne aidée n'est pas connecté.
+    Allumez-le, ouvrez PapAI, puis réessayez. » Aucun accès partagé, code/jeton déjà consommé.
+  - 429 au 11e essai faux en 10 min glissantes par IP : « Trop d'essais. Réessayez dans quelques minutes. »
+    Une IP bloquée doit attendre même pour un code juste. Quand l'espace est connu, 5 erreurs suffisent
+    à invalider son code. Les historiques d'IP sont bornés à 10 000 entrées.
+    Sur `/p/<code>` et `/i/<jeton>`, un plafond global de 300 essais faux par 10 minutes glissantes
+    couvre toutes les IP : une fois atteint, INVALID_CODE (400), avant toute recherche/validation du code,
+    y compris pour une valeur juste. Après la fenêtre, la recherche reprend. Ce plafond précède la limite IP.
+  Tout échec retourne `ok:false` et `error`, sans `server`, `key` ni `aidant_url` et sans ajout.
+  IP : adresse cliente directe en local ; en ligne, **dernière** entrée de `X-Forwarded-For` si présent
+  (les préfixes fournis par le client ne font pas foi). Même règle pour créations d'espaces et d'organisations.
+  **Mode local** (sans `PAPAI_PUBLIC`) : pas d'accord sur l'ordinateur, pour le développement seulement ;
+  nettoyage des libellés, usage unique et limite des essais faux restent appliqués.
 - Le jeton d'une session (`/h/<jeton>`, `/ws/helper/<jeton>`) désigne aussi son espace.
 - Test : `python tests/test_appairage_code.py` (deux espaces, confirmation, force brute).
 
@@ -464,7 +511,7 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
 
 ## Prénom et invitation (7 novembre au soir)
 
-- `pair_code` porte `expires_in` (600 ou 86400) et `long` (vrai pour une invitation). `app_url` = `papai://pair?u=<url>&n=<prénom>` : l'app iPhone affiche « Rejoindre Sophie » avant même l'appairage.
+- `pair_code` porte `expires_in` (600 ou 86400) et `long` (vrai pour une invitation opaque `/i/<jeton>`, `code:null`). `app_url` = `papai://pair?u=<url encodée>&n=<prénom encodé>` ; aucune clé dans ce lien.
 - La réponse de `POST …/p/<code>` contient `senior` (prénom de la personne aidée), en plus de `server` et `key`.
 - Test : `python tests/test_profil.py http://127.0.0.1:8000 demo` (6 contrôles).
 
@@ -522,11 +569,33 @@ bureau reste le comportement par défaut.
   `holo local browser --session-id <uuid>`; `{"type":"web_agent","session_id":null}`
   quand ils s'arrêtent. Le serveur attend au plus 20 secondes une session valide,
   puis utilise le mode bureau si le Mac ne répond pas.
-- Serveur → apps, `status.where` : `"web"`, `"desktop"` ou `null`. Avant la
-  validation, c'est l'endroit proposé par Holo avec le plan ; après la
-  validation, c'est le mode réellement utilisé (`"desktop"` si le Mac n'a pas
-  annoncé cette capacité ou si le démarrage du navigateur échoue). Les apps
-  l'ignorent si absent.
+- Le plan peut annoncer `where: "desktop"` ou `"web"` comme auparavant. Pour une
+  tâche qui commence sur le bureau et passe par un ou plusieurs sites, Holo peut
+  proposer `where: "mixed"` avec `web_steps` (numéros d'étapes à partir de 1) et
+  `sites` (de 1 à 3 domaines en minuscules, sans schéma ni chemin). Le serveur
+  valide ces champs et préfixe les étapes web visibles au proche par
+  « Dans Chrome PapAI (domaine) : ». Un domaine absent ou invalide ramène le plan
+  à `"desktop"` ; il en va de même sans numéro d'étape web valide.
+- Serveur → apps, `status.where` : `"web"`, `"desktop"` ou `null` ; `"mixed"`
+  n'est jamais envoyé. Avant validation, un plan mixte garde `where` à
+  `"desktop"` ; sinon `where` reflète le lieu proposé par Holo. Après validation,
+  `where` indique le mode réellement utilisé (`"desktop"` si le Mac n'a pas
+  annoncé cette capacité ou si le démarrage du navigateur échoue). Dans une
+  session mixte, il passe de `"desktop"` à `"web"` pendant la sous-tâche
+  navigateur, puis revient à `"desktop"` quand le résumé est rendu à Holo. Les
+  apps l'ignorent si absent.
+- `open_browser` n'est proposé que si le plan validé est mixte et que
+  `hello.web_agent_available` est vrai. Si le navigateur n'est pas disponible,
+  l'agent bureau fait toute la tâche. L'outil porte un `goal` obligatoire et une
+  `url` HTTPS facultative. L'appel doit annoncer une étape `plan_step` incluse
+  dans `web_steps`. L'hôte doit être un des domaines validés ou un de leurs
+  sous-domaines ; sans URL, le premier domaine du plan est utilisé.
+  Le Gardien vérifie chaque domaine au moment du plan, puis l'URL et l'objectif
+  avant de démarrer Chrome PapAI. L'agent web reçoit l'objectif, le plan validé
+  comme contexte et la liste des sites autorisés, puis rend un résumé à l'agent
+  bureau ; il ne termine pas la session. Un site hors plan ne démarre pas Chrome.
+  Au plus trois bascules sont possibles par session. Le mode pur `where: "web"`
+  reste inchangé.
 - Rien ne change avant `approve_plan` : gardien, capture pour le plan, plan à
   valider. La session H n'est créée qu'après la validation.
 - En mode web, le serveur n'envoie ni `capture` ni `execute` au Mac pendant
@@ -541,11 +610,10 @@ bureau reste le comportement par défaut.
 - Le Mac met la fenêtre Chrome PapAI au premier plan une fois, quand
   `where == "web"` et que la session passe `active` ou `awaiting_helper`.
   « Arrêter », une alerte ou la fin de session (`done`, `stopped`) exécutent
-  `holo local stop` et terminent le process, même hors ligne. Chrome PapAI
-  reste ouvert, plus rien ne le pilote.
-- Chrome PapAI part d'un profil neuf à chaque assistance, effacé une fois
-  Chrome fermé : l'app ne retient jamais de compte, d'identifiant ni de
-  cookie. La personne aidée se connecte elle-même à ses sites.
+  `holo local stop` et ferment le process Chrome PapAI, même hors ligne. Chrome
+  part d'un profil neuf et temporaire à chaque assistance ; quand il est fermé,
+  son profil est effacé. La personne aidée se connecte elle-même à ses sites,
+  sans compte, identifiant ni cookie retenu d'une assistance à l'autre.
 - Limite : `holo local browser` exige une clé H (`HAI_API_KEY`) sur le Mac de
   la personne aidée (`~/.config/hai/.env` ou variable d'environnement). Elle
   n'est jamais dans le dépôt ni dans les journaux.

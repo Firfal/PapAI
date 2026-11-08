@@ -17,22 +17,37 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 22) {
-                dots
+            Panneau {
+                HStack(alignment: .center, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        dots
+                        Text(titre).font(rounded(40, .bold)).tracking(-0.7)
+                            .lineLimit(1).minimumScaleFactor(0.6)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // La place de la mascotte reste réservée à chaque étape : l'en-tête garde
+                    // la même hauteur et rien ne bouge d'une page à l'autre.
+                    ViewThatFits(in: .horizontal) {
+                        Mascotte(humeur: humeurEnTete ?? .ecoute).frame(width: Mascotte.Taille.prenom, height: Mascotte.Taille.prenom)
+                        Mascotte(humeur: humeurEnTete ?? .ecoute).frame(width: Mascotte.Taille.prenomReduite, height: Mascotte.Taille.prenomReduite)
+                    }
+                    .padding(8).background(Circle().fill(.white.opacity(0.92)))
+                    .opacity(humeurEnTete == nil ? 0 : 1)
+                    .accessibilityHidden(humeurEnTete == nil)
+                }
+            } corps: {
                 Group {
                     switch step {
                     case 0: welcome
                     case 1: firstName
                     case 2: permissions
                     default:
-                        ScrollView { HelpersPanel(onboarding: true) }
+                        ScrollView { HelpersPanel(onboarding: true, titre: false) }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
-            .foregroundStyle(T.ink).padding(40)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(step == 0 ? T.peach : T.mint))
 
             HStack(spacing: 14) {
                 if step > 0 {
@@ -41,7 +56,7 @@ struct OnboardingView: View {
                 Button(action: next) {
                     Text(nextLabel).frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PillStyle(height: 78))
+                .buttonStyle(PillStyle(height: 78, icone: step >= count - 1 ? "checkmark.circle" : "arrow.right.circle", plein: true))
                 .keyboardShortcut(.defaultAction)
             }
         }
@@ -59,6 +74,23 @@ struct OnboardingView: View {
                     model.pairAppURL = AppModel.appPairingURL(model.pairURL!)
                 }
             }
+        }
+    }
+
+    private var titre: String {
+        switch step {
+        case 0: "Bienvenue sur PapAI"
+        case 1: "Comment vous appelez-vous ?"
+        case 2: "Deux autorisations, une seule fois"
+        default: "Qui va vous aider ?"
+        }
+    }
+
+    private var humeurEnTete: Mascotte.Humeur? {
+        switch step {
+        case 0: .joyeuse
+        case 1: .ecoute
+        default: nil
         }
     }
 
@@ -84,7 +116,7 @@ struct OnboardingView: View {
     private var dots: some View {
         HStack(spacing: 8) {
             ForEach(0..<count, id: \.self) { i in
-                Capsule().fill(i <= step ? T.accent : T.card)
+                Capsule().fill(.white.opacity(i <= step ? 1 : 0.35))
                     .frame(width: i == step ? 34 : 12, height: 12)
             }
         }
@@ -94,83 +126,58 @@ struct OnboardingView: View {
 
     // MARK: Étapes
 
-    /// Le décor cède la place avant le texte : mascotte réduite, promesses sans carte, puis mascotte masquée.
+    /// Les promesses passent en simple liste quand la place manque.
     private var welcome: some View {
         ViewThatFits(in: .vertical) {
-            welcome(mascotte: Mascotte.Taille.bienvenue)
-            welcome(mascotte: Mascotte.Taille.bienvenueReduite)
-            welcome(mascotte: Mascotte.Taille.bienvenueReduite, cartes: false)
-            welcome(mascotte: nil, cartes: false)
-            welcome(mascotte: nil, cartes: false, titre: 44)
-            ScrollView { welcome(mascotte: nil, cartes: false, titre: 44) }
+            welcome(cartes: true)
+            welcome(cartes: false)
+            ScrollView { welcome(cartes: false) }
         }
     }
 
-    private func welcome(mascotte taille: CGFloat?, cartes: Bool = true, titre: CGFloat = 52) -> some View {
-        VStack(alignment: .leading, spacing: cartes ? 22 : titre < 52 ? 10 : 12) {
-            HStack(alignment: .center, spacing: 28) {
-                VStack(alignment: .leading, spacing: cartes ? 18 : titre < 52 ? 10 : 12) {
-                    Text("Bienvenue sur PapAI").font(rounded(titre, .bold)).tracking(-0.8)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
-                        .font(rounded(23)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if let taille {
-                    Mascotte(humeur: .joyeuse).frame(width: taille, height: taille)
-                }
+    private func welcome(cartes: Bool) -> some View {
+        VStack(alignment: .leading, spacing: cartes ? 22 : 12) {
+            Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide.")
+                .font(rounded(23)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 10) {
+                promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre support.", carte: cartes)
+                promise("stop.circle.fill", "Vous pouvez tout arrêter à tout moment.", carte: cartes)
+                promise("lock.fill", "Votre écran n'est partagé que quand vous le demandez.", carte: cartes)
             }
-            promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre support.", carte: cartes)
-            promise("stop.circle.fill", "Vous pouvez tout arrêter à tout moment.", carte: cartes)
-            promise("lock.fill", "Votre écran n'est partagé que quand vous le demandez.", carte: cartes)
         }
     }
 
     private func promise(_ symbol: String, _ text: String, carte: Bool = true) -> some View {
         HStack(spacing: 16) {
-            Image(systemName: symbol).font(.system(size: 22)).foregroundStyle(T.leaf).frame(width: 34)
+            Image(systemName: symbol).font(.system(size: 18)).foregroundStyle(T.accent)
+                .frame(width: 38, height: 38).background(Circle().fill(T.mint))
             Text(text).font(rounded(20, .medium)).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, carte ? 18 : 0).padding(.vertical, carte ? 12 : 0)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(carte ? T.card.opacity(0.8) : .clear))
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(carte ? T.field : .clear))
     }
 
     private var firstName: some View {
-        ViewThatFits(in: .vertical) {
-            firstName(mascotte: Mascotte.Taille.prenom)
-            firstName(mascotte: Mascotte.Taille.prenomReduite)
-            firstName(mascotte: nil)
-        }
-    }
-
-    private func firstName(mascotte taille: CGFloat?) -> some View {
         VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .center, spacing: 24) {
-                if let taille {
-                    Mascotte(humeur: .ecoute).frame(width: taille, height: taille)
-                }
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Comment vous appelez-vous ?").font(rounded(44, .bold)).tracking(-0.6)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text("Votre prénom suffit. C'est ainsi que PapAI vous dira bonjour.")
-                        .font(rounded(21)).foregroundStyle(T.muted)
-                }
+            Text("Votre prénom suffit. C'est ainsi que PapAI vous dira bonjour.")
+                .font(rounded(21)).foregroundStyle(T.muted)
+            HStack(spacing: 14) {
+                Image(systemName: "person.fill").font(.system(size: 22)).foregroundStyle(T.muted)
+                    .accessibilityHidden(true)
+                TextField("Votre prénom", text: $name)
+                    .textFieldStyle(.plain).font(rounded(30, .semibold))
+                    .focused($nameFocused)
+                    .onSubmit(next)
+                    .onAppear { nameFocused = true }
             }
-            TextField("Votre prénom", text: $name)
-                .textFieldStyle(.plain).font(rounded(30, .semibold))
-                .focused($nameFocused)
-                .padding(.horizontal, 26).padding(.vertical, 22)
-                .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
-                .onSubmit(next)
-                .onAppear { nameFocused = true }
+            .padding(.horizontal, 24).padding(.vertical, 20)
+            .champ(T.r, actif: nameFocused)
         }
     }
 
     private var permissions: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Text("Deux autorisations, une seule fois").font(rounded(44, .bold)).tracking(-0.6)
-                .lineLimit(1).minimumScaleFactor(0.8)
             Text("macOS doit vous demander votre accord. Cliquez sur chaque bouton, puis cochez PapAI dans la liste qui s'ouvre.")
                 .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
             PermissionRow(ok: model.screenOK, title: "Voir mon écran",
@@ -188,32 +195,34 @@ struct OnboardingView: View {
 struct HelpersPanel: View {
     @Environment(AppModel.self) private var model
     var onboarding = false
+    var titre = true
     @State private var copiedLink: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 28) {
             VStack(alignment: .leading, spacing: 20) {
-                Text(onboarding ? "Qui va vous aider ?" : "Mon support")
-                    .font(rounded(onboarding ? 44 : 34, .semibold)).tracking(-0.6)
-                Text("Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.")
+                if titre {
+                    Text(onboarding ? "Qui va vous aider ?" : "Mon support")
+                        .font(rounded(onboarding ? 44 : 34, .bold)).tracking(-0.6)
+                }
+                Text(model.helpers.isEmpty
+                     ? "Votre support reçoit vos demandes d'aide et vous répond. S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp."
+                     : "Votre support reçoit vos demandes d'aide et vous répond. Il gère cette liaison depuis son téléphone.")
                     .font(rounded(20)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 if let added = model.pairAdded {
-                    Label("\(added) fait maintenant partie de votre support.", systemImage: "checkmark.circle.fill")
-                        .font(rounded(19, .semibold)).foregroundStyle(T.accent)
+                    Label { Text(verbatim: "\(added) est maintenant support.") } icon: { Image(systemName: "checkmark.circle.fill") }
+                        .font(rounded(19, .semibold)).foregroundStyle(T.leaf)
                 }
                 ForEach(model.helpers) { h in
                     HStack(spacing: 14) {
-                        Text(String(h.name.prefix(1)).uppercased())
-                            .font(rounded(20, .semibold)).foregroundStyle(.white)
+                        // On affiche le rôle, pas le prénom de la personne qui aide.
+                        Image(systemName: "person.fill.checkmark")
+                            .font(.system(size: 19, weight: .semibold)).foregroundStyle(.white)
                             .frame(width: 46, height: 46).background(Circle().fill(T.accent))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(h.name).font(rounded(21, .semibold))
+                            Text("Support IT").font(rounded(21, .semibold))
                             if h.online {
-                                HStack(spacing: 6) {
-                                    Circle().fill(Color(hex: 0x2F6B4A)).frame(width: 8, height: 8)
-                                    Text("En ligne").font(rounded(15, .medium)).foregroundStyle(Color(hex: 0x2F6B4A))
-                                }
-                                .accessibilityElement(children: .combine)
+                                Pastille(texte: "En ligne", icone: "circle.fill", ton: .vert, taille: 14)
                             }
                             if !h.relation.isEmpty {
                                 Text(h.relation.prefix(1).uppercased() + h.relation.dropFirst())
@@ -221,22 +230,16 @@ struct HelpersPanel: View {
                             }
                         }
                         Spacer(minLength: 0)
-                        if !onboarding {
-                            Button { model.removeHelper(h) } label: {
-                                Image(systemName: "xmark").font(.system(size: 14, weight: .semibold))
-                                    .frame(width: 36, height: 36).background(Circle().fill(T.bg))
-                            }
-                            .buttonStyle(.plain).accessibilityLabel("Retirer \(h.name)")
-                        }
                     }
                     .padding(14)
-                    .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                    .champ(T.r)
                 }
-                if model.pairCode == nil {
-                    Button(model.helpers.isEmpty ? "Ajouter un support" : "Ajouter un autre support") {
+                // Un seul support à la fois.
+                if model.helpers.isEmpty && model.pairCode == nil && model.pairURL == nil {
+                    Button("Ajouter un support") {
                         model.startPairing()
                     }
-                    .buttonStyle(PillStyle(filled: model.helpers.isEmpty, height: 60))
+                    .buttonStyle(PillStyle(filled: true, height: 60))
                     .disabled(!model.connected)
                     if !model.connected {
                         Text("Connexion au serveur en cours…").font(rounded(16)).foregroundStyle(T.muted)
@@ -245,13 +248,13 @@ struct HelpersPanel: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if let code = model.pairCode {
-                pairCard(code: code, qr: model.pairAppURL ?? model.pairURL ?? "", url: model.pairURL ?? "")
+            if model.pairCode != nil || model.pairURL != nil {
+                pairCard(code: model.pairCode, qr: model.pairAppURL ?? model.pairURL ?? "", url: model.pairURL ?? "")
             }
         }
     }
 
-    private func pairCard(code: String, qr qrText: String, url: String) -> some View {
+    private func pairCard(code: String?, qr qrText: String, url: String) -> some View {
         VStack(spacing: 6) {
             HStack(spacing: 12) {
                 if let qr = QRCode.image(qrText) {
@@ -260,11 +263,15 @@ struct HelpersPanel: View {
                         .accessibilityLabel("QR code à scanner par votre support")
                 }
                 VStack(spacing: 8) {
-                    Text("ou le code").font(rounded(16)).foregroundStyle(T.muted)
-                    Text(code.prefix(3) + " " + code.suffix(3))
-                        .font(rounded(28, .semibold))
-                        .monospacedDigit().tracking(2)
-                        .textSelection(.enabled)
+                    if let code {
+                        Text("ou le code").font(rounded(16)).foregroundStyle(T.muted)
+                        Text(code.prefix(3) + " " + code.suffix(3))
+                            .font(rounded(28, .semibold))
+                            .monospacedDigit().tracking(2)
+                            .textSelection(.enabled)
+                    } else {
+                        Text("Lien d'invitation").font(rounded(20, .semibold))
+                    }
                     Text(model.pairLong ? "Valable 24 heures" : "Valable 10 minutes").font(rounded(15)).foregroundStyle(T.muted)
                 }.frame(maxWidth: .infinity)
             }
@@ -298,7 +305,7 @@ struct HelpersPanel: View {
         }
         .foregroundStyle(T.ink)
         .padding(12).frame(width: 350)
-        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+        .champ(T.r)
         .onChange(of: url) { copiedLink = nil }
     }
 }
@@ -323,39 +330,38 @@ struct RemoteRequestView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 22) {
+            Panneau {
                 HStack(alignment: .center, spacing: 22) {
                     Text(String(request.from.prefix(1)).uppercased())
-                        .font(rounded(40, .bold)).foregroundStyle(.white)
+                        .font(rounded(40, .bold)).foregroundStyle(T.leaf)
                         .frame(width: 88 * CGFloat(model.textScale), height: 88 * CGFloat(model.textScale))
-                        .background(Circle().fill(T.accent))
-                        .overlay(Circle().strokeBorder(.white, lineWidth: 5))
+                        .background(Circle().fill(.white))
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(request.rdv ? "C'est l'heure de votre rendez-vous" : request.ticket != nil ? "Votre demande en attente" : "Proposition d'aide").font(rounded(20, .semibold)).foregroundStyle(T.leaf)
-                        Text(request.ticket != nil ? "\(request.from) est disponible pour vous aider" : "\(request.from) propose de vous aider").font(rounded(48, .bold)).tracking(-0.7)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Pastille(texte: request.rdv ? "C'est l'heure de votre rendez-vous" : request.ticket != nil ? "Votre demande en attente" : "Proposition d'aide", ton: .violet, taille: 17)
+                        Text(request.ticket != nil ? "\(request.from) est disponible pour vous aider" : "\(request.from) propose de vous aider").font(rounded(44, .bold)).tracking(-0.7)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                if !request.task.isEmpty {
-                    Text("« \(request.task) »").font(rounded(26, .medium))
-                        .padding(24).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+            } corps: {
+                VStack(alignment: .leading, spacing: 22) {
+                    if !request.task.isEmpty {
+                        Text("« \(request.task) »").font(rounded(26, .medium))
+                            .padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                            .champ(T.r)
+                    }
+                    Text("Si vous acceptez, PapAI va regarder votre écran. Rien ne bouge avant l'accord de \(request.from), et vous pouvez arrêter à tout moment.")
+                        .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
                 }
-                Text("Si vous acceptez, PapAI va regarder votre écran. Rien ne bouge avant l'accord de \(request.from), et vous pouvez arrêter à tout moment.")
-                    .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
             }
-            .foregroundStyle(T.ink).padding(40)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
 
             HStack(spacing: 14) {
                 Button { model.refuseRemote() } label: { Text("Non merci").frame(maxWidth: .infinity) }
                     .buttonStyle(PillStyle(filled: false, height: 78))
                     .keyboardShortcut(.cancelAction)
                 Button { model.acceptRemote() } label: { Text("Oui, j'accepte").frame(maxWidth: .infinity) }
-                    .buttonStyle(PillStyle(height: 78))
+                    .buttonStyle(PillStyle(height: 78, icone: "checkmark.circle", plein: true))
                     .disabled(!model.connected)
             }
         }
@@ -376,38 +382,37 @@ struct QueuedView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 22) {
-                HStack(spacing: 12) {
-                    Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(T.accent)
-                    Text("Demande n° \(ticket.number)").font(rounded(20, .semibold)).foregroundStyle(T.accent)
+            Panneau {
+                VStack(alignment: .leading, spacing: 12) {
+                    Pastille(texte: "Demande n° \(ticket.number)", icone: "person.wave.2.fill", ton: .orange, taille: 17)
+                    Text("Votre demande est partie").font(rounded(44, .bold)).tracking(-0.7)
                 }
-                Text("Votre demande est partie").font(rounded(44, .semibold)).tracking(-0.7)
-                if !ticket.task.isEmpty {
-                    Text("« \(ticket.task) »").font(rounded(24, .medium))
-                        .padding(24).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
-                }
-                if let rdv = ticket.rdv {
-                    Text("Rendez-vous \(rdvText(rdv)). PapAI vous préviendra à l'heure dite.")
-                        .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text("Personne n'est disponible pour l'instant. PapAI vous préviendra dès que \(model.helperName) sera là. Vous pouvez aussi fixer un rendez-vous.")
-                        .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 10) {
-                        ForEach([("Dans 1 heure", "1h"), ("Demain à 9 h", "demain9"), ("Demain à 14 h", "demain14")], id: \.1) { slot in
-                            Button { model.scheduleTicket(slot.1) } label: { Text(slot.0) }
-                                .buttonStyle(PillStyle(filled: false, height: 56))
+            } corps: {
+                VStack(alignment: .leading, spacing: 22) {
+                    if !ticket.task.isEmpty {
+                        Text("« \(ticket.task) »").font(rounded(24, .medium))
+                            .padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                            .champ(T.r)
+                    }
+                    if let rdv = ticket.rdv {
+                        Text("Rendez-vous \(rdvText(rdv)). PapAI vous préviendra à l'heure dite.")
+                            .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("Personne n'est disponible pour l'instant. PapAI vous préviendra dès que \(model.helperName) sera là. Vous pouvez aussi fixer un rendez-vous.")
+                            .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                        HStack(spacing: 10) {
+                            ForEach([("Dans 1 heure", "1h"), ("Demain à 9 h", "demain9"), ("Demain à 14 h", "demain14")], id: \.1) { slot in
+                                Button { model.scheduleTicket(slot.1) } label: { Text(slot.0) }
+                                    .buttonStyle(PillStyle(filled: false, height: 56, icone: "calendar"))
+                            }
                         }
                     }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
             }
-            .foregroundStyle(T.ink).padding(40)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
 
             Button { model.queuedShown = false } label: { Text("D'accord").frame(maxWidth: .infinity) }
-                .buttonStyle(PillStyle(height: 78))
+                .buttonStyle(PillStyle(height: 78, icone: "checkmark.circle", plein: true))
                 .keyboardShortcut(.defaultAction)
         }
     }
@@ -419,32 +424,33 @@ struct PairRequestView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 22) {
-                HStack(spacing: 12) {
-                    Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(T.accent)
-                    Text("Nouveau support").font(rounded(20, .semibold)).foregroundStyle(T.accent)
+            Panneau {
+                VStack(alignment: .leading, spacing: 12) {
+                    Pastille(texte: "Nouveau support", icone: "person.wave.2.fill", ton: .bleu, taille: 17)
+                    Text(verbatim: "\(request.name) veut devenir votre support").font(rounded(44, .bold)).tracking(-0.7)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                Text("\(request.name) veut devenir votre support").font(rounded(48, .semibold)).tracking(-0.7)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !request.relation.isEmpty {
-                    Text(request.relation).font(rounded(26, .medium))
-                        .padding(24).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+            } corps: {
+                VStack(alignment: .leading, spacing: 22) {
+                    if !request.relation.isEmpty {
+                        Text(verbatim: request.relation).font(rounded(26, .medium))
+                            .padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                            .champ(T.r)
+                    }
+                    Text("Acceptez seulement si vous connaissez cette personne.")
+                        .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    Text("Si quelqu'un vous a appelé ou écrit pour vous demander ce code, refusez.")
+                        .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 0)
                 }
-                Text("Cette personne vient de taper votre code à 6 chiffres. Acceptez seulement si vous la connaissez et que vous lui avez donné ce code.")
-                    .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
             }
-            .foregroundStyle(T.ink).padding(40)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
 
             HStack(spacing: 14) {
                 Button { model.answerPair(false) } label: { Text("Refuser").frame(maxWidth: .infinity) }
                     .buttonStyle(PillStyle(filled: false, height: 78))
                     .keyboardShortcut(.cancelAction)
                 Button { model.answerPair(true) } label: { Text("Accepter").frame(maxWidth: .infinity) }
-                    .buttonStyle(PillStyle(height: 78))
+                    .buttonStyle(PillStyle(height: 78, icone: "checkmark.circle", plein: true))
                     .disabled(!model.connected)
             }
         }

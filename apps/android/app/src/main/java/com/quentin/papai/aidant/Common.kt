@@ -7,8 +7,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -94,10 +97,11 @@ fun SoinField(
         textStyle = TextStyle(fontSize = size, fontWeight = weight, color = Soin.ink, textAlign = align),
         keyboardOptions = keyboard,
         keyboardActions = KeyboardActions(onDone = { onDone?.invoke() }, onSend = { onDone?.invoke() }),
-        modifier = modifier.fillMaxWidth().soinCard(fill, radius).padding(16.dp),
+        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(radius)).background(fill)
+            .border(1.dp, Soin.line, RoundedCornerShape(radius)).padding(16.dp),
         decorationBox = { inner ->
             Box {
-                if (value.isEmpty()) T(placeholder, size, weight, Soin.secondary.copy(alpha = 0.7f),
+                if (value.isEmpty()) T(placeholder, size, weight, Soin.secondary,
                     Modifier.fillMaxWidth(), align)
                 inner()
             }
@@ -134,7 +138,7 @@ fun MicButton(base: () -> String, onText: (String) -> Unit, onError: (String) ->
         onText(if (b.isEmpty()) heard else "$b $heard")
     }
     Box(
-        Modifier.size(56.dp).clip(CircleShape).background(Soin.ink).clickable {
+        Modifier.size(56.dp).clip(CircleShape).background(Soin.accentBrush).clickable {
             val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE, "fr-FR")
@@ -147,8 +151,31 @@ fun MicButton(base: () -> String, onText: (String) -> Unit, onError: (String) ->
     ) { Icon(Icons.Default.Mic, "Dicter", tint = Color.White) }
 }
 
+/** Titre de feuille : bandeau arrondi en dégradé bleu, titre blanc. */
 @Composable
-fun SheetTitle(s: String) = T(s, 28.sp, FontWeight.Bold)
+fun SheetTitle(s: String, size: TextUnit = 28.sp) {
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Soin.headerBrush)
+        .padding(horizontal = 20.dp, vertical = 18.dp)) {
+        T(s, size, FontWeight.Bold, Color.White)
+    }
+}
+
+enum class Tone { BLUE, GREEN, GRAY }
+
+/** Pastille d'état pâle et arrondie (contraste AA du texte sur chaque fond). */
+@Composable
+fun StatusPill(text: String, tone: Tone = Tone.BLUE, leading: (@Composable () -> Unit)? = null) {
+    val (fill, ink) = when (tone) {
+        Tone.BLUE -> Soin.accentSoft to Soin.accent
+        Tone.GREEN -> Soin.onlineSoft to Soin.online
+        Tone.GRAY -> Soin.neutralSoft to Soin.secondary
+    }
+    Row(Modifier.clip(CircleShape).background(fill).padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        leading?.invoke()
+        T(text, 13.sp, FontWeight.SemiBold, ink, maxLines = 1)
+    }
+}
 
 @Composable
 fun FieldLabel(s: String) = T(s, 13.sp, FontWeight.SemiBold, Soin.secondary)

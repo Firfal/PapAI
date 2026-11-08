@@ -30,6 +30,9 @@ targets:
         NSSupportsLiveActivitiesFrequentUpdates: true
         UIBackgroundModes: [audio]
         UIUserInterfaceStyle: Light
+        # Heure et icônes en blanc sur l'en-tête bleu ; le mode clair reste imposé.
+        UIViewControllerBasedStatusBarAppearance: false
+        UIStatusBarStyle: UIStatusBarStyleLightContent
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSLocalNetworkUsageDescription: PapAI se connecte au serveur de démonstration sur votre réseau local.
         NSMicrophoneUsageDescription: PapAI utilise le micro pour que vous dictiez vos consignes et vos réponses à Holo. L’enregistrement est transcrit par le serveur PapAI (Gladia), puis effacé de l’iPhone.

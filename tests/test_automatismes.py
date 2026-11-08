@@ -136,6 +136,53 @@ async def parcours(base: str) -> None:
     with urllib.request.urlopen(f"{k}/lessons/{tpl['id']}/Lettre%20Acme.dotx", timeout=10) as f:
         check("le modèle se télécharge, c'est bien un fichier Office", f.read(2) == b"PK")
 
+    print("\n1 bis. Captures du pas à pas « Montrez-moi »")
+    import base64
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
+    jpg = b"\xff\xd8\xff\xe0" + b"\x00" * 64
+    b64 = lambda b: base64.b64encode(b).decode()  # noqa: E731
+
+    def pack_img(images, steps):
+        return {"papai": 1, "title": "Avec captures", "publisher": "IT", "platforms": ["mac"],
+                "actions": [{"do": "open_settings", "page": "wifi"}], "images": images, "steps": steps}
+
+    st, r = envoyer(f"{k}/automations", pack_img(
+        {"etape-1.png": b64(png), "etape-2.jpg": b64(jpg), "inutile.png": b64(png)},
+        [{"instruction": "Un", "image": "etape-1.png"}, {"instruction": "Deux", "image": "etape-2.jpg"}, "Trois"]))
+    check("images valides : import accepté", st == 200, (st, r))
+    img_id = r.get("id", "")
+    check("chaque étape garde le nom de sa capture",
+          [x.get("image") for x in r.get("steps", [])] == ["etape-1.png", "etape-2.jpg", None], r.get("steps"))
+    with urllib.request.urlopen(f"{k}/lessons/{img_id}/etape-1.png", timeout=10) as f:
+        check("la capture est servie telle quelle", f.read() == png)
+    try:
+        urllib.request.urlopen(f"{k}/lessons/{img_id}/inutile.png", timeout=10)
+        check("une image non montrée n'est pas écrite", False)
+    except urllib.error.HTTPError as e:
+        check("une image non montrée n'est pas écrite", e.code == 404, e.code)
+    for label, images, steps in [
+        ("nom en chemin", {"../x.png": b64(png)}, [{"instruction": "a", "image": "../x.png"}]),
+        ("nom avec barre", {"a/x.png": b64(png)}, []),
+        ("nom caché", {".x.png": b64(png)}, []),
+        ("majuscules", {"Etape.png": b64(png)}, []),
+        ("extension svg", {"x.svg": b64(b"<svg/>")}, []),
+        ("faux PNG", {"x.png": b64(b"MZ\x90\x00" * 8)}, []),
+        ("JPEG nommé .png", {"x.png": b64(jpg)}, []),
+        ("base64 illisible", {"x.png": "%%%"}, []),
+        ("image trop grosse", {"x.png": b64(png + b"\x00" * 1_500_000)}, []),
+        ("plus de 12 images", {f"i{n}.png": b64(png) for n in range(13)}, []),
+        ("images pas en objet", [b64(png)], []),
+        ("étape vers une image absente", {}, [{"instruction": "a", "image": "absente.png"}]),
+    ]:
+        st, r = envoyer(f"{k}/automations", pack_img(images, steps))
+        check(f"refusé : {label}", st == 422 and r.get("error"), (st, r))
+    envoyer(f"{k}/automations/{img_id}", b"", "DELETE")
+    wifi = next(x for x in json.loads(tp.get(f"{k}/lessons")) if x["id"] == ids["wifi.papai"])
+    noms = [x.get("image") for x in wifi.get("steps", [])]
+    check("l'exemple Wi-Fi a une capture par étape", noms and all(noms), noms)
+    with urllib.request.urlopen(f"{k}/lessons/{wifi['id']}/{noms[0]}", timeout=10) as f:
+        check("la capture de l'exemple Wi-Fi est une vraie image", f.read(8) == b"\x89PNG\r\n\x1a\n")
+
     ws = base.replace("http://", "ws://")
     async with websockets.connect(f"{ws}/ws/bridge", max_size=2**24) as w_pc:
         pc = tp.Canal(w_pc, mac=True)

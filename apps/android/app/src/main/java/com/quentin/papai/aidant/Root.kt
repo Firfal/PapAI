@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -62,12 +63,22 @@ fun Root() {
     LaunchedEffect(m.isConfigured, m.sheet) {
         if (!m.isConfigured && m.sheet == null) m.sheet = AppSheet.Settings
     }
-    Box(Modifier.fillMaxSize().background(Soin.bg)) {
+    Box(Modifier.fillMaxSize().soinScreen()) {
         Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
             Header(m.helperName ?: "Support") { m.sheet = AppSheet.Settings }
             if (m.isConfigured) PeopleRow()
             if (m.isConfigured && !m.connected) {
                 LostBanner(Modifier.padding(horizontal = 20.dp).padding(bottom = 10.dp))
+            }
+            m.sensitiveRefusal?.let { reason ->
+                Column(
+                    Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp)
+                        .fillMaxWidth().soinCard().padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    T(reason, 17.sp, FontWeight.Normal, Soin.ink)
+                    CapsuleButton("Compris") { m.sensitiveRefusal = null }
+                }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (m.isConfigured) when (m.screen) {
@@ -104,7 +115,7 @@ fun Root() {
 fun Sheet(dismissable: Boolean = true, onClose: () -> Unit = { Helper.sheet = null }, content: @Composable () -> Unit) {
     BackHandler { if (dismissable) onClose() }
     Box(
-        Modifier.fillMaxSize().background(Soin.bg).clickable(enabled = false) {}
+        Modifier.fillMaxSize().soinScreen().clickable(enabled = false) {}
             .systemBarsPadding().imePadding(),
     ) { content() }
 }
@@ -112,20 +123,23 @@ fun Sheet(dismissable: Boolean = true, onClose: () -> Unit = { Helper.sheet = nu
 @Composable
 fun Header(name: String, onAvatar: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 12.dp),
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp)
+            .shadow(10.dp, RoundedCornerShape(24.dp), ambientColor = Soin.accent, spotColor = Soin.accent)
+            .clip(RoundedCornerShape(24.dp)).background(Soin.headerBrush)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
-            Modifier.size(48.dp).clip(CircleShape).background(Soin.accentSoft).clickable(onClick = onAvatar),
+            Modifier.size(48.dp).clip(CircleShape).background(Color.White).clickable(onClick = onAvatar),
             contentAlignment = Alignment.Center,
         ) { T(name.take(1).uppercase(), 20.sp, FontWeight.Bold, Soin.accent) }
         Column(Modifier.weight(1f)) {
             val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-            T(if (h >= 19 || h < 5) "Bonsoir" else "Bonjour", 14.sp, color = Soin.secondary)
-            T(name, 20.sp, FontWeight.SemiBold)
+            T(if (h >= 19 || h < 5) "Bonsoir" else "Bonjour", 14.sp, color = Color.White)
+            T(name, 20.sp, FontWeight.SemiBold, Color.White)
         }
-        Box(Modifier.size(48.dp).clip(CircleShape).background(Soin.card).clickable(onClick = onAvatar), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.Settings, "Réglages", tint = Soin.ink)
+        Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)).clickable(onClick = onAvatar), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.Settings, "Réglages", tint = Color.White)
         }
     }
 }
@@ -289,20 +303,20 @@ fun PeopleRow() {
             val asking = !here && m.othersAsking[p.key] == true
             val name = p.name.ifEmpty { "Personne aidée" }
             Row(
-                Modifier.clip(CircleShape).background(if (here) Soin.ink else Soin.card)
+                Modifier.clip(CircleShape).background(if (here) Soin.accent else Soin.card)
                     .then(if (asking) Modifier.border(2.dp, Soin.danger, CircleShape) else Modifier)
                     .combinedClickable(onClick = { m.switchTo(p) }, onLongClick = { forget = p })
                     .padding(start = 6.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Box(Modifier.size(32.dp).clip(CircleShape).background(Soin.accentSoft), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(32.dp).clip(CircleShape).background(if (here) Color.White else Soin.accentSoft), contentAlignment = Alignment.Center) {
                     T(name.take(1).uppercase(), 15.sp, FontWeight.Bold, Soin.accent)
                 }
                 T(name, 15.sp, FontWeight.SemiBold, if (here) Color.White else Soin.ink, maxLines = 1)
                 if (!here) {
                     Box(Modifier.size(8.dp).clip(CircleShape)
-                        .background(if (m.othersOnline[p.key] == true) Soin.accent else Soin.secondary))
+                        .background(if (m.othersOnline[p.key] == true) Soin.online else Soin.secondary))
                     if (asking) T("demande une assistance", 12.sp, color = Soin.danger, maxLines = 1)
                 }
             }

@@ -270,7 +270,7 @@ def unit() -> None:
             check(await asyncio.to_thread(started.wait, 3), f"{name} engagé avant l'alerte")
             tasks = list(b._executions)
             await b._handle(WS(), {"type": "alert", "level": "info"})
-            check(not b.gate.is_stopped and not tasks[0].cancelling(), "info : pas d'arrêt abusif")
+            check(b.gate.is_stopped and not tasks[0].cancelling(), "info : verrou levé avant le geste suivant")
             await b._handle(WS(), {"type": "alert", "level": "danger"})
             check(b.gate.is_stopped and tasks[0].cancelling(), "danger : verrou levé et execute annulé")
             await b._execute(WS(), "apres", act)
@@ -432,6 +432,18 @@ def pairing() -> None:
     snap = m.snapshot()
     check(m.pair_app_url == "papai://pair?u=x&n=Jeanne" and snap["pairLong"] and snap["pairExpires"] == 86400,
           "le QR porte app_url, invitation 24 h")
+    check(m.pair_url == "https://h/p/482913", "ancien lien partagé débarrassé de la clé")
+    legacy_app = Model.app_pairing_url("https://h/k/cle-secrete/p/482913")
+    check("cle-secrete" not in legacy_app and "%2Fk%2F" not in legacy_app, "QR de secours sans clé")
+    legacy_app = Model.pairing_url_without_key("papai://pair?u=https%3A%2F%2Fh%2Fk%2Fcle-secrete%2Fp%2F482913&n=Jeanne")
+    check("cle-secrete" not in legacy_app and "n=Jeanne" in legacy_app, "ancien lien d'app nettoyé, prénom conservé")
+    invite_url = "https://h/i/Abc_def-123456789012345"
+    m._handle({"type": "pair_code", "code": None, "url": invite_url,
+               "app_url": Model.app_pairing_url(invite_url), "long": True, "expires_in": 86400})
+    snap = m.snapshot()
+    check(snap["pairCode"] is None and snap["pairURL"] == invite_url and snap["pairQR"] and snap["pairLong"],
+          "invitation opaque sans code : URL, QR code et durée disponibles")
+    check(Model.pairing_url_without_key("") == "", "lien vide reste vide")
     m._handle({"type": "pair_code", "code": "111222", "url": "http://h:8000/p/111222"})
     check(m.pair_app_url == "papai://pair?u=http%3A%2F%2Fh%3A8000%2Fp%2F111222" and not m.pair_long,
           "ancien serveur sans app_url : lien papai:// construit")
@@ -451,6 +463,25 @@ def pairing() -> None:
     m._handle({"type": "pair_confirm", "req": 8, "name": "Intrus"})
     m.answer_pair(False)
     check(sent[-1] == {"type": "pair_decision", "req": 8, "accept": False}, "Refuser envoie pair_decision")
+    m._handle({"type": "pair_confirm", "req": "a", "name": "Marc"})
+    n = len(sent)
+    m._handle({"type": "pair_confirm_closed", "req": "autre"})
+    check(m.pair_request["req"] == "a", "fermeture inconnue ignorée")
+    m._handle({"type": "pair_confirm_closed", "req": "a"})
+    check(m.pair_request is None and len(sent) == n, "expiration ferme sans répondre")
+    m._handle({"type": "pair_confirm", "req": "b", "name": "Marc"})
+    m._handle({"type": "pair_confirm", "req": "c", "name": "Claire"})
+    check(sent[-1] == {"type": "pair_decision", "req": "b", "accept": False} and m.pair_request["req"] == "c", "nouvelle demande refuse et remplace l'ancienne")
+    n = len(sent)
+    m.answer_pair(True, "b")
+    m.answer_pair("true", "c")
+    m._handle({"type": "pair_confirm", "req": "c", "name": "Claire"})
+    check(len(sent) == n and m.pair_request["req"] == "c", "clic périmé, réponse mal formée et doublon ignorés")
+    m._connection(False)
+    check(m.pair_request is None and len(sent) == n, "déconnexion ferme sans réponse")
+    demo = Model(demo="pair_request")
+    demo.start()
+    check(demo.snapshot()["pairRequest"] == {"req": "demo", "name": "Marc", "relation": "Service informatique"}, "démo de demande de liaison")
 
     # Premier lancement sans serveur réglé : l'espace est créé, l'adresse gardée.
     from papai import settings

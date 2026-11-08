@@ -1,0 +1,122 @@
+[
+  {
+    "name": "",
+    "valid": true
+  },
+  {
+    "name": "   ",
+    "valid": true
+  },
+  {
+    "name": "Noël 2025",
+    "valid": true
+  },
+  {
+    "name": "Photos de famille",
+    "valid": true
+  },
+  {
+    "name": "L’été (2024)",
+    "valid": true
+  },
+  {
+    "name": "  Noël 2025  ",
+    "valid": true
+  },
+  {
+    "name": "Famille -_ '’(),&+ 123",
+    "valid": true
+  },
+  {
+    "name": "東京 ２０２５",
+    "valid": true
+  },
+  {
+    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "valid": true
+  },
+  {
+    "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "valid": false
+  },
+  {
+    "name": "Facture.app",
+    "valid": false
+  },
+  {
+    "name": ".{21EC2020-3AEA-1069-A2DD-08002B30309D}",
+    "valid": false
+  },
+  {
+    "name": "a/b",
+    "valid": false
+  },
+  {
+    "name": "a\\b",
+    "valid": false
+  },
+  {
+    "name": "..",
+    "valid": false
+  },
+  {
+    "name": ".",
+    "valid": false
+  },
+  {
+    "name": "x:y",
+    "valid": false
+  },
+  {
+    "name": "{Photos}",
+    "valid": false
+  },
+  {
+    "name": "Photo\n2025",
+    "valid": false
+  },
+  {
+    "name": "Photo\t2025",
+    "valid": false
+  },
+  {
+    "name": "Photo\u0000",
+    "valid": false
+  },
+  {
+    "name": "☃",
+    "valid": false
+  },
+  {
+    "name": "x@y",
+    "valid": false
+  },
+  {
+    "name": "a*b",
+    "valid": false
+  },
+  {
+    "name": "x?y",
+    "valid": false
+  },
+  {
+    "name": "\"Photos\"",
+    "valid": false
+  },
+  {
+    "name": "<Photos>",
+    "valid": false
+  },
+  {
+    "name": "x|y",
+    "valid": false
+  },
+  {
+    "name": "²",
+    "valid": false
+  },
+  {
+    "name": "é",
+    "valid": false
+  }
+]

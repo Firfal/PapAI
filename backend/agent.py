@@ -10,9 +10,12 @@ import asyncio
 import json
 import re
 import time
+from collections.abc import Awaitable, Callable
+from urllib.parse import urlsplit
 
 from papai_tools import (
     MIN_SECONDS_PER_STEP,
+    OPEN_BROWSER_TOOL,
     PLAN_PROMPT,
     system_prompt,
     TEMPERATURE,
@@ -26,6 +29,7 @@ from papai_tools import (
 )
 
 from .sessions import Owner, Refused, Session, State
+from . import space
 
 import os
 
@@ -33,8 +37,30 @@ import os
 # des clics imprévus. 25 en usage normal.
 # CAREPILOT_MAX_STEPS : ancien nom, encore lu pour les déploiements existants.
 MAX_STEPS = int(os.environ.get("PAPAI_MAX_STEPS") or os.environ.get("CAREPILOT_MAX_STEPS") or "25")
+MAX_BROWSER_HANDOFFS = 3
 
 client = make_client()
+
+
+class SensitiveBlocked(str):
+    def __new__(cls, result: str):
+        text = str(result or "Action refusée par PapAI : action sensible bloquée.")
+        if "appelle ask_helper" not in text:
+            text += " Ne réessaie pas : appelle ask_helper pour que le support s'en occupe."
+        return super().__new__(cls, text)
+
+    @property
+    def reason(self) -> str:
+        return self.removeprefix("Action refusée par PapAI : ").split(". Ne réessaie pas", 1)[0].rstrip(".")
+
+
+def protected_window_support_text(click: bool = False) -> str:
+    name = space.current().family.senior.strip() or "la personne aidée"
+    if click:
+        return ("Clic non effectué : cette fenêtre est protégée (réglages ou mots de passe). "
+                f"Guidez {name} par téléphone pour faire cette étape sur l'ordinateur.")
+    return ("Holo s'est arrêté devant une fenêtre protégée (réglages ou mots de passe). "
+            f"Guidez {name} par téléphone, puis répondez ici pour que Holo continue.")
 
 
 async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> list[str]:
@@ -58,17 +84,60 @@ async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> l
         raw = resp.choices[0].message.content or ""
         m = re.search(r"\{.*\}", raw, re.S)
         data = json.loads(m.group(0))
-        steps = [str(x).strip() for x in data.get("steps", []) if str(x).strip()]
+        steps = [str(x).strip() for x in data.get("steps", []) if str(x).strip()][:5]
         where = str(data.get("where", "")).strip().lower()
-        session.where = where if where in ("web", "desktop") else "desktop"
+        sites = _validated_sites(data.get("sites"))
+        web_steps = _validated_web_steps(data.get("web_steps"), len(steps))
+        if where == "mixed" and (not sites or not web_steps):
+            where = "desktop"
+        if where == "mixed":
+            site_label = ", ".join(sites)
+            steps = [
+                f"Dans Chrome PapAI ({site_label}) : {step}" if i in web_steps else step
+                for i, step in enumerate(steps, 1)
+            ]
+        else:
+            sites = []
+            web_steps = []
+        session.plan_mode = where if where in ("web", "desktop", "mixed") else "desktop"
+        session.plan_sites = sites if session.plan_mode == "mixed" else []
+        session.web_steps = web_steps if session.plan_mode == "mixed" else []
+        session.where = "web" if session.plan_mode == "web" else "desktop"
     except Exception as e:  # noqa: BLE001 — un plan minimal vaut mieux qu'une session bloquée
         session.log("plan_failed", error=f"{type(e).__name__}: {e}")
         steps = []
+        session.plan_mode = "desktop"
+        session.plan_sites = []
+        session.web_steps = []
         session.where = "desktop"
     return steps[:5] or [f"Faire : {session.task}"]
 
 
 _FR = re.compile(r"\b(je|le|la|les|de|du|des|un|une|sur|pour|dans|est|il|vais)\b", re.I)
+_PLAN_SITE = re.compile(
+    r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}"
+)
+
+
+def _validated_sites(value) -> list[str]:
+    if not isinstance(value, list) or not 1 <= len(value) <= 3:
+        return []
+    sites = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        site = item.strip()
+        if _PLAN_SITE.fullmatch(site) and site not in sites:
+            sites.append(site)
+    return sites[:3]
+
+
+def _validated_web_steps(value, count: int) -> list[int]:
+    if not isinstance(value, list):
+        return []
+    return list(dict.fromkeys(
+        step for step in value if type(step) is int and 1 <= step <= count
+    ))
 
 
 def describe_doing(thought: str, name: str, args: dict) -> str:
@@ -108,17 +177,23 @@ def describe_doing(thought: str, name: str, args: dict) -> str:
         return "Holo pose une question à la personne aidée"
     if name == "answer":
         return "Holo termine"
+    if name == "open_browser":
+        return "Holo prépare une étape dans le navigateur"
     return "Holo regarde l'écran"
 
 
 class AgentRunner:
     """Pilote une session du premier screenshot jusqu'à `answer` ou l'arrêt."""
 
-    def __init__(self, session: Session, bridge, broadcast, notes: list[str] | None = None) -> None:
+    def __init__(self, session: Session, bridge, broadcast, notes: list[str] | None = None,
+                 browser_handoff: Callable[[str, str | None], Awaitable[str | None]] | None = None) -> None:
         self.s = session
         self.bridge = bridge
         self.broadcast = broadcast  # async (dict) -> None, vers le proche
         self.notes = notes or []
+        self.browser_handoff = browser_handoff
+        self.browser_handoffs = 0
+        self._sensitive_blocked: SensitiveBlocked | None = None
 
     async def run(self) -> None:
         try:
@@ -147,8 +222,19 @@ class AgentRunner:
             brief += "\nÀ chaque action, indique dans plan_step le numéro de l'étape du plan que tu exécutes."
         for n in self.notes:
             brief += f"\nPrécision du support : {n}"
+        system = system_prompt(self.bridge.os)
+        tools = TOOLS
+        if self.browser_handoff is not None:
+            system += (
+                "\nQuand tu arrives à une étape web du plan validé, indique son numéro "
+                "dans plan_step et appelle "
+                "open_browser avec un objectif en une phrase et, si utile, une URL HTTPS. "
+                "Appelle-le seul, sans autre outil dans la même réponse. Quand tu reçois "
+                "son résumé, continue la tâche sur le bureau."
+            )
+            tools = [*TOOLS, OPEN_BROWSER_TOOL]
         messages = [
-            {"role": "system", "content": system_prompt(self.bridge.os)},
+            {"role": "system", "content": system},
             {"role": "user", "content": brief},
         ]
 
@@ -180,7 +266,7 @@ class AgentRunner:
                 client.chat.completions.create,
                 model=MODEL,
                 messages=messages,
-                tools=TOOLS,
+                tools=tools,
                 tool_choice="required",
                 temperature=TEMPERATURE,
             )
@@ -197,14 +283,29 @@ class AgentRunner:
                 self.s.log("no_action", step=step)
                 continue
 
+            if (len(msg.tool_calls) > 1
+                    and any(call.function.name == "open_browser" for call in msg.tool_calls)):
+                self.s.log("browser_handoff_batch_refused", step=step)
+                for call in msg.tool_calls:
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": "Après un appel à open_browser, observe l'écran avant toute autre action.",
+                    })
+                continue
+
             for call in msg.tool_calls:
                 name = call.function.name
                 args = json.loads(call.function.arguments or "{}")
-                self.s.advance_plan(args.pop("plan_step", None))
+                plan_step = args.pop("plan_step", None)
+                self.s.advance_plan(plan_step)
                 self.s.doing = describe_doing(msg.content or "", name, args)
                 # La capture est enregistrée avec l'action : c'est la matière
                 # première d'une fiche CareMemory.
-                self.s.log("tool_call", step=step, tool=name, args=args, frame=frame.frame_id)
+                if name == "open_browser":
+                    self.s.log("tool_call", step=step, tool=name, frame=frame.frame_id)
+                else:
+                    self.s.log("tool_call", step=step, tool=name, args=args, frame=frame.frame_id)
                 await self.broadcast(self.s.status())
 
                 if name == "answer":
@@ -214,6 +315,10 @@ class AgentRunner:
 
                 if name in ("ask_helper", "ask_senior"):
                     result = await self._escalate(args, to="senior" if name == "ask_senior" else "helper")
+                    if result is None:
+                        return
+                elif name == "open_browser":
+                    result = await self._open_browser(args, plan_step)
                     if result is None:
                         return
                 else:
@@ -243,6 +348,36 @@ class AgentRunner:
         self.s.log("budget_exhausted")
         self.s.finish("Je n'ai pas réussi à terminer. Je passe la main.")
 
+    async def _open_browser(self, args: dict, plan_step=None) -> str | None:
+        if self.browser_handoff is None:
+            return "outil indisponible"
+        if (self.s.plan_mode != "mixed" or type(plan_step) is not int
+                or plan_step not in self.s.web_steps or plan_step != self.s.plan_step):
+            return "Cette étape web n'est pas prévue dans le plan validé : continue sur le bureau ou appelle ask_helper."
+        if self.browser_handoffs >= MAX_BROWSER_HANDOFFS:
+            return "Limite de bascules atteinte : continue sur le bureau ou appelle ask_helper."
+        goal = args.get("goal")
+        if not isinstance(goal, str) or not goal.strip():
+            return "Objectif web manquant : continue sur le bureau ou appelle ask_helper."
+        self.browser_handoffs += 1
+
+        url = None
+        candidate = args.get("url")
+        if isinstance(candidate, str):
+            candidate = candidate.strip()
+            try:
+                parsed = urlsplit(candidate)
+                port = parsed.port
+                if (parsed.scheme.lower() == "https" and parsed.hostname
+                        and parsed.username is None and parsed.password is None
+                        and (port is None or 1 <= port <= 65535)
+                        and not any(char.isspace() for char in candidate)
+                        and len(candidate) <= 2048):
+                    url = candidate
+            except ValueError:
+                pass
+        return await self.browser_handoff(goal.strip()[:500], url)
+
     # ------------------------------------------------------------------ actions
 
     async def _act(self, name: str, args: dict) -> str | None:
@@ -254,6 +389,9 @@ class AgentRunner:
         if name not in ACTUATING_TOOLS:
             return f"outil inconnu : {name}"
 
+        if self._sensitive_blocked is not None:
+            return await self._escalate({})
+
         try:
             self.s.take_control(Owner.AGENT)
         except Refused as e:
@@ -264,12 +402,18 @@ class AgentRunner:
         self.s.log("action_result", tool=name, result=result)
         if result is None:
             return None
+        if isinstance(result, SensitiveBlocked):
+            self._sensitive_blocked = result
+            self.s.log("sensitive_blocked", tool=name, reason=result.reason)
         return result
 
     async def _escalate(self, args: dict, to: str = "helper") -> str | None:
         """Suspend l'agent et attend une réponse. None = arrêt ou expiration."""
         question = args.get("question", "")
         options = args.get("options") or []
+        if to == "helper" and self._sensitive_blocked is not None:
+            question = protected_window_support_text()
+            options = []
         fut = self.s.ask_helper(question, options, to=to)
         await self.broadcast(self.s.status())
         await self.broadcast({"type": "question", "question": question, "options": options, "to": to})
@@ -277,5 +421,7 @@ class AgentRunner:
         reply = await fut
         if reply is None or not self.s.is_open:
             return None
+        if to == "helper":
+            self._sensitive_blocked = None
         who = "la personne aidée" if to == "senior" else "du support"
         return f"Réponse de {who} : {reply}" if to == "senior" else f"Réponse du support : {reply}"

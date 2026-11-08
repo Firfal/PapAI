@@ -6,25 +6,26 @@ struct PermissionsView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 22) {
-                Text("Deux autorisations, une seule fois").font(rounded(44, .semibold)).tracking(-0.6)
-                Text("Pour que \(model.helperName) puisse vous aider, macOS doit vous demander votre accord. Cliquez sur chaque bouton, puis cochez PapAI dans la liste qui s'ouvre.")
-                    .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                row(ok: model.screenOK, title: "Voir mon écran",
-                    detail: "Pour que Holo voie ce que vous voyez. Jamais sans votre demande.",
-                    action: Permissions.requestScreen)
-                row(ok: model.axOK, title: "Utiliser la souris et le clavier",
-                    detail: "Pour cliquer à votre place, uniquement après l'accord de \(model.helperName).",
-                    action: Permissions.requestAccessibility)
-                Spacer(minLength: 0)
+            Panneau {
+                Text("Deux autorisations, une seule fois").font(rounded(40, .bold)).tracking(-0.6)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+            } corps: {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("Pour que \(model.helperName) puisse vous aider, macOS doit vous demander votre accord. Cliquez sur chaque bouton, puis cochez PapAI dans la liste qui s'ouvre.")
+                        .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    row(ok: model.screenOK, title: "Voir mon écran",
+                        detail: "Pour que Holo voie ce que vous voyez. Jamais sans votre demande.",
+                        action: Permissions.requestScreen)
+                    row(ok: model.axOK, title: "Utiliser la souris et le clavier",
+                        detail: "Pour cliquer à votre place, uniquement après l'accord de \(model.helperName).",
+                        action: Permissions.requestAccessibility)
+                    Spacer(minLength: 0)
+                }
             }
-            .foregroundStyle(T.ink).padding(40)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
             Button { model.permissionsDismissed = true } label: {
                 Text(model.screenOK && model.axOK ? "Continuer" : "Plus tard").frame(maxWidth: .infinity)
             }
-            .buttonStyle(PillStyle(height: 78))
+            .buttonStyle(PillStyle(height: 78, icone: "arrow.right.circle", plein: true))
         }
     }
 
@@ -42,18 +43,18 @@ struct PermissionRow: View {
     var body: some View {
         HStack(spacing: 18) {
             Image(systemName: ok ? "checkmark.circle.fill" : "circle")
-                .font(.system(size: 32)).foregroundStyle(ok ? T.accent : T.muted)
-            VStack(alignment: .leading, spacing: 4) {
+                .font(.system(size: 30)).foregroundStyle(ok ? Pastille.Ton.vert.texte : T.muted)
+            VStack(alignment: .leading, spacing: 6) {
                 Text(title).font(rounded(22, .semibold))
                 Text(detail).font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 12)
             if !ok {
-                Button("Autoriser", action: action).buttonStyle(PillStyle(height: 48))
+                Button("Autoriser", action: action).buttonStyle(PillStyle(height: 48, icone: "lock.open"))
             }
         }
         .padding(20)
-        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+        .champ(T.r)
     }
 }
 
@@ -61,28 +62,33 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
+    @State private var confirmRole = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Réglages").font(rounded(30, .bold))
+                if !model.orgName.isEmpty {
+                    Text("Poste géré par \(model.orgName)").font(rounded(15, .medium)).foregroundStyle(.white.opacity(0.92))
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 24).padding(.top, 26).padding(.bottom, 20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(T.header)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("Réglages").font(rounded(30, .semibold))
-                    if !model.orgName.isEmpty {
-                        Text("Poste géré par \(model.orgName)").font(rounded(15)).foregroundStyle(T.muted)
-                    }
                     field("Prénom", text: $name, prompt: "Votre prénom")
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Taille du texte").font(rounded(15, .semibold)).foregroundStyle(T.muted)
-                        Picker("", selection: Binding(get: { model.textScale }, set: { model.setTextScale($0) })) {
-                            ForEach(TextScale.options, id: \.value) { Text($0.label).tag($0.value) }
-                        }
-                        .pickerStyle(.segmented).labelsHidden()
+                        Onglets(options: TextScale.options,
+                                selection: Binding(get: { model.textScale }, set: { model.setTextScale($0) }))
                     }
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle(isOn: Binding(get: { model.realtimeProtection }, set: { model.setRealtimeProtection($0) })) {
                             Text("Protection en temps réel").font(rounded(22, .semibold))
                         }
-                        .toggleStyle(.switch)
+                        .toggleStyle(.switch).tint(T.accent)
                         Text(model.realtimeProtection
                              ? "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe."
                              : "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées.")
@@ -90,39 +96,62 @@ struct SettingsView: View {
                     }
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Mon support").font(rounded(22, .semibold))
-                        Text("Reliez le téléphone de votre support à cet ordinateur : QR code, code à 6 chiffres ou lien à envoyer.")
-                            .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                        Button("Ajouter un support") {
-                            dismiss()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.openSupportPairing() }
-                        }.buttonStyle(PillStyle(height: 54))
-                        if !model.helpers.isEmpty {
-                            Button("Mon support (\(model.helpers.count))") {
+                        if model.helpers.isEmpty {
+                            Text("Reliez le téléphone de votre support à cet ordinateur : QR code, code à 6 chiffres ou lien à envoyer.")
+                                .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                            // Le bouton n'existe que tant qu'aucun support n'est relié : un seul à la fois.
+                            Button("Ajouter un support") {
                                 dismiss()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.showHelpers = true }
-                            }.buttonStyle(PillStyle(filled: false, height: 50))
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.openSupportPairing() }
+                            }.buttonStyle(PillStyle(height: 54, icone: "plus.circle"))
+                        } else {
+                            // Le support se gère depuis son téléphone : ici on l'affiche seulement.
+                            ForEach(model.helpers) { h in
+                                HStack(spacing: 14) {
+                                    Image(systemName: "person.fill.checkmark")
+                                        .font(.system(size: 19, weight: .semibold)).foregroundStyle(.white)
+                                        .frame(width: 46, height: 46).background(Circle().fill(T.accent))
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Support IT").font(rounded(20, .semibold))
+                                        Text(h.online ? "En ligne, relié à cet ordinateur" : "Relié à cet ordinateur")
+                                            .font(rounded(15)).foregroundStyle(h.online ? T.leaf : T.muted)
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(14)
+                                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(T.card)
+                                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(T.line)))
+                                .accessibilityElement(children: .combine)
+                            }
                         }
                     }
-                    Button("Revoir l'accueil") {
-                        UserDefaults.standard.set(false, forKey: "onboarded")
-                        model.onboarded = false
-                        dismiss()
-                    }.buttonStyle(PillStyle(filled: false, height: 50))
-                }.frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            Rectangle().fill(T.line).frame(height: 1)
             HStack {
+                // Discret : réservé à l'installation (« J'aide quelqu'un » sur ce Mac).
+                Button("Changer de rôle") { confirmRole = true }
+                    .buttonStyle(.plain).font(rounded(15, .medium)).foregroundStyle(T.muted)
+                    .confirmationDialog("Changer de rôle ?", isPresented: $confirmRole) {
+                        Button("Changer et relancer PapAI") { AppRole.forgetAndRelaunch() }
+                        Button("Annuler", role: .cancel) {}
+                    } message: {
+                        Text("PapAI se relance et vous demande si vous vous faites aider ou si vous aidez quelqu'un.")
+                    }
                 Spacer()
                 Button("Annuler") { dismiss() }.buttonStyle(PillStyle(filled: false, height: 50))
                 Button("Enregistrer") {
                     // L'adresse du serveur ne se règle plus ici : elle vient de l'installation.
-                    UserDefaults.standard.set(name, forKey: "firstName")
-                    model.sendProfile()
+                    model.setFirstName(name)
                     dismiss()
-                }.buttonStyle(PillStyle(height: 50))
+                }.buttonStyle(PillStyle(height: 50, icone: "checkmark.circle"))
             }
+            .padding(.horizontal, 24).padding(.vertical, 16)
         }
         .foregroundStyle(T.ink)
-        .padding(24).frame(width: 560, height: 580).background(T.bg)
+        .frame(width: 560, height: 580).background(T.bg)
         .onAppear { name = model.firstName }
     }
 
@@ -130,7 +159,8 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label).font(rounded(15, .semibold)).foregroundStyle(T.muted)
             TextField(prompt, text: text).textFieldStyle(.plain).font(rounded(18))
-                .padding(16).background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(T.card))
+                .padding(16).background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(T.card)
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(T.line)))
         }
     }
 }

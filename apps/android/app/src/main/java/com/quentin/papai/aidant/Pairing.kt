@@ -1,6 +1,7 @@
 package com.quentin.papai.aidant
 
 import androidx.compose.foundation.background
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -94,7 +96,7 @@ fun SettingsSheet() {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(8.dp).clip(CircleShape).background(
-                if (m.connected) Soin.accent else if (m.linkError == null) Soin.secondary else Soin.danger))
+                if (m.connected) Soin.online else if (m.linkError == null) Soin.secondary else Soin.danger))
             T(if (m.isConfigured) connectionLine(now) else "Non configuré", 14.sp, color = Soin.secondary)
         }
         m.lastGood?.let { (s, k) ->
@@ -160,7 +162,7 @@ fun PairSheet(link: PairLink) {
                 verticalAlignment = Alignment.CenterVertically) {
                 when {
                     m.connected -> {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(Soin.accent))
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(Soin.online))
                         T("Connecté. Vous serez prévenu dès qu'une demande d'aide arrive.", 15.sp, color = Soin.secondary, align = TextAlign.Center)
                     }
                     m.linkError != null -> T(m.linkError!!, 15.sp, color = Soin.secondary, align = TextAlign.Center)
@@ -179,9 +181,12 @@ fun PairSheet(link: PairLink) {
         policyError?.let { T(it, 16.sp, FontWeight.SemiBold, Soin.danger) }
         T(copy.description,
             15.sp, color = Soin.secondary)
-        if (link.code == null) {
+        if (link.isManual) {
             FieldLabel("Code affiché sur l'ordinateur")
-            SoinField(code, { v -> code = v.filter { it.isDigit() }.take(6) }, "000000", size = 28.sp,
+            SoinField(code, { v ->
+                code = v.filter { it in '0'..'9' }.take(6)
+                if (code.isNotEmpty()) m.pairNeedsNew = false
+            }, "000000", size = 28.sp,
                 weight = FontWeight.SemiBold, align = TextAlign.Center,
                 keyboard = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
         }
@@ -192,12 +197,29 @@ fun PairSheet(link: PairLink) {
             relations.forEach { (label, value) ->
                 val on = relation == value
                 T(label, 15.sp, FontWeight.Medium, if (on) Color.White else Soin.ink,
-                    Modifier.clip(CircleShape).background(if (on) Soin.ink else Soin.card)
+                    Modifier.clip(CircleShape).background(if (on) Soin.accent else Soin.card)
                         .clickable { relation = if (on) "" else value }.padding(horizontal = 16.dp, vertical = 10.dp))
             }
         }
-        m.pairError?.let { T(it, 15.sp, FontWeight.SemiBold, Soin.danger) }
-        CapsuleButton("Rejoindre", enabled = !m.pairBusy && policyError == null, content = if (m.pairBusy) {
+        if (m.pairBusy) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CircularProgressIndicator(Modifier.size(22.dp), color = Soin.ink, strokeWidth = 2.dp)
+                T(PairingPolicy.waiting, 17.sp, color = Soin.ink)
+            }
+            T(PairingPolicy.instruction, 17.sp, color = Soin.ink)
+        }
+        m.pairError?.let {
+            if (m.pairRefused) {
+                Column(Modifier.fillMaxWidth().background(Soin.card, RoundedCornerShape(18.dp)).padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    T("Demande refusée", 22.sp, FontWeight.Bold, Soin.ink)
+                    T(it, 15.sp, color = Soin.ink)
+                }
+            } else T(it, 15.sp, FontWeight.SemiBold, Soin.danger)
+        }
+        LaunchedEffect(m.pairNeedsNew) { if (m.pairNeedsNew) code = "" }
+        CapsuleButton("Rejoindre", enabled = !m.pairBusy && !m.pairNeedsNew &&
+            (!link.isManual || code.length == 6) && policyError == null, content = if (m.pairBusy) {
             { CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) }
         } else null) {
             m.submitPair(link, code, name, relation)

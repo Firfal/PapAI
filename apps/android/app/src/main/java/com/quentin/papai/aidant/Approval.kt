@@ -51,16 +51,15 @@ fun ApprovalScreen() {
             RequestCard(onThumb = { zoom = true })
             Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 T("Plan proposé par Holo", 17.sp, FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                T("${m.plan.size} étape${if (m.plan.size > 1) "s" else ""}", 13.sp, color = Soin.secondary,
-                    modifier = Modifier.clip(CircleShape).background(Soin.card).padding(horizontal = 12.dp, vertical = 6.dp))
+                StatusPill("${m.plan.size} étape${if (m.plan.size > 1) "s" else ""}")
             }
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 m.plan.forEachIndexed { i, raw ->
                     val (title, detail) = splitStep(raw)
                     Row(Modifier.fillMaxWidth().soinCard().padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Box(Modifier.size(38.dp).clip(CircleShape).background(Soin.bg), contentAlignment = Alignment.Center) {
-                            T("${i + 1}", 16.sp, FontWeight.SemiBold)
+                        Box(Modifier.size(38.dp).clip(CircleShape).background(Soin.accentSoft), contentAlignment = Alignment.Center) {
+                            T("${i + 1}", 16.sp, FontWeight.SemiBold, Soin.accent)
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             T(title, 17.sp, FontWeight.SemiBold)
@@ -70,7 +69,7 @@ fun ApprovalScreen() {
                 }
             }
         }
-        Column(Modifier.fillMaxWidth().background(Soin.bg).padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
+        Column(Modifier.fillMaxWidth().background(Soin.bgEnd).padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 CapsuleButton("Valider le plan", Modifier.weight(1f), enabled = !m.planBusy, content = {
@@ -107,7 +106,7 @@ fun RefineSheet(onClose: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            T("Préciser le plan", 24.sp, FontWeight.Bold)
+            SheetTitle("Préciser le plan", 24.sp)
             T("Dites ou écrivez à Holo ce qu'il doit changer. Il proposera un nouveau plan.", 15.sp, color = Soin.secondary)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SoinField(text, { text = it }, "Par exemple : les photos sont dans Images > Noël 2025",

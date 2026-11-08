@@ -65,6 +65,12 @@ final class AppModel {
     var lessons: [Lesson] = []
     var notice: String?
     var lesson: Lesson?
+    /// La fiche d'automate ouverte par-dessus l'accueil.
+    var docLesson: Lesson?
+    /// Où en est l'automate lancé depuis la liste : affiché à la place de « Exécuter », sur sa ligne.
+    struct RunStatus: Equatable { var id: String; var text: String; var enCours: Bool }
+    var runStatus: RunStatus?
+    private var runStatusTask: Task<Void, Never>?
     var screenOK = Permissions.screenOK
     var axOK = Permissions.accessibilityOK
     var permissionsDismissed = false
@@ -72,7 +78,9 @@ final class AppModel {
     var screenConsent = UserDefaults.standard.bool(forKey: "screenConsent")
     var showSettings = false
     var captureError: String?
-    var onboarded = UserDefaults.standard.bool(forKey: "onboarded")
+    /// Plus de pages d'introduction : l'app s'ouvre directement sur l'accueil.
+    /// (L'accueil en 4 étapes reste dans le code, sans être montré.)
+    var onboarded = true
     /// Dans le modèle et non dans la vue : changer la taille du texte recrée
     /// toute la fenêtre (`.id(textScale)`), l'accueil doit garder son étape.
     var onboardingStep = 0
@@ -101,6 +109,8 @@ final class AppModel {
     var guardAcknowledged = false
 
     @ObservationIgnored let gate = StopGate()
+    @ObservationIgnored private var planApproved = false
+    @ObservationIgnored private var executionState: String?
     @ObservationIgnored let client = BridgeClient()
     @ObservationIgnored let webHost = WebAgentHost()
     @ObservationIgnored private var webFronted = false
@@ -149,9 +159,15 @@ final class AppModel {
         while s.hasSuffix("/") { s.removeLast() }
         return s
     }
-    var firstName: String {
+    /// Propriété observée (et non lue dans UserDefaults à chaque fois) : l'accueil
+    /// « Bonsoir <prénom> » se met à jour dès qu'on change le prénom dans les Réglages.
+    var firstName = AppModel.storedFirstName
+
+    /// Prénom par défaut tant que la personne n'en a pas choisi un dans les Réglages.
+    static let defaultFirstName = "Christine"
+    static var storedFirstName: String {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
-        return n
+        return n.isEmpty ? defaultFirstName : n
     }
 
     /// Qui aide : toujours au singulier pour accorder le verbe qui suit.
@@ -179,14 +195,15 @@ final class AppModel {
     // MARK: Accueil et proches
 
     func setFirstName(_ name: String) {
-        UserDefaults.standard.set(name.trimmingCharacters(in: .whitespaces), forKey: "firstName")
+        firstName = name.trimmingCharacters(in: .whitespaces)
+        UserDefaults.standard.set(firstName, forKey: "firstName")
         sendProfile()
     }
 
     /// Le prénom réellement saisi (sans la valeur d'exemple), transmis au serveur
     /// pour que l'aidant lise « Vous allez aider Sophie » et non un nom figé.
     func sendProfile() {
-        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
+        let n = Self.storedFirstName
         // Les proches connus voyagent avec le profil : le serveur les retrouve après un redémarrage.
         let known = helpers.isEmpty ? Self.cachedHelpers() : helpers.map { ["id": $0.id, "name": $0.name, "relation": $0.relation] }
         var msg: [String: Any] = ["type": "profile", "known_helpers": known, "protection": realtimeProtection]
@@ -218,6 +235,8 @@ final class AppModel {
         screenConsent = true
         UserDefaults.standard.set(true, forKey: "onboarded")
         onboarded = true
+        // « Revoir l'accueil » doit repartir de la bienvenue, pas de la dernière étape (prénom sauté).
+        onboardingStep = 0
         permissionsDismissed = true
         stopPairing()
     }
@@ -230,8 +249,8 @@ final class AppModel {
 
     /// Le texte de l'invitation envoyée au proche, avec le lien d'appairage.
     var invitationText: String {
-        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
-        let who = n.isEmpty ? "Votre support" : n
+        let n = Self.storedFirstName
+        let who = n.isEmpty ? "Une personne de votre entourage" : n
         return "\(who) aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre téléphone pour vous relier (valable 24 heures) :"
     }
 
@@ -258,7 +277,24 @@ final class AppModel {
     static func appPairingURL(_ url: String) -> String {
         var allowed = CharacterSet.alphanumerics
         allowed.insert(charactersIn: "-._~")
-        return "papai://pair?u=" + (url.addingPercentEncoding(withAllowedCharacters: allowed) ?? url)
+        let safe = pairingURLWithoutKey(url)
+        return "papai://pair?u=" + (safe.addingPercentEncoding(withAllowedCharacters: allowed) ?? safe)
+    }
+
+    static func pairingURLWithoutKey(_ url: String) -> String {
+        guard var c = URLComponents(string: url) else { return url }
+        if c.scheme?.lowercased() == "papai" {
+            let original = c.queryItems
+            c.queryItems = c.queryItems?.map { item in
+                guard item.name == "u", let value = item.value,
+                      ["http", "https"].contains(URLComponents(string: value)?.scheme?.lowercased() ?? "") else { return item }
+                return URLQueryItem(name: item.name, value: pairingURLWithoutKey(value))
+            }
+            if c.queryItems == original { return url }
+        } else {
+            c.path = c.path.replacingOccurrences(of: "/k/[^/]+/p/", with: "/p/", options: .regularExpression)
+        }
+        return c.string ?? url
     }
 
     func removeHelper(_ h: Helper) {
@@ -307,6 +343,7 @@ final class AppModel {
     // MARK: Démarrage
 
     func start() {
+        _ = DesktopSafety.shared
         guard !started else { return }
         started = true
         client.onMessage = { [weak self] m in self?.handle(m) }
@@ -330,6 +367,7 @@ final class AppModel {
             self.connected = ok
             // Plus de connexion : la personne ne doit jamais rester bloquée.
             if !ok {
+                self.pairRequest = nil
                 self.webHost.stopLocal()
                 InputLock.shared.set(false)
             }
@@ -372,6 +410,10 @@ final class AppModel {
             if demo.hasPrefix("onboarding") { onboarded = false; return }
             onboarded = true
             helpers = [Helper(id: "1", name: "Claire", relation: "sa fille")]
+            if demo == "pair_request" {
+                pairRequest = PairRequest(req: "demo", name: "Marc", relation: "Service informatique")
+                return
+            }
             if demo == "settings" || demo == "helpers_pair" {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     if demo == "settings" { self.showSettings = true }
@@ -639,6 +681,8 @@ final class AppModel {
         queuedShown = false
         if let ticket, queued?.ticket == ticket { queued = nil }
         gate.reset()
+        planApproved = false
+        executionState = nil
         stoppedBy = nil
         sessionWhere = nil
         guardAcknowledged = false
@@ -673,6 +717,8 @@ final class AppModel {
         homeTimer?.cancel()
         screen = .home
         state = nil
+        planApproved = false
+        executionState = nil
         applyLevel()
     }
 
@@ -727,8 +773,8 @@ final class AppModel {
             }
         case "pair_code":
             pairCode = m["code"] as? String
-            pairURL = m["url"] as? String
-            pairAppURL = m["app_url"] as? String ?? pairURL.map(Self.appPairingURL)
+            pairURL = (m["url"] as? String).map(Self.pairingURLWithoutKey)
+            pairAppURL = (m["app_url"] as? String).map(Self.pairingURLWithoutKey) ?? pairURL.map(Self.appPairingURL)
             pairLong = m["long"] as? Bool ?? false
             pairExpires = m["expires_in"] as? Int ?? 600
         case "alert":
@@ -763,10 +809,15 @@ final class AppModel {
             showNotice(m["reason"] as? String ?? "Ce rendez-vous n'est pas possible.")
         case "pair_confirm":
             guard let req = (m["req"] as? String) ?? (m["req"] as? Int).map(String.init) else { return }
+            if pairRequest?.req == req { return }
+            answerPair(false)
             pairRequest = PairRequest(req: req, name: m["name"] as? String ?? "Quelqu'un",
                                       relation: m["relation"] as? String ?? "")
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
+        case "pair_confirm_closed":
+            guard let req = (m["req"] as? String) ?? (m["req"] as? Int).map(String.init) else { return }
+            if pairRequest?.req == req { pairRequest = nil }
         case "ticket_queued":
             // Aucun support disponible : la demande attend, retour à l'accueil.
             queued = QueuedTicket(ticket: m["ticket"] as? String ?? "", number: m["number"] as? Int ?? 0,
@@ -792,6 +843,8 @@ final class AppModel {
     }
 
     private func applyStatus(_ m: [String: Any]) {
+        planApproved = m["plan_approved"] as? Bool ?? false
+        executionState = m["state"] as? String
         stoppedBy = m["stopped_by"] as? String
         sessionWhere = m["where"] as? String
         if let ack = m["guard_acknowledged"] as? Bool { guardAcknowledged = ack }
@@ -846,10 +899,16 @@ final class AppModel {
     private func doExecute(_ req: String, _ action: [String: Any]) async {
         let name = action["name"] as? String ?? ""
         let args = action["args"] as? [String: Any] ?? [:]
-        func reply(_ text: String, refused: Bool) {
-            client.send(["type": "result", "req": req, "result": text, "refused": refused])
+        func reply(_ text: String, refused: Bool, blocked: String? = nil) {
+            var message: [String: Any] = ["type": "result", "req": req, "result": text, "refused": refused]
+            if let blocked { message["blocked"] = blocked }
+            client.send(message)
         }
         if gate.isStopped || guardAlert != nil { reply("Assistance arrêtée ou alerte du gardien en attente.", refused: true); return }
+        guard planApproved && ["active", "awaiting_helper"].contains(executionState ?? "") else {
+            reply("Action refusée : aucun plan validé par le support.", refused: true)
+            return
+        }
         let said = describeAction(name, args)
         currentAction = said
         if actions.last != said { actions.append(said) }
@@ -859,8 +918,9 @@ final class AppModel {
         } catch ActionError.stopped {
             reply("Arrêt demandé par la personne aidée.", refused: true)
         } catch ActionError.protectedZone {
-            // Refus ciblé : l'agent l'apprend et continue, la session survit.
-            reply("Action refusée : cette zone appartient à la fenêtre PapAI, que seule la personne aidée peut manipuler.", refused: false)
+            reply("Action refusée par PapAI : cette zone appartient à PapAI. Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.", refused: false, blocked: "sensitive")
+        } catch ActionError.sensitive(let reason) {
+            reply("Action refusée par PapAI : \(reason). Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.", refused: false, blocked: "sensitive")
         } catch ActionError.noAccessibility {
             reply("Autorisation Accessibilité manquante sur cet ordinateur.", refused: true)
         } catch ActionError.unknownKey(let k) {
@@ -875,12 +935,15 @@ final class AppModel {
     func runShortcut(_ l: Lesson) {
         if !(l.actions ?? []).isEmpty { runAutomation(l); return }
         guard let sc = l.shortcut else { openLesson(l); return }
-        let r = Shortcuts.open(sc)
-        if r.ok {
-            showNotice("C'est ouvert.")
-        } else {
-            showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
-            client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+        Task {
+            let r = await Shortcuts.open(sc)
+            if r.ok {
+                showRunStatus(l.id, "C'est ouvert")
+            } else {
+                runStatus = nil
+                showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
+                client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+            }
         }
     }
 
@@ -900,16 +963,22 @@ final class AppModel {
             return
         }
         gate.reset()
-        showNotice("C'est parti : \(l.title)…")
+        showRunStatus(l.id, "En cours…", enCours: true)
         Task {
             let r = await Automations.play(l, base: httpBase, gate: gate)
-            if gate.isStopped { showNotice("Arrêté. Rien d'autre ne sera fait."); return }
+            if gate.isStopped { showRunStatus(l.id, "Arrêté"); return }
             guard r.ok else {
+                runStatus = nil
                 showNotice("« \(l.title) » n'a pas pu aller au bout. \(HelperName) a reçu un message pour s'en occuper.")
                 client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
                 return
             }
-            guard let holo else { showNotice(r.detail.isEmpty ? "C'est fait." : r.detail); return }
+            guard let holo else {
+                showRunStatus(l.id, "C'est fait")
+                if !r.detail.isEmpty { showNotice(r.detail) }
+                return
+            }
+            runStatus = nil
             homeTimer?.cancel()
             task = holo.goal ?? l.title
             plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
@@ -924,6 +993,16 @@ final class AppModel {
     func openLesson(_ l: Lesson) {
         lesson = l
         screen = .lesson
+    }
+
+    func showRunStatus(_ id: String, _ text: String, enCours: Bool = false) {
+        runStatus = RunStatus(id: id, text: text, enCours: enCours)
+        runStatusTask?.cancel()
+        guard !enCours else { return }
+        runStatusTask = Task {
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            if !Task.isCancelled { runStatus = nil }
+        }
     }
 
     func showNotice(_ text: String) {

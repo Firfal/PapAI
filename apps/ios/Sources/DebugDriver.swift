@@ -35,6 +35,19 @@ extension HelperModel {
                     else if l == "scanner" { sheet = .scanner }
                     else if l == "manual", let link = manualPairLink() { openPair(link) }
                     else if l == "close" { sheet = nil }
+                    // Données de démo pour les captures : plan, automates, fin d'aide.
+                    else if l.hasPrefix("plan:") { plan = l.dropFirst(5).split(separator: ";").map(String.init) }
+                    else if l.hasPrefix("lessons:") {
+                        let items = l.dropFirst(8).split(separator: ";").map { ["title": String($0), "steps": [["instruction": ""], ["instruction": ""], ["instruction": ""]]] as [String: Any] }
+                        if let d = try? JSONSerialization.data(withJSONObject: items) { lessons = (try? JSONDecoder().decode([HelperLesson].self, from: d)) ?? [] }
+                    }
+                    else if l.hasPrefix("guard:") {
+                        // guard:titre|détail|demande
+                        let p = l.dropFirst(6).split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+                        lastAlert = (p[0], p.count > 1 ? p[1] : ""); guardTask = p.count > 2 ? p[2] : ""; guardAlertId = "demo"
+                    }
+                    else if l == "unguard" { guardAlertId = nil; lastAlert = nil }
+                    else if l.hasPrefix("fresh:") { doneFresh = true; doneAnswer = String(l.dropFirst(6)) }
                     else if l.hasPrefix("snap:") { snapCards(to: String(l.dropFirst(5))) }
                     else if l.hasPrefix("state:") {
                         // state:awaiting_approval|tâche|question|étape|nb d'étapes

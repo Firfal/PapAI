@@ -23,6 +23,7 @@ body {
 button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
 button:disabled { opacity: .45; cursor: default; }
 button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(46,158,91,.45); outline-offset: 2px; }
+#pairDialog:focus { outline: none; }
 input, textarea { font: inherit; color: var(--ink); border: 0; outline: none; background: none; user-select: text; }
 input::placeholder, textarea::placeholder { color: rgba(17,19,18,.32); }
 svg { display: block; flex: none; }
