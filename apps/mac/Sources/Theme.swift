@@ -180,6 +180,7 @@ struct Onglets<V: Hashable>: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .focusEffectDisabled()  // pas de cadre de sélection autour de l'onglet
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
