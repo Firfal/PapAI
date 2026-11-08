@@ -64,6 +64,7 @@ test("Réglages : « Mon support » en lecture seule, organisation en ligne ou n
   assert.match(h.sheet.innerHTML, /Support IT · &lt;Acme&gt;/);
   assert.match(h.sheet.innerHTML, />En ligne</);
   assert.match(h.sheet.innerHTML, /Configuré par votre service informatique\./);
+  assert.doesNotMatch(h.sheet.innerHTML, /Taille du texte|data-act="(scale|revokeConsent)"|Retirer l'accord/);
   assert.doesNotMatch(h.sheet.innerHTML, /<input|Prénom|Serveur|Enregistrer|data-act="(pair|openHelpers|replayOnboarding)"/);
   h.update({ helpers: [{ id: '1', name: 'Marc', online: false }] });
   assert.match(h.sheet.innerHTML, /Aucun agent en ligne : votre demande sera mise en attente\./);
@@ -311,4 +312,10 @@ test('agent navigateur : l\'assistance et l\'encart disent que Holo travaille da
   assert.match(html(h), /Holo a fermé sa fenêtre Chrome\./);
   h.update({ state: 'stopped' });
   assert.match(html(h), /Holo a fermé sa fenêtre Chrome\./);
+});
+
+test("accord de partage : il ne promet plus qu'on peut le retirer dans Réglages", async () => {
+  const js = fs.readFileSync(path.join(__dirname, '../ui/app.js'), 'utf8');
+  assert.match(js, /On ne vous le redemandera pas\./);
+  assert.doesNotMatch(js, /retirer cet accord|Retirer l'accord|data-act="scale"/);
 });

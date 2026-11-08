@@ -44,7 +44,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
   - [x] Accueil Mac voix d'abord : grand micro, écriture discrète, détection du micro, tutoriels masqués si vides, logotype et taille du texte dans l'encart.
   - [x] Mes raccourcis sur Mac : applications utilisées, dossiers et groupes de photos, nouveau message Mail, albums ajoutés à la main ; ajout/retrait local, dossiers validés et ouverts dans le Finder explicitement (#16). Cibles des automatismes sécurisées sur serveur/Mac/Windows : règle Unicode commune, refus des paquets et liens, ouverture Finder/Explorer ; cible affichée et retirable par l'aidant web. Vérifié sur la VM Mac (Noël 2025 ouvert, Facture.app refusé) et par tests Windows simulés. Retirés de l’accueil Mac le 8 nov. (simplification : barre de recherche, micro, automates).
 - [x] 4. Consentement : écran dédié « PapAI va regarder votre écran » à la place de la case à cocher.
-- [x] Accord de partage d'écran demandé une seule fois (Mac et Windows), gardé ensuite ; « Retirer l'accord de partage » dans Réglages.
+- [x] Accord de partage d'écran demandé une seule fois (Mac et Windows), gardé ensuite. Plus de « Retirer l'accord de partage » dans les Réglages Mac et Windows (décision de Corentin, 8 nov.), le texte d'accord ne le promet plus.
 - [x] 5. Holo explique chaque action en phrase simple, avec l'historique et le plan validé.
 - [x] 6. Escalade : la question de Holo affichée pendant que le proche répond.
 - [x] 7. Fin : « C'est fait ! », partage coupé, retour automatique à l'accueil.

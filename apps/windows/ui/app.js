@@ -206,7 +206,7 @@
       ${promise('eye', 'Holo voit votre écran pour comprendre le problème.', 21)}
       ${promise('hand', `Rien ne bouge avant l'accord de ${S.helperName}.`, 21)}
       ${promise('stopCircle', 'Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.', 21)}
-      ${promise('check', 'On ne vous le redemandera pas. Vous pouvez retirer cet accord dans Réglages.', 21)}`, 40, 24) +
+      ${promise('check', 'On ne vous le redemandera pas.', 21)}`, 40, 24) +
       `<div class="row" style="gap:14px;margin-top:18px">
         ${pill('Annuler', 'cancelConsent', { filled: false, height: 78, grow: true })}
         ${pill("D'accord, je partage mon écran", 'share', { height: 78, grow: true, disabled: !S.connected })}
@@ -447,8 +447,6 @@
   }
 
   function settingsSheet() {
-    const seg = S.textScales.map(([label, v]) =>
-      `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
     const on = S.realtimeProtection;
     return `<div class="sheet col" role="dialog" aria-modal="true" aria-label="Réglages" style="width:560px;padding:32px;gap:18px;background:var(--card)">
       <div class="sheetHead col" style="gap:4px"><div style="${f(30, 7)}">Réglages</div>
@@ -460,9 +458,7 @@
           ? "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe."
           : "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées."}</div></div>
       ${supportInfo()}
-      <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Taille du texte</div><div class="seg">${seg}</div></div>
       <div class="row" style="gap:8px;padding-top:14px;box-shadow:inset 0 1px 0 var(--line)">
-        ${S.screenConsent ? pill("Retirer l'accord de partage", 'revokeConsent', { filled: false, height: 50 }) : ''}
         <div class="spacer"></div>
         ${pill('Fermer', 'closeSheet', { height: 50 })}
       </div></div>`;
@@ -560,7 +556,6 @@
     openSettings: () => { ui.sheet = 'settings'; render(); },
     closeSheet: () => { ui.sheet = null; render(); },
     dismissAlert: () => { if (!S.alert?.blocked) { S.alert = null; render(); call('dismiss_alert'); } },
-    scale: (v) => { S.textScale = parseFloat(v); render(); call('set_text_scale', parseFloat(v)); },
     protection: (v) => { S.realtimeProtection = v === '1'; render(); call('set_realtime_protection', S.realtimeProtection); },
     shortcut: (id) => call('run_shortcut', id),
     run: (id) => call('run_shortcut', id),
@@ -570,7 +565,6 @@
     lesson: (id) => call('open_lesson', id),
     cancelConsent: () => call('cancel_consent'),
     share: () => call('give_consent'),
-    revokeConsent: () => { S.screenConsent = false; render(); call('revoke_consent'); },
     stop: () => call('stop'),
     pause: () => call('toggle_pause'),
     expand: () => call('expand_window'),
