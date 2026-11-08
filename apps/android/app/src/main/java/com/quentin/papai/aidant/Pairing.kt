@@ -96,7 +96,7 @@ fun SettingsSheet() {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(8.dp).clip(CircleShape).background(
-                if (m.connected) Soin.accent else if (m.linkError == null) Soin.secondary else Soin.danger))
+                if (m.connected) Soin.online else if (m.linkError == null) Soin.secondary else Soin.danger))
             T(if (m.isConfigured) connectionLine(now) else "Non configuré", 14.sp, color = Soin.secondary)
         }
         m.lastGood?.let { (s, k) ->
@@ -162,7 +162,7 @@ fun PairSheet(link: PairLink) {
                 verticalAlignment = Alignment.CenterVertically) {
                 when {
                     m.connected -> {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(Soin.accent))
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(Soin.online))
                         T("Connecté. Vous serez prévenu dès qu'une demande d'aide arrive.", 15.sp, color = Soin.secondary, align = TextAlign.Center)
                     }
                     m.linkError != null -> T(m.linkError!!, 15.sp, color = Soin.secondary, align = TextAlign.Center)
@@ -197,7 +197,7 @@ fun PairSheet(link: PairLink) {
             relations.forEach { (label, value) ->
                 val on = relation == value
                 T(label, 15.sp, FontWeight.Medium, if (on) Color.White else Soin.ink,
-                    Modifier.clip(CircleShape).background(if (on) Soin.ink else Soin.card)
+                    Modifier.clip(CircleShape).background(if (on) Soin.accent else Soin.card)
                         .clickable { relation = if (on) "" else value }.padding(horizontal = 16.dp, vertical = 10.dp))
             }
         }
