@@ -555,9 +555,47 @@ bureau reste le comportement par défaut.
   n'annonce plus de session navigateur dans `hello`; l'absence du champ signifie
   que le serveur doit rester en mode bureau.
 - Après la validation du plan, serveur → Mac :
-  `{"type":"web_agent_start"}` si le plan demande le web et que le Mac a annoncé
+  `{"type":"web_agent_start","sites":["ameli.fr"],"hosts":[]}` si le plan demande le web et que le Mac a annoncé
   cette capacité. Le Mac ne démarre le navigateur que pour une session en cours
   et si le verrou local n'est pas levé.
+  `sites` reprend les domaines du plan validé (sous-domaines inclus).
+  `hosts` contient les hôtes autorisés ensuite par le support, sans leurs
+  sous-domaines, uniquement pour cette assistance ; la liste est vide au départ.
+  Un ancien serveur sans `sites` ne déclenche aucune surveillance locale.
+- Serveur → Mac, `{"type":"web_sites","sites":["ameli.fr"],"hosts":["connexion.exemple.fr"]}` :
+  actualise ces deux listes après une autorisation.
+- Mac → serveur, `{"type":"web_off_site","url":"https://autre.fr/chemin?x=…"}` :
+  une cible CDP de type `page` est hors des sites validés. Le Mac interroge
+  `127.0.0.1:9222/json/list` toutes les 0,5 s, avec un délai court,
+  et limite les rapports à un toutes les 2 s ; il arrête la surveillance avec
+  Chrome PapAI. Le serveur recontrôle l'URL et ignore les rapports sans pilote
+  navigateur actif, après l'arrêt, sur un site autorisé, ou pendant une décision.
+  Les URL HTTPS seules sont autorisables (port absent ou 443, sans identifiant,
+  espace, contrôle, antislash ni IP). Les pages internes vides reconnues par
+  `SiteCheck` sont neutres. Les hôtes sont normalisés en minuscules et punycode.
+- Le pilote met immédiatement H en pause sur un hors-site, y compris lorsqu'un
+  `tool_req` de navigation porte lui-même une URL hors site.
+  `status.doing` devient « Holo attend l'accord du support pour un autre site ».
+  `status.off_site` vaut `{"host":"autre.fr","url":"https://autre.fr/chemin"}`
+  pendant la décision, `null` sinon. L'URL affichée est limitée à 200 caractères,
+  sans identifiant, requête ni fragment ; le journal `web_off_site` ne contient
+  que l'hôte, jamais l'URL complète.
+- La question utilise le message `question` habituel destiné au support :
+  « Holo a quitté les sites validés : <url courte>. Autoriser ce site pour cette
+  assistance, ou arrêter ? », avec les options
+  `["Autoriser ce site une fois", "Arrêter l'assistance"]`.
+  Autoriser ajoute l'hôte exact à `hosts`, envoie `web_sites`, journalise
+  `web_site_allowed` avec l'hôte et le prénom du support disponible, puis reprend H.
+  Arrêter termine l'assistance et annule H. Une réponse libre n'autorise rien :
+  H reçoit la consigne du support et l'ordre de revenir sur les sites validés
+  sans agir sur ce site. Un nouveau rapport relance la question.
+  Une IP ou une URL non HTTPS reste non autorisable, même avec l'option Autoriser.
+  Aucune reprise ne lève une pause de l’utilisateur ni une pause du support
+  encore en attente ; le contenu de la page n'entre jamais dans cette consigne.
+- Limite : le mode web pur, sans `plan_sites`, reste inchangé et n'est pas
+  surveillé. Il s'agit d'une détection suivie d'une pause, pas d'un filtrage réseau
+  préalable des requêtes. Windows dispose d'un surveillant CDP autonome prêt à
+  l'emploi, non branché au pont et sans annonce `web_agent_available`.
 - Si aucune session navigateur valide n'arrive dans les 20 secondes, ou si la
   session est arrêtée pendant son démarrage, le serveur envoie
   `{"type":"web_agent_stop"}` au Mac. Celui-ci annule son démarrage local sans
