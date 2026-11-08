@@ -70,16 +70,18 @@
 </div>
 
 <script>
-  // L'adresse finit par /p/123456 (QR) ou par /p (code tapé à la main).
+  // QR code, invitation ou code tapé à la main.
+  const invitation = location.pathname.match(/^(.*)\/i\/([A-Za-z0-9_-]+)\/?$/);
   const m = location.pathname.match(/^(.*)\/p(?:\/(\d{6}))?\/?$/);
   const base = m ? m[1] : "";
   let code = m && m[2] ? m[2] : "";
   const $ = (id) => document.getElementById(id);
   try { $("name").value = localStorage.getItem("papai_name") || ""; } catch (e) {}
-  if (!code) $("codeRow").hidden = false;
+  if (!code && !invitation) $("codeRow").hidden = false;
   else {
     // L'app iPhone fait elle-même l'appairage à partir de cette adresse.
-    $("openApp").href = "papai://pair?u=" + encodeURIComponent(`${location.origin}${base}/p/${code}`);
+    const path = invitation ? invitation[0] : `${base.replace(/\/k\/[^/]+$/, "")}/p/${code}`;
+    $("openApp").href = "papai://pair?u=" + encodeURIComponent(`${location.origin}${path}`);
     $("appRow").hidden = false;
   }
 
@@ -87,18 +89,18 @@
     e.preventDefault();
     $("err").textContent = "";
     const c = code || $("code").value.trim();
-    if (!/^\d{6}$/.test(c)) { $("err").textContent = "Le code fait 6 chiffres."; return; }
+    if (!invitation && !/^\d{6}$/.test(c)) { $("err").textContent = "Le code fait 6 chiffres."; return; }
     const name = $("name").value.trim();
     if (!name) { $("err").textContent = "Indiquez votre prénom."; return; }
     $("go").disabled = true;
     $("waiting").hidden = false;
     try {
-      const r = await fetch(`${base}/p/${c}`, {
+      const r = await fetch(invitation ? invitation[0] : `${base}/p/${c}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, relation: $("relation").value }),
       });
       const data = await r.json();
-      if (!data.ok) throw new Error(data.error || "Impossible de valider.");
+      if (r.status !== 200 || data.ok !== true) throw new Error(data.error || "Impossible de valider.");
       try { localStorage.setItem("papai_name", data.name); } catch (e) {}
       $("doneTitle").textContent = `C'est fait, ${data.name} !`;
       $("aidant").href = data.aidant_url;

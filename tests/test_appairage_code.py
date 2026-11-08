@@ -19,7 +19,10 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlparse
 from pathlib import Path
+from types import SimpleNamespace
 
 import websockets
 
@@ -56,11 +59,15 @@ def http(url: str, body: dict | None = None, headers: dict | None = None) -> tup
 
 
 async def code(ws, long: bool = False) -> str:
+    return (await invitation_message(ws, long))["code"]
+
+
+async def invitation_message(ws, long: bool = False) -> dict:
     await ws.send(json.dumps({"type": "pair_start", **({"long": True} if long else {})}))
     while True:
         m = json.loads(await asyncio.wait_for(ws.recv(), 10))
         if m.get("type") == "pair_code":
-            return m["code"]
+            return m
 
 
 async def repondre(ws, accept: bool, vus: list) -> None:
@@ -106,14 +113,71 @@ def politique() -> None:
         h = family.add_helper("Marc", "Fils")
         check("expiration pendant l'accord n'empêche pas l'ajout après consommation", h in family.helpers)
         c = family.new_code()
-        for _ in range(100):
+        for _ in range(4):
             try:
                 family.check_code("faux")
             except PairingError:
                 pass
-        check("plafond global de 100 erreurs conservé", not family.code_valid(c))
+        check("quatre erreurs laissent le code valide", family.code_valid(c))
+        try:
+            family.check_code("faux")
+        except PairingError:
+            pass
+        check("cinq erreurs invalident le code", not family.code_valid(c))
+        token = family.new_invitation()
+        check("invitation opaque de 128 bits minimum", len(token) >= 22 and family.invitation_valid(token))
+        with patch("backend.family.time.time", return_value=time.time() + 86400):
+            check("invitation expirée après 24 heures", not family.invitation_valid(token))
+            try:
+                family.consume_invitation(token)
+                check("invitation expirée refusée", False)
+            except PairingError as e:
+                check("invitation expirée refusée", str(e) == INVALIDE)
         check("libellés limités, accents et ponctuation conservés", clean_label("Éléonore - O'Neil." + "a" * 50, 40) == ("Éléonore - O'Neil." + "a" * 50)[:40]
               and len(clean_label("Fils" * 20, 60)) == 60)
+    asyncio.run(plafond_global())
+
+
+async def plafond_global() -> None:
+    with patch.dict(os.environ, {"HAI_API_KEY": "faux"}):
+        from backend import app
+    from backend.family import Family
+    from starlette.requests import Request
+
+    check("jeton d'invitation masqué dans les journaux", app.masquer("POST /i/jeton-secret HTTP/1.1") == "POST /i/*** HTTP/1.1")
+
+    async def receive():
+        return {"type": "http.request", "body": b'{"name":"Marc"}'}
+
+    app._wrong_codes.clear()
+    app._global_wrong_codes.clear()
+    with tempfile.TemporaryDirectory() as folder:
+        family = Family(Path(folder) / "family.json")
+        token = family.new_invitation()
+        with patch.object(app.spaces, "all", return_value=[SimpleNamespace(family=family)]), \
+                patch("backend.app.time.time", return_value=time.time() + 86400):
+            response = await app._pair_submit(token, Request({"type": "http", "headers": []}, receive),
+                                              find_space=True, invitation=True)
+            check("POST invitation expirée : INVALID_CODE sans secret", response.status_code == 400
+                  and json.loads(response.body)["error"] == INVALIDE and sans_secret(json.loads(response.body)))
+    app._wrong_codes.clear()
+    app._global_wrong_codes.clear()
+    with patch.object(app, "_client_ip", side_effect=(str(i) for i in range(302))), \
+            patch.object(app.spaces, "all", return_value=[]) as lookup:
+        statuses = []
+        for i in range(300):
+            request = Request({"type": "http", "headers": []}, receive)
+            response = await app._pair_submit("inconnu", request, find_space=True, invitation=bool(i % 2))
+            statuses.append(response.status_code)
+        check("plafond global : 300 erreurs code/invitation toutes IP confondues", statuses == [400] * 300 and lookup.call_count == 300)
+        with patch.object(app.spaces, "all", side_effect=AssertionError("recherche après plafond")):
+            response = await app._pair_submit("juste", Request({"type": "http", "headers": []}, receive), find_space=True)
+            check("au-delà de 300 : INVALID_CODE sans même chercher l'espace", response.status_code == 400 and json.loads(response.body)["error"] == INVALIDE)
+        with patch("backend.app.time.time", return_value=time.time() + 601):
+            await app._pair_submit("inconnu", Request({"type": "http", "headers": []}, receive), find_space=True)
+            check("plafond global réinitialisé après dix minutes", lookup.call_count == 301)
+    app._wrong_codes.clear()
+    app._global_wrong_codes.clear()
 
 
 async def parcours(base: str) -> None:
@@ -135,10 +199,14 @@ async def parcours(base: str) -> None:
         st, page = http(f"{base}/p")
         check("page de saisie du code ouverte sans clé", st == 200 and "<html" in str(page).lower())
 
-        cb = await code(wb)
+        qr = await invitation_message(wb)
+        cb = qr["code"]
+        check("QR et lien d'app sans clé", qr["url"] == f"{base}/p/{cb}" and b["key"] not in json.dumps(qr)
+              and parse_qs(urlparse(qr["app_url"]).query)["u"] == [qr["url"]])
         async with websockets.connect(f"{wsb}/k/{b['key']}/ws/aidant/{b['key']}") as connu:
             pending = asyncio.create_task(post(f"{base}/p/{cb}", {"name": "Cl<a>ire\n", "relation": 'Service &"informatique"'}))
             demande = await recevoir(wb, "pair_confirm")
+            check("aucune réponse ni accès avant Accepter", not pending.done() and sans_secret(demande))
             check("prénom et lien nettoyés avant confirmation", demande["name"] == "Claire" and demande["relation"] == "Service informatique")
             await wb.send(json.dumps({"type": "pair_decision", "req": demande["req"], "accept": True}))
             st, r = await pending
@@ -165,7 +233,7 @@ async def parcours(base: str) -> None:
         c0 = await code(w0)
         t0 = asyncio.create_task(repondre(w0, True, []))
         st, r = await post(f"{base}/k/{CLE}/p/{c0}", {"name": "Paul", "relation": ""})
-        check("lien avec clé (QR, SMS) : confirmé sur l'ordinateur", st == 200 and r.get("key") == CLE)
+        check("ancien lien avec clé : confirmé sur l'ordinateur", st == 200 and r.get("key") == CLE)
         t0.cancel()
         await asyncio.gather(t0, return_exceptions=True)
 
@@ -217,9 +285,12 @@ async def parcours(base: str) -> None:
         for route, ip in ((f"{base}/p/{faux}", "203.0.113.1"), (f"{base}/k/{b['key']}/p/{faux}", "203.0.113.2")):
             codes = [http(route, {"name": "X"}, {"X-Forwarded-For": f"1.2.3.{i}, {ip}"})[0] for i in range(11)]
             check("10 erreurs par IP, tête XFF ignorée : " + route.split(base)[1], codes == [400] * 10 + [429])
+        st, r = await post(f"{base}/p/{bon}", {"name": "Code épuisé"}, {"X-Forwarded-For": "203.0.113.33"})
+        check("cinq erreurs dans l'espace connu ont épuisé son code", st == 400 and r == uniforme)
+        bon = await code(wb)
         tb = asyncio.create_task(repondre(wb, True, []))
         st, r = await post(f"{base}/p/{bon}", {"name": "Autre IP"}, {"X-Forwarded-For": "203.0.113.3"})
-        check("10 erreurs n'invalident pas le bon code pour une autre IP", st == 200)
+        check("nouveau code accessible depuis une autre IP", st == 200)
         tb.cancel()
         await asyncio.gather(tb, return_exceptions=True)
 
@@ -231,15 +302,42 @@ async def parcours(base: str) -> None:
 
     async with websockets.connect(a["bridge_url"]) as wa:
         absent = await code(wa)
+        invitation_absente = await invitation_message(wa, True)
     await asyncio.sleep(0.05)
     st, r = await post(f"{base}/p/{absent}", {"name": "Hors ligne"})
-    check("ordinateur absent : 409 sans secret", st == 409 and sans_secret(r) and "n'est pas connecté" in r.get("error", ""))
+    check("ordinateur absent : INVALID_CODE sans secret", st == 400 and sans_secret(r) and r.get("error") == INVALIDE)
+    st, r = await post(invitation_absente["url"], {"name": "Hors ligne"})
+    check("invitation hors ligne : INVALID_CODE sans secret", st == 400 and r.get("error") == INVALIDE and sans_secret(r))
     async with websockets.connect(a["bridge_url"]) as wa:
         ta = asyncio.create_task(repondre(wa, True, []))
         st, r = await post(f"{base}/p/{absent}", {"name": "De retour"})
-        check("ordinateur absent : code conservé pour la reconnexion", st == 200)
+        check("ordinateur absent : code consommé à la reconnexion", st == 400 and r.get("error") == INVALIDE)
+        st, r = await post(invitation_absente["url"], {"name": "De retour"})
+        check("ordinateur absent : invitation consommée à la reconnexion", st == 400 and r.get("error") == INVALIDE)
         ta.cancel()
         await asyncio.gather(ta, return_exceptions=True)
+        for accept in (True, False, None):
+            invitation = await invitation_message(wa, True)
+            url = invitation["url"]
+            check("invitation et lien d'app sans clé ni code numérique", url.startswith(base + "/i/")
+                  and len(url.rsplit("/", 1)[1]) >= 22 and invitation["code"] is None
+                  and a["key"] not in json.dumps(invitation) and invitation["expires_in"] == 86400
+                  and parse_qs(urlparse(invitation["app_url"]).query)["u"] == [url])
+            check("page d'invitation ouverte sans clé", http(url)[0] == 200)
+            pending = asyncio.create_task(post(url, {"name": "Invitation"}))
+            demande = await recevoir(wa, "pair_confirm")
+            check("invitation : aucun accès avant décision", not pending.done() and sans_secret(demande))
+            if accept is not None:
+                await wa.send(json.dumps({"type": "pair_decision", "req": demande["req"], "accept": accept}))
+            st, r = await pending
+            if accept is None:
+                ferme = await recevoir(wa, "pair_confirm_closed")
+                check("invitation expirée en attente : 408 sans secret et fermeture", st == 408 and sans_secret(r) and ferme["req"] == demande["req"])
+            else:
+                check("invitation acceptée" if accept else "invitation refusée sans secret",
+                      st == 200 and r.get("key") == a["key"] if accept else st == 403 and r.get("refused") is True and sans_secret(r))
+            st, r = await post(url, {"name": "Réutilisation"}, {"X-Forwarded-For": "198.51.100.10"})
+            check("invitation à usage unique après accord, refus ou délai", st == 400 and r.get("error") == INVALIDE and sans_secret(r))
         for remplace in (False, True):
             c = await code(wa)
             pending = asyncio.create_task(post(f"{base}/p/{c}", {"name": "Interrompu"}))

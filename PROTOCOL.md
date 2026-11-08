@@ -39,7 +39,7 @@ Envoie :
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
 - `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt ou action interdite.
 - `{"type":"automation_failed","title":"…","detail":"…"}` quand un automate ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
-- `{"type":"pair_start"}` pour ajouter un proche (QR, 10 min) ; `{"type":"pair_start","long":true}` pour une **invitation à envoyer** par SMS, WhatsApp, Mail… (24 h). Le serveur répond `pair_code`.
+- `{"type":"pair_start"}` pour ajouter un support (QR code, 10 min) ; `{"type":"pair_start","long":true}` pour une **invitation opaque à envoyer** par SMS, WhatsApp, Mail… (24 h). Le serveur répond `pair_code`.
 - `{"type":"remove_helper","id":"…"}` retire un proche.
 - `{"type":"remote_answer","accepted":false}` refus d'une session proposée par un proche. En cas d'accord, l'app envoie directement `help_request` avec `"requested_by":"Claire"`.
 
@@ -51,6 +51,7 @@ Reçoit :
 - `{"type":"session","id":…,"helper_url":…}`
 - `{"type":"helpers","helpers":[{"id","name","relation"}],"added":"Claire"?}` à chaque `hello` et après chaque ajout ou retrait.
 - `{"type":"pair_code","code":"482913","url":"http://…/p/482913","app_url":"papai://pair?u=http%3A%2F%2F…%2Fp%2F482913","expires_in":600}` code à afficher.
+- Invitation : `{"type":"pair_code","code":null,"url":"https://…/i/<jeton>","app_url":"papai://pair?u=https%3A%2F%2F…%2Fi%2F<jeton>","expires_in":86400,"long":true}`. Aucun code numérique pour l'invitation ; afficher/partager `url` ou `app_url`, sans reconstruire de lien avec la clé.
   Le QR contient `app_url` (ouvre l'app iPhone) ; le code et `url` restent affichés en texte pour le secours web.
   Ancien serveur sans `app_url` : l'app le construit, `papai://pair?u=` + `url` encodée (tous caractères réservés).
 - `{"type":"lessons_changed","title":"…"}` le proche vient de valider un automate : l'app relit `/lessons`.
@@ -303,24 +304,31 @@ Lancement, côté app :
 
 ## Proches
 
-La personne aidée affiche un code à 6 chiffres et son QR (`pair_code`). Le proche ouvre
+La personne aidée affiche un code à 6 chiffres et son QR code (`pair_code`). Le support ouvre
 `/p/{code}` (ou `/p` pour taper le code), donne son prénom et son lien, et reçoit le lien
-de l'espace aidant. Le code sert une fois, expire en 10 minutes ; plafond global de sécurité :
-100 erreurs de code par espace (la limite par IP protège les tentatives de liaison).
-En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gardés dans `family.json`.
+de l'espace support après accord. Le code sert une fois, expire en 10 minutes et est invalidé
+après 5 erreurs (`MAX_TRIES`) quand l'espace est connu (route avec clé).
+Les liens de liaison générés ne contiennent jamais la clé : QR code = `PUBLIC_URL/p/<code>` ;
+invitation = `PUBLIC_URL/i/<jeton>`. Le jeton est créé par `secrets.token_urlsafe(16)` (128 bits),
+lié à un espace, valable 24 h, à usage unique. Créer une invitation remplace la précédente,
+sans remplacer le code court. Code et jeton sont en mémoire (redémarrage : invalidation).
+`GET /i/<jeton>` sert `pair.html` ; `POST /i/<jeton>` reçoit le même corps et suit exactement
+le même accord `pair_confirm`/`pair_decision` que le code, en cherchant parmi tous les espaces.
+`/k/{clé}/p/…` reste accepté pour compatibilité seulement, jamais généré pour une liaison.
+Les supports sont gardés dans `family.json`.
 
 `POST …/p/{code}` avec `{"name","relation"}` répond `{"ok":true,"name","aidant_url","server","key"}`
 (ou `{"ok":false,"error"}` en 400). L'app iPhone s'en sert pour se régler seule :
 
 - **Lien d'app** `papai://pair?u=<URL d'appairage encodée>` (QR du Mac, bouton de `pair.html`).
-  L'app lit `u` (`https://…[/k/<clé>]/p/<code>`), demande prénom et lien, fait le POST sur `u`,
+  L'app lit `u` (`PUBLIC_URL/p/<code>` ou `PUBLIC_URL/i/<jeton>`), demande prénom et lien, fait le POST sur `u`,
   puis enregistre `serverURL = server + "/k/" + key` et `helperKey = key`, et se connecte.
 - Le scanner de l'app accepte `papai://pair?u=…` comme l'ancien `https://…/p/<code>`.
 - Saisie du code à la main : le support ne tape que le code, jamais d'adresse. POST sur
   `<serverURL réglé>/p/<code>`, ou sur `https://papai-450417131702.europe-west1.run.app/p/<code>`
   (serveur officiel) si l'app n'est pas encore réglée. En ligne, `GET /p`, `GET /p/<code>` et
   `POST /p/<code>` répondent donc aussi sans clé : le code est le secret (une seule fois, 10 min
-  ou 24 h), et la réponse donne `server` et `key`. Voir « Plusieurs espaces » : le code tapé
+  pour le code ; 24 h pour le jeton d'invitation), et la réponse donne `server` et `key` après accord. Voir « Plusieurs espaces » : le code tapé
   sans clé cherche son espace et doit être accepté sur l'ordinateur aidé.
 - Arguments de lancement `-serverURL` et `-helperKey` (dépannage, démo) : l'app les enregistre.
 
@@ -338,30 +346,36 @@ personnes aidées en gardant une clé par espace.
 - **Clé inconnue mais bien formée** (12 à 64 caractères `A-Za-z0-9_-`) sur `/k/<clé>/ws/bridge` :
   l'ordinateur revient après un redéploiement qui a effacé le disque, un espace est recréé à sa
   clé (même limite). Les supports sont restaurés par `known_helpers`.
-- **Liaison** (`POST /p/<code>` ou `POST /k/<clé>/p/<code>`, y compris QR code/SMS) :
+- **Liaison** (`POST /p/<code>`, `POST /i/<jeton>` ou compatibilité `POST /k/<clé>/p/<code>`) :
   sans clé, le serveur cherche l'espace dont le code est valide. Prénom nettoyé (40 caractères)
   et lien nettoyé (60) : lettres accentuées, chiffres, espace et `-'.` conservés, contrôles et
   caractères HTML retirés. Prénom vide → 400 « Indiquez votre prénom. », sans compter d'essai.
-  En ligne (`PAPAI_PUBLIC=1`), l'ordinateur doit accepter le support sur les deux routes :
+  En ligne (`PAPAI_PUBLIC=1`), l'ordinateur doit accepter le support sur toutes ces routes :
   même une URL contenant la clé peut être photographiée.
   - serveur → pont : `{"type":"pair_confirm","req":N,"name","relation"}` ;
   - pont → serveur : `{"type":"pair_decision","req":N,"accept":true|false}`.
-  Le code est consommé immédiatement avant l'envoi, une seule demande en attente par espace/ordinateur.
+  Le code ou jeton est consommé immédiatement avant l'envoi (aussi si l'ordinateur est déjà hors ligne),
+  une seule demande en attente par espace/ordinateur. Accord, refus, délai ou ordinateur absent :
+  la valeur consommée ne ressert jamais. Un jeton inconnu, expiré ou consommé donne INVALID_CODE.
   Un code qui expire pendant l'attente n'empêche pas l'ajout après accord. Délai : 120 s,
   surchargeable par `PAPAI_PAIR_CONFIRM_S`. Sur délai/annulation, serveur → pont :
   `{"type":"pair_confirm_closed","req":N}` ferme la demande sans réponse ; identifiant inconnu ignoré.
   - 200 après accord seulement : `{"ok":true,"name","id","senior","aidant_url","server","key"}`.
     Les supports déjà reliés reçoivent `{"type":"helper_added","name":…}` avant l'ajout du nouveau support,
-    sans inclure celui-ci. Le pont reçoit `helpers` avec `added` comme auparavant.
-  - 400 pour code faux, expiré, consommé ou demande déjà en attente :
+    sans inclure celui-ci. Notice : « <prénom> est maintenant support. » (texte littéral).
+    Le pont reçoit `helpers` avec `added` comme auparavant.
+  - 400 pour code/jeton faux, expiré, consommé, ordinateur déjà hors ligne ou demande déjà en attente :
     « Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de la personne aidée. »
   - 403 : `{"ok":false,"refused":true,"error":"La personne aidée a refusé. Rien n'a été partagé."}`.
   - 408 : « Pas de réponse sur l'ordinateur. Demandez un nouveau code sur l'ordinateur de la personne aidée. »
-  - 409 si pont absent, déconnecté ou remplacé : « L'ordinateur de la personne aidée n'est pas connecté.
-    Allumez-le, ouvrez PapAI, puis réessayez. » Si absent dès le départ, code non consommé.
+  - 409 si pont déconnecté ou remplacé pendant l'attente : « L'ordinateur de la personne aidée n'est pas connecté.
+    Allumez-le, ouvrez PapAI, puis réessayez. » Aucun accès partagé, code/jeton déjà consommé.
   - 429 au 11e essai faux en 10 min glissantes par IP : « Trop d'essais. Réessayez dans quelques minutes. »
-    Une IP bloquée doit attendre même pour un code juste. Dix erreurs ne font pas tomber le code ; une autre IP
-    peut encore l'utiliser. Les historiques d'IP sont bornés à 10 000 entrées.
+    Une IP bloquée doit attendre même pour un code juste. Quand l'espace est connu, 5 erreurs suffisent
+    à invalider son code. Les historiques d'IP sont bornés à 10 000 entrées.
+    Sur `/p/<code>` et `/i/<jeton>`, un plafond global de 300 essais faux par 10 minutes glissantes
+    couvre toutes les IP : une fois atteint, INVALID_CODE (400), avant toute recherche/validation du code,
+    y compris pour une valeur juste. Après la fenêtre, la recherche reprend. Ce plafond précède la limite IP.
   Tout échec retourne `ok:false` et `error`, sans `server`, `key` ni `aidant_url` et sans ajout.
   IP : adresse cliente directe en local ; en ligne, **dernière** entrée de `X-Forwarded-For` si présent
   (les préfixes fournis par le client ne font pas foi). Même règle pour créations d'espaces et d'organisations.
@@ -438,7 +452,7 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
 
 ## Prénom et invitation (7 novembre au soir)
 
-- `pair_code` porte `expires_in` (600 ou 86400) et `long` (vrai pour une invitation). `app_url` = `papai://pair?u=<url>&n=<prénom>` : l'app iPhone affiche « Rejoindre Sophie » avant même l'appairage.
+- `pair_code` porte `expires_in` (600 ou 86400) et `long` (vrai pour une invitation opaque `/i/<jeton>`, `code:null`). `app_url` = `papai://pair?u=<url encodée>&n=<prénom encodé>` ; aucune clé dans ce lien.
 - La réponse de `POST …/p/<code>` contient `senior` (prénom de la personne aidée), en plus de `server` et `key`.
 - Test : `python tests/test_profil.py http://127.0.0.1:8000 demo` (6 contrôles).
 

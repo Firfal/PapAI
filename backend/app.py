@@ -132,7 +132,7 @@ def _same_machine(conn: HTTPConnection) -> bool:
 
 # Jamais de clé ni de jeton dans les journaux : les chemins qui en portent un
 # sont masqués, y compris dans les journaux d'accès d'uvicorn.
-_SECRET_PATH = re.compile(r"/(k|a|h|p|o|ws/aidant|ws/helper)/[^/?#\s\"']+")
+_SECRET_PATH = re.compile(r"/(k|a|h|p|i|o|ws/aidant|ws/helper)/[^/?#\s\"']+")
 
 
 def masquer(texte: str) -> str:
@@ -542,11 +542,13 @@ async def _ws_bridge(ws: WebSocket) -> None:
             if kind == "pair_start":
                 # Ajout d'un proche : un code à 6 chiffres et son lien (QR).
                 # `long` : invitation à envoyer par SMS ou WhatsApp, valable 24 h.
-                ttl = INVITE_TTL if msg.get("long") else CODE_TTL
-                code = S().family.new_code(ttl)
-                await ws.send_json({"type": "pair_code", "code": code, "url": pairing_url(code),
-                                    "app_url": app_pairing_url(code), "expires_in": ttl,
-                                    "long": bool(msg.get("long"))})
+                invitation = bool(msg.get("long"))
+                value = S().family.new_invitation() if invitation else S().family.new_code()
+                await ws.send_json({"type": "pair_code", "code": None if invitation else value,
+                                    "url": pairing_url(value, invitation=invitation),
+                                    "app_url": app_pairing_url(value, invitation=invitation),
+                                    "expires_in": INVITE_TTL if invitation else CODE_TTL,
+                                    "long": invitation})
                 continue
 
             if kind == "remove_helper":
@@ -1039,18 +1041,17 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
 # ------------------------------------------------------------------ proches
 
 
-def pairing_url(code: str) -> str:
-    base = f"{PUBLIC_URL}/k/{S().key}" if PUBLIC_MODE else PUBLIC_URL
-    return f"{base}/p/{code}"
+def pairing_url(code: str, *, invitation: bool = False) -> str:
+    return f"{PUBLIC_URL}/{'i' if invitation else 'p'}/{code}"
 
 
-def app_pairing_url(code: str) -> str:
+def app_pairing_url(code: str, *, invitation: bool = False) -> str:
     """Le lien du QR : ouvre l'app iPhone, qui fait elle-même le POST sur `url`.
 
     `n` porte le prénom de la personne aidée, pour que l'aidant lise « Rejoindre
     Sophie » avant même d'avoir validé.
     """
-    link = "papai://pair?u=" + quote(pairing_url(code), safe="")
+    link = "papai://pair?u=" + quote(pairing_url(code, invitation=invitation), safe="")
     if S().family.senior:
         link += "&n=" + quote(S().family.senior, safe="")
     return link
@@ -1064,7 +1065,8 @@ async def _pair_page(code: str):
     return FileResponse(STATIC / "pair.html")
 
 
-async def _pair_submit(code: str, request: Request, confirm: bool = False, *, find_space: bool = False):
+async def _pair_submit(code: str, request: Request, confirm: bool = False, *, find_space: bool = False,
+                       invitation: bool = False):
     try:
         body = await request.json()
     except ValueError:
@@ -1076,24 +1078,33 @@ async def _pair_submit(code: str, request: Request, confirm: bool = False, *, fi
     if not name:
         return JSONResponse({"ok": False, "error": "Indiquez votre prénom."}, status_code=400)
     ip = _client_ip(request)
+    if find_space and not _rate_ok(_global_wrong_codes, "all", GLOBAL_WRONG_CODES_MAX, 600, record=False):
+        return JSONResponse({"ok": False, "error": INVALID_CODE}, status_code=400)
     if not _rate_ok(_wrong_codes, ip, WRONG_CODES_MAX, 600, record=False):
         return JSONResponse({"ok": False, "error": "Trop d'essais. Réessayez dans quelques minutes."}, status_code=429)
-    sp = next((x for x in spaces.all() if x.family.code_valid(code)), None) if find_space else S()
+    sp = next((x for x in spaces.all() if
+               (x.family.invitation_valid(code) if invitation else x.family.code_valid(code))), None) if find_space else S()
     try:
         if sp is None or sp.key in _pair_waiting:
             raise PairingError(INVALID_CODE)
-        sp.family.check_code(code)
+        if not invitation:
+            sp.family.check_code(code)
     except PairingError:
         _rate_ok(_wrong_codes, ip, WRONG_CODES_MAX, 600)
+        if find_space:
+            _rate_ok(_global_wrong_codes, "all", GLOBAL_WRONG_CODES_MAX, 600)
         return JSONResponse({"ok": False, "error": INVALID_CODE}, status_code=400)
     space.use(sp)
     link = sp.bridge
-    if confirm and (link is None or not link.connected):
-        return JSONResponse({"ok": False, "error": PAIR_OFFLINE}, status_code=409)
     try:
-        sp.family.consume_code(code)
+        if invitation:
+            sp.family.consume_invitation(code)
+        else:
+            sp.family.consume_code(code)
     except PairingError:
         _rate_ok(_wrong_codes, ip, WRONG_CODES_MAX, 600)
+        return JSONResponse({"ok": False, "error": INVALID_CODE}, status_code=400)
+    if confirm and (link is None or not link.connected):
         return JSONResponse({"ok": False, "error": INVALID_CODE}, status_code=400)
     # En local, pas d'accord : parcours de développement uniquement.
     if confirm:
@@ -1128,8 +1139,10 @@ PAIR_CONFIRM_S = float(os.environ.get("PAPAI_PAIR_CONFIRM_S", "120"))
 PAIR_OFFLINE = "L'ordinateur de la personne aidée n'est pas connecté. Allumez-le, ouvrez PapAI, puis réessayez."
 _pair_waiting: set[str] = set()
 WRONG_CODES_MAX = 10
+GLOBAL_WRONG_CODES_MAX = 300
 SPACES_PER_HOUR = 5
 _wrong_codes: dict[str, list[float]] = {}
+_global_wrong_codes: dict[str, list[float]] = {}
 _space_creations: dict[str, list[float]] = {}
 # Postes d'une même organisation (souvent derrière la même adresse IP) : plafond par organisation.
 ORG_ENROLLS_PER_HOUR = int(os.environ.get("PAPAI_ORG_ENROLLS_PER_HOUR", "200"))
@@ -1176,6 +1189,16 @@ async def pair_page(code: str):
 @app.post("/p/{code}")
 async def pair_submit(code: str, request: Request):
     return await _pair_submit(code, request, confirm=PUBLIC_MODE, find_space=True)
+
+
+@app.get("/i/{token}")
+async def invitation_page(token: str):
+    return await _pair_page(token)
+
+
+@app.post("/i/{token}")
+async def invitation_submit(token: str, request: Request):
+    return await _pair_submit(token, request, confirm=PUBLIC_MODE, find_space=True, invitation=True)
 
 
 # Création d'un espace : au premier lancement, l'ordinateur aidé reçoit sa clé.
