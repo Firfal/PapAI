@@ -467,7 +467,8 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
 - Abonnement entreprise, mode test uniquement : `GET /o/<support_token>/abonnement` sert la page ;
   `GET /o/<support_token>/billing` renvoie `disponible`, `postes`, `abonne`, `statut` et, si disponible,
   `prix` (`unit_amount` en centimes, `currency`, `interval=month`). `POST …/billing/checkout`
-  et `POST …/billing/portal` renvoient `{"url"}` (503 si non configuré ; portail 409 sans client).
+  et `POST …/billing/portal` renvoient `{"url"}` (503 si non configuré ; portail 409 sans client ;
+  Checkout 409 si déjà abonné, utiliser alors le portail).
   Jeton inconnu : 404. Aucun blocage des fonctions sans abonnement. `POST /stripe/webhook`
   vérifie le corps brut (256 Kio max) signé Stripe (tolérance ±300 s), puis conserve l'état
   dans `billing.json` par organisation. Signature invalide : 400 ; secret absent : 503.

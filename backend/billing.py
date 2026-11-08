@@ -105,6 +105,9 @@ def install(app, find_org, members, public_url, org_by_id, all_orgs):
     @app.post("/o/{token}/billing/checkout")
     async def checkout(token: str):
         org = get_org(token)
+        state = read(org)
+        if state.get("abonne"):
+            raise HTTPException(409, "Déjà abonné : utilisez Gérer l'abonnement")
         _, price = config()
         back = public_url.rstrip("/") + "/o/" + quote(token, safe="") + "/abonnement"
         data = {"mode": "subscription", "line_items[0][price]": price,
@@ -112,8 +115,8 @@ def install(app, find_org, members, public_url, org_by_id, all_orgs):
                 "client_reference_id": org.id, "metadata[org]": org.id,
                 "subscription_data[metadata][org]": org.id,
                 "success_url": back, "cancel_url": back}
-        if read(org).get("customer"):
-            data["customer"] = read(org)["customer"]
+        if state.get("customer"):
+            data["customer"] = state["customer"]
         response = await asyncio.to_thread(stripe, "/v1/checkout/sessions", data)
         if not isinstance(response.get("url"), str):
             raise HTTPException(502, "Réponse d'abonnement invalide")

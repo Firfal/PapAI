@@ -119,13 +119,17 @@ class Abonnement(unittest.TestCase):
         self.assertNotIn("customer", state)
         self.assertEqual(billing.read(self.registry.get(self.org.id))["customer"], "cus_test")
         self.assertEqual(self.request(self.path + "/billing/portal", b"")[1], {"url": "https://billing.stripe.test/portal"})
-        self.request(self.path + "/billing/checkout", b"")
-        self.assertEqual(self.fake.requests[-1][1]["customer"], ["cus_test"])
+        count = len(self.fake.requests)
+        self.assertEqual(self.request(self.path + "/billing/checkout", b""),
+                         (409, {"detail": "Déjà abonné : utilisez Gérer l'abonnement"}))
+        self.assertEqual(len(self.fake.requests), count)
         for status in ("past_due", "trialing", "active", "unpaid"):
             self.assertEqual(self.event("customer.subscription.updated", {"id": "sub_test", "status": status})[0], 200)
             self.assertEqual(self.request(self.path + "/billing")[1]["abonne"], status in {"active", "trialing"})
         self.assertEqual(self.event("customer.subscription.deleted", {"id": "sub_test"})[0], 200)
         self.assertFalse(self.request(self.path + "/billing")[1]["abonne"])
+        self.assertEqual(self.request(self.path + "/billing/checkout", b"")[0], 200)
+        self.assertEqual(self.fake.requests[-1][1]["customer"], ["cus_test"])
 
     def test_webhook_registre_en_memoire(self):
         (self.org.folder / "org.json").unlink()
@@ -155,6 +159,7 @@ class Abonnement(unittest.TestCase):
         self.assertTrue(billing.read(self.org)["abonne"])
         self.fake.fail = True
         self.assertFalse(self.request(self.path + "/billing")[1]["disponible"])
+        billing.write(self.org, {"abonne": False})
         self.assertEqual(self.request(self.path + "/billing/checkout", b"")[0], 502)
 
 
