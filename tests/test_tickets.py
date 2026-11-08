@@ -79,6 +79,7 @@ def stockage() -> None:
     dossier["updated"] = dossier["resolved"] = int(time.time()) - 100 * 86400
     check("réglée il y a plus de 90 jours : oubliée", tk.same("dossier de la comptabilité") is None)
     tk.note(wifi, "Claire", "Vérifier le pilote")
+    wifi["notes"][-1]["t"] -= 60
     tk.update(wifi, status="resolu", closed_by="Claire")
     check("note de diagnostic avant la clôture : pas présentée comme la solution", solution(wifi)["note"] == "")
     auto = tk.open("Imprimer une photo", "automatisme")
@@ -210,7 +211,8 @@ async def parcours(base: str) -> None:
             check("le problème est revenu : le même ticket est rouvert et suit la nouvelle assistance",
                   sess is not None and sess.get("ticket") == tid and len(tickets(base, key)) == 2
                   and t["status"] == "en_cours" and not t.get("closed_by")
-                  and t["notes"][-1]["text"] == "Le problème est revenu.")
+                  and t["notes"][-1]["text"] == "Le problème est revenu."
+                  and "Réglé par téléphone" in t.get("reprise", ""))
             await wa.send(json.dumps({"type": "stop"}))
             await asyncio.sleep(0.5)
 

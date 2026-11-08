@@ -762,7 +762,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     # est rouvert, Holo repart de ce qui avait été fait.
                     reprise = _reprise(again)
                     S().tickets.note(again, S().family.senior or "L’utilisateur", "Le problème est revenu.")
-                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="")
+                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="", reprise=reprise)
                     ticket, reopened = again, True
                 if ticket is None and not by and not msg.get("new") and "tidy" not in msg:
                     same = S().tickets.same(task)
@@ -789,7 +789,6 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     continue
                 session = S().registry.create(task)
                 session.grant_consent()  # le consentement est donné dans la même fenêtre
-                session.reprise = reprise
                 if msg.get("requested_by"):
                     # Lancée par un proche, acceptée à l'instant sur le Mac.
                     session.log("remote_accepted", by=str(msg["requested_by"])[:40])
@@ -797,6 +796,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if ticket is None:
                     ticket = _open_ticket(task, "support" if by else "personne", by=by or S().family.senior)
                 session.ticket = ticket["id"]
+                session.reprise = ticket.get("reprise") or ""
                 S().tickets.update(ticket, session=session.id, status="en_cours", rdv=None)
                 await _tickets_changed()
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
