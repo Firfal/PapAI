@@ -29,8 +29,11 @@ struct SupportTickets: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 14) {
                 let open = tickets.filter(\.isOpen).count
-                Onglets(options: [("Ouverts · \(open)", 0), ("Tous · \(tickets.count)", 1)], selection: $filter)
-                    .frame(maxWidth: 300)
+                Picker("Afficher", selection: $filter) {
+                    Text("Ouverts (\(open))").tag(0)
+                    Text("Tous (\(tickets.count))").tag(1)
+                }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
                 if focus != nil {
                     Button { focus = nil } label: {
                         Label(TicketCategory.label(focus ?? ""), systemImage: "xmark.circle.fill")

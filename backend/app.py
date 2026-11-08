@@ -2418,6 +2418,37 @@ async def remove_automation_keyed(fam: str, lesson_id: str):
     return await _remove_automation(lesson_id)
 
 
+async def _draft_automation(request: Request):
+    """Brouillon d'automate (document ou enregistrement) : appelle Holo, n'écrit rien."""
+    try:
+        body = await request.json()
+    except ValueError:
+        return JSONResponse({"error": "Requête illisible (JSON attendu)."}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "Requête illisible (JSON attendu)."}, status_code=400)
+    try:
+        return await automate_draft.draft(body)
+    except automate_draft.DraftError as e:
+        return JSONResponse({"error": str(e)}, status_code=422)
+    except Exception as e:  # noqa: BLE001 — Holo injoignable, quota…
+        print(f"[automate] brouillon impossible : {type(e).__name__}")
+        return JSONResponse({"error": "Holo ne répond pas pour le moment. Réessayez."}, status_code=502)
+
+
+@app.post("/k/{fam}/automations/draft")
+async def draft_automation_keyed(fam: str, request: Request):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _draft_automation(request)
+
+
+@app.post("/automations/draft")
+async def draft_automation(request: Request):
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _draft_automation(request)
+
+
 @app.post("/automations")
 async def import_automation(request: Request):
     if not _same_machine(request):

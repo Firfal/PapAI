@@ -63,6 +63,7 @@ struct SupportAutomates: View {
         } message: {
             Text("Les personnes chez qui il est déjà appliqué le gardent.")
         }
+        .task(id: model.people.map(\.key)) { await lib.syncFromUsers(model.people) }
     }
 
     private func row(_ e: AutomateLibrary.Entry) -> some View {

@@ -210,6 +210,34 @@ final class AutomateLibrary {
         return e
     }
 
+    /// Les automates déjà présents chez les utilisateurs entrent dans la bibliothèque, marqués
+    /// comme appliqués chez eux : rien n'existe côté utilisateur sans exister côté support.
+    @MainActor
+    func syncFromUsers(_ people: [Person]) async {
+        var changed = false
+        for p in people {
+            guard let url = URL(string: Self.base(p) + "/lessons"),
+                  let (d, r) = try? await URLSession.shared.data(from: url),
+                  (r as? HTTPURLResponse)?.statusCode == 200,
+                  let list = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] else { continue }
+            for var l in list {
+                guard let title = l["title"] as? String, !title.isEmpty else { continue }
+                let k = title.lowercased()
+                if !entries.contains(where: { $0.title.lowercased() == k }) {
+                    l["papai"] = 1
+                    guard let pack = try? JSONSerialization.data(withJSONObject: l),
+                          add(pack: pack, save: false) != nil else { continue }
+                    changed = true
+                }
+                if let i = entries.firstIndex(where: { $0.title.lowercased() == k }), !entries[i].applied.contains(p.key) {
+                    entries[i].applied.append(p.key)
+                    changed = true
+                }
+            }
+        }
+        if changed { save() }
+    }
+
     func remove(_ e: Entry) { entries.removeAll { $0.id == e.id }; save() }
 
     func markApplied(_ e: Entry, keys: [String], org: String? = nil) {
