@@ -63,6 +63,12 @@ LEGITIMES = [
     "Ich brauche dringend Hilfe mit meinen Fotos",
     "Einen Gutschein für meinen Enkel kaufen",
     "Retrouver un article sur les v i r e m e n t s bancaires",
+    "Offrir une carte cadeau Fnac de 30 € à ma petite-fille",
+    "Payer mes impôts de 2 400 euros sur impots.gouv",
+    "Régler une facture d'impôts de 4 800 euros sur impots.gouv",
+    "Payer les impôts de 5 000 euros sur impots.gouv",
+    "Payer mon loyer de 4 500 euros",
+    "Payer mon loyer de 5 000 euros",
 ]
 SUSPECTES = [
     "Je veux envoyer 10 000 euros sur un compte en Afrique",
@@ -135,6 +141,18 @@ SUSPECTES = [
     "Envoyer le code d'une c.a.r.t.e c.a.d.e.a.u",
     "Envoyer le c o d e reçu par s.m.s",
     "Envoyer le code de la c.a.r.t.e.c.a.d.e.a.u",
+    "Acheter des cartes cadeaux Google Play de 500 euros",
+    "Acheter une carte prépayée Apple de 100 euros",
+    "Acheter plusieurs cartes Amazon de 50 euros chacune",
+    "Acheter une carte Steam pour payer quelqu'un",
+    "Payer mes impôts de 5 100 euros sur impots.gouv",
+    "Payer mon loyer de 5 100 euros",
+    "Payer ma facture d'impôts de 2 400 euros en urgence",
+    "Payer mon loyer de 4 800 euros sur un nouveau compte",
+    "Payer une facture d'impôts de 2 400 euros avec le code reçu par SMS",
+    "Payer mon loyer de 4 800 euros à un tiers inconnu",
+    "Payer mes impôts de 2 400 euros avec l'IBAN DE89 3704 0044 0532 0130 00",
+    "Payer une facture d'impôts de 2 400 euros par carte cadeau",
 ]
 
 
