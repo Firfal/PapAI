@@ -142,6 +142,10 @@ struct TicketsTab: View {
             Text(t.task.isEmpty ? "Demande sans texte" : "« \(t.task) »")
                 .font(.headline).foregroundStyle(T.ink)
                 .fixedSize(horizontal: false, vertical: true)
+            if let b = t.blocked {
+                Label(b, systemImage: "exclamationmark.circle").font(.subheadline.weight(.medium))
+                    .foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(t.quand)
                 if !t.assignee.isEmpty { Text("Pris par \(t.assignee)") }
