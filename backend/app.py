@@ -11,6 +11,7 @@ repasse par les contrôles de sessions.py.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 import os
@@ -86,13 +87,65 @@ MAX_PROCESS_NAME = 200
 WEB_AGENT_START_TIMEOUT_S = 20.0
 
 
-def _key_ok(fam: str) -> bool:
-    """Vrai si la clé ouvre un espace ; cet espace devient celui de la requête."""
-    sp = spaces.get(fam)
+# Le support de l'organisation authentifié par sa clé dérivée (`sk…`) pour la
+# requête en cours : {"org", "id", "name"}, None pour la clé de l'espace.
+_support_ctx: contextvars.ContextVar[dict | None] = contextvars.ContextVar("papai_support", default=None)
+# Sockets ouvertes par chaque support ("<org>:<id>") : fermées dès sa révocation.
+_support_sockets: dict[str, set[WebSocket]] = {}
+_ws_support: dict[WebSocket, dict] = {}
+
+
+def _derived_space(key: str):
+    """Clé dérivée d'un support actif → (espace, organisation, support), sinon None."""
+    p = orgs_mod.parse_derived(key)
+    if p is None:
+        return None
+    sid, sup, seal = p
+    sp = next((x for x in spaces.all() if x.id == sid), None)
+    o = orgs.get(sp.org) if sp is not None and sp.org else None
+    rec = o.support_by_id(sup) if o is not None else None
+    if rec is None or not o.check_derived(rec, sid, seal):
+        return None
+    return sp, o, rec
+
+
+def _ctx(o: orgs_mod.Org, rec: dict | None) -> dict | None:
+    return {"org": o.id, "id": rec["id"], "name": rec.get("name", "")} if rec else None
+
+
+def _key_ok(fam: str, support: bool = True) -> bool:
+    """Vrai si la clé ouvre un espace ; cet espace devient celui de la requête.
+
+    `support` : accepte aussi la clé dérivée d'un support de l'organisation
+    (routes du support seulement, jamais le pont ni la liaison)."""
+    sp, ctx = spaces.get(fam), None
+    if sp is None and support:
+        d = _derived_space(fam)
+        if d is not None:
+            sp, ctx = d[0], _ctx(d[1], d[2])
     if sp is None:
         return False
     space.use(sp)
+    _support_ctx.set(ctx)
     return True
+
+
+def _space_key(sp: space.Space, o: orgs_mod.Org, rec: dict | None) -> str:
+    """La clé d'un poste telle que la voit ce support : jamais la vraie pour un jeton personnel."""
+    return sp.key if rec is None else o.derived_key(rec, sp.id)
+
+
+def _track_support(ws: WebSocket) -> None:
+    ctx = _support_ctx.get()
+    if ctx is not None:
+        _ws_support[ws] = ctx
+        _support_sockets.setdefault(f"{ctx['org']}:{ctx['id']}", set()).add(ws)
+
+
+def _untrack_support(ws: WebSocket) -> None:
+    ctx = _ws_support.pop(ws, None)
+    if ctx is not None:
+        _support_sockets.get(f"{ctx['org']}:{ctx['id']}", set()).discard(ws)
 
 
 _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
@@ -464,10 +517,11 @@ async def handle_web_agent_change(link: BridgeLink, value) -> None:
 
 @app.websocket("/k/{fam}/ws/bridge")
 async def ws_bridge_keyed(ws: WebSocket, fam: str) -> None:
-    if not _key_ok(fam):
+    if not _key_ok(fam, support=False):
         # Clé inconnue mais bien formée : l'ordinateur revient après un
         # redéploiement qui a effacé le disque. Il retrouve un espace à sa clé.
-        if not (space.KEY_RE.match(fam or "") and _rate_ok(_space_creations, _client_ip(ws), SPACES_PER_HOUR, 3600)):
+        # Jamais une clé dérivée de support : elle masquerait le vrai poste.
+        if not (space.KEY_RE.match(fam or "") and orgs_mod.parse_derived(fam) is None and _rate_ok(_space_creations, _client_ip(ws), SPACES_PER_HOUR, 3600)):
             await ws.close(code=4403)
             return
         space.use(spaces.create(fam))
@@ -1012,6 +1066,16 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
         S().helper_alert_scopes.pop(ws, None)
 
 
+def _decided_by(ws: WebSocket, who: str) -> dict:
+    """Qui décide du plan, pour le journal : support à jeton personnel (sûr), sinon
+    le nom annoncé par l'app sur la clé de l'espace ou le lien de la session."""
+    sup = _ws_support.get(ws)
+    if sup is not None:
+        return {"name": sup["name"], "via": "jeton_support", "support": sup["id"]}
+    via = "cle_espace" if S().helper_alert_scopes.get(ws, "") is None else "lien_session"
+    return {"name": who, "via": via}
+
+
 async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
     """Un message de l'aidant, page web ou app iPhone. Tout est revalidé ici."""
     kind = msg.get("type")
@@ -1034,11 +1098,16 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             return
 
     try:
-        who = S().helper_who.get(ws, {}).get("name", "")
+        sup = _ws_support.get(ws)
+        who = sup["name"] if sup else S().helper_who.get(ws, {}).get("name", "")
         if who and kind in ("approve_plan", "answer", "click"):
             session.helper_name = who
         if kind in ("approve_plan", "refine_plan", "refuse_plan"):
-            session.decide_plan(kind.split("_")[0], str(msg.get("text", "")).strip())
+            by = _decided_by(ws, who)
+            session.decide_plan(kind.split("_")[0], str(msg.get("text", "")).strip(), by=by)
+            if kind == "approve_plan":
+                print(f"[plan] session {session.id} validée par {by['name'] or 'un support'} "
+                      f"({by['via']}{' ' + by['support'] if by.get('support') else ''})")
             await broadcast_helper(session.status())
 
         elif kind == "answer":
@@ -1315,7 +1384,7 @@ async def pair_page_manual():
 
 @app.get("/k/{fam}/p")
 async def pair_page_manual_keyed(fam: str):
-    if not _key_ok(fam):
+    if not _key_ok(fam, support=False):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return await _pair_page("")
 
@@ -1407,7 +1476,7 @@ async def create_org(request: Request):
 @app.post("/k/{fam}/org")
 async def join_org(fam: str, request: Request):
     """Un poste déjà installé rejoint l'organisation (jeton déposé après coup par l'IT)."""
-    if not _key_ok(fam):
+    if not _key_ok(fam, support=False):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     body = await _small_json(request)
     o = orgs.by_enroll(str(body.get("org") or ""))
@@ -1435,13 +1504,94 @@ async def org_page(token: str):
 
 @app.get("/o/{token}/spaces")
 async def org_spaces(token: str):
-    """Tous les postes de l'organisation, avec leur clé : le support les suit sans appairage."""
-    o = orgs.by_support(token)
-    if o is None:
+    """Tous les postes de l'organisation : le support les suit sans appairage. Avec un
+    jeton personnel, chaque clé est dérivée pour ce support (refusée s'il est révoqué)."""
+    found = orgs.auth(token)
+    if found is None:
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    o, rec = found
     return {"org": o.name, "server": PUBLIC_URL, "spaces": [
-        {"key": sp.key, "name": sp.family.senior or sp.label, "label": sp.label,
+        {"key": _space_key(sp, o, rec), "name": sp.family.senior or sp.label, "label": sp.label,
          "online": sp.bridge is not None} for sp in spaces.members(o.id)]}
+
+
+# --- Supports de l'organisation : un jeton chacun, révocable (console de l'IT) ---
+
+def _support_online(o: orgs_mod.Org, sid: str) -> bool:
+    return bool(_support_sockets.get(f"{o.id}:{sid}"))
+
+
+@app.get("/o/{token}/supports")
+async def org_supports(token: str):
+    """Seulement avec le jeton de l'organisation : un support ne gère pas les autres."""
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    return {"org": o.name, "supports": [o.public_support(d, _support_online(o, d["id"])) for d in o.supports]}
+
+
+@app.post("/o/{token}/supports")
+async def org_add_support(token: str, request: Request):
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    name = _label(await _small_json(request))
+    if not name:
+        return JSONResponse({"error": "Donnez le nom du support."}, status_code=400)
+    try:
+        rec, tok = o.add_support(name)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+    print(f"[organisations] support {rec['id']} ajouté à {o.id}")
+    return {**o.public_support(rec), "token": tok, "server": PUBLIC_URL,
+            "support_url": f"{PUBLIC_URL}/o/{tok}",
+            "app_url": f"papai://org?u={quote(PUBLIC_URL, safe='')}&t={tok}"}
+
+
+@app.post("/o/{token}/supports/{sid}/revoke")
+async def org_revoke_support(token: str, sid: str):
+    """Révoque un support : jeton et clés dérivées refusés, sockets fermées tout de suite,
+    assistance qu'il avait validée arrêtée."""
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    rec = o.revoke_support(sid)
+    if rec is None:
+        return JSONResponse({"error": "Support introuvable."}, status_code=404)
+    closed = 0
+    for ws in list(_support_sockets.pop(f"{o.id}:{sid}", set())):
+        _ws_support.pop(ws, None)
+        try:
+            await ws.close(code=4401, reason="Accès retiré")
+            closed += 1
+        except Exception:  # noqa: BLE001
+            pass
+    stopped = 0
+    for sp in spaces.members(o.id):
+        space.use(sp)
+        for s in list(sp.registry._by_id.values()):
+            if s.is_open and (s.approved_by or {}).get("support") == sid:
+                s.stop(by="support_revoque")
+                stopped += 1
+                await broadcast_helper(s.status())
+    print(f"[organisations] support {sid} révoqué dans {o.id} ({closed} connexion(s) fermée(s), "
+          f"{stopped} assistance(s) arrêtée(s))")
+    return {**o.public_support(rec), "closed": closed, "stopped": stopped}
+
+
+@app.post("/o/{token}/rotate")
+async def org_rotate_token(token: str):
+    """Nouveau jeton de l'organisation (fin de migration, fuite) : l'ancien est refusé."""
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    o.rotate()
+    print(f"[organisations] jeton de l'organisation {o.id} renouvelé")
+    return {"support_token": o.support, "server": PUBLIC_URL, **_org_links(o)}
 
 
 @app.get("/o/{token}/automations")
@@ -1455,14 +1605,16 @@ async def org_automations(token: str):
 @app.post("/o/{token}/automations")
 async def org_import_automation(token: str, request: Request):
     """Importé une fois par l'IT, proposé sur tous les postes, présents et à venir."""
-    o = orgs.by_support(token)
-    if o is None:
+    found = orgs.auth(token)
+    if found is None:
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    o, rec = found
     pack = await _read_pack(request)
     if isinstance(pack, JSONResponse):
         return pack
+    by = rec["name"] if rec else request.query_params.get("by", "") or o.name
     try:
-        lesson = automations.save(pack, by=request.query_params.get("by", "") or o.name, folder=o.lessons_dir)
+        lesson = automations.save(pack, by=by, folder=o.lessons_dir)
     except automations.Invalid as e:
         return JSONResponse({"error": str(e)}, status_code=422)
     print(f"[organisations] automate {lesson['id']} pour {o.id}")
@@ -1488,14 +1640,14 @@ async def org_remove_automation(token: str, lesson_id: str):
 
 @app.get("/k/{fam}/p/{code}")
 async def pair_page_keyed(fam: str, code: str):
-    if not _key_ok(fam):
+    if not _key_ok(fam, support=False):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return await _pair_page(code)
 
 
 @app.post("/k/{fam}/p/{code}")
 async def pair_submit_keyed(fam: str, code: str, request: Request):
-    if not _key_ok(fam):
+    if not _key_ok(fam, support=False):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return await _pair_submit(code, request, confirm=PUBLIC_MODE)
 
@@ -1556,6 +1708,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         await ws.send_json({"type": "refused", "reason": "Lien invalide."})
         await ws.close()
         return
+    _track_support(ws)
     S().helper_sockets.add(ws)
     S().helper_alert_scopes[ws] = None
     await ws.send_json({"type": "hello", "bridge": S().bridge is not None,
@@ -1579,8 +1732,11 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
                 continue
             if msg.get("type") == "helper_hello":
                 # L'app se présente : elle apparaît dans « Mes proches » sur l'ordinateur.
-                h = S().family.connect(str(msg.get("id", "")), str(msg.get("name", "")),
-                                   str(msg.get("relation", "")))
+                # Un support à jeton personnel garde le nom donné par l'IT.
+                sup = _ws_support.get(ws)
+                h = S().family.connect("s" + sup["id"] if sup else str(msg.get("id", "")),
+                                       sup["name"] if sup else str(msg.get("name", "")),
+                                       str(msg.get("relation", "")))
                 if h is not None:
                     S().helper_who[ws] = {"id": h["id"], "name": h["name"]}
                     await ws.send_json({"type": "helper_id", "id": h["id"]})
@@ -1601,6 +1757,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     except WebSocketDisconnect:
         pass
     finally:
+        _untrack_support(ws)
         S().helper_sockets.discard(ws)
         S().helper_alert_scopes.pop(ws, None)
         if S().helper_who.pop(ws, None) is not None:
@@ -1796,7 +1953,11 @@ async def transcribe_live_keyed(ws: WebSocket, fam: str) -> None:
     if not _key_ok(fam):
         await ws.close(code=4403)
         return
-    await voice.relay_live(ws)
+    _track_support(ws)
+    try:
+        await voice.relay_live(ws)
+    finally:
+        _untrack_support(ws)
 
 
 MAX_IMPORT = 15_000_000
@@ -1962,7 +2123,8 @@ async def _ticket_action(tid: str, body: dict):
     if t is None:
         return JSONResponse({"error": "Ticket introuvable."}, status_code=404)
     act = body.get("action")
-    by = str(body.get("by") or "").strip()[:40]
+    sup = _support_ctx.get()
+    by = sup["name"][:40] if sup else str(body.get("by") or "").strip()[:40]
     text = str(body.get("text") or "").strip()
     if act == "note":
         if not text:
@@ -2033,13 +2195,14 @@ async def ticket_action_keyed(fam: str, tid: str, request: Request):
 @app.get("/o/{token}/tickets")
 async def org_tickets(token: str):
     """Les tickets de tous les postes de l'organisation, les plus récents d'abord."""
-    o = orgs.by_support(token)
-    if o is None:
+    found = orgs.auth(token)
+    if found is None:
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    o, rec = found
     out = []
     for sp in spaces.members(o.id):
         poste = sp.family.senior or getattr(sp, "label", "") or "Poste"
-        out += [{**tickets_mod.public(t), "space": sp.key, "poste": poste,
+        out += [{**tickets_mod.public(t), "space": _space_key(sp, o, rec), "poste": poste,
                  "online": sp.bridge is not None} for t in sp.tickets.all()[:200]]
     out.sort(key=lambda t: t.get("updated", 0), reverse=True)
     return {"org": o.name, "tickets": out[:1000]}
@@ -2047,11 +2210,17 @@ async def org_tickets(token: str):
 
 @app.post("/o/{token}/tickets/{key}/{tid}")
 async def org_ticket_action(token: str, key: str, tid: str, request: Request):
-    o = orgs.by_support(token)
-    sp = spaces.get(key)
+    found = orgs.auth(token)
+    o, rec = found if found else (None, None)
+    if rec is None:
+        sp = spaces.get(key)
+    else:
+        d = _derived_space(key)
+        sp = d[0] if d is not None and d[1] is o and d[2] is rec else None
     if o is None or sp is None or getattr(sp, "org", None) != o.id:
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     space.use(sp)
+    _support_ctx.set(_ctx(o, rec))
     return await _ticket_action(tid, await _json_body(request))
 
 
