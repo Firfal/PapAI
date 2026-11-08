@@ -115,7 +115,8 @@ annoncé la protection coupée.
 
 L'état voyage dans `hello` et dans `profile` (`"protection": true|false`,
 renvoyé dès qu'il change). Le serveur le relaie aux supports :
-`{"type":"protection","on":false}`, et le `hello` des supports porte
+`{"type":"protection","on":false}` (`"on": null` quand l'ordinateur se
+déconnecte), et le `hello` des supports porte
 `"protection": true|false|null` (`null` : ordinateur hors ligne ou app qui ne
 le connaît pas). La page du support l'affiche.
 

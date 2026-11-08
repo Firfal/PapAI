@@ -53,6 +53,13 @@ async def parcours(base: str) -> None:
         h = json.loads(await ha.recv())
         check("ordinateur hors ligne : état inconnu", h.get("type") == "hello" and h.get("protection") is None)
 
+        async with websockets.connect(a["bridge_url"]) as wa:
+            await wa.send(json.dumps({"type": "hello", "os": "macos", "protection": True}))
+            m = await attendre(ha, "protection")
+            check("ordinateur reconnecté : le support revoit l'état", m is not None and m.get("on") is True)
+        m = await attendre(ha, "protection")
+        check("ordinateur déconnecté : l'état n'est plus affiché", m is not None and m.get("on") is None)
+
 
 if __name__ == "__main__":
     base_test.parcours = parcours

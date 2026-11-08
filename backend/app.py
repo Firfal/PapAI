@@ -711,6 +711,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
         if S().bridge is link:
             S().bridge = None
             await _stop_open_sessions("pont déconnecté")
+            if link.protection is not None:
+                await broadcast_helper({"type": "protection", "on": None})
 
 
 def _os_family(name: str) -> str:
