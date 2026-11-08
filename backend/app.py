@@ -2162,7 +2162,10 @@ async def publish_guard_warning(alerte: guard.Alerte, source: str = "environment
 
 async def _ticket_securite(alerte: guard.Alerte) -> None:
     """Chaque alerte de la surveillance devient un ticket « Sécurité » pour le service informatique."""
-    t = _open_ticket(f"Sécurité : {alerte.titre}"[:MAX_TASK], "gardien", by="Gardien")
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    # Pas de classement Holo en arrière-plan : la catégorie « Sécurité » est sûre.
+    t = S().tickets.open(f"Sécurité : {alerte.titre}"[:MAX_TASK], "gardien", by="Gardien",
+                         number=o.next_ticket() if o else None)
     S().tickets.categorize(t, "securite", "regles")
     S().tickets.note(t, "Gardien", alerte.detail)
     await _tickets_changed()
