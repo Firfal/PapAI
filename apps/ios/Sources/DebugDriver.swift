@@ -62,9 +62,9 @@ extension HelperModel {
         let since = Date().addingTimeInterval(-90)
         let cases: [(String, S)] = [
             ("watching", S(phase: .watching, senior: "Sophie", task: "", detail: "", step: 0, steps: 0, since: since)),
-            ("request", S(phase: .request, senior: "Sophie", task: "Envoyer les photos de Noël à Léa", detail: "", step: 0, steps: 3, since: since)),
+            ("request", S(phase: .request, senior: "Sophie", task: "Envoyer le rapport mensuel à Léa", detail: "", step: 0, steps: 3, since: since)),
             ("needsyou", S(phase: .needsYou, senior: "Sophie", task: "Envoyer les photos", detail: "Quel album faut-il ouvrir ?", step: 2, steps: 3, since: since)),
-            ("working", S(phase: .working, senior: "Sophie", task: "Envoyer les photos de Noël à Léa", detail: "", step: 2, steps: 3, since: since)),
+            ("working", S(phase: .working, senior: "Sophie", task: "Envoyer le rapport mensuel à Léa", detail: "", step: 2, steps: 3, since: since)),
         ]
         for (name, s) in cases {
             let v = LockScreenCard(s: s)
