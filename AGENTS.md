@@ -48,6 +48,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| Devin | `devin/1794130475-android-aligne-iphone` | Android aligné sur l'iPhone et le support Mac : onglets Tickets / Utilisateurs / Mes automates, « Modifier l'étape », alerte du gardien plein écran, avancement du plan, formes | `apps/android/` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
