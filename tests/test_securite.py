@@ -250,19 +250,16 @@ async def controles(port: int) -> dict:
             await mac2.envoyer({"type": "guard", "processes": ["Safari"],
                                 "window": "Votre ordinateur est infecté", "url": ""})
             alerte = await mac2.attendre("alert", 8)
-            check("hors session, fausse alerte virus : alerte reçue par la personne aidée", alerte is not None)
+            check("hors session, fausse alerte virus : l'utilisateur est prévenu sans écran bloqué",
+                  alerte is not None and alerte.get("blocked") is False and not alerte.get("alert_id"), alerte)
             check("hors session : aucun appel à Holo, aucune capture", len(holo_vu) == avant,
                   len(holo_vu) - avant)
-            proche_alerte = await aid.attendre("alert", 5)
-            check("l'aidant reçoit un texte pour lui", proche_alerte is not None
-                  and "Prenez contact avec " in proche_alerte.get("detail", "")
-                  and proche_alerte.get("detail") != alerte.get("detail"))
+            proche_alerte = await aid.attendre("guard_advice", 5)
+            check("le support reçoit l'avertissement", proche_alerte is not None
+                  and proche_alerte.get("source") == "environment")
             await asyncio.sleep(1.5)
             n = sum(1 for m in mac2.tous if m.get("type") == "alert")
             check("l'alerte arrive une seule fois sur le pont", n == 1, n)
-            await aid.envoyer({"type": "dismiss_alert", "alert_id": alerte["alert_id"]})
-            await mac2.attendre("alert_cleared")
-            await aid.attendre("alert_cleared")
 
             await mac2.envoyer({"type": "guard", "processes": "AnyDesk", "window": 42})
             await mac2.envoyer({"type": "guard",
@@ -286,7 +283,7 @@ async def controles(port: int) -> dict:
                   len((st or {}).get("task", "")))
             avant = len(holo_vu)
             await mac2.envoyer({"type": "guard", "processes": [], "window": "",
-                                "url": "https://www.paysafecard.com"})
+                                "url": "https://microsoft-login-secure.com"})
             alerte = await mac2.attendre("alert", 15)
             check("en session : l'alerte est immédiatement bloquante",
                   alerte is not None and alerte.get("blocked") is True, alerte)

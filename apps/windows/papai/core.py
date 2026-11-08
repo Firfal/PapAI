@@ -12,6 +12,7 @@ import base64
 import ctypes
 import io
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -684,17 +685,44 @@ def open_shortcut(shortcut: dict | None) -> tuple[bool, str]:
 # ------------------------------------------------------------- le gardien
 
 
-def guard_signals() -> dict | None:
-    """Les trois signaux textuels du gardien anti-arnaque (PROTOCOL.md) :
-    processus, titre de la fenêtre active, URL. Jamais l'écran.
-    L'URL du navigateur n'a pas d'équivalent simple sous Windows : vide."""
-    if sys.platform != "win32":
+def browser_address(hwnd) -> str:
+    """Le site ouvert dans Edge ou Chrome (barre d'adresse, via UI Automation), sinon vide."""
+    import comtypes
+    from comtypes.client import CreateObject, GetModule
+
+    comtypes.CoInitialize()
+    automation = element = edit = None
+    try:
+        uia = GetModule("UIAutomationCore.dll")
+        automation = CreateObject(uia.CUIAutomation, interface=uia.IUIAutomation)
+        element = automation.ElementFromHandle(hwnd)
+        if element.CurrentClassName != "Chrome_WidgetWin_1":
+            return ""
+        cond = automation.CreatePropertyCondition(30003, 50004)  # ControlType = Edit
+        edit = element.FindFirst(4, cond)  # TreeScope_Descendants
+        value = str(edit.GetCurrentPropertyValue(30045) or "") if edit else ""  # Value
+        return value if re.match(r"^(?:https?://)?[\w.-]+\.[a-z]{2,}(?::\d+)?(?:[/?#]|$)|^(?:https?://)?\d{1,3}(?:\.\d{1,3}){3}",
+                                 value.strip().lower()) else ""
+    except Exception:  # noqa: BLE001 — navigateur absent, fermé ou sans barre lisible
+        return ""
+    finally:
+        edit = element = automation = None
+        comtypes.CoUninitialize()
+
+
+def guard_signals(rules: dict | None = None) -> dict | None:
+    """Le gardien (PROTOCOL.md) : processus, titre de la fenêtre active et site du
+    navigateur sont comparés ici aux règles du serveur ; seul ce qui correspond part.
+    Jamais l'écran. Sans règles, rien."""
+    if sys.platform != "win32" or not rules:
         return None
     import subprocess
+    from . import guard_local
 
     buf = ctypes.create_unicode_buffer(512)
     user32 = ctypes.windll.user32
-    user32.GetWindowTextW(user32.GetForegroundWindow(), buf, 512)
+    hwnd = user32.GetForegroundWindow()
+    user32.GetWindowTextW(hwnd, buf, 512)
     try:
         out = subprocess.run(["tasklist", "/fo", "csv", "/nh"], capture_output=True, text=True,
                              timeout=5, creationflags=0x08000000).stdout  # sans console
@@ -702,7 +730,7 @@ def guard_signals() -> dict | None:
         out = ""
     names = sorted({line.split('","')[0].strip('"').removesuffix(".exe")
                     for line in out.splitlines() if line.startswith('"')})
-    return {"type": "guard", "processes": names, "window": buf.value, "url": ""}
+    return guard_local.signals(names, buf.value, browser_address(hwnd), rules)
 
 
 # ------------------------------------------------- automates importés

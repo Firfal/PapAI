@@ -13,10 +13,9 @@ struct GuardAlert: Equatable {
     var isDanger: Bool { level == "danger" }
 }
 
-/// Le gardien anti-arnaque, côté Mac : trois signaux textuels (applications
-/// ouvertes, titre de la fenêtre au premier plan, adresse du navigateur), et
-/// rien d'autre. Le serveur évalue (`backend/guard.py`) ; aucune capture ne
-/// part d'ici.
+/// Le gardien, côté Mac : applications ouvertes, titre de la fenêtre au premier
+/// plan et site du navigateur sont comparés ici aux règles du serveur ; seul ce
+/// qui correspond part. Le serveur décide (`backend/guard.py`) ; aucune capture.
 @MainActor
 enum GuardSignals {
     static let period: UInt64 = 8_000_000_000
@@ -43,12 +42,20 @@ enum GuardSignals {
     /// d'autorisation d'automatisation de macOS ne gèle plus la fenêtre.
     nonisolated private static let queue = DispatchQueue(label: "papai.guard.signals", qos: .utility)
 
-    static func collect(withURL: Bool) async -> [String: Any] {
+    /// Règles reçues du serveur (`guard_rules`) : sans elles, rien ne part.
+    static var rules: [String: Any]?
+
+    /// Compare ici et ne rend que ce qui correspond aux règles ; nil si rien ne correspond.
+    static func collect(withURL: Bool) async -> [String: Any]? {
+        guard let rules else { return nil }
+        let tools = (rules["tools"] as? [String]) ?? []
+        let titles = (rules["titles"] as? [String]) ?? []
         let apps = NSWorkspace.shared.runningApplications
         var names: [String] = []
         for app in apps {
             for n in [app.localizedName, app.executableURL?.lastPathComponent] {
-                if let n, !n.isEmpty, !names.contains(n) { names.append(n) }
+                if let n, !n.isEmpty, !names.contains(n),
+                   tools.contains(where: { n.lowercased().contains($0) }) { names.append(n) }
             }
         }
         let front = NSWorkspace.shared.frontmostApplication
@@ -61,7 +68,10 @@ enum GuardSignals {
                 c.resume(returning: (window, url))
             }
         }
-        return ["type": "guard", "processes": names, "window": window, "url": url]
+        let alarm = titles.contains { window.lowercased().range(of: $0, options: .regularExpression) != nil }
+        let site = GuardLocal.siteToReport(url, rules: rules) ? url : ""
+        if names.isEmpty && !alarm && site.isEmpty { return nil }
+        return ["type": "guard", "processes": names, "window": alarm ? window : "", "url": site]
     }
 
     /// Le titre exige l'autorisation d'enregistrement de l'écran, déjà donnée à PapAI.
@@ -89,6 +99,43 @@ enum GuardSignals {
         var error: NSDictionary?
         let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
         return error == nil ? (result?.stringValue ?? "") : ""
+    }
+}
+
+/// Même comparaison que `apps/windows/papai/guard_local.py` : le site part au serveur
+/// seulement s'il ressemble à de l'hameçonnage ; le serveur décide.
+enum GuardLocal {
+    static func host(_ url: String) -> String {
+        URLComponents(string: url)?.host?.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: ".")) ?? ""
+    }
+
+    static func siteToReport(_ url: String, rules: [String: Any]) -> Bool {
+        let h = host(url)
+        if h.isEmpty { return false }
+        if h.contains(":") || h.range(of: #"^\d{1,3}(\.\d{1,3}){3}$"#, options: .regularExpression) != nil
+            || h.contains("xn--") || !h.allSatisfy({ $0.isASCII }) { return true }
+        let official = (rules["official"] as? [String]) ?? []
+        if official.contains(where: { h == $0 || h.hasSuffix("." + $0) }) { return false }
+        let parts = h.split(whereSeparator: { $0 == "." || $0 == "-" }).map(String.init)
+        for k in (rules["keywords"] as? [String]) ?? [] {
+            for p in parts where p.contains(k) || (k.count >= 5 && distance(p, k) <= 2) { return true }
+        }
+        return false
+    }
+
+    static func distance(_ a: String, _ b: String) -> Int {
+        let a = Array(a), b = Array(b)
+        if abs(a.count - b.count) > 2 { return 3 }
+        if a.isEmpty || b.isEmpty { return max(a.count, b.count) }
+        var prev = Array(0...b.count)
+        for i in 1...a.count {
+            var cur = [i]
+            for j in 1...b.count {
+                cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1)))
+            }
+            prev = cur
+        }
+        return prev[b.count]
     }
 }
 

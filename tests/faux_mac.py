@@ -25,12 +25,8 @@ W, H = 1280, 800
 
 GARDIEN = {
     "anydesk": {"processes": ["Safari", "AnyDesk"], "window": "Bureau", "url": ""},
-    "banque": {"processes": ["AnyDesk"], "window": "Safari",
-               "url": "https://mabanque.bnpparibas/comptes"},
-    "virus": {"processes": [], "url": "",
-              "window": "VOTRE ORDINATEUR EST INFECTÉ — appelez le 01 23 45 67 89"},
-    "cadeau": {"processes": [], "window": "Safari",
-               "url": "https://transcash.fr/recharger"},
+    "phishing": {"processes": [], "window": "Safari",
+                 "url": "https://microsoft-login-secure.com"},
 }
 
 

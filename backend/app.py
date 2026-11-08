@@ -655,6 +655,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     await ws.send_json({"type": "helpers", "helpers": S().family.public(_online_ids())})
                 if kind == "profile":
                     continue
+                # Règles du gardien : l'ordinateur ne renvoie que ce qui y correspond.
+                await ws.send_json(guard.regles(**_guard_cfg()))
                 await ws.send_json({"type": "helpers", "helpers": S().family.public(_online_ids())})
                 if S().pending_alert:
                     await ws.send_json(S().pending_alert["senior"])
@@ -928,7 +930,7 @@ async def browser_handoff(session, link: BridgeLink, notes: list[str],
         session.log("browser_handoff", goal=_safe_handoff_log_text(goal), result=result)
         return result
 
-    alerte = guard.evaluer([], "", url=url)
+    alerte = guard.evaluer([], "", url=url, domaines_org=_guard_cfg()["domaines_org"])
     if alerte:
         await publish_guard(alerte, "browser", session)
         session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
@@ -1050,7 +1052,7 @@ async def run_session(session, link: "BridgeLink") -> None:
                                         "query": session.linkup_query}, to_bridge=False)
                 return
             for site in session.plan_sites:
-                alerte = guard.evaluer([], "", url=f"https://{site}")
+                alerte = guard.evaluer([], "", url=f"https://{site}", domaines_org=_guard_cfg()["domaines_org"])
                 if alerte:
                     await publish_guard(alerte, "plan", session)
                     return
@@ -1723,6 +1725,32 @@ def _support_online(o: orgs_mod.Org, sid: str) -> bool:
     return bool(_support_sockets.get(f"{o.id}:{sid}"))
 
 
+@app.get("/o/{token}/security")
+async def org_security(token: str):
+    """Ce que le gardien sait de l'organisation. Seulement avec le jeton de l'organisation."""
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    return {"org": o.name, "security": o.security or orgs_mod.clean_security({})}
+
+
+@app.post("/o/{token}/security")
+async def org_set_security(token: str, request: Request):
+    """Domaines de l'entreprise, outils de prise en main et canaux officiels du support."""
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "Configuration invalide."}, status_code=400)
+    return {"org": o.name, "security": o.set_security(body)}
+
+
 @app.get("/o/{token}/supports")
 async def org_supports(token: str):
     """Seulement avec le jeton de l'organisation : un support ne gère pas les autres."""
@@ -1986,6 +2014,31 @@ def guard_contact() -> str:
     return f"votre {relation} {h['name']}" if relation else h["name"]
 
 
+def _guard_cfg() -> dict:
+    """Ce que l'organisation a déclaré au gardien : ses domaines et ses outils de prise en main."""
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    sec = o.security if o else {}
+    return {"outils_declares": list(sec.get("remote_tools", [])), "domaines_org": list(sec.get("domains", []))}
+
+
+async def publish_guard_warning(alerte: guard.Alerte, source: str = "environment") -> None:
+    """Hors assistance : l'utilisateur est prévenu sans que son écran soit bloqué."""
+    if S().bridge:
+        await S().bridge.send({"type": "alert", "level": alerte.niveau, "source": source, "blocked": False,
+                               "title": alerte.titre, "detail": alerte.detail})
+    who = S().family.senior or "L’utilisateur"
+    await broadcast_helper({"type": "guard_advice", "level": alerte.niveau, "source": source, "session": None,
+                            "title": f"{alerte.titre} · {who}", "detail": alerte.detail}, to_bridge=False)
+
+
+async def _ticket_securite(alerte: guard.Alerte) -> None:
+    """Chaque alerte de la surveillance devient un ticket « Sécurité » pour le service informatique."""
+    t = S().tickets.open(f"Sécurité : {alerte.titre}"[:MAX_TASK], "gardien", by="Gardien")
+    S().tickets.categorize(t, "securite", "regles")
+    S().tickets.note(t, "Gardien", alerte.detail)
+    await _tickets_changed()
+
+
 async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
                         senior_detail: str | None = None, helper_detail: str | None = None) -> None:
     for s in S().registry._by_id.values():
@@ -2047,7 +2100,7 @@ async def dismiss_guard(msg: dict, ws: WebSocket) -> None:
 
 
 async def check_request(session, texte: str, source: str) -> bool:
-    alerte = guard.evaluer_demande(texte)
+    alerte = guard.evaluer_demande(texte, **_guard_cfg())
     if alerte is None and guard.demande_incertaine(texte):
         from .agent import client
         from papai_tools import MODEL, TEMPERATURE
@@ -2091,6 +2144,7 @@ async def handle_guard(msg: dict) -> None:
         processus=[str(p)[:MAX_PROCESS_NAME] for p in procs[:MAX_PROCESSES]],
         fenetre=str(msg.get("window", ""))[:500],
         url=str(msg.get("url", ""))[:2000],
+        **_guard_cfg(),
     )
     if alerte is None:
         return
@@ -2102,7 +2156,11 @@ async def handle_guard(msg: dict) -> None:
 
     s = current_session()
     print(f"[gardien] {alerte.niveau} — {alerte.motif}", flush=True)
-    await publish_guard(alerte, "environment", s)
+    await _ticket_securite(alerte)
+    if alerte.bloquant or (s is not None and s.is_open):
+        await publish_guard(alerte, "environment", s)
+    else:
+        await publish_guard_warning(alerte)
 
 
 async def confirmer_par_le_modele(alerte) -> str:

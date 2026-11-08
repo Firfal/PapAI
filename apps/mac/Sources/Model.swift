@@ -288,13 +288,13 @@ final class AppModel {
         reconnect()
         Task { await refreshLessons() }
         if ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil {
-            // Protection en temps réel : trois signaux textuels toutes les 8 s, jamais l'écran.
+            // Protection en temps réel : comparée ici toutes les 8 s, seul ce qui correspond part.
             Task {
                 while true {
                     try? await Task.sleep(nanoseconds: GuardSignals.period)
                     guard connected, realtimeProtection else { continue }
-                    let signals = await GuardSignals.collect(withURL: !sessionOpen)
-                    if connected, realtimeProtection { client.send(signals) }
+                    if let signals = await GuardSignals.collect(withURL: !sessionOpen),
+                       connected, realtimeProtection { client.send(signals) }
                 }
             }
         }
@@ -703,6 +703,8 @@ final class AppModel {
                 await refreshLessons()
                 if let t = m["title"] as? String { showNotice("Nouvel automate : « \(t) »") }
             }
+        case "guard_rules":
+            GuardSignals.rules = m
         case "alert":
             narration.context(assistance: sessionOpen, speakingAllowed: false)
             webHost.stopLocal()
