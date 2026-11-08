@@ -113,7 +113,7 @@ async def parcours(base: str) -> None:
     for nom in sorted(p.name for p in (RACINE / "automations").glob("*.papai")):
         st, r = envoyer(f"{k}/automations", exemple(nom))
         check(f"exemple importé : {nom}", st == 200 and r.get("source") == "import"
-              and r.get("publisher") == "Service IT Acme" and r.get("approved_at"), r)
+              and r.get("publisher") == "Service IT" and r.get("approved_at"), r)
         ids[nom] = r.get("id", "")
 
     print("\n2. Refus : jamais de commande, de script ni de chemin libre")
