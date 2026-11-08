@@ -25,7 +25,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import automations, guard, space, voice
+from . import automations, guard, orgs as orgs_mod, space, voice
 from .agent import AgentRunner, propose_plan
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, Family, PairingError
@@ -65,6 +65,7 @@ app = FastAPI(title="PapAI")
 # lancement à l'autre si on la fixe dans .env, sinon tirée au démarrage.
 AIDANT_KEY = os.environ.get("PAPAI_AIDANT_KEY") or secrets.token_urlsafe(9)
 spaces = space.setup(AIDANT_KEY)
+orgs = orgs_mod.Orgs()
 
 
 def S() -> space.Space:
@@ -131,7 +132,7 @@ def _same_machine(conn: HTTPConnection) -> bool:
 
 # Jamais de clé ni de jeton dans les journaux : les chemins qui en portent un
 # sont masqués, y compris dans les journaux d'accès d'uvicorn.
-_SECRET_PATH = re.compile(r"/(k|a|h|p|ws/aidant|ws/helper)/[^/?#\s\"']+")
+_SECRET_PATH = re.compile(r"/(k|a|h|p|o|ws/aidant|ws/helper)/[^/?#\s\"']+")
 
 
 def masquer(texte: str) -> str:
@@ -903,6 +904,9 @@ WRONG_CODES_MAX = 10
 SPACES_PER_HOUR = 5
 _wrong_codes: dict[str, list[float]] = {}
 _space_creations: dict[str, list[float]] = {}
+# Postes d'une même organisation (souvent derrière la même adresse IP) : plafond par organisation.
+ORG_ENROLLS_PER_HOUR = int(os.environ.get("PAPAI_ORG_ENROLLS_PER_HOUR", "200"))
+_org_enrolls: dict[str, list[float]] = {}
 
 
 def _client_ip(request: HTTPConnection) -> str:
@@ -954,12 +958,144 @@ async def pair_submit(code: str, request: Request):
 # Création d'un espace : au premier lancement, l'ordinateur aidé reçoit sa clé.
 @app.post("/spaces")
 async def create_space(request: Request):
-    if not _rate_ok(_space_creations, _client_ip(request), SPACES_PER_HOUR, 3600):
+    body = await _small_json(request)
+    org = None
+    if body.get("org"):
+        # Poste d'entreprise : le jeton d'inscription le rattache à son organisation.
+        org = orgs.by_enroll(str(body["org"]))
+        if org is None:
+            return JSONResponse({"error": "Jeton d'organisation inconnu."}, status_code=403)
+        if not _rate_ok(_org_enrolls, org.id, ORG_ENROLLS_PER_HOUR, 3600):
+            return JSONResponse({"error": "Trop d'inscriptions. Réessayez plus tard."}, status_code=429)
+    elif not _rate_ok(_space_creations, _client_ip(request), SPACES_PER_HOUR, 3600):
         return JSONResponse({"error": "Trop de créations. Réessayez plus tard."}, status_code=429)
-    sp = spaces.create()
-    print(f"[espaces] nouvel espace {sp.id}")
+    sp = spaces.create(org=org.id if org else "", label=_label(body))
+    if org is not None:
+        org.copy_automations(sp.lessons_dir)
+    print(f"[espaces] nouvel espace {sp.id}" + (f" (organisation {org.id})" if org else ""))
     ws_base = PUBLIC_URL.replace("https://", "wss://").replace("http://", "ws://")
-    return {"key": sp.key, "server": PUBLIC_URL, "bridge_url": f"{ws_base}/k/{sp.key}/ws/bridge"}
+    return {"key": sp.key, "server": PUBLIC_URL, "bridge_url": f"{ws_base}/k/{sp.key}/ws/bridge",
+            **({"org": org.name} if org else {})}
+
+
+# ------------------------------------------------------------------ organisations (service IT)
+
+ORGS_PER_HOUR = 3
+_org_creations: dict[str, list[float]] = {}
+
+
+async def _small_json(request: Request, limit: int = 4096) -> dict:
+    raw = await request.body()
+    if not raw or len(raw) > limit:
+        return {}
+    try:
+        d = json.loads(raw)
+    except ValueError:
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def _label(body: dict) -> str:
+    return re.sub(r"\s+", " ", str(body.get("name") or "")).strip()[:60]
+
+
+def _org_links(o: orgs_mod.Org) -> dict:
+    return {"support_url": f"{PUBLIC_URL}/o/{o.support}",
+            "app_url": f"papai://org?u={quote(PUBLIC_URL, safe='')}&t={o.support}"}
+
+
+@app.post("/orgs")
+async def create_org(request: Request):
+    """Le service IT crée son organisation : un jeton pour les postes, un pour les supports."""
+    body = await _small_json(request)
+    name = _label(body)
+    if not name:
+        return JSONResponse({"error": "Donnez le nom de l'organisation."}, status_code=400)
+    if not _rate_ok(_org_creations, _client_ip(request), ORGS_PER_HOUR, 3600):
+        return JSONResponse({"error": "Trop de créations. Réessayez plus tard."}, status_code=429)
+    o = orgs.create(name)
+    print(f"[organisations] nouvelle organisation {o.id}")
+    return {"id": o.id, "name": o.name, "enroll_token": o.enroll, "support_token": o.support,
+            "server": PUBLIC_URL, **_org_links(o)}
+
+
+@app.post("/k/{fam}/org")
+async def join_org(fam: str, request: Request):
+    """Un poste déjà installé rejoint l'organisation (jeton déposé après coup par l'IT)."""
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    body = await _small_json(request)
+    o = orgs.by_enroll(str(body.get("org") or ""))
+    if o is None:
+        return JSONResponse({"error": "Jeton d'organisation inconnu."}, status_code=403)
+    if S().org and S().org != o.id:
+        return JSONResponse({"error": "Ce poste appartient déjà à une autre organisation."}, status_code=409)
+    if not spaces.join(S(), o.id, _label(body)):
+        return JSONResponse({"error": "Cet espace ne peut pas rejoindre une organisation."}, status_code=409)
+    o.copy_automations(S().lessons_dir)
+    if S().bridge is not None:
+        await S().bridge.send({"type": "lessons_changed", "title": ""})
+    return {"org": o.name}
+
+
+@app.get("/o/{token}")
+async def org_page(token: str):
+    if orgs.by_support(token) is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return FileResponse(STATIC / "org.html")
+
+
+@app.get("/o/{token}/spaces")
+async def org_spaces(token: str):
+    """Tous les postes de l'organisation, avec leur clé : le support les suit sans appairage."""
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return {"org": o.name, "server": PUBLIC_URL, "spaces": [
+        {"key": sp.key, "name": sp.family.senior or sp.label, "label": sp.label,
+         "online": sp.bridge is not None} for sp in spaces.members(o.id)]}
+
+
+@app.get("/o/{token}/automations")
+async def org_automations(token: str):
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return o.automations()
+
+
+@app.post("/o/{token}/automations")
+async def org_import_automation(token: str, request: Request):
+    """Importé une fois par l'IT, proposé sur tous les postes, présents et à venir."""
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    pack = await _read_pack(request)
+    if isinstance(pack, JSONResponse):
+        return pack
+    try:
+        lesson = automations.save(pack, by=request.query_params.get("by", "") or o.name, folder=o.lessons_dir)
+    except automations.Invalid as e:
+        return JSONResponse({"error": str(e)}, status_code=422)
+    print(f"[organisations] automate {lesson['id']} pour {o.id}")
+    for sp in spaces.members(o.id):
+        o.copy_automations(sp.lessons_dir, only=lesson["id"])
+        if sp.bridge is not None:
+            await sp.bridge.send({"type": "lessons_changed", "title": lesson["title"]})
+    return lesson
+
+
+@app.delete("/o/{token}/automations/{lesson_id}")
+async def org_remove_automation(token: str, lesson_id: str):
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    if not automations.remove(lesson_id, o.lessons_dir):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    for sp in spaces.members(o.id):
+        if automations.remove(lesson_id, sp.lessons_dir) and sp.bridge is not None:
+            await sp.bridge.send({"type": "lessons_changed", "title": ""})
+    return {"removed": lesson_id}
 
 
 @app.get("/k/{fam}/p/{code}")
@@ -1266,8 +1402,8 @@ async def lesson_file_keyed(fam: str, lesson_id: str, filename: str):
 MAX_IMPORT = 15_000_000
 
 
-async def _import_automation(request: Request):
-    """Le support (service IT, proche) importe un automate : c'est sa validation."""
+async def _read_pack(request: Request):
+    """Le fichier `.papai` envoyé, ou la réponse d'erreur à renvoyer telle quelle."""
     trop = JSONResponse({"error": "Fichier trop gros."}, status_code=413)
     try:
         if int(request.headers.get("content-length") or 0) > MAX_IMPORT:
@@ -1280,9 +1416,16 @@ async def _import_automation(request: Request):
         if len(body) > MAX_IMPORT:
             return trop
     try:
-        pack = json.loads(body)
+        return json.loads(body)
     except ValueError:
         return JSONResponse({"error": "Ce n'est pas un fichier .papai (JSON attendu)."}, status_code=400)
+
+
+async def _import_automation(request: Request):
+    """Le support (service IT, proche) importe un automate : c'est sa validation."""
+    pack = await _read_pack(request)
+    if isinstance(pack, JSONResponse):
+        return pack
     try:
         lesson = automations.save(pack, by=request.query_params.get("by", ""))
     except automations.Invalid as e:

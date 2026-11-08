@@ -84,7 +84,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Version Windows de l'app de la personne aidée, design « Soin » de l'app Mac (`apps/windows`) : accueil voix d'abord, micro détecté à chaud, envoi après silence, logotype et raccourcis locaux sécurisés (4 dossiers personnels). Tests Windows app/serveur + faux Holo et rendu Chrome/Linux comparé au Mac vérifiés. Reste : l'essayer sur un vrai Windows (capture, clics, accents, exclusion de la fenêtre, dictée et branchement du micro).
 - [x] Plusieurs espaces sur un même serveur : un par ordinateur aidé, créé au premier lancement (`POST /spaces`), code à 6 chiffres sans clé accepté sur l'ordinateur (`pair_confirm`). Tests : `tests/test_appairage_code.py`.
 - [x] Apps du support : liste « Mes personnes aidées » (page web, Android, iPhone : une liaison par ordinateur, demandes des autres signalées).
-- [ ] Organisation IT : jeton d'organisation, postes visibles par tous ses supports, automatismes partagés.
+- [x] Organisation IT : jeton d'inscription des postes (Windows `organisation.txt`, Mac `orgToken`), jeton support qui liste tous les postes (page `/o/<jeton>`, Android, iPhone), automatismes partagés. Tests : `tests/test_organisation.py`.
+- [ ] Essayer l'inscription d'un vrai poste Windows et d'un vrai Mac avec un jeton d'organisation.
 - [ ] Essayer « Mes personnes aidées » sur un vrai Android et un vrai iPhone (Swift non compilé ici).
 - [ ] Plusieurs aidants : plusieurs proches s'ajoutent déjà et reçoivent tous la demande. Reste à éprouver « le premier disponible valide » avec deux aidants connectés.
 - [x] Renommer `carepilot_tools.py` en `papai_tools.py` (fusionné le 7 novembre au soir).

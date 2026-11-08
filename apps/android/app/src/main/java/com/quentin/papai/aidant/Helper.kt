@@ -178,6 +178,8 @@ object Helper {
         prefs.edit().putString("seniorName", seniorName).putString("helperName", helperName).apply()
         people.addAll(People.decode(prefs.getString("people", null)))
         rememberCurrent()
+        orgs.addAll(Orgs.decode(prefs.getString("orgs", null)))
+        refreshOrgs()
     }
 
     val isConfigured get() = serverURL.isNotBlank() && helperKey.isNotBlank()
@@ -242,6 +244,61 @@ object Helper {
     }
 
     // MARK: Mes personnes aidées
+
+    // Organisations (service IT) : chaque poste inscrit devient une personne aidée, sans code.
+    val orgs = mutableStateListOf<Org>()
+    var orgError by mutableStateOf<String?>(null)
+    var orgBusy by mutableStateOf(false)
+
+    fun addOrg(input: String) {
+        val o = Orgs.parse(input, PairingPolicy.officialHost) ?: run { orgError = "Lien d'organisation non reconnu."; return }
+        PairingPolicy.error(o.server, BuildConfig.DEBUG)?.let { orgError = it; return }
+        orgError = null; orgBusy = true
+        fetchOrg(o, manual = true)
+    }
+
+    fun refreshOrgs() = orgs.toList().forEach { fetchOrg(it, manual = false) }
+
+    private fun fetchOrg(o: Org, manual: Boolean) {
+        val req = try { Request.Builder().url("${o.server}/o/${o.token}/spaces").build() }
+        catch (_: IllegalArgumentException) { orgBusy = false; return }
+        rest.newBuilder().followRedirects(false).followSslRedirects(false).build().newCall(req).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                main.post { orgBusy = false; if (manual) orgError = "Le serveur ne répond pas." }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val code = response.code
+                val r = try { JSONObject(response.body?.string() ?: "{}") } catch (_: Exception) { JSONObject() }
+                main.post {
+                    orgBusy = false
+                    if (code != 200) {
+                        if (manual) orgError = r.text("error").ifEmpty { "Lien d'organisation invalide." }
+                        return@post
+                    }
+                    val name = r.text("org")
+                    val list = orgs.filter { it.token != o.token } + o.copy(name = name.ifEmpty { o.name })
+                    orgs.clear(); orgs.addAll(list)
+                    prefs.edit().putString("orgs", Orgs.encode(list)).apply()
+                    var ps = people.toList()
+                    val a = r.optJSONArray("spaces")
+                    val n = a?.length() ?: 0
+                    for (i in 0 until n) {
+                        val s = a?.optJSONObject(i) ?: continue
+                        val key = s.text("key")
+                        if (key.isNotEmpty()) ps = People.upsert(ps, Person("${o.server}/k/$key", key, s.text("name")))
+                    }
+                    savePeople(ps)
+                    if (!isConfigured) ps.firstOrNull()?.let { switchTo(it) }
+                    watchOthers()
+                    if (manual) {
+                        showToast("$n poste${if (n > 1) "s" else ""} ajouté${if (n > 1) "s" else ""}${if (name.isNotEmpty()) " ($name)" else ""}.")
+                        sheet = null
+                    }
+                }
+            }
+        })
+    }
 
     private fun savePeople(list: List<Person>) {
         people.clear(); people.addAll(list)
@@ -497,6 +554,7 @@ object Helper {
     fun open(uri: String) {
         val u = android.net.Uri.parse(uri)
         if (u.host == "open") return
+        if (u.host == "org") { addOrg(uri); return }
         if (PairingPolicy.invitationError(uri, BuildConfig.DEBUG) != null) {
             pairingRefused = true; return
         }

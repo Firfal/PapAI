@@ -131,6 +131,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var server = ""
     @State private var key = ""
+    @State private var org = ""
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -143,6 +144,18 @@ struct SettingsView: View {
                     Button("Entrer le code à 6 chiffres") { model.openPair(l) }
                         .buttonStyle(CapsuleButtonStyle(fill: Soin.card, text: Soin.ink))
                 }
+                Text("Service informatique").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink).padding(.top, 8)
+                Text("Collez le lien d’organisation donné par l’IT : tous les postes s’ajoutent, sans code.")
+                    .font(.system(size: 15)).foregroundStyle(Soin.secondary)
+                field("Lien d’organisation", text: $org, prompt: "https://…/o/sup-…")
+                if let e = model.orgError {
+                    Text(e).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.danger)
+                }
+                Button(model.orgBusy ? "Ajout…" : "Ajouter les postes") {
+                    Task { if await model.addOrg(org) { dismiss() } }
+                }
+                    .buttonStyle(CapsuleButtonStyle(fill: Soin.card, text: Soin.ink))
+                    .disabled(org.trimmingCharacters(in: .whitespaces).isEmpty || model.orgBusy)
                 Text("Ou à la main").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink).padding(.top, 8)
                 field("Adresse du serveur", text: $server, prompt: "https://…/k/<clé de l'espace>")
                 field("Clé support", text: $key, prompt: "demo")

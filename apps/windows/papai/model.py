@@ -101,6 +101,7 @@ class Model:
         self.onboarded = bool(self.prefs.get("onboarded"))
         self.onboarding_step = 0
         self.auto_sent = False
+        self._org_name = ""
 
         self.gate = StopGate()
         self._notice_timer: threading.Timer | None = None
@@ -165,6 +166,7 @@ class Model:
                 "helperName": hn, "HelperName": hn[:1].upper() + hn[1:],
                 "textScale": self.text_scale, "textScales": TEXT_SCALES,
                 "server": self.server_url, "httpBase": self.http_base,
+                "orgName": str(self.prefs.get("orgName") or ""),
                 "screen": self.screen, "state": self.state, "sessionOpen": self.session_open,
                 "stoppedBy": self.stopped_by,
                 "task": self.task, "pendingTask": self.pending_task, "screenConsent": self.screen_consent,
@@ -245,6 +247,8 @@ class Model:
         self.bridge.start()
         if settings.needs_space(self.prefs):
             threading.Thread(target=self._create_space, daemon=True).start()
+        elif self._org_pending():
+            threading.Thread(target=self._join_org, daemon=True).start()
         threading.Thread(target=self._load_apps, daemon=True).start()
         threading.Thread(target=self.refresh_lessons, daemon=True).start()
         self.push()
@@ -259,14 +263,45 @@ class Model:
             if not settings.needs_space():
                 return  # un serveur a été choisi entre-temps : on n'y touche pas
             if url:
-                self.prefs = settings.save({"server": url})
+                org = {"orgJoined": settings.org_token(), "orgName": self._org_name} if self._org_name else {}
+                self.prefs = settings.save({"server": url, **org})
                 self.reconnect()
                 return
             wait(delay)
             delay = min(delay * 2, 60)
 
     def _provision(self) -> str | None:
-        return settings.provision()
+        info: dict = {}
+        tok = settings.org_token()
+        url = settings.provision(org=tok, info=info)
+        if url is None and tok and info.get("status") == 403:
+            # Jeton refusé : le poste a quand même son espace, hors organisation.
+            info = {}
+            url = settings.provision(info=info)
+        self._org_name = str(info.get("org") or "")
+        return url
+
+    def _org_pending(self) -> bool:
+        """Jeton d'organisation déposé par l'IT, pas encore utilisé par ce poste."""
+        tok = settings.org_token()
+        return bool(tok) and self.prefs.get("orgJoined") != tok and "/k/" in self.server_url
+
+    def _join_org(self, wait=time.sleep) -> None:
+        delay = 5
+        while self._org_pending():
+            name = self._join(settings.org_token())
+            if name:
+                self.prefs = settings.save({"orgJoined": settings.org_token(), "orgName": name})
+                self.push()
+                threading.Thread(target=self.refresh_lessons, daemon=True).start()
+                return
+            if name == "":
+                return  # refusé (jeton inconnu, autre organisation) : on n'insiste pas
+            wait(delay)
+            delay = min(delay * 2, 60)
+
+    def _join(self, token: str) -> str | None:
+        return settings.join_org(self.http_base, token)
 
     def _load_apps(self) -> None:
         try:

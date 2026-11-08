@@ -323,6 +323,35 @@ personnes aidées en gardant une clé par espace.
 - Le jeton d'une session (`/h/<jeton>`, `/ws/helper/<jeton>`) désigne aussi son espace.
 - Test : `python tests/test_appairage_code.py` (deux espaces, confirmation, force brute).
 
+## Organisations (service IT)
+
+Un service IT suit tous les postes de ses employés sans les appairer un par un. Données dans
+`$PAPAI_DATA_DIR/orgs/<id>/` (`org.json`, `lessons/`) ; le poste garde `org` et `label` dans son `space.json`.
+
+- `POST /orgs` `{"name"}` → `{"id","name","enroll_token","support_token","server","support_url","app_url"}`.
+  3 créations par heure et par adresse IP (429). Les deux jetons ne sont donnés qu'ici.
+  - `enroll_token` (`ins-…`) : déposé sur les postes. Windows : `apps\windows\organisation.txt`
+    (ignoré par git) ou `PAPAI_ORG`. Mac : préférence `orgToken` (`defaults write`, profil MDM) ou `PAPAI_ORG`.
+  - `support_token` (`sup-…`) : donné aux supports (personnes ou support IA). `support_url` =
+    `<server>/o/<jeton>` (page web), `app_url` = `papai://org?u=<server>&t=<jeton>` (Android, iPhone).
+- `POST /spaces` `{"org": "<enroll_token>", "name": "<utilisateur · poste>"}` : le poste s'inscrit
+  au premier lancement (pas de limite par IP). Réponse : en plus, `"org": "<nom>"`.
+  Jeton inconnu → 403 : l'app crée alors son espace sans organisation. Plus de
+  `PAPAI_ORG_ENROLLS_PER_HOUR` (200 par défaut) inscriptions par heure pour une organisation → 429 :
+  l'app réessaie plus tard, comme hors ligne.
+- `POST /k/<clé>/org` `{"org","name"}` : un poste déjà installé rejoint l'organisation → `{"org"}`.
+  403 jeton inconnu, 409 si le poste appartient à une autre organisation ou si c'est l'espace historique.
+- `GET /o/<support_token>/spaces` → `{"org","server","spaces":[{"key","name","label","online"}]}`
+  (`name` = prénom donné sur le poste, sinon `label`). Le support garde une liaison par `key`
+  (`<server>/k/<key>`), comme après un appairage. Jeton inconnu → 404.
+- `GET|POST /o/<support_token>/automations`, `DELETE /o/<support_token>/automations/<id>` : catalogue
+  de l'organisation (même format `.papai` que `POST /k/<clé>/automations`). Un import est copié sur
+  chaque poste et sur ceux qui s'inscrivent plus tard ; un retrait l'enlève partout. Les postes
+  connectés reçoivent `lessons_changed`.
+- `GET /o/<support_token>` : page web de l'organisation (postes, automatismes partagés). Elle ajoute
+  les postes à « Mes personnes aidées » de ce navigateur (`papai_people`, `papai_orgs`).
+- Test : `python tests/test_organisation.py`.
+
 ## Prénom et invitation (7 novembre au soir)
 
 - `pair_code` porte `expires_in` (600 ou 86400) et `long` (vrai pour une invitation). `app_url` = `papai://pair?u=<url>&n=<prénom>` : l'app iPhone affiche « Rejoindre Sophie » avant même l'appairage.

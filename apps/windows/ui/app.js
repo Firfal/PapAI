@@ -463,6 +463,7 @@
       `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
     return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--bg)">
       <div style="${f(30, 6)}">Réglages</div>
+      ${S.orgName ? `<div class="muted" style="${f(15, 5)}">Poste géré par ${esc(S.orgName)}</div>` : ''}
       ${field('Prénom', 'setName', ui.settings.name, 'Jeanne')}
       ${field('Serveur', 'setServer', ui.settings.server, 'serveur PapAI officiel')}
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Taille du texte</div><div class="seg">${seg}</div></div>
