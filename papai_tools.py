@@ -120,11 +120,17 @@ Règles :
   une dernière étape « Demander confirmation au support avant de valider ».
 - Français simple et correct, aucun mot anglais.
 
-Indique aussi où se fait la tâche : "web" si tout se passe dans un navigateur
-(un site, une page internet, un webmail), sinon "desktop".
+Indique aussi où se fait la tâche :
+- "desktop" si tout se passe sur l'ordinateur ;
+- "web" si tout se passe dans un navigateur ;
+- "mixed" si la tâche commence sur l'ordinateur et passe ensuite par un ou
+  plusieurs sites. Dans ce cas seulement, ajoute "web_steps" (numéros des étapes
+  web, à partir de 1) et "sites" (1 à 3 domaines en minuscules, sans schéma ni
+  chemin). Au moins une étape web doit être visible dans le plan que le support
+  validera.
 
 Réponds UNIQUEMENT par un objet JSON, sans texte autour :
-{{"steps": ["...", "..."], "where": "desktop"}}"""
+{{"steps": ["...", "..."], "where": "mixed", "web_steps": [2], "sites": ["ameli.fr"]}}"""
 
 
 # Consignes de l'agent navigateur de H (backend/web_agent.py), mot pour mot.
@@ -278,7 +284,8 @@ OPEN_BROWSER_TOOL = {
     "function": {
         "name": "open_browser",
         "description": (
-            "À utiliser quand les prochaines étapes se passent sur un site web. "
+            "À utiliser uniquement pour une étape web du plan validé, quand les "
+            "prochaines étapes se passent sur un site web. "
             "Un agent navigateur les réalise dans une fenêtre Chrome PapAI séparée "
             "et renvoie un résumé."
         ),

@@ -873,6 +873,16 @@ function onMessage(ev) {
       $('frame').removeAttribute('src'); $('frame').style.display = 'none';
       $('empty').style.display = '';
       $('thumbImg').removeAttribute('src');
+      $('zoomImg').removeAttribute('src');
+      $('thumb').hidden = true;
+      if (armed) setArmed(false);
+    }
+    else if (wasWebLive && !webLive()) {
+      frameId = null; frameAt = 0; frameSrc = '';
+      $('frame').removeAttribute('src'); $('frame').style.display = 'none';
+      $('empty').style.display = '';
+      $('thumbImg').removeAttribute('src');
+      $('zoomImg').removeAttribute('src');
       $('thumb').hidden = true;
       if (armed) setArmed(false);
     }

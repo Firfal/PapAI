@@ -62,17 +62,60 @@ async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> l
         raw = resp.choices[0].message.content or ""
         m = re.search(r"\{.*\}", raw, re.S)
         data = json.loads(m.group(0))
-        steps = [str(x).strip() for x in data.get("steps", []) if str(x).strip()]
+        steps = [str(x).strip() for x in data.get("steps", []) if str(x).strip()][:5]
         where = str(data.get("where", "")).strip().lower()
-        session.where = where if where in ("web", "desktop") else "desktop"
+        sites = _validated_sites(data.get("sites"))
+        web_steps = _validated_web_steps(data.get("web_steps"), len(steps))
+        if where == "mixed" and (not sites or not web_steps):
+            where = "desktop"
+        if where == "mixed":
+            site_label = ", ".join(sites)
+            steps = [
+                f"Dans Chrome PapAI ({site_label}) : {step}" if i in web_steps else step
+                for i, step in enumerate(steps, 1)
+            ]
+        else:
+            sites = []
+            web_steps = []
+        session.plan_mode = where if where in ("web", "desktop", "mixed") else "desktop"
+        session.plan_sites = sites if session.plan_mode == "mixed" else []
+        session.web_steps = web_steps if session.plan_mode == "mixed" else []
+        session.where = "web" if session.plan_mode == "web" else "desktop"
     except Exception as e:  # noqa: BLE001 — un plan minimal vaut mieux qu'une session bloquée
         session.log("plan_failed", error=f"{type(e).__name__}: {e}")
         steps = []
+        session.plan_mode = "desktop"
+        session.plan_sites = []
+        session.web_steps = []
         session.where = "desktop"
     return steps[:5] or [f"Faire : {session.task}"]
 
 
 _FR = re.compile(r"\b(je|le|la|les|de|du|des|un|une|sur|pour|dans|est|il|vais)\b", re.I)
+_PLAN_SITE = re.compile(
+    r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}"
+)
+
+
+def _validated_sites(value) -> list[str]:
+    if not isinstance(value, list) or not 1 <= len(value) <= 3:
+        return []
+    sites = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        site = item.strip()
+        if _PLAN_SITE.fullmatch(site) and site not in sites:
+            sites.append(site)
+    return sites[:3]
+
+
+def _validated_web_steps(value, count: int) -> list[int]:
+    if not isinstance(value, list):
+        return []
+    return list(dict.fromkeys(
+        step for step in value if type(step) is int and 1 <= step <= count
+    ))
 
 
 def describe_doing(thought: str, name: str, args: dict) -> str:
@@ -160,7 +203,8 @@ class AgentRunner:
         tools = TOOLS
         if self.browser_handoff is not None:
             system += (
-                "\nQuand les prochaines étapes se passent sur un site web, appelle "
+                "\nQuand tu arrives à une étape web du plan validé, indique son numéro "
+                "dans plan_step et appelle "
                 "open_browser avec un objectif en une phrase et, si utile, une URL HTTPS. "
                 "Appelle-le seul, sans autre outil dans la même réponse. Quand tu reçois "
                 "son résumé, continue la tâche sur le bureau."
@@ -230,7 +274,8 @@ class AgentRunner:
             for call in msg.tool_calls:
                 name = call.function.name
                 args = json.loads(call.function.arguments or "{}")
-                self.s.advance_plan(args.pop("plan_step", None))
+                plan_step = args.pop("plan_step", None)
+                self.s.advance_plan(plan_step)
                 self.s.doing = describe_doing(msg.content or "", name, args)
                 # La capture est enregistrée avec l'action : c'est la matière
                 # première d'une fiche CareMemory.
@@ -250,7 +295,7 @@ class AgentRunner:
                     if result is None:
                         return
                 elif name == "open_browser":
-                    result = await self._open_browser(args)
+                    result = await self._open_browser(args, plan_step)
                     if result is None:
                         return
                 else:
@@ -280,9 +325,12 @@ class AgentRunner:
         self.s.log("budget_exhausted")
         self.s.finish("Je n'ai pas réussi à terminer. Je passe la main.")
 
-    async def _open_browser(self, args: dict) -> str | None:
+    async def _open_browser(self, args: dict, plan_step=None) -> str | None:
         if self.browser_handoff is None:
             return "outil indisponible"
+        if (self.s.plan_mode != "mixed" or type(plan_step) is not int
+                or plan_step not in self.s.web_steps or plan_step != self.s.plan_step):
+            return "Cette étape web n'est pas prévue dans le plan validé : continue sur le bureau ou appelle ask_helper."
         if self.browser_handoffs >= MAX_BROWSER_HANDOFFS:
             return "Limite de bascules atteinte : continue sur le bureau ou appelle ask_helper."
         goal = args.get("goal")

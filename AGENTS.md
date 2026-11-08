@@ -40,7 +40,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794098271-bascule-navigateur` | Correctifs PR #54 : source Gardien de la sous-tâche web et consigne dédiée au brief web | `AGENTS.md`, `backend/app.py`, `backend/web_agent.py`, `PROTOCOL.md`, `tests/test_agent_navigateur.py` | 8 nov. |
+| Devin | `devin/1794098271-bascule-navigateur` | Correctifs PR #54 : sous-tâche web contrôlée par le plan validé, alerte Gardien, brief restreint et vidage des captures au retour bureau | `AGENTS.md`, `backend/agent.py`, `backend/app.py`, `backend/sessions.py`, `backend/web_agent.py`, `papai_tools.py`, `PROTOCOL.md`, `backend/static/helper.html`, `apps/ios/Sources/HelperModel.swift`, `apps/android/app/src/main/java/com/quentin/papai/aidant/Helper.kt`, `tests/test_agent_navigateur.py` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal

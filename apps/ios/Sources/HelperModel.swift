@@ -697,6 +697,10 @@ final class HelperModel {
                 aiming = false; target = nil; sending = false
                 frame = nil; frameId = nil; frameAt = nil
             }
+            if wasWebLive && !newWebLive {
+                frame = nil; frameId = nil; frameAt = nil
+                target = nil; sending = false
+            }
             sessionWhere = newWhere
             if newState != state {
                 if newState == "awaiting_approval" || newState == "awaiting_helper" { notify(newState!) }

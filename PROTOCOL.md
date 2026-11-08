@@ -127,8 +127,10 @@ sont aussi analysés. Confirmer un virement, même sans montant, est signalé.
 Une demande suspecte termine la session en `stopped`, sans `execute` ni plan à
 approuver. Les alertes de veille arrêtent aussi l'assistance en cours.
 
-`alert` peut porter `alert_id` (opaque), `source` (`request`, `plan`, `environment`),
+`alert` peut porter `alert_id` (opaque), `source` (`request`, `plan`, `browser`, `environment`),
 `blocked: true`, `session` (si liée à une demande) et `task` (texte de la demande).
+La source `browser` désigne un objectif web bloqué après que l'assistance a pu
+agir sur le bureau ; son alerte ne prétend donc pas que rien n'a été exécuté.
 **`title` et `detail` sont adaptés au destinataire** : sur le Mac, avertissement
 et « Contactez votre petit-fils Quentin avant d'aller plus loin » (prénom et lien
 familial connus, sinon « votre proche ») ; côté aidant, demande de rappel,
@@ -449,19 +451,31 @@ bureau reste le comportement par défaut.
   `holo local browser --session-id <uuid>`; `{"type":"web_agent","session_id":null}`
   quand ils s'arrêtent. Le serveur attend au plus 20 secondes une session valide,
   puis utilise le mode bureau si le Mac ne répond pas.
-- Serveur → apps, `status.where` : `"web"`, `"desktop"` ou `null`. Avant la
-  validation, c'est l'endroit proposé par Holo avec le plan ; après la
-  validation, c'est le mode réellement utilisé (`"desktop"` si le Mac n'a pas
-  annoncé cette capacité ou si le démarrage du navigateur échoue). Pendant une
-  session de bureau, Holo peut appeler `open_browser` pour une sous-tâche :
-  `where` passe alors de `"desktop"` à `"web"`, puis revient à `"desktop"` quand
-  le résumé est rendu à Holo. Les apps l'ignorent si absent.
-- Si `hello.web_agent_available` est vrai, les outils de Holo en mode bureau
-  comprennent `open_browser` (`goal` obligatoire, `url` HTTPS facultative).
-  Le Gardien vérifie l'objectif avant de démarrer Chrome PapAI. L'agent web
-  reçoit cet objectif et le plan validé, puis rend un résumé à l'agent bureau ;
-  il ne termine pas la session. Sans navigateur disponible, cet outil n'est pas
-  proposé. Au plus trois bascules sont possibles par session.
+- Le plan peut annoncer `where: "desktop"` ou `"web"` comme auparavant. Pour une
+  tâche qui commence sur le bureau et passe par un ou plusieurs sites, Holo peut
+  proposer `where: "mixed"` avec `web_steps` (numéros d'étapes à partir de 1) et
+  `sites` (de 1 à 3 domaines en minuscules, sans schéma ni chemin). Le serveur
+  valide ces champs et préfixe les étapes web visibles au proche par
+  « Dans Chrome PapAI (domaine) : ». Un domaine absent ou invalide ramène le plan
+  à `"desktop"` ; il en va de même sans numéro d'étape web valide.
+- Serveur → apps, `status.where` : `"web"`, `"desktop"` ou `null` ; `"mixed"`
+  n'est jamais envoyé. Avant validation, un plan mixte garde `where` à
+  `"desktop"` ; après validation, `where` reflète le mode réellement utilisé.
+  Dans une session mixte, il passe de `"desktop"` à `"web"` pendant la sous-tâche
+  navigateur, puis revient à `"desktop"` quand le résumé est rendu à Holo. Les
+  apps l'ignorent si absent.
+- `open_browser` n'est proposé que si le plan validé est mixte et que
+  `hello.web_agent_available` est vrai. Si le navigateur n'est pas disponible,
+  l'agent bureau fait toute la tâche. L'outil porte un `goal` obligatoire et une
+  `url` HTTPS facultative. L'appel doit annoncer une étape `plan_step` incluse
+  dans `web_steps`. L'hôte doit être un des domaines validés ou un de leurs
+  sous-domaines ; sans URL, le premier domaine du plan est utilisé.
+  Le Gardien vérifie chaque domaine au moment du plan, puis l'URL et l'objectif
+  avant de démarrer Chrome PapAI. L'agent web reçoit l'objectif, le plan validé
+  comme contexte et la liste des sites autorisés, puis rend un résumé à l'agent
+  bureau ; il ne termine pas la session. Un site hors plan ne démarre pas Chrome.
+  Au plus trois bascules sont possibles par session. Le mode pur `where: "web"`
+  reste inchangé.
 - Rien ne change avant `approve_plan` : gardien, capture pour le plan, plan à
   valider. La session H n'est créée qu'après la validation.
 - En mode web, le serveur n'envoie ni `capture` ni `execute` au Mac pendant
@@ -476,8 +490,7 @@ bureau reste le comportement par défaut.
 - Le Mac met la fenêtre Chrome PapAI au premier plan une fois, quand
   `where == "web"` et que la session passe `active` ou `awaiting_helper`.
   « Arrêter », une alerte ou la fin de session (`done`, `stopped`) exécutent
-  `holo local stop` et terminent le process, même hors ligne. Chrome PapAI
-  reste ouvert, plus rien ne le pilote.
+  `holo local stop` et ferment le process Chrome PapAI, même hors ligne.
 - Limite : `holo local browser` exige une clé H (`HAI_API_KEY`) sur le Mac de
   la personne aidée (`~/.config/hai/.env` ou variable d'environnement). Elle
   n'est jamais dans le dépôt ni dans les journaux.
