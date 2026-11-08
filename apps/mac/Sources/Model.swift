@@ -365,6 +365,7 @@ final class AppModel {
         client.onConnection = { [weak self] ok in
             guard let self else { return }
             self.connected = ok
+            if ok { Task { await self.refreshLessons() } }
             // Plus de connexion : la personne ne doit jamais rester bloquée.
             if !ok {
                 self.pairRequest = nil
@@ -539,6 +540,9 @@ final class AppModel {
         if let (data, _) = try? await URLSession.shared.data(for: req),
            let list = try? JSONDecoder().decode([Lesson].self, from: data) {
             lessons = list
+            OfflineLessons.save(data, base: httpBase)
+        } else if lessons.isEmpty {
+            lessons = OfflineLessons.load(base: httpBase)  // pas de réseau : ceux qui n'ont pas besoin de Holo
         }
     }
 

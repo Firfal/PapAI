@@ -21,6 +21,7 @@ from typing import Callable
 
 from . import apps as start_apps
 from . import settings
+from . import offline_lessons
 from .bridge import Bridge
 from .core import StopGate, open_shortcut, play_actions
 
@@ -314,6 +315,7 @@ class Model:
     def _connection(self, ok: bool) -> None:
         if ok:
             self._send_profile()
+            threading.Thread(target=self.refresh_lessons, daemon=True).start()
         with self._lock:
             self.connected = ok
             t = os.environ.get("PAPAI_AUTOTASK", "").strip()
@@ -339,11 +341,20 @@ class Model:
             with urllib.request.urlopen(self.http_base + "/lessons", timeout=5) as r:  # noqa: S310
                 data = json.loads(r.read().decode())
         except Exception:  # noqa: BLE001
-            return
-        if isinstance(data, list):
+            data = None
+        if not isinstance(data, list):
+            # Pas de réseau : ceux qui n'ont pas besoin de Holo restent là.
             with self._lock:
-                self.lessons = [x for x in data if isinstance(x, dict) and x.get("id")]
+                if self.lessons:
+                    return
+                self.lessons = offline_lessons.load(self.http_base)
             self.push()
+            return
+        lessons = [x for x in data if isinstance(x, dict) and x.get("id")]
+        with self._lock:
+            self.lessons = lessons
+        offline_lessons.save(lessons, self.http_base)
+        self.push()
 
     def reconnect(self) -> None:
         if self.bridge is not None and not self.demo:
