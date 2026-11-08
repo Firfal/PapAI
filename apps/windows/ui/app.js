@@ -249,11 +249,11 @@
       </div>`;
     }
     if (guardStopped(st)) {
-      const who = (S.helpers[0] || {}).name || 'votre proche';
+      const who = (S.helpers[0] || {}).name || 'votre support';
       return `<div class="col" style="gap:20px;${f(23, 5)}">
         <div>Ne payez rien et ne donnez aucun code.</div>
         <div>Appelez ${esc(who)} à son numéro habituel.</div>
-        ${S.guardAcknowledged ? "<div>Un proche a vu l'alerte et s'en occupe</div>" : ''}</div>`;
+        ${S.guardAcknowledged ? "<div>Votre support a vu l'alerte et s'en occupe</div>" : ''}</div>`;
     }
     return '';
   }
