@@ -77,6 +77,7 @@ SENSITIVE_PROCESSES = frozenset({
     "useraccountcontrolsettings", "1password", "bitwarden", "dashlane", "lastpass",
     "keepass", "keepassxc", "enpass", "keeper", "nordpass", "roboform",
     "control", "rundll32", "mmc", "regedit",
+    "cmd", "powershell", "pwsh", "windowsterminal", "openconsole", "conhost",
 })
 
 

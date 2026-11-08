@@ -65,6 +65,12 @@ class SafetyTests(unittest.TestCase):
             self.assertIsNotNone(verdict(12, None, own_pid=42))
             self.assertIsNotNone(verdict(0, '', own_pid=42))
 
+    def test_shells_and_settings_hosts(self):
+        for name in ('control', 'rundll32', 'mmc', 'regedit', 'cmd', 'powershell',
+                     'pwsh', 'WindowsTerminal', 'OpenConsole', 'conhost'):
+            for verdict in (core.pointer_verdict, core.keyboard_verdict):
+                self.assertIsNotNone(verdict(12, name.upper() + '.EXE', own_pid=42))
+
     def api(self):
         api = Mock()
         api.foreground.return_value = 1

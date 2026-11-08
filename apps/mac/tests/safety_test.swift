@@ -51,6 +51,17 @@ struct SafetyTest {
         verifier(keyboard(false, auth) != nil, "clavier sensible refusé")
         verifier(keyboard(false, finder, true) != nil, "PapAI active refusée")
         verifier(keyboard(false, nil) != nil, "premier plan inconnu refusé")
+        for (bundle, name) in [("com.apple.Terminal", "Terminal"), ("com.googlecode.iterm2", "iTerm2"),
+                               ("com.apple.ScriptEditor2", "Éditeur de script"), ("com.apple.Automator", "Automator"),
+                               ("com.apple.shortcuts", "Raccourcis")] {
+            let target = Safety.Target(pid: 8, name: "", bundle: bundle)
+            verifier(pointer([window(target, 0)]) != nil, "outil de script refusé au pointeur : \(bundle)")
+            verifier(keyboard(false, target) != nil, "outil de script refusé au clavier : \(bundle)")
+            verifier(reason(.init(pid: 8, name: name, bundle: nil)) != nil, "nom français refusé : \(name)")
+        }
+        for name in ["iTerm", "Script Editor", "Shortcuts"] {
+            verifier(reason(.init(pid: 8, name: name, bundle: nil)) != nil, "nom anglais refusé : \(name)")
+        }
         let gate = StopGate()
         let pinned = gate.pin()
         verifier(!pinned.isStopped, "verrou initial ouvert")

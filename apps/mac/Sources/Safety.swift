@@ -51,14 +51,17 @@ enum Safety {
         "com.apple.accessibility.universalAccessAuthWarn", "com.apple.keychainaccess", "com.apple.Passwords",
         "com.agilebits.onepassword7", "com.agilebits.onepassword-osx", "com.1password.1password",
         "com.bitwarden.desktop", "com.dashlane.Dashlane", "com.lastpass.LastPass",
-        "org.keepassxc.keepassxc", "in.sinew.Enpass-Desktop", "com.sinew.Enpass-Desktop"
+        "org.keepassxc.keepassxc", "in.sinew.Enpass-Desktop", "com.sinew.Enpass-Desktop",
+        "com.apple.Terminal", "com.googlecode.iterm2", "com.apple.ScriptEditor2",
+        "com.apple.Automator", "com.apple.shortcuts"
     ]
     static let names: Set<String> = [
         "System Settings", "Réglages Système", "System Preferences", "Préférences Système",
         "SecurityAgent", "coreautha", "UserNotificationCenter", "CoreServicesUIAgent", "loginwindow",
         "universalAccessAuthWarn", "Keychain Access", "Trousseaux d’accès", "Trousseaux d'accès",
         "Passwords", "Mots de passe", "1Password", "1Password 7", "Bitwarden", "Dashlane",
-        "LastPass", "KeePassXC", "Enpass", "PapAI"
+        "LastPass", "KeePassXC", "Enpass", "PapAI", "Terminal", "iTerm", "iTerm2",
+        "Script Editor", "Éditeur de script", "Éditeur de scripts", "Automator", "Shortcuts", "Raccourcis"
     ]
     static func reason(_ target: Target, ownPID: Int32, ownBundle: String?) -> String? {
         if target.pid == ownPID || (ownBundle != nil && target.bundle == ownBundle) {
