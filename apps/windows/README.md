@@ -37,9 +37,12 @@ Puis lancer l'app Windows, et ouvrir la page aidant `http://<serveur>:8000/a/dem
 ## Technologie : Python + pywebview (WebView2)
 
 - **Rendu le plus proche de SwiftUI** : l'interface est en HTML/CSS (`ui/`), qui
-  reprend tel quel les jetons de `Theme.swift` (couleurs, rayons 28/36, pilules,
-  tailles de police en points) et la structure de chaque `*View.swift`. La police
-  Nunito (OFL, embarquée) remplace SF Rounded, absente de Windows.
+  reprend les tailles de police en points et la structure de chaque `*View.swift`.
+  Le design suit la maquette commune (8 nov.) : en-tête en dégradé bleu qui porte
+  le titre de l'écran en blanc (et le champ de demande à l'accueil), fond bleu
+  lavande très clair, cartes blanches à ombre douce, pastilles d'état pâles,
+  bouton principal en pilule bleue ; l'arrêt par le gardien et ses alertes
+  passent en rouge. Police : Segoe UI, celle de Windows (Nunito reste embarquée).
 - **Se lance facilement** : WebView2 est fourni par Windows ; Python et deux
   fichiers `.bat` suffisent. Pas de Visual Studio, pas de compilation.
 - **Réutilise le prototype** (`archive/windows-7-nov`) : capture (mss), clics et
