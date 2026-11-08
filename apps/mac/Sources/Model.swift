@@ -94,6 +94,27 @@ final class AppModel {
     /// Où en est l'automate lancé depuis la liste : affiché à la place de « Exécuter », sur sa ligne.
     struct RunStatus: Equatable { var id: String; var text: String; var enCours: Bool }
     var runStatus: RunStatus?
+    /// L'automate en cours ou arrêté : il se joue seul. Le support n'est prévenu
+    /// que si l’utilisateur appuie sur « Demander une assistance » (en haut à droite).
+    struct AutomationRun: Equatable {
+        var id: String
+        var title: String
+        var ticket: String? = nil
+        var number: Int? = nil
+        /// Étape où l'automate s'est arrêté, et pourquoi.
+        var step: Int? = nil
+        var reason: String? = nil
+        /// Arrêté avant Holo, sur l'accueil.
+        var local = false
+        var asked = false
+        /// Échec local hors ligne : `automation_failed` repart à la reconnexion pour ouvrir le ticket.
+        var unsent = false
+    }
+    var automationRun: AutomationRun?
+    var canAskAutomationSupport: Bool {
+        guard let r = automationRun else { return false }
+        return !r.asked && r.ticket != nil && guardAlert == nil
+    }
     private var runStatusTask: Task<Void, Never>?
     var screenOK = Permissions.screenOK
     var axOK = Permissions.accessibilityOK
@@ -289,6 +310,11 @@ final class AppModel {
             guard let self else { return }
             self.connected = ok
             if ok { Task { await self.refreshLessons() } }
+            if ok, let r = self.automationRun, r.unsent, r.ticket == nil {
+                self.automationRun?.unsent = false
+                self.client.send(["type": "automation_failed", "id": r.id, "step": r.step ?? 1,
+                                  "title": r.title, "detail": r.reason ?? ""])
+            }
             // Plus de connexion : la personne ne doit jamais rester bloquée.
             if !ok {
                 self.narration.context(assistance: self.sessionOpen, speakingAllowed: false)
@@ -679,6 +705,7 @@ final class AppModel {
         pendingTask = ""
         plan = []; planStep = nil; question = nil; answer = nil; answerSources = []; currentAction = nil; actions = []
         sessionHelper = nil
+        automationRun = nil
         AppUsage.shared.noteRequest(task)
         webFronted = false
         state = .planning
@@ -716,6 +743,7 @@ final class AppModel {
     func backHome() {
         guard guardAlert == nil else { return }
         homeTimer?.cancel()
+        automationRun = nil
         screen = .home
         state = nil
         planApproved = false
@@ -739,6 +767,17 @@ final class AppModel {
             doTidy(req, m)
         case "status":
             applyStatus(m)
+        case "session":
+            if m["automation"] as? String != nil, automationRun != nil {
+                automationRun?.ticket = m["ticket"] as? String
+                automationRun?.number = m["number"] as? Int
+            }
+        case "automation_ticket":
+            automationRun?.ticket = m["ticket"] as? String
+            automationRun?.number = m["number"] as? Int
+        case "support_requested":
+            automationRun?.asked = true
+            showNotice("C'est envoyé à \(helperName), avec l'étape où l'automate s'est arrêté.")
         case "web_agent_start":
             webHost.updateSites(m["sites"] as? [String] ?? [], hosts: m["hosts"] as? [String] ?? [])
             if sessionOpen && !gate.isStopped { webHost.start() }
@@ -864,6 +903,11 @@ final class AppModel {
         executionState = m["state"] as? String
         stoppedBy = m["stopped_by"] as? String
         sessionWhere = m["where"] as? String
+        if let b = m["blocked"] as? [String: Any], automationRun != nil {
+            automationRun?.step = b["step"] as? Int
+            automationRun?.reason = b["reason"] as? String
+        }
+        if let asked = m["support_requested"] as? Bool, asked { automationRun?.asked = true }
         if let ack = m["guard_acknowledged"] as? Bool { guardAcknowledged = ack }
         guard screen == .session else { return }
         if gate.isStopped { state = .stopped; applyLevel(); return }
@@ -1004,9 +1048,7 @@ final class AppModel {
             if r.ok {
                 showRunStatus(l.id, "C'est ouvert")
             } else {
-                runStatus = nil
-                showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
-                client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+                automationStopped(l, step: 1, detail: r.detail)
             }
         }
     }
@@ -1045,14 +1087,13 @@ final class AppModel {
             if queued?.ticket == launchTicket { queued?.suggestionLancee = l.id }
         }
         gate.reset()
+        automationRun = nil
         showRunStatus(l.id, "En cours…", enCours: true)
         Task {
             let r = await Automations.play(l, base: httpBase, gate: gate)
             if gate.isStopped { showRunStatus(l.id, "Arrêté"); return }
             guard r.ok else {
-                runStatus = nil
-                showNotice("« \(l.title) » n'a pas pu aller au bout. \(HelperName) a reçu un message pour s'en occuper.")
-                client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+                automationStopped(l, step: r.step, detail: r.detail)
                 return
             }
             guard let holo else {
@@ -1062,6 +1103,7 @@ final class AppModel {
             }
             runStatus = nil
             homeTimer?.cancel()
+            automationRun = AutomationRun(id: l.id, title: l.title)
             task = holo.goal ?? l.title
             plan = []; planStep = nil; question = nil; answer = nil; answerSources = []; currentAction = nil; actions = []
             sessionHelper = nil
@@ -1070,6 +1112,22 @@ final class AppModel {
             applyLevel()
             client.send(["type": "run_automation", "id": l.id])
         }
+    }
+
+    /// Une action locale a échoué : on s'arrête là, sans rien tenter d'autre et sans
+    /// appeler personne. Le serveur ouvre un ticket qui garde l'étape.
+    private func automationStopped(_ l: Lesson, step: Int, detail: String) {
+        runStatus = nil
+        automationRun = AutomationRun(id: l.id, title: l.title, step: step, reason: detail, local: true,
+                                      unsent: !connected)
+        showNotice("« \(l.title) » s'est arrêté à l'étape \(step)\(detail.isEmpty ? "" : " : \(detail)").")
+        client.send(["type": "automation_failed", "id": l.id, "step": step, "title": l.title, "detail": detail])
+    }
+
+    /// Bouton discret, en haut à droite : seule façon de faire venir le support sur un automate.
+    func askAutomationSupport() {
+        guard canAskAutomationSupport, let t = automationRun?.ticket else { return }
+        client.send(["type": "support_request", "ticket": t])
     }
 
     func openLesson(_ l: Lesson) {

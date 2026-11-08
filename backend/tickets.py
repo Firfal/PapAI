@@ -73,7 +73,7 @@ class Tickets:
              "session": "", "plan": [], "steps_done": 0, "helper": "", "end": "", "stopped_by": "",
              "rdv": None, "rdv_notified": False, "offered": 0, "assignee": "", "notes": [], "tokens": 0,
              "suggestions": list(suggestions or []), "suggestion_lancee": None,
-             "category": category, "category_by": "regles" if sure else "doute", "resolved": None}
+             "category": category, "category_by": "regles" if sure else "doute", "resolved": None, "blocked": None}
         items.append(t)
         self._save()
         return t
@@ -142,7 +142,8 @@ class Tickets:
                "helper": st.get("helper_name") or t.get("helper", ""),
                "end": state if state in ("done", "stopped") else "",
                "stopped_by": st.get("stopped_by") or "",
-               "tokens": int((st.get("usage") or {}).get("total") or t.get("tokens") or 0)}
+               "tokens": int((st.get("usage") or {}).get("total") or t.get("tokens") or 0),
+               "blocked": st.get("blocked") or t.get("blocked")}
         if state == "done" and t.get("plan"):
             new["steps_done"] = len(new["plan"])
         if all(t.get(k) == v for k, v in new.items()):
