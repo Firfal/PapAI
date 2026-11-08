@@ -57,6 +57,7 @@ enum SupportConnection {
 
 struct SupportRoot: View {
     @Bindable var model: HelperModel
+    @State private var onglet = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -65,9 +66,11 @@ struct SupportRoot: View {
                 HStack(alignment: .top, spacing: 22) {
                     PeopleSidebar(model: model).frame(width: 236)
                     VStack(alignment: .leading, spacing: 12) {
+                        Onglets(options: [("Assistance", 0), ("Automates", 1)], selection: $onglet)
+                            .frame(maxWidth: 360)
                         if !model.connected { LostBar(model: model) }
                         if let reason = model.sensitiveRefusal { refusal(reason) }
-                        content
+                        if onglet == 1 { SupportAutomates(model: model) } else { content }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
@@ -84,6 +87,8 @@ struct SupportRoot: View {
         .overlay(alignment: .bottom) { toast }
         .animation(.spring(duration: 0.35), value: model.toast)
         .animation(.easeInOut(duration: 0.25), value: model.screen)
+        // Une demande arrive : on revient sur l'assistance, quel que soit l'onglet.
+        .onChange(of: model.screen) { _, s in if s != .idle { onglet = 0 } }
         .sheet(item: $model.sheet) { s in
             switch s {
             case .pair(let l): SupportPairSheet(model: model, link: l)
