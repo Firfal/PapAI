@@ -45,6 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| Devin | `devin/1794127196-navigateur-sites-valides` | Agent navigateur limité aux sites validés | `backend/site_check.py`, `backend/web_agent.py`, `backend/app.py` (agent navigateur seulement), `apps/mac/Sources/SiteCheck.swift`, `apps/mac/Sources/WebAgent.swift`, `apps/mac/Sources/Model.swift` (messages web_agent), `apps/windows/papai/site_check.py`, `tests/site_check_cases.json`, `tests/test_sites_valides.py`, `apps/mac/tests/site_check_test.swift`, `PROTOCOL.md` (section Agent navigateur) | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
