@@ -507,6 +507,7 @@ function watchPeople() {
           }
         }
         else if (m.type === 'alert_cleared') { w.asking = false; }
+        else if (m.type === 'helper_added') { toast(`${m.name} a été ajouté comme support.`); }
         else if (m.type === 'ticket_due') { w.asking = true; toast(`${p.name || 'Une personne aidée'} : rendez-vous`); }
         else if (m.type === 'alert') { w.asking = true; toast(`${p.name || 'Une personne aidée'} : ${m.title || 'alerte'}`); }
         renderPeople();
@@ -933,6 +934,7 @@ function onMessage(ev) {
 
   else if (m.type === 'question') { showQuestion(m); render(); }
 
+  else if (m.type === 'helper_added') { toast(`${m.name} a été ajouté comme support.`); }
   else if (m.type === 'tickets_changed') { loadTickets(); }
 
   else if (m.type === 'ticket_due') {
