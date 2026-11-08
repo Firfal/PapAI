@@ -1,16 +1,11 @@
-"""Les proches de la personne aidée, et leur ajout par code à 6 chiffres.
-
-La personne aidée affiche un code (et son QR). Le proche l'ouvre sur son
-téléphone, donne son prénom et son lien (« ma fille »). Le code ne sert
-qu'une fois, expire au bout de 10 minutes et tombe après 5 essais ratés :
-6 chiffres ne protègent que s'ils ne vivent pas longtemps.
-"""
+"""Les supports de la personne aidée et leur liaison par code à usage unique."""
 
 from __future__ import annotations
 
 import json
 import secrets
 import time
+from collections.abc import Iterable
 from pathlib import Path
 
 DATA = Path(__file__).parent.parent / "family.json"
@@ -18,6 +13,11 @@ CODE_TTL = 600
 # Invitation envoyée par SMS, WhatsApp… à un proche absent : il a le temps de l'ouvrir.
 INVITE_TTL = 24 * 3600
 MAX_TRIES = 5
+INVALID_CODE = "Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de la personne aidée."
+
+
+def clean_label(value: str, limit: int) -> str:
+    return "".join(c for c in value if c.isalnum() or c in " -'.").strip()[:limit]
 
 
 class PairingError(Exception):
@@ -34,6 +34,8 @@ class Family:
         self._code: str | None = None
         self._expires = 0.0
         self._tries = 0
+        self._invitation: str | None = None
+        self._invitation_expires = 0.0
         if path.is_file():
             try:
                 data = json.loads(path.read_text("utf-8"))
@@ -44,8 +46,12 @@ class Family:
 
     # ------------------------------------------------------------ code
 
-    def new_code(self, ttl: int = CODE_TTL) -> str:
-        self._code = f"{secrets.randbelow(1_000_000):06d}"
+    def new_code(self, ttl: int = CODE_TTL, *, others: Iterable[Family] = ()) -> str:
+        families = tuple(others)
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        while any(family.code_valid(code) for family in families):
+            code = f"{secrets.randbelow(1_000_000):06d}"
+        self._code = code
         self._expires = time.time() + ttl
         self._tries = 0
         return self._code
@@ -54,22 +60,43 @@ class Family:
         return (
             self._code is not None
             and time.time() < self._expires
-            and secrets.compare_digest(code or "", self._code)
+            and secrets.compare_digest((code or "").encode(), self._code.encode())
         )
 
-    def pair(self, code: str, name: str, relation: str) -> dict:
-        if self._code is None or time.time() >= self._expires:
-            raise PairingError("Ce code a expiré. Demandez-en un nouveau sur l'ordinateur.")
-        if not secrets.compare_digest(code or "", self._code):
+    def new_invitation(self) -> str:
+        self._invitation = secrets.token_urlsafe(16)
+        self._invitation_expires = time.time() + INVITE_TTL
+        return self._invitation
+
+    def invitation_valid(self, token: str) -> bool:
+        return (self._invitation is not None and time.time() < self._invitation_expires
+                and secrets.compare_digest(token.encode(), self._invitation.encode()))
+
+    def consume_invitation(self, token: str) -> None:
+        if not self.invitation_valid(token):
+            raise PairingError(INVALID_CODE)
+        self._invitation = None
+
+    def check_code(self, code: str) -> None:
+        if not self.code_valid(code):
             self._tries += 1
             if self._tries >= MAX_TRIES:
                 self._code = None
-            raise PairingError("Code incorrect.")
-        name = (name or "").strip()[:40]
-        relation = (relation or "").strip()[:60]
+            raise PairingError(INVALID_CODE)
+
+    def consume_code(self, code: str) -> None:
+        self.check_code(code)
+        self._code = None
+
+    def pair(self, code: str, name: str, relation: str) -> dict:
+        name = clean_label(name or "", 40)
+        relation = clean_label(relation or "", 60)
         if not name:
             raise PairingError("Indiquez votre prénom.")
-        self._code = None  # une seule fois
+        self.consume_code(code)
+        return self.add_helper(name, relation)
+
+    def add_helper(self, name: str, relation: str) -> dict:
         helper = {"id": secrets.token_hex(4), "name": name, "relation": relation,
                   "added": int(time.time())}
         self.helpers.append(helper)

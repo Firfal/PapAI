@@ -5,6 +5,46 @@ import org.junit.Test
 import java.net.URLEncoder
 
 class PairingPolicyTest {
+    @Test fun opaqueInvitationsAndLegacyRoutes() {
+        val token = "Abc_def-1234567890123456"
+        for (route in listOf("/p/123456", "/i/$token", "/k/key/p/123456")) {
+            val url = "https://trusted.example$route"
+            for (text in listOf(url, "papai://pair?u=" + URLEncoder.encode(url, "UTF-8"))) {
+                val link = PairLink.parse(text)!!
+                assertEquals(url, link.endpoint(""))
+                assertFalse(link.isManual)
+                assertNull(PairingPolicy.invitationError(text, false))
+            }
+        }
+        assertEquals("https://trusted.example/p/654321",
+            PairLink("https://trusted.example/k/old", null).endpoint("654321"))
+    }
+
+    @Test fun malformedOpaqueInvitationsAreRejected() {
+        for (route in listOf("/i/short", "/i/" + "a".repeat(129), "/i/abcdefghijklmnopqrstuv!",
+            "/i/abcdefghijklmnopqrstuv/extra", "/extra/p/123456", "/p/1234567", "/p/１２３４５６")) {
+            assertNull(route, PairLink.parse("https://trusted.example$route"))
+        }
+        assertNotNull(PairingPolicy.invitationError("http://public.example/i/abcdefghijklmnopqrstuv", true))
+    }
+
+    @Test fun onlyRefusalAndTimeoutRequireNewCredentials() {
+        for (status in listOf(200, 400, 403, 408, 409, 429)) {
+            for (refused in listOf(false, true)) {
+                assertEquals(status == 408 || status == 409 || (status == 403 && refused), PairingPolicy.needsNew(status, refused))
+            }
+        }
+        assertEquals("Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).", PairingPolicy.instruction)
+    }
+    @Test fun successRequiresHttp200AndBooleanOk() {
+        assertTrue(PairingPolicy.isSuccess(200, true))
+        for (status in listOf(400, 403, 408, 409, 429, 500)) assertFalse(PairingPolicy.isSuccess(status, true))
+        for (ok in listOf(null, false, "true", "", 1)) assertFalse(PairingPolicy.isSuccess(200, ok))
+    }
+
+    @Test fun waitingCopy() {
+        assertEquals("En attente de l'accord sur l'ordinateur…", PairingPolicy.waiting)
+    }
     @Test fun officialServerRequiresExactHttpsOrigin() {
         val host = PairingPolicy.officialHost
         assertTrue(PairingPolicy.isOfficial("https://$host"))

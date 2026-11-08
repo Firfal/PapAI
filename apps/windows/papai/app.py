@@ -77,7 +77,7 @@ class Api:
     def copy_invitation(self): return self._model.copy_invitation()
     def remove_helper(self, helper_id): self._model.remove_helper(helper_id)
     def accept_remote(self): self._model.accept_remote()
-    def answer_pair(self, accept): self._model.answer_pair(accept)
+    def answer_pair(self, accept, request_id=None): self._model.answer_pair(accept, request_id)
     def refuse_remote(self): self._model.refuse_remote()
     def schedule_ticket(self, slot): self._model.schedule_ticket(slot)
     def close_queued(self): self._model.close_queued()
@@ -117,7 +117,7 @@ class Api:
 
     def dictation_toggle(self):
         snap = self._model.snapshot()
-        if self._micro.refresh() and snap['screen'] == 'home' and not snap['remoteRequest'] and not snap['alert']:
+        if self._micro.refresh() and snap['screen'] == 'home' and not snap['remoteRequest'] and not snap['pairRequest'] and not snap['alert']:
             self._dictation.toggle(self._model.http_base)
 
 
@@ -130,7 +130,7 @@ def main() -> None:
         w, api = state["window"], state["api"]
         if w is None or api is None or not api._ready.is_set():
             return
-        if snap['screen'] != 'home' or snap['remoteRequest'] or snap['alert']:
+        if snap['screen'] != 'home' or snap['remoteRequest'] or snap['pairRequest'] or snap['alert']:
             if api._dictation.phase != 'idle':
                 api._dictation.cancel()
         snap = api.snapshot(snap)

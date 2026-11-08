@@ -91,6 +91,8 @@ final class HelperModel {
     var sheet: AppSheet?
     var pairBusy = false
     var pairError: String?
+    var pairRefused = false
+    var pairNeedsNew = false
     var pairDone = false
 
     // Session
@@ -402,6 +404,8 @@ final class HelperModel {
             }
         case "alert_cleared":
             othersAsking[key] = false
+        case "helper_added":
+            if let name = m["name"] as? String { showToast("\(name) est maintenant support.") }
         case "alert":
             othersAsking[key] = true
             notifyLocal(title: "\(who) : \(m["title"] as? String ?? "alerte")", body: m["detail"] as? String ?? "")
@@ -578,7 +582,7 @@ final class HelperModel {
     }
 
     func openPair(_ link: PairLink) {
-        pairDone = false; pairError = nil; pairBusy = false
+        pairDone = false; pairError = nil; pairBusy = false; pairRefused = false; pairNeedsNew = false
         sheet = .pair(link)
     }
 
@@ -594,23 +598,26 @@ final class HelperModel {
     /// POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur.
     /// Une nouvelle personne s'ajoute à la liste : la liaison précédente est gardée.
     func submitPair(_ link: PairLink, code: String?, name: String, relation: String) async {
-        guard !pairBusy else { return }
+        guard !pairBusy, !pairNeedsNew else { return }
+        pairRefused = false
         guard PairServer.allowed(link.base) else { pairError = PairServer.refusal; return }
         let c = (link.code ?? code ?? "").filter(\.isNumber)
         let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard c.count == 6 else { pairError = "Le code fait 6 chiffres."; return }
+        guard link.token != nil || c.count == 6 else { pairError = "Le code fait 6 chiffres."; return }
         guard !n.isEmpty else { pairError = "Indiquez votre prénom."; return }
-        guard let url = URL(string: link.base + "/p/" + c) else { pairError = "Adresse invalide."; return }
+        guard let url = URL(string: link.endpoint(code: c)) else { pairError = "Adresse invalide."; return }
         pairBusy = true; pairError = nil
         defer { pairBusy = false }
-        var req = URLRequest(url: url, timeoutInterval: 20)
+        var req = URLRequest(url: url, timeoutInterval: 150)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["name": n, "relation": relation])
         do {
-            let (d, _) = try await URLSession.shared.data(for: req)
+            let (d, response) = try await URLSession.shared.data(for: req)
             let r = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
-            guard r["ok"] as? Bool == true else {
+            guard (response as? HTTPURLResponse)?.statusCode == 200, r["ok"] as? Bool == true else {
+                pairRefused = r["refused"] as? Bool == true
+                pairNeedsNew = PairServer.needsNew(status: (response as? HTTPURLResponse)?.statusCode ?? 0, refused: pairRefused)
                 pairError = r["error"] as? String ?? "Le serveur a refusé la liaison."
                 return
             }
@@ -821,6 +828,9 @@ final class HelperModel {
             hasDraft = false; lessonBusy = false
             savedTitle = (m["lesson"] as? [String: Any])?["title"] as? String ?? draftTitle
             Task { await loadLessons() }
+
+        case "helper_added":
+            if let name = m["name"] as? String { showToast("\(name) est maintenant support.") }
 
         default: break
         }

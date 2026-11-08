@@ -75,6 +75,9 @@ class Spaces:
     def all(self) -> list[Space]:
         return list(self._by_key.values())
 
+    def new_code(self, sp: Space) -> str:
+        return sp.family.new_code(others=(other.family for other in self.all()))
+
     def create(self, key: str | None = None, org: str = "", label: str = "") -> Space:
         """Nouvel espace. `key` : un ordinateur qui revient avec sa clé après
         un redéploiement (disque effacé) retrouve un espace à son nom."""

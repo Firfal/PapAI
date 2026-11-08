@@ -24,6 +24,7 @@
                  background: var(--ink); color: #fff; font: 600 19px ui-rounded, system-ui, sans-serif;
                  text-align: center; line-height: 60px; text-decoration: none; cursor: pointer; }
   button:disabled { opacity: .5; }
+  #waiting { font-size: 17px; color: var(--ink); }
   .btn.app { margin: 0 0 6px; background: var(--accent); }
   .hint { font-size: 15px; text-align: center; margin: 0 0 4px; }
   .err { color: var(--err); font-weight: 600; margin-top: 14px; min-height: 1.4em; }
@@ -58,7 +59,8 @@
     <option value="">Autre</option>
   </select>
   <div class="err" id="err"></div>
-  <button id="go" type="submit">Valider</button>
+  <div id="waiting" role="status" hidden><progress aria-label="En attente"></progress><p>Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).</p></div>
+  <button id="go" type="submit">Rejoindre</button>
 </form>
 
 <div class="card" id="done" hidden>
@@ -69,34 +71,45 @@
 </div>
 
 <script>
-  // L'adresse finit par /p/123456 (QR) ou par /p (code tapé à la main).
+  // QR code, invitation ou code tapé à la main.
+  const invitation = location.pathname.match(/^(.*)\/i\/([A-Za-z0-9_-]+)\/?$/);
   const m = location.pathname.match(/^(.*)\/p(?:\/(\d{6}))?\/?$/);
   const base = m ? m[1] : "";
   let code = m && m[2] ? m[2] : "";
+  let needsNew = false;
+  const manual = !code && !invitation;
   const $ = (id) => document.getElementById(id);
   try { $("name").value = localStorage.getItem("papai_name") || ""; } catch (e) {}
-  if (!code) $("codeRow").hidden = false;
+  if (!code && !invitation) $("codeRow").hidden = false;
   else {
     // L'app iPhone fait elle-même l'appairage à partir de cette adresse.
-    $("openApp").href = "papai://pair?u=" + encodeURIComponent(`${location.origin}${base}/p/${code}`);
+    const path = invitation ? invitation[0] : `${base.replace(/\/k\/[^/]+$/, "")}/p/${code}`;
+    $("openApp").href = "papai://pair?u=" + encodeURIComponent(`${location.origin}${path}`);
     $("appRow").hidden = false;
   }
 
   $("form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (needsNew || $("go").disabled) return;
     $("err").textContent = "";
     const c = code || $("code").value.trim();
-    if (!/^\d{6}$/.test(c)) { $("err").textContent = "Le code fait 6 chiffres."; return; }
+    if (!invitation && !/^\d{6}$/.test(c)) { $("err").textContent = "Le code fait 6 chiffres."; return; }
     const name = $("name").value.trim();
     if (!name) { $("err").textContent = "Indiquez votre prénom."; return; }
     $("go").disabled = true;
+    $("waiting").hidden = false;
     try {
-      const r = await fetch(`${base}/p/${c}`, {
+      const r = await fetch(invitation ? invitation[0] : `${base}/p/${c}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, relation: $("relation").value }),
       });
       const data = await r.json();
-      if (!data.ok) throw new Error(data.error || "Impossible de valider.");
+      if (r.status === 408 || r.status === 409 || (r.status === 403 && data.refused === true)) {
+        needsNew = true;
+        code = "";
+        $("code").value = "";
+      }
+      if (r.status !== 200 || data.ok !== true) throw new Error(data.error || "Impossible de valider.");
       try { localStorage.setItem("papai_name", data.name); } catch (e) {}
       $("doneTitle").textContent = `C'est fait, ${data.name} !`;
       $("aidant").href = data.aidant_url;
@@ -105,8 +118,14 @@
     } catch (err) {
       $("err").textContent = err.message;
     } finally {
-      $("go").disabled = false;
+      $("go").disabled = needsNew;
+      $("waiting").hidden = true;
     }
+  });
+  $("code").addEventListener("input", () => {
+    if (!manual) return;
+    needsNew = !/^[0-9]{6}$/.test($("code").value.trim());
+    $("go").disabled = needsNew;
   });
 </script>
 </body>

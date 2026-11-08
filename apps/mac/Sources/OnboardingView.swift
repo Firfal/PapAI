@@ -198,7 +198,7 @@ struct HelpersPanel: View {
                 Text("Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.")
                     .font(rounded(20)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 if let added = model.pairAdded {
-                    Label("\(added) fait maintenant partie de votre support.", systemImage: "checkmark.circle.fill")
+                    Label { Text(verbatim: "\(added) est maintenant support.") } icon: { Image(systemName: "checkmark.circle.fill") }
                         .font(rounded(19, .semibold)).foregroundStyle(T.accent)
                 }
                 ForEach(model.helpers) { h in
@@ -232,7 +232,7 @@ struct HelpersPanel: View {
                     .padding(14)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 }
-                if model.pairCode == nil {
+                if model.pairCode == nil && model.pairURL == nil {
                     Button(model.helpers.isEmpty ? "Ajouter un support" : "Ajouter un autre support") {
                         model.startPairing()
                     }
@@ -245,13 +245,13 @@ struct HelpersPanel: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if let code = model.pairCode {
-                pairCard(code: code, qr: model.pairAppURL ?? model.pairURL ?? "", url: model.pairURL ?? "")
+            if model.pairCode != nil || model.pairURL != nil {
+                pairCard(code: model.pairCode, qr: model.pairAppURL ?? model.pairURL ?? "", url: model.pairURL ?? "")
             }
         }
     }
 
-    private func pairCard(code: String, qr qrText: String, url: String) -> some View {
+    private func pairCard(code: String?, qr qrText: String, url: String) -> some View {
         VStack(spacing: 6) {
             HStack(spacing: 12) {
                 if let qr = QRCode.image(qrText) {
@@ -260,11 +260,15 @@ struct HelpersPanel: View {
                         .accessibilityLabel("QR code à scanner par votre support")
                 }
                 VStack(spacing: 8) {
-                    Text("ou le code").font(rounded(16)).foregroundStyle(T.muted)
-                    Text(code.prefix(3) + " " + code.suffix(3))
-                        .font(rounded(28, .semibold))
-                        .monospacedDigit().tracking(2)
-                        .textSelection(.enabled)
+                    if let code {
+                        Text("ou le code").font(rounded(16)).foregroundStyle(T.muted)
+                        Text(code.prefix(3) + " " + code.suffix(3))
+                            .font(rounded(28, .semibold))
+                            .monospacedDigit().tracking(2)
+                            .textSelection(.enabled)
+                    } else {
+                        Text("Lien d'invitation").font(rounded(20, .semibold))
+                    }
                     Text(model.pairLong ? "Valable 24 heures" : "Valable 10 minutes").font(rounded(15)).foregroundStyle(T.muted)
                 }.frame(maxWidth: .infinity)
             }
@@ -424,14 +428,16 @@ struct PairRequestView: View {
                     Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(T.accent)
                     Text("Nouveau support").font(rounded(20, .semibold)).foregroundStyle(T.accent)
                 }
-                Text("\(request.name) veut devenir votre support").font(rounded(48, .semibold)).tracking(-0.7)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !request.relation.isEmpty {
-                    Text(request.relation).font(rounded(26, .medium))
-                        .padding(24).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(verbatim: "\(request.name) veut devenir votre support").font(rounded(48, .semibold)).tracking(-0.7)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if !request.relation.isEmpty {
+                        Text(verbatim: request.relation).font(rounded(17)).foregroundStyle(T.muted)
+                    }
                 }
-                Text("Cette personne vient de taper votre code à 6 chiffres. Acceptez seulement si vous la connaissez et que vous lui avez donné ce code.")
+                Text("Acceptez seulement si vous connaissez cette personne.")
+                    .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                Text("Si quelqu'un vous a appelé ou écrit pour vous demander ce code, refusez.")
                     .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }

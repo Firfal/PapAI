@@ -11,10 +11,11 @@ import base64
 import datetime
 import json
 import os
+import re
 import threading
 import time
 import urllib.request
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from typing import Callable
 
 from . import apps as start_apps
@@ -202,6 +203,7 @@ class Model:
                 self._last_state = self.state
                 self.user_expanded = False
             want = (self.session_open and not self.user_expanded and
+                    not self.pair_request and
                     (self.state == "active" or (self.state == "awaiting_helper" and not self.question_for_me)))
             changed = want != self.compact
             self.compact = want
@@ -338,6 +340,8 @@ class Model:
             self._send_profile()
         with self._lock:
             self.connected = ok
+            if not ok:
+                self.pair_request = None
             t = os.environ.get("PAPAI_AUTOTASK", "").strip()
             auto = ok and not self.auto_sent and bool(t)
             if auto:
@@ -432,14 +436,23 @@ class Model:
         self.pair_long = False
 
     @staticmethod
+    def pairing_url_without_key(url: str) -> str:
+        parts = urlsplit(url)
+        if parts.scheme.lower() == "papai":
+            query = [(k, Model.pairing_url_without_key(v) if k == "u" and urlsplit(v).scheme.lower() in ("http", "https") else v)
+                     for k, v in parse_qsl(parts.query, keep_blank_values=True)]
+            return urlunsplit(parts._replace(query=urlencode(query)))
+        return urlunsplit(parts._replace(path=re.sub(r"/k/[^/]+/p/", "/p/", parts.path)))
+
+    @staticmethod
     def app_pairing_url(url: str) -> str:
         """`papai://pair?u=<url encodée>` : l'appareil photo du téléphone ouvre l'app, pas le navigateur."""
-        return "papai://pair?u=" + quote(url, safe="-._~")
+        return "papai://pair?u=" + quote(Model.pairing_url_without_key(url), safe="-._~")
 
     @property
     def invitation_text(self) -> str:
         n = str(self.prefs.get("firstName") or "").strip()
-        who = n or "Votre support"
+        who = n or "Une personne de votre entourage"
         return (f"{who} aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre "
                 f"téléphone pour vous relier (valable {'24 heures' if self.pair_long else '10 minutes'}) :")
 
@@ -454,13 +467,15 @@ class Model:
             return False
         return True
 
-    def answer_pair(self, accept: bool) -> None:
+    def answer_pair(self, accept: bool, request_id=None) -> None:
         """Quelqu'un a tapé le code à 6 chiffres : il ne devient support qu'avec ce clic."""
-        r = self.pair_request
-        if not r:
-            return
-        self.pair_request = None
-        self._send({"type": "pair_decision", "req": r["req"], "accept": bool(accept)})
+        with self._lock:
+            r = self.pair_request
+            if not r or type(accept) is not bool or (request_id is not None and str(request_id) != str(r["req"])):
+                return
+            self.pair_request = None
+            self._send({"type": "pair_decision", "req": r["req"], "accept": accept})
+        self._level()
         self.push()
 
     def remove_helper(self, helper_id: str) -> None:
@@ -636,8 +651,8 @@ class Model:
             threading.Thread(target=go, daemon=True).start()
         elif kind == "pair_code":
             self.pair_code = m.get("code")
-            self.pair_url = m.get("url")
-            self.pair_app_url = m.get("app_url") or (self.app_pairing_url(self.pair_url) if self.pair_url else None)
+            self.pair_url = self.pairing_url_without_key(m["url"]) if m.get("url") else None
+            self.pair_app_url = self.pairing_url_without_key(m["app_url"]) if m.get("app_url") else (self.app_pairing_url(self.pair_url) if self.pair_url else None)
             self.pair_long = bool(m.get("long"))
             try:
                 self.pair_expires = int(m.get("expires_in") or 600)
@@ -646,9 +661,21 @@ class Model:
         elif kind == "pair_confirm":
             if m.get("req") is None:
                 return
-            self.pair_request = {"req": m["req"], "name": str(m.get("name") or "Quelqu'un")[:40],
-                                 "relation": str(m.get("relation") or "")[:60]}
+            with self._lock:
+                if self.pair_request and self.pair_request["req"] == m["req"]:
+                    return
+                if self.pair_request:
+                    self._send({"type": "pair_decision", "req": self.pair_request["req"], "accept": False})
+                self.pair_request = {"req": m["req"], "name": str(m.get("name") or "Quelqu'un")[:40],
+                                     "relation": str(m.get("relation") or "")[:60]}
+            self._level()
             self._on_remote()
+        elif kind == "pair_confirm_closed":
+            with self._lock:
+                if not self.pair_request or self.pair_request["req"] != m.get("req"):
+                    return
+                self.pair_request = None
+            self._level()
         elif kind == "ticket_queued":
             # Aucun support disponible : la demande attend, on revient à l'accueil.
             with self._lock:
@@ -866,6 +893,9 @@ class Model:
         self.helpers = [{"id": "1", "name": "Claire", "relation": "sa fille"}]
         self.apps = [{"label": n, "path": "", "icon": None}
                      for n in ("Mail", "Photos", "Internet", "Visio", "Explorateur", "Calendrier")]
+        if demo == "pair_request":
+            self.pair_request = {"req": "demo", "name": "Marc", "relation": "Service informatique"}
+            return
         if demo == "remote":
             self.remote_request = {"from": "Claire", "task": "Mettre à jour votre ordinateur"}
             return
