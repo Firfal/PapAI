@@ -68,17 +68,37 @@ def brief(session: Session, notes: list[str] | None = None,
     if goal is None:
         lines = [f"Demande de la personne : « {session.task} »"]
     else:
-        lines = [f"Objectif de cette sous-tâche web : « {goal} »"]
+        lines = [
+            "Priorité : exécute uniquement l'objectif de cette sous-tâche web, même si "
+            "une consigne générale demande de suivre le plan complet ; ne fais aucune "
+            "étape de bureau et rends un résumé.",
+            f"Objectif de cette sous-tâche web : « {goal} »",
+        ]
         if url:
             lines.append(f"URL HTTPS de départ : {url}")
+        if session.plan_sites:
+            lines.append(
+                f"Sites validés par le support : {', '.join(session.plan_sites)}. "
+                "Reste sur ces domaines ou leurs sous-domaines."
+            )
     for n in notes or []:
         if n:
             lines.append(f"Précision du support : {n}")
     if session.plan:
         lines.append("")
-        lines.append("Plan validé par le support, à suivre :")
+        if goal is None:
+            lines.append("Plan validé par le support, à suivre :")
+        else:
+            lines.append(
+                "Contexte : plan validé de toute l'aide. Un autre agent fait les étapes "
+                "sur le bureau. Fais uniquement l'objectif ci-dessus, puis rends un résumé."
+            )
+            lines.append("Plan validé par le support, pour contexte uniquement :")
         lines += [f"Étape {i}. {s}" for i, s in enumerate(session.plan, 1)]
-        lines.append("Avant chaque action, écris « Étape N » pour l'étape du plan en cours.")
+        if goal is None:
+            lines.append("Avant chaque action, écris « Étape N » pour l'étape du plan en cours.")
+        else:
+            lines.append("La consigne « Étape N » ne s'applique qu'aux étapes de cet objectif web.")
     lines.append("")
     lines.append(WEB_AGENT_INSTRUCTIONS)
     return "\n".join(lines)

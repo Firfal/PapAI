@@ -84,14 +84,20 @@ class Base(unittest.IsolatedAsyncioTestCase):
         s.grant_consent()
         return s
 
-    def plan(self, where):
+    def plan(self, where, sites=None):
         async def proposer(session, bridge, broadcast, note=""):
-            session.where = where
-            return list(PLAN)
+            session.plan_mode = where
+            session.plan_sites = list(sites or ["meteofrance.com"]) if where == "mixed" else []
+            session.web_steps = [2] if where == "mixed" else []
+            session.where = "web" if where == "web" else "desktop"
+            steps = list(PLAN)
+            if where == "mixed":
+                steps[1] = f"Dans Chrome PapAI ({', '.join(session.plan_sites)}) : {steps[1]}"
+            return steps
         return patch.object(app, "propose_plan", side_effect=proposer)
 
-    async def lancer(self, s, where="web", sans_gardien=True):
-        ctx = [self.plan(where)]
+    async def lancer(self, s, where="web", sans_gardien=True, sites=None):
+        ctx = [self.plan(where, sites)]
         if sans_gardien:
             ctx.append(patch.object(app, "check_request", AsyncMock(return_value=False)))
         for c in ctx:
@@ -109,9 +115,139 @@ class Base(unittest.IsolatedAsyncioTestCase):
 class ChoixDuMode(Base):
     def test_prompt_et_consignes(self):
         self.assertIn('"where"', PLAN_PROMPT)
+        self.assertIn('"web_steps"', PLAN_PROMPT)
+        self.assertIn('"sites"', PLAN_PROMPT)
+        prompt = PLAN_PROMPT.format(os="Mac")
+        self.assertIn('"where": "mixed"', prompt)
+        self.assertIn('"web_steps": [2]', prompt)
+        self.assertIn('"sites": ["ameli.fr"]', prompt)
         self.assertIn("Ne saisis jamais de mot de passe, de code reçu par SMS, de numéro de carte ni d'IBAN.",
                       WEB_AGENT_INSTRUCTIONS)
         self.assertEqual(os.environ.get("HAI_AUTO_BRIDGE"), "0")
+
+    async def test_plan_mixte_valide_sites_et_prefixe_les_etapes_web(self):
+        s = self.session()
+        contenu = json.dumps({
+            "steps": ["Ouvrir le dossier", "Consulter le site"],
+            "where": "mixed",
+            "web_steps": [2, 0, 3, True, "1"],
+            "sites": ["ameli.fr"],
+        })
+        resultat = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=contenu))], usage=None
+        )
+
+        with patch.object(agent, "client") as client:
+            client.chat.completions.create.return_value = resultat
+            steps = await agent.propose_plan(s, self.link, AsyncMock())
+
+        self.assertEqual(s.plan_mode, "mixed")
+        self.assertEqual(s.plan_sites, ["ameli.fr"])
+        self.assertEqual(s.web_steps, [2])
+        self.assertEqual(s.where, "desktop")
+        self.assertEqual(steps, [
+            "Ouvrir le dossier", "Dans Chrome PapAI (ameli.fr) : Consulter le site"
+        ])
+        self.assertEqual(s.status()["where"], "desktop")
+
+    async def test_plan_mixte_sans_domaine_valide_redevient_bureau(self):
+        s = self.session()
+        contenu = json.dumps({
+            "steps": ["Ouvrir le dossier", "Consulter le site"],
+            "where": "mixed",
+            "web_steps": [2],
+            "sites": ["https://ameli.fr", "AMELI.fr", "ameli.fr/compte"],
+        })
+        resultat = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=contenu))], usage=None
+        )
+
+        with patch.object(agent, "client") as client:
+            client.chat.completions.create.return_value = resultat
+            steps = await agent.propose_plan(s, self.link, AsyncMock())
+
+        self.assertEqual(s.plan_mode, "desktop")
+        self.assertEqual(s.plan_sites, [])
+        self.assertEqual(s.web_steps, [])
+        self.assertEqual(s.where, "desktop")
+        self.assertEqual(steps, ["Ouvrir le dossier", "Consulter le site"])
+
+    async def test_plan_mixte_sans_etape_web_valide_redevient_bureau(self):
+        s = self.session()
+        contenu = json.dumps({
+            "steps": ["Ouvrir le dossier", "Consulter le site"],
+            "where": "mixed",
+            "web_steps": [0, 3],
+            "sites": ["ameli.fr"],
+        })
+        resultat = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=contenu))], usage=None
+        )
+
+        with patch.object(agent, "client") as client:
+            client.chat.completions.create.return_value = resultat
+            steps = await agent.propose_plan(s, self.link, AsyncMock())
+
+        self.assertEqual(s.plan_mode, "desktop")
+        self.assertEqual(s.plan_sites, [])
+        self.assertEqual(s.web_steps, [])
+        self.assertEqual(steps, ["Ouvrir le dossier", "Consulter le site"])
+
+    async def test_plan_mixte_avec_plus_de_trois_sites_redevient_bureau(self):
+        s = self.session()
+        contenu = json.dumps({
+            "steps": ["Ouvrir le dossier", "Consulter le site"],
+            "where": "mixed",
+            "web_steps": [2],
+            "sites": ["ameli.fr", "caf.fr", "service-public.fr", "impots.gouv.fr"],
+        })
+        resultat = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=contenu))], usage=None
+        )
+
+        with patch.object(agent, "client") as client:
+            client.chat.completions.create.return_value = resultat
+            steps = await agent.propose_plan(s, self.link, AsyncMock())
+
+        self.assertEqual(s.plan_mode, "desktop")
+        self.assertEqual(s.plan_sites, [])
+        self.assertEqual(s.web_steps, [])
+        self.assertEqual(steps, ["Ouvrir le dossier", "Consulter le site"])
+
+    def test_brief_sous_tache_web_ne_demande_que_l_objectif_et_les_sites_valides(self):
+        s = self.session("Faire une démarche depuis le bureau")
+        s.plan = ["Ouvrir les réglages", "Dans Chrome PapAI (ameli.fr) : consulter l'attestation"]
+        s.plan_sites = ["ameli.fr"]
+
+        contenu = web_agent.brief(
+            s, ["Précision du support"], goal="Consulter l'attestation", url="https://ameli.fr"
+        )
+
+        self.assertTrue(contenu.startswith("Priorité : exécute uniquement l'objectif de cette sous-tâche web"))
+        self.assertIn(
+            "Contexte : plan validé de toute l'aide. Un autre agent fait les étapes sur le bureau. "
+            "Fais uniquement l'objectif ci-dessus, puis rends un résumé.",
+            contenu,
+        )
+        self.assertIn("Sites validés par le support : ameli.fr. Reste sur ces domaines ou leurs sous-domaines.",
+                      contenu)
+        self.assertIn("La consigne « Étape N » ne s'applique qu'aux étapes de cet objectif web.", contenu)
+        self.assertIn("Plan validé par le support, pour contexte uniquement :", contenu)
+        self.assertIn(WEB_AGENT_INSTRUCTIONS, contenu)
+
+    def test_brief_web_complet_est_inchange(self):
+        s = self.session("Consulter la météo")
+        s.plan = list(PLAN)
+
+        attendu = (
+            "Demande de la personne : « Consulter la météo »\n\n"
+            "Plan validé par le support, à suivre :\n"
+            "Étape 1. Ouvrir le site de Météo-France\n"
+            "Étape 2. Afficher la météo de Paris\n"
+            "Avant chaque action, écris « Étape N » pour l'étape du plan en cours.\n\n"
+            f"{WEB_AGENT_INSTRUCTIONS}"
+        )
+        self.assertEqual(web_agent.brief(s), attendu)
 
     async def test_session_web_ne_demarre_pas_de_pont_local(self):
         from hai_agents_local.manager import BridgeManager
@@ -457,11 +593,69 @@ class BasculeDepuisLeBureau(Base):
     def frame(self):
         self.link.capture.return_value = Frame("desktop", "desktop-frame", 1, 1)
 
+    def test_journal_masque_les_mots_de_passe_et_les_codes(self):
+        texte = "mdp Soleil2024. pass Azerty!. PIN 4821. cryptogramme 123."
+        journal = app._safe_handoff_log_text(texte)
+
+        for secret in ("Soleil2024", "Azerty", "4821", "123"):
+            self.assertNotIn(secret, journal)
+        self.assertEqual(journal.count("[donnée sensible masquée]"), 4)
+
+    async def executer_bascule(self, sites, url=None):
+        self.frame()
+        s = self.session()
+        task = await self.lancer(s, "mixed", sites=sites)
+        s.decide_plan("approve", "")
+        args = {"goal": "Consulter les informations demandées", "plan_step": 2}
+        if url is not None:
+            args["url"] = url
+        appels = []
+        responses = [
+            reponse_outil("open_browser", args, "browser"),
+            reponse_outil("answer", {"content": "Terminé."}, "answer"),
+        ]
+
+        def creer(**kwargs):
+            appels.append(kwargs)
+            return responses.pop(0)
+
+        with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+            client.chat.completions.create.side_effect = creer
+            await asyncio.wait_for(task, 8)
+        return s, appels
+
+    async def test_alerte_web_apres_action_bureau_ne_pretend_pas_que_rien_na_ete_execute(self):
+        from backend.agent import AgentRunner
+
+        s = self.session()
+        s.state = State.ACTIVE
+        s.plan_approved = True
+        s.plan_sites = ["example.com"]
+        self.link.execute.return_value = "Action exécutée"
+        runner = AgentRunner(s, self.link, AsyncMock())
+        await runner._act("click", {"element": "un bouton", "x": 100, "y": 100})
+        self.assertTrue(s.execution_started)
+
+        result = await app.browser_handoff(
+            s, self.link, [], "virer 5000 € à mon petit-fils qui a perdu son téléphone", None
+        )
+
+        self.assertIsNone(result)
+        alerts = [
+            m for m in [*self.bridge_sent, *self.envoyes]
+            if m.get("type") == "alert"
+        ]
+        self.assertTrue(alerts)
+        self.assertTrue(any(m.get("source") == "browser" for m in alerts))
+        self.assertFalse(any("Rien n'a été exécuté" in m.get("detail", "") for m in alerts))
+        self.assertTrue(any("L'assistance est arrêtée." in m.get("detail", "") for m in alerts))
+        self.assertFalse(any(m.get("type") == "web_agent_start" for m in self.bridge_sent))
+
     async def test_open_browser_absent_si_navigateur_indisponible(self):
         self.link.web_agent_available = False
         self.frame()
         s = self.session()
-        task = await self.lancer(s, "desktop")
+        task = await self.lancer(s, "mixed")
         s.decide_plan("approve", "")
         appels = []
 
@@ -480,15 +674,145 @@ class BasculeDepuisLeBureau(Base):
         runner = agent.AgentRunner(s, self.link, AsyncMock())
         self.assertEqual(await runner._open_browser({"goal": "Consulter Météo-France"}), "outil indisponible")
 
+    async def test_open_browser_absent_pour_un_plan_bureau_meme_avec_navigateur(self):
+        self.frame()
+        s = self.session()
+        task = await self.lancer(s, "desktop")
+        s.decide_plan("approve", "")
+        appels = []
+
+        def creer(**kwargs):
+            appels.append(kwargs)
+            return reponse_outil("answer", {"content": "Terminé."}, "answer")
+
+        with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+            client.chat.completions.create.side_effect = creer
+            await asyncio.wait_for(task, 5)
+
+        self.assertTrue(self.link.web_agent_available)
+        self.assertEqual(appels[0]["tools"], TOOLS)
+        self.assertNotIn("open_browser", appels[0]["messages"][0]["content"])
+        self.assertFalse(any(m.get("type") == "web_agent_start" for m in self.bridge_sent))
+
+    async def test_sous_domaine_du_plan_est_accepte(self):
+        s, appels = await self.executer_bascule(["ameli.fr"], "https://www.ameli.fr/compte")
+
+        self.assertEqual(s.state, State.DONE)
+        self.assertIn({"type": "web_agent_start"}, self.bridge_sent)
+        self.assertIn("https://www.ameli.fr/compte", self.api.sessions["h1"].corps["messages"])
+        self.assertIn("Reste sur ces domaines ou leurs sous-domaines.", self.api.sessions["h1"].corps["messages"])
+        self.assertIn("open_browser", [t["function"]["name"] for t in appels[0]["tools"]])
+
+    async def test_sans_url_demarre_sur_le_premier_site_du_plan(self):
+        _, _ = await self.executer_bascule(["ameli.fr", "service-public.fr"])
+
+        self.assertIn("URL HTTPS de départ : https://ameli.fr", self.api.sessions["h1"].corps["messages"])
+
+    async def test_url_hors_du_plan_est_refusee_sans_chrome(self):
+        _, appels = await self.executer_bascule(["ameli.fr"], "https://example.com/payer")
+
+        self.assertFalse(any(m.get("type") == "web_agent_start" for m in self.bridge_sent))
+        self.assertEqual(self.api.sessions, {})
+        resultats = [m["content"] for m in appels[1]["messages"] if m.get("role") == "tool"]
+        self.assertTrue(any(
+            "Ce site n'était pas dans le plan validé par le support." in r for r in resultats
+        ))
+
+    async def test_domaine_qui_contient_le_site_sans_point_est_refuse(self):
+        _, appels = await self.executer_bascule(["ameli.fr"], "https://evilameli.fr/")
+
+        self.assertFalse(any(m.get("type") == "web_agent_start" for m in self.bridge_sent))
+        self.assertEqual(self.api.sessions, {})
+        resultats = [m["content"] for m in appels[1]["messages"] if m.get("role") == "tool"]
+        self.assertTrue(any("Ce site n'était pas dans le plan validé" in r for r in resultats))
+
+    async def test_faux_site_edf_hors_plan_est_refuse(self):
+        _, appels = await self.executer_bascule(
+            ["edf.fr"], "https://edf-regularisation-facture.com/payer"
+        )
+
+        self.assertFalse(any(m.get("type") == "web_agent_start" for m in self.bridge_sent))
+        self.assertEqual(self.api.sessions, {})
+        resultats = [m["content"] for m in appels[1]["messages"] if m.get("role") == "tool"]
+        self.assertTrue(any("Ce site n'était pas dans le plan validé" in r for r in resultats))
+
+    async def test_site_du_plan_signale_par_le_gardien_bloque_avant_validation(self):
+        self.frame()
+        s = self.session()
+        alerte = app.guard.Alerte("danger", "Site à vérifier", "Domaine risqué", "domaine", False)
+
+        with patch.object(app.guard, "evaluer", return_value=alerte) as evaluer:
+            task = await self.lancer(s, "mixed", sites=["ameli.fr"])
+            await asyncio.wait_for(task, 5)
+
+        evaluer.assert_any_call([], "", url="https://ameli.fr")
+        self.assertEqual(s.stopped_by, "gardien")
+        self.assertFalse(any(m.get("type") == "web_agent_start" for m in self.bridge_sent))
+
+    async def test_url_web_signalee_par_le_gardien_bloquee_avant_chrome(self):
+        self.frame()
+        s = self.session()
+        url = "https://www.edf.fr/facture"
+        alerte = app.guard.Alerte("danger", "Site à vérifier", "Domaine risqué", "domaine", False)
+
+        def evaluer(processus, fenetre="", url=""):
+            return alerte if url == "https://www.edf.fr/facture" else None
+
+        with patch.object(app.guard, "evaluer", side_effect=evaluer) as evaluer_mock:
+            task = await self.lancer(s, "mixed", sites=["edf.fr"])
+            s.decide_plan("approve", "")
+            appels = []
+            responses = [
+                reponse_outil("open_browser", {
+                    "goal": "Consulter la facture EDF",
+                    "url": url,
+                    "plan_step": 2,
+                }, "browser"),
+            ]
+
+            def creer(**kwargs):
+                appels.append(kwargs)
+                return responses.pop(0)
+
+            with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+                client.chat.completions.create.side_effect = creer
+                await asyncio.wait_for(task, 5)
+
+        evaluer_mock.assert_any_call([], "", url=url)
+        self.assertEqual(s.stopped_by, "gardien")
+        self.assertFalse(any(m.get("type") == "web_agent_start" for m in self.bridge_sent))
+        self.assertEqual(self.api.sessions, {})
+        self.assertEqual(len(appels), 1)
+
+    async def test_sites_du_plan_sont_inclus_dans_le_texte_gardien(self):
+        self.frame()
+        s = self.session()
+        check = AsyncMock(return_value=False)
+        plan_patch = self.plan("mixed", ["ameli.fr"])
+        plan_patch.start()
+        self.addCleanup(plan_patch.stop)
+        with patch.object(app, "check_request", check):
+            task = asyncio.create_task(app.run_session(s, self.link))
+            self.addCleanup(task.cancel)
+            self.assertTrue(await attendre(lambda: s.state == State.AWAITING_APPROVAL))
+            s.decide_plan("refuse", "")
+            await asyncio.wait_for(task, 5)
+
+        plan_call = next(call for call in check.await_args_list if call.args[2] == "plan")
+        self.assertIn("https://ameli.fr", plan_call.args[1])
+
     async def test_sous_tache_web_revient_au_bureau_avec_son_resume(self):
         self.frame()
         s = self.session("Aide-moi à me renseigner sur la météo locale")
-        task = await self.lancer(s, "desktop")
+        task = await self.lancer(s, "mixed")
+        self.assertEqual(s.status()["where"], "desktop")
+        self.assertIn("Dans Chrome PapAI (meteofrance.com) :", s.status()["plan"][1])
         s.decide_plan("approve", "")
         responses = [
             reponse_outil("open_browser", {
                 "goal": "Consulter la météo de Paris sur Météo-France",
                 "url": "https://meteofrance.com/paris",
+                "plan_step": 2,
             }, "browser"),
             reponse_outil("answer", {"content": "La météo est affichée."}, "answer"),
         ]
@@ -504,6 +828,7 @@ class BasculeDepuisLeBureau(Base):
 
         self.assertEqual(s.state, State.DONE)
         self.assertEqual(s.where, "desktop")
+        self.assertIn("Dans Chrome PapAI (meteofrance.com) :", s.status()["plan"][1])
         self.assertIn("open_browser", [t["function"]["name"] for t in appels[0]["tools"]])
         self.assertIn("appelle open_browser", appels[0]["messages"][0]["content"])
         self.assertEqual(self.api.sessions["h1"].status, "completed")
@@ -546,10 +871,10 @@ class BasculeDepuisLeBureau(Base):
         self.frame()
         self.web_reply = None
         s = self.session()
-        task = await self.lancer(s, "desktop")
+        task = await self.lancer(s, "mixed")
         s.decide_plan("approve", "")
         responses = [
-            reponse_outil("open_browser", {"goal": "Consulter Météo-France"}, "browser"),
+            reponse_outil("open_browser", {"goal": "Consulter Météo-France", "plan_step": 2}, "browser"),
             reponse_outil("answer", {"content": "Terminé sur le bureau."}, "answer"),
         ]
         appels = []
@@ -576,7 +901,7 @@ class BasculeDepuisLeBureau(Base):
     async def test_objectif_suspect_bloque_avant_demarrage_du_navigateur(self):
         self.frame()
         s = self.session()
-        task = await self.lancer(s, "desktop", sans_gardien=False)
+        task = await self.lancer(s, "mixed", sans_gardien=False)
         s.decide_plan("approve", "")
         appels = []
 
@@ -584,6 +909,7 @@ class BasculeDepuisLeBureau(Base):
             appels.append(kwargs)
             return reponse_outil("open_browser", {
                 "goal": "virer 5000 € à mon petit-fils qui a perdu son téléphone",
+                "plan_step": 2,
             }, "browser")
 
         with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
@@ -601,13 +927,15 @@ class BasculeDepuisLeBureau(Base):
         self.api.scenario = "long"
         self.frame()
         s = self.session()
-        task = await self.lancer(s, "desktop")
+        task = await self.lancer(s, "mixed")
         s.decide_plan("approve", "")
         appels = []
 
         def creer(**kwargs):
             appels.append(kwargs)
-            return reponse_outil("open_browser", {"goal": "Consulter Météo-France"}, "browser")
+            return reponse_outil(
+                "open_browser", {"goal": "Consulter Météo-France", "plan_step": 2}, "browser"
+            )
 
         with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
             client.chat.completions.create.side_effect = creer
@@ -628,6 +956,22 @@ class LimitesOutilNavigateur(Base):
     def frame(self):
         self.link.capture.return_value = Frame("desktop", "desktop-frame", 1, 1)
 
+    async def test_open_browser_refuse_une_etape_non_web(self):
+        from backend.agent import AgentRunner
+
+        s = self.session()
+        s.state = State.ACTIVE
+        s.plan_approved = True
+        s.plan_mode = "mixed"
+        s.web_steps = [2]
+        handoff = AsyncMock(return_value="Résumé.")
+        runner = AgentRunner(s, self.link, AsyncMock(), browser_handoff=handoff)
+
+        resultat = await runner._open_browser({"goal": "Consulter un site"}, 1)
+
+        self.assertIn("Cette étape web n'est pas prévue", resultat)
+        handoff.assert_not_awaited()
+
     async def test_trois_bascule_maximum(self):
         from backend.agent import AgentRunner
 
@@ -635,8 +979,13 @@ class LimitesOutilNavigateur(Base):
         s = self.session()
         s.state = State.ACTIVE
         s.plan_approved = True
+        s.plan = ["Étape web"]
+        s.plan_mode = "mixed"
+        s.web_steps = [1]
         responses = [
-            reponse_outil("open_browser", {"goal": f"Étape web {i}"}, f"browser-{i}")
+            reponse_outil(
+                "open_browser", {"goal": f"Étape web {i}", "plan_step": 1}, f"browser-{i}"
+            )
             for i in range(4)
         ] + [reponse_outil("answer", {"content": "Terminé."}, "answer")]
         appels = []
@@ -666,10 +1015,14 @@ class LimitesOutilNavigateur(Base):
         s = self.session()
         s.state = State.ACTIVE
         s.plan_approved = True
+        s.plan = ["Étape web"]
+        s.plan_mode = "mixed"
+        s.web_steps = [1]
         responses = [
             reponse_outil("open_browser", {
                 "goal": "Consulter Météo-France",
                 "url": "http://example.com",
+                "plan_step": 1,
             }, "browser"),
             reponse_outil("answer", {"content": "Terminé."}, "answer"),
         ]
