@@ -11,19 +11,31 @@ import asyncio
 import hashlib
 import hmac
 import json
+import logging
 import os
 import tempfile
 import time
 from pathlib import Path
+from threading import Lock
 from urllib.parse import quote, urlencode
 from urllib.request import Request as URLRequest, urlopen
 
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse
 
+_live_warned = False
+_live_warning_lock = Lock()
+
+
 def config():
+    global _live_warned
     key = os.environ.get("STRIPE_SECRET_KEY", "")
     price = os.environ.get("STRIPE_PRICE_ID", "")
+    if key.startswith(("sk_live", "rk_live")):
+        with _live_warning_lock:
+            if not _live_warned:
+                logging.getLogger(__name__).warning("[abonnement] clé Stripe live refusée : mode test seulement")
+                _live_warned = True
     return key if key.startswith(("sk_test_", "rk_test_")) else "", price
 
 

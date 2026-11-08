@@ -4,6 +4,7 @@ import hmac
 import json
 import os
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -81,15 +82,52 @@ class Abonnement(unittest.TestCase):
         return self.request("/stripe/webhook", raw, {"Stripe-Signature": signature or f"t={t},v1=wrong,v1={sig}"})
 
     def test_non_configure_et_live(self):
-        for key in ("", "sk_live_refuse", "rk_live_refuse", "invalide"):
-            os.environ["STRIPE_SECRET_KEY"] = key
-            self.assertEqual(self.request(self.path + "/abonnement")[0], 200)
-            self.assertFalse(self.request(self.path + "/billing")[1]["disponible"])
-            self.assertEqual(self.request(self.path + "/billing/checkout", b"")[0], 503)
+        with patch.object(billing, "_live_warned", False), self.assertLogs("backend.billing", level="WARNING") as logs:
+            for key in ("", "sk_live_refuse", "rk_live_refuse", "invalide"):
+                os.environ["STRIPE_SECRET_KEY"] = key
+                page = self.request(self.path + "/abonnement")
+                state = self.request(self.path + "/billing")
+                checkout = self.request(self.path + "/billing/checkout", b"")
+                self.assertEqual(page[0], 200)
+                self.assertFalse(state[1]["disponible"])
+                self.assertEqual(checkout[0], 503)
+                if key:
+                    self.assertNotIn(key, json.dumps([page, state, checkout]))
+        self.assertEqual([record.getMessage() for record in logs.records],
+                         ["[abonnement] clé Stripe live refusée : mode test seulement"])
         self.assertEqual(self.fake.requests, [])
         os.environ["STRIPE_SECRET_KEY"] = "sk_test_local"
         os.environ["STRIPE_PRICE_ID"] = ""
         self.assertFalse(self.request(self.path + "/billing")[1]["disponible"])
+
+    def test_page_affiche_detail(self):
+        script = (Path(billing.__file__).parent / "static" / "abonnement.html").read_text().split("<script>")[1].split("</script>")[0]
+        result = subprocess.run(["node", "-e", r'''
+const vm=require('node:vm'), assert=require('node:assert/strict');
+async function scenario(kind) {
+  const nodes={};
+  const node=id=>nodes[id]??=( {textContent:'', hidden:true} );
+  const message='Message HTTP '+kind;
+  let calls=0;
+  const context={document:{getElementById:node}, location:{pathname:'/o/test/abonnement',assign:()=>assert.fail('Redirection inattendue')}, Intl,
+    fetch:async()=>{
+      calls++;
+      return calls===1 && kind!=='load'
+        ? {ok:true,json:async()=>({disponible:true,abonne:kind==='portal',postes:2,prix:{currency:'eur',unit_amount:1200}})}
+        : {ok:false,json:async()=>({detail:message})};
+    }};
+  vm.runInNewContext(process.argv[1],context);
+  await new Promise(setImmediate);
+  if(kind!=='load') {
+    await node('action').onclick();
+    assert.equal(node('action').disabled,false);
+  }
+  assert.equal(node('error').textContent,message);
+}
+(async()=>{for(const kind of ['load','checkout','portal']) await scenario(kind);
+console.log('OK : detail affiché pour billing, checkout et portail');})().catch(e=>{console.error(e);process.exit(1)});
+''', script], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_prix_checkout_et_cache(self):
         status, data = self.request(self.path + "/billing")

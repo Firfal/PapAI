@@ -31,8 +31,8 @@ const action=document.getElementById('action');
 async function load() {
   try {
     const r=await fetch(base+'/billing');
-    if(!r.ok) throw new Error('Impossible de charger l’abonnement.');
     const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||'Impossible de charger l’abonnement.');
     document.getElementById('availability').textContent=d.disponible?'Votre abonnement':'Abonnement bientôt disponible';
     if(!d.disponible) return;
     const money=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:d.prix.currency}).format(n/100);
