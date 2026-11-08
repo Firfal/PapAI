@@ -88,7 +88,8 @@
       ['Étapes', t => (t.plan || []).length ? `${t.steps_done || 0}/${t.plan.length}` : ''],
       ['Arrêté par', t => t.stopped_by || ''], ['Clos par', t => t.closed_by || ''],
       ['Notes', t => (t.notes || []).map(n => `${n.by}: ${n.text}`).join(' | ')]];
-    const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // Une case qui commence par = + - @ serait lue comme une formule par le tableur.
+    const q = v => `"${String(v ?? '').replace(/^[=+\-@\t\r]/, "'$&").replace(/"/g, '""')}"`;
     return [cols.map(c => q(c[0])).join(';'), ...list.map(t => cols.map(c => q(c[1](t))).join(';'))].join('\r\n');
   }
 
