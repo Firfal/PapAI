@@ -389,7 +389,7 @@ class WebAgentRunner:
         self.s.log("web_off_site", host=host)
         try:
             await self._pause()
-            question = f"Holo a quitté les sites validés : {host or "site inconnu"}. Autoriser ce site pour cette assistance, ou arrêter ?"
+            question = f"Holo a quitté les sites validés : {host or 'site inconnu'}. Autoriser ce site pour cette assistance, ou arrêter ?"
             options = ["Autoriser ce site une fois", "Arrêter l'assistance"]
             while self.s.is_open:
                 reply = await self._escalate(question, options)
