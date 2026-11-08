@@ -889,6 +889,8 @@ async def run_session(session, link: "BridgeLink") -> None:
             steps = await propose_plan(session, link, broadcast_helper, " ; ".join(notes))
             if not session.is_open:
                 return
+            if session.linkup_id or session.linkup_result is not None:
+                return
             if session.linkup_query:
                 session.plan = None
                 session.state = State.AWAITING_APPROVAL

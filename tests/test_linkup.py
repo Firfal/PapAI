@@ -198,6 +198,29 @@ class Workflow(unittest.IsolatedAsyncioTestCase):
         await self.search()
         self.assertFalse(any(c.args[0]["type"].startswith("linkup") for c in other.send_json.call_args_list))
 
+    async def test_support_search_during_planning_preserves_result(self):
+        for completed in (False, True):
+            with self.subTest(completed=completed):
+                self.s.linkup_id = ""
+                self.s.linkup_result = None
+                self.ws.send_json.reset_mock()
+
+                async def planning(*args):
+                    await self.search()
+                    if not completed:
+                        self.s.linkup_result = None
+                    return ["Ouvrir le logiciel"]
+
+                with patch.object(app, "propose_plan", planning), patch.object(app, "AgentRunner") as runner:
+                    await app.run_session(self.s, self.sp.bridge)
+                runner.assert_not_called()
+                messages = [c.args[0]["type"] for c in self.ws.send_json.call_args_list]
+                self.assertEqual(messages.count("linkup_proposed"), 1)
+                self.assertEqual(messages.count("linkup_result"), 1)
+                self.assertTrue(self.s.linkup_id)
+                if completed:
+                    self.assertEqual(self.s.linkup_result["summary"], self.result["summary"])
+
     async def test_holo_proposal_never_runs_agent(self):
         agent.client.chat.completions.create.return_value = SimpleNamespace(usage=None,
             choices=[SimpleNamespace(message=SimpleNamespace(content='{"linkup_query":"Documentation du logiciel"}'))])
