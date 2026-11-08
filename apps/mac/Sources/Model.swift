@@ -819,7 +819,7 @@ final class AppModel {
         }
         if gate.isStopped || guardAlert != nil { reply("Assistance arrêtée ou alerte du gardien en attente.", refused: true); return }
         guard planApproved && ["active", "awaiting_helper"].contains(executionState ?? "") else {
-            reply("Action refusée : aucun plan validé par l'aidant.", refused: true)
+            reply("Action refusée : aucun plan validé par le support.", refused: true)
             return
         }
         let said = describeAction(name, args)
