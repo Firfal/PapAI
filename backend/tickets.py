@@ -175,7 +175,10 @@ def solution(t: dict) -> dict:
     note = str(t.get("solution") or "")
     by = t.get("closed_by") or ""
     if not note and by:
-        note = next((n.get("text", "") for n in reversed(t.get("notes") or []) if n.get("by") == by), "")
+        # Ancien ticket : le texte de clôture est la note du support posée à la clôture même.
+        closed = int(t.get("resolved") or 0)
+        note = next((n.get("text", "") for n in reversed(t.get("notes") or [])
+                     if closed and n.get("by") == by and int(n.get("t") or 0) >= closed), "")
     steps = list(t.get("plan") or []) if t.get("end") == "done" else []
     return {"note": note, "steps": steps, "by": by or t.get("helper") or "", "at": int(t.get("resolved") or t.get("updated") or 0)}
 

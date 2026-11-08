@@ -78,6 +78,9 @@ def stockage() -> None:
     tk.update(dossier, updated=int(time.time()) - 100 * 86400)
     dossier["updated"] = dossier["resolved"] = int(time.time()) - 100 * 86400
     check("réglée il y a plus de 90 jours : oubliée", tk.same("dossier de la comptabilité") is None)
+    tk.note(wifi, "Claire", "Vérifier le pilote")
+    tk.update(wifi, status="resolu", closed_by="Claire")
+    check("note de diagnostic avant la clôture : pas présentée comme la solution", solution(wifi)["note"] == "")
     auto = tk.open("Imprimer une photo", "automatisme")
     check("les tickets d'automates ne comptent pas", auto and tk.same("Imprimer une photo") is None)
 
