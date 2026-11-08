@@ -230,8 +230,6 @@ struct SessionView: View {
             if model.sessionWhere == "web" {
                 endNote("globe", "Holo a fermé sa fenêtre Chrome.")
             }
-        default:
-            EmptyView()
         }
     }
 

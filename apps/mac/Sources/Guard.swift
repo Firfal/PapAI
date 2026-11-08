@@ -28,7 +28,7 @@ enum GuardSignals {
         set { UserDefaults.standard.set(newValue, forKey: "realtimeProtection") }
     }
 
-    private static let browsers: [String: String] = [
+    nonisolated private static let browsers: [String: String] = [
         "com.apple.Safari": #"tell application id "com.apple.Safari" to return URL of front document"#,
         "com.google.Chrome": #"tell application id "com.google.Chrome" to return URL of active tab of front window"#,
         "com.microsoft.edgemac": #"tell application id "com.microsoft.edgemac" to return URL of active tab of front window"#,
@@ -39,7 +39,11 @@ enum GuardSignals {
     /// `withURL` à faux pendant une session : la première lecture de l'adresse
     /// fait apparaître une demande d'autorisation macOS, qu'on ne veut pas voir
     /// surgir pendant que Holo agit.
-    static func collect(withURL: Bool) -> [String: Any] {
+    /// Titre de fenêtre et AppleScript hors du fil principal : la demande
+    /// d'autorisation d'automatisation de macOS ne gèle plus la fenêtre.
+    nonisolated private static let queue = DispatchQueue(label: "papai.guard.signals", qos: .utility)
+
+    static func collect(withURL: Bool) async -> [String: Any] {
         let apps = NSWorkspace.shared.runningApplications
         var names: [String] = []
         for app in apps {
@@ -48,16 +52,20 @@ enum GuardSignals {
             }
         }
         let front = NSWorkspace.shared.frontmostApplication
-        let window = front.map { frontWindowTitle(pid: $0.processIdentifier) } ?? ""
-        var url = ""
-        if withURL, let id = front?.bundleIdentifier, let source = browsers[id] {
-            url = siteOnly(browserURL(source))
+        let pid = front?.processIdentifier
+        let source = withURL ? front?.bundleIdentifier.flatMap { browsers[$0] } : nil
+        let (window, url) = await withCheckedContinuation { (c: CheckedContinuation<(String, String), Never>) in
+            queue.async {
+                let window = pid.map { frontWindowTitle(pid: $0) } ?? ""
+                let url = source.map { siteOnly(browserURL($0)) } ?? ""
+                c.resume(returning: (window, url))
+            }
         }
         return ["type": "guard", "processes": names, "window": window, "url": url]
     }
 
     /// Le titre exige l'autorisation d'enregistrement de l'écran, déjà donnée à PapAI.
-    private static func frontWindowTitle(pid: pid_t) -> String {
+    nonisolated private static func frontWindowTitle(pid: pid_t) -> String {
         let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let list = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else { return "" }
         for w in list {
@@ -70,12 +78,12 @@ enum GuardSignals {
 
     /// Le gardien ne juge que le site : chemin et paramètres, qui peuvent
     /// porter des jetons, restent sur le Mac.
-    private static func siteOnly(_ address: String) -> String {
+    nonisolated private static func siteOnly(_ address: String) -> String {
         guard let c = URLComponents(string: address), let host = c.host, !host.isEmpty else { return "" }
         return "\(c.scheme ?? "https")://\(host)"
     }
 
-    private static func browserURL(_ command: String) -> String {
+    nonisolated private static func browserURL(_ command: String) -> String {
         // Sans délai court, un navigateur figé bloquerait la fenêtre PapAI.
         let source = "with timeout of 2 seconds\n\(command)\nend timeout"
         var error: NSDictionary?
