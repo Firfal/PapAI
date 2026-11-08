@@ -390,7 +390,7 @@ class WebAgentRunner:
         try:
             await self._pause()
             reply = await self._escalate(
-                f"Holo a quitté les sites validés : {short}. Autoriser ce site pour cette assistance, ou arrêter ?",
+                f"Holo a quitté les sites validés : {host or "site inconnu"}. Autoriser ce site pour cette assistance, ou arrêter ?",
                 ["Autoriser ce site une fois", "Arrêter l'assistance"],
             )
             if reply is None or not self.s.is_open:

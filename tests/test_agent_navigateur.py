@@ -5,6 +5,7 @@ Faux Agents API local (tests/faux_agents_api.py), aucune clé ni navigateur.
     .venv-mac/bin/python tests/test_agent_navigateur.py
 """
 import asyncio
+from urllib.parse import urlsplit
 import json
 import os
 import sys
@@ -1102,6 +1103,9 @@ class SitesValides(Base):
         self.assertTrue(await attendre(lambda: s.question is not None))
         self.assertEqual(self.h().status, "paused")
         self.assertIn("Holo a quitté les sites validés", s.question["question"])
+        chemin = urlsplit(url).path if isinstance(url, str) else ""
+        if len(chemin) > 1:
+            self.assertNotIn(chemin, s.question["question"])
         self.assertEqual(s.question["options"],
                          ["Autoriser ce site une fois", "Arrêter l'assistance"])
 

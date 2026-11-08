@@ -581,7 +581,7 @@ bureau reste le comportement par défaut.
   sans identifiant, requête ni fragment ; le journal `web_off_site` ne contient
   que l'hôte, jamais l'URL complète.
 - La question utilise le message `question` habituel destiné au support :
-  « Holo a quitté les sites validés : <url courte>. Autoriser ce site pour cette
+  « Holo a quitté les sites validés : <hôte>. Autoriser ce site pour cette
   assistance, ou arrêter ? », avec les options
   `["Autoriser ce site une fois", "Arrêter l'assistance"]`.
   Autoriser ajoute l'hôte exact à `hosts`, envoie `web_sites`, journalise
