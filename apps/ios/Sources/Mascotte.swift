@@ -2,13 +2,6 @@ import SwiftUI
 
 // Même mascotte que l'app Mac (apps/mac/Sources/Theme.swift), pour une identité commune.
 
-extension Color {
-    init(hex: UInt32) {
-        self.init(.sRGB, red: Double((hex >> 16) & 0xFF) / 255, green: Double((hex >> 8) & 0xFF) / 255,
-                  blue: Double(hex & 0xFF) / 255, opacity: 1)
-    }
-}
-
 /// La mascotte : la papaye « Pastel » de l'icône (`brand/papai-mascotte-pastel.svg`),
 /// avec quelques humeurs pour accompagner la personne sans ajouter de texte.
 /// Décorative : jamais seule porteuse d'une information.

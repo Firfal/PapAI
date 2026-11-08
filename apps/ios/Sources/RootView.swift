@@ -11,7 +11,7 @@ struct RootView: View {
                     .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 20)
                     .background { SoinHeaderBackground() }
                     .padding(.bottom, 14)
-                if model.isConfigured { PeopleRow(model: model) }
+                if model.isConfigured && model.screen != .idle { PeopleRow(model: model) }
                 if model.isConfigured && !model.connected {
                     LostBanner(model: model).padding(.horizontal, 20).padding(.bottom, 10)
                 }
@@ -53,7 +53,7 @@ struct RootView: View {
             NoPosteView(model: model)
         } else {
             switch model.screen {
-            case .idle: IdleView(model: model)
+            case .idle: SupportHome(model: model)
             case .waiting: WaitingView(model: model, text: "En attente de l’autorisation de \(model.senior)")
             case .planning: WaitingView(model: model, text: "Holo regarde l’écran…")
             case .approval: ApprovalView(model: model)

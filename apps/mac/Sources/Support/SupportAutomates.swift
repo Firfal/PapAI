@@ -1,99 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// « Mes automates » : la bibliothèque du support, gardée sur son poste
-/// (~/Library/Application Support/PapAI/automates.json). Chaque automate est un
-/// pack `.papai` ; le support décide ensuite à qui l'appliquer. Appliquer =
-/// l'importer dans l'espace de la personne (`POST /automations`), ce qui le valide.
-@MainActor
-@Observable
-final class AutomateLibrary {
-    struct Entry: Codable, Identifiable {
-        var id: String
-        var pack: Data          // le JSON .papai, tel quel
-        var applied: [String]   // clés des personnes chez qui il est appliqué
-        var created: Double
-
-        var json: [String: Any] { (try? JSONSerialization.jsonObject(with: pack)) as? [String: Any] ?? [:] }
-        var title: String { json["title"] as? String ?? "Sans titre" }
-        var detail: String { json["description"] as? String ?? "" }
-        var publisher: String { json["publisher"] as? String ?? "" }
-        var platforms: [String] { json["platforms"] as? [String] ?? [] }
-        var stepCount: Int { (json["steps"] as? [Any])?.count ?? 0 }
-        var firstAction: String { ((json["actions"] as? [[String: Any]])?.first?["do"] as? String) ?? "" }
-    }
-
-    static let shared = AutomateLibrary()
-    var entries: [Entry] = []
-
-    private var file: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("PapAI", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("automates.json")
-    }
-
-    init() {
-        if let d = try? Data(contentsOf: file), let l = try? JSONDecoder().decode([Entry].self, from: d) {
-            entries = l
-        } else {
-            seedExamples()
-        }
-    }
-
-    /// Premier lancement : les exemples livrés avec l'app (dossier `automations/` du dépôt).
-    private func seedExamples() {
-        let urls = Bundle.main.urls(forResourcesWithExtension: "papai", subdirectory: "automates") ?? []
-        for u in urls.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            if let d = try? Data(contentsOf: u) { _ = add(pack: d, save: false) }
-        }
-        save()
-    }
-
-    @discardableResult
-    func add(pack: Data, save doSave: Bool = true) -> Entry? {
-        guard let obj = (try? JSONSerialization.jsonObject(with: pack)) as? [String: Any],
-              obj["papai"] as? Int == 1, obj["title"] is String else { return nil }
-        let e = Entry(id: UUID().uuidString, pack: pack, applied: [], created: Date().timeIntervalSince1970)
-        entries.insert(e, at: 0)
-        if doSave { save() }
-        return e
-    }
-
-    func remove(_ e: Entry) { entries.removeAll { $0.id == e.id }; save() }
-
-    func markApplied(_ e: Entry, keys: [String]) {
-        guard let i = entries.firstIndex(where: { $0.id == e.id }) else { return }
-        entries[i].applied = Array(Set(entries[i].applied).union(keys))
-        save()
-    }
-
-    func save() {
-        if let d = try? JSONEncoder().encode(entries) { try? d.write(to: file, options: .atomic) }
-    }
-
-    /// Adresse HTTP de l'espace d'une personne (comme `HelperModel.baseHTTP`).
-    static func base(_ p: Person) -> String {
-        var s = p.server.trimmingCharacters(in: .whitespacesAndNewlines)
-        while s.hasSuffix("/") { s.removeLast() }
-        if !s.contains("://") { s = "http://" + s }
-        return s
-    }
-
-    /// Importe le pack chez une personne. Renvoie un message d'erreur, ou nil.
-    static func apply(_ e: Entry, to p: Person) async -> String? {
-        guard let url = URL(string: base(p) + "/automations") else { return "Adresse invalide" }
-        var req = URLRequest(url: url, timeoutInterval: 20)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = e.pack
-        guard let (d, r) = try? await URLSession.shared.data(for: req) else { return "Serveur injoignable" }
-        if (r as? HTTPURLResponse)?.statusCode == 200 { return nil }
-        let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
-        return obj?["error"] as? String ?? "Refusé par le serveur"
-    }
-}
-
 /// Onglet « Mes automates » du mode support.
 struct SupportAutomates: View {
     let model: HelperModel
@@ -173,7 +80,7 @@ struct SupportAutomates: View {
                     if !e.platforms.isEmpty { tag(e.platforms.map { $0 == "mac" ? "Mac" : "Windows" }.joined(separator: " · ")) }
                     if !e.publisher.isEmpty { tag(e.publisher) }
                 }
-                let names = model.people.filter { e.applied.contains($0.key) }.map { $0.name.isEmpty ? "Utilisateur" : $0.name }
+                let names = AutomateLibrary.appliedTo(e, people: model.people, org: model.org, orgName: model.orgName)
                 Text(names.isEmpty ? "Appliqué à personne" : "Appliqué à : " + names.joined(separator: ", "))
                     .font(rounded(14, .semibold)).foregroundStyle(names.isEmpty ? T.muted : T.leaf)
             }
@@ -215,8 +122,10 @@ struct ApplyAutomateSheet: View {
     let entry: AutomateLibrary.Entry
     var close: () -> Void
     @State private var chosen: Set<String> = []
+    @State private var orgs: [OrgMembers] = []
+    @State private var chosenOrgs: Set<String> = []
     @State private var sending = false
-    @State private var results: [String: String] = [:]   // clé -> erreur ("" = réussi)
+    @State private var results: [String: String] = [:]   // clé ou jeton -> erreur ("" = réussi)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -228,14 +137,37 @@ struct ApplyAutomateSheet: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
+                    ForEach(orgs) { o in
+                        let already = entry.orgKeys?[o.token] != nil
+                        let done = results[o.token] == ""
+                        HStack {
+                            Toggle(isOn: Binding(get: { chosenOrgs.contains(o.token) || already || done },
+                                                 set: { on in if on { chosenOrgs.insert(o.token) } else { chosenOrgs.remove(o.token) } })) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(o.name.isEmpty ? "Toute l’organisation" : "Toute l’organisation \(o.name)").font(rounded(17, .semibold))
+                                    Text(o.detail).font(rounded(13)).foregroundStyle(T.muted)
+                                }
+                            }
+                            .toggleStyle(.checkbox).disabled(already || done || sending)
+                            Spacer()
+                            if already { Text("déjà appliqué").font(rounded(13)).foregroundStyle(T.leaf) }
+                            if let r = results[o.token] {
+                                Text(r.isEmpty ? "Appliqué" : r).font(rounded(13, .semibold))
+                                    .foregroundStyle(r.isEmpty ? T.leaf : T.danger)
+                            }
+                        }
+                        .padding(12).champ()
+                    }
                     ForEach(model.people) { p in
                         let already = entry.applied.contains(p.key)
+                        let covered = orgs.contains { chosenOrgs.contains($0.token) && $0.keys.contains(p.key) }
+                        let done = results[p.key] == ""
                         HStack {
-                            Toggle(isOn: Binding(get: { chosen.contains(p.key) || already },
+                            Toggle(isOn: Binding(get: { chosen.contains(p.key) || already || covered || done },
                                                  set: { on in if on { chosen.insert(p.key) } else { chosen.remove(p.key) } })) {
                                 Text(p.name.isEmpty ? "Utilisateur" : p.name).font(rounded(17, .semibold))
                             }
-                            .toggleStyle(.checkbox).disabled(already || sending)
+                            .toggleStyle(.checkbox).disabled(already || covered || done || sending)
                             Spacer()
                             if already { Text("déjà appliqué").font(rounded(13)).foregroundStyle(T.leaf) }
                             if let r = results[p.key] {
@@ -252,22 +184,20 @@ struct ApplyAutomateSheet: View {
                 Button(results.isEmpty ? "Plus tard" : "Fermer") { close() }.buttonStyle(PillStyle(filled: false, height: 46))
                 Button(sending ? "Envoi…" : "Appliquer") { Task { await apply() } }
                     .buttonStyle(PillStyle(height: 46, icone: "checkmark.circle"))
-                    .disabled(chosen.isEmpty || sending)
+                    .disabled((chosen.isEmpty && chosenOrgs.isEmpty) || sending)
             }
         }
         .padding(24).frame(width: 480, height: 460).background(T.bg).foregroundStyle(T.ink)
+        .task { orgs = await OrgMembers.load(model.org, name: model.orgName) }
     }
 
     private func apply() async {
         sending = true; defer { sending = false }
-        var ok: [String] = []
-        for p in model.people where chosen.contains(p.key) {
-            let err = await AutomateLibrary.apply(entry, to: p)
-            results[p.key] = err ?? ""
-            if err == nil { ok.append(p.key) }
-        }
-        AutomateLibrary.shared.markApplied(entry, keys: ok)
-        chosen.subtract(ok)
+        let r = await AutomateLibrary.shared.apply(entry, people: model.people.filter { chosen.contains($0.key) },
+                                                   orgs: orgs.filter { chosenOrgs.contains($0.token) })
+        results.merge(r) { _, n in n }
+        let ok = r.filter { $0.value.isEmpty }.map(\.key)
+        chosen.subtract(ok); chosenOrgs.subtract(ok)
         if !ok.isEmpty { await model.loadLessons() }
     }
 }
