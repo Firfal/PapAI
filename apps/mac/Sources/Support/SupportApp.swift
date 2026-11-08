@@ -63,16 +63,25 @@ struct SupportRoot: View {
         VStack(alignment: .leading, spacing: 20) {
             SupportHeader(model: model)
             if model.isConfigured {
-                HStack(alignment: .top, spacing: 22) {
-                    PeopleSidebar(model: model).frame(width: 236)
-                    VStack(alignment: .leading, spacing: 12) {
-                        Onglets(options: [("Assistance", 0), ("Mes automates", 1)], selection: $onglet)
-                            .frame(maxWidth: 360)
-                        if !model.connected { LostBar(model: model) }
-                        if let reason = model.sensitiveRefusal { refusal(reason) }
-                        if onglet == 1 { SupportAutomates(model: model) } else { content }
+                VStack(alignment: .leading, spacing: 14) {
+                    Onglets(options: [("Tickets", 0), ("Utilisateurs", 1), ("Mes automates", 2)], selection: $onglet)
+                        .frame(maxWidth: 520)
+                    switch onglet {
+                    case 0:
+                        SupportTickets(model: model) { p in model.switchTo(p); onglet = 1 }
+                    case 2:
+                        SupportAutomates(model: model)
+                    default:
+                        HStack(alignment: .top, spacing: 22) {
+                            PeopleSidebar(model: model).frame(width: 236)
+                            VStack(alignment: .leading, spacing: 12) {
+                                if !model.connected { LostBar(model: model) }
+                                if let reason = model.sensitiveRefusal { refusal(reason) }
+                                content
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
             } else {
                 SupportWelcome(model: model)
@@ -87,8 +96,8 @@ struct SupportRoot: View {
         .overlay(alignment: .bottom) { toast }
         .animation(.spring(duration: 0.35), value: model.toast)
         .animation(.easeInOut(duration: 0.25), value: model.screen)
-        // Une demande arrive : on revient sur l'assistance, quel que soit l'onglet.
-        .onChange(of: model.screen) { _, s in if s != .idle { onglet = 0 } }
+        // Une assistance démarre : on montre l'utilisateur concerné, quel que soit l'onglet.
+        .onChange(of: model.screen) { _, s in if s != .idle { onglet = 1 } }
         .sheet(item: $model.sheet) { s in
             switch s {
             case .pair(let l): SupportPairSheet(model: model, link: l)

@@ -59,6 +59,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Automates importés par un support (`.papai`) : import et retrait (page aidant, `POST /k/CLÉ/automations`), actions de premier niveau, lancement en un clic sans validation à chaque fois, 7 exemples dans `automations/` (dont démos Wi-Fi, bloqueur de publicités, navigateur remis à zéro). Tests : `tests/test_automatismes.py` (40 contrôles) et `apps/windows/tests/test_windows_app.py`.
 - [ ] Charger les 7 exemples d'automates dans un nouvel espace (aujourd'hui il faut les importer à la main). Touche `backend/space.py`, réservé par Devin (multi-espaces).
 - [x] Réglages Mac : sans taille du texte, sans changement de rôle, sans lien de parenté (`claude/reglages-connexion`).
+- [x] Accueil support Mac : onglets Tickets (tous les utilisateurs), Utilisateurs, Mes automates (`claude/support-tickets`). Reste : même organisation sur l'iPhone et Android.
 - [x] Mode support Mac : « Mes automates » (bibliothèque du support, appliquer à des personnes), création à la main, depuis un document ou un enregistrement d'écran avec voix (`claude/support-automates`).
   - [ ] Essayer l'enregistrement d'écran en vrai (autorisation d'enregistrement et micro sur le poste du support).
   - [ ] Joindre les captures clés au pas à pas « Montrez-moi » de l'automate créé.
