@@ -15,9 +15,9 @@ struct ActiveView: View {
                 // Un seul message : ce que fait Holo, maintenant.
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
-                        if model.seniorPaused { Image(systemName: "pause.fill").foregroundStyle(Soin.secondary) }
-                        else { ProgressView().tint(Soin.accent).controlSize(.small) }
-                        Text(caption).font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.secondary)
+                        if !model.seniorPaused { ProgressView().tint(Soin.accent).controlSize(.small) }
+                        StatusPill(text: caption, tone: model.seniorPaused ? .orange : .blue,
+                                   icon: model.seniorPaused ? "pause.fill" : nil)
                     }
                     Text(model.webLive
                          ? "Holo travaille dans \(model.webBrowserTitle)"
@@ -36,7 +36,12 @@ struct ActiveView: View {
             Button(model.pausing ? "Pause demandée…" : "Mettre en pause") { model.pause() }
                 .buttonStyle(CapsuleButtonStyle(fill: Soin.card, text: Soin.ink))
                 .disabled(model.pausing)
-                .padding(.horizontal, 20).padding(.vertical, 8).background(Soin.bg)
+                .padding(.horizontal, 20).padding(.vertical, 10)
+                .background {
+                    Rectangle().fill(.white.opacity(0.92))
+                        .overlay(alignment: .top) { Rectangle().fill(Soin.hairline).frame(height: 1) }
+                        .ignoresSafeArea(edges: .bottom)
+                }
         }
     }
 }
@@ -55,7 +60,7 @@ struct PlanProgress: View {
                 let now = current == i + 1
                 HStack(spacing: 12) {
                     ZStack {
-                        Circle().fill(now ? Soin.accent : past ? Soin.accentSoft : Soin.bg)
+                        Circle().fill(now ? Soin.accent : past ? Soin.accentSoft : Soin.field)
                         if past {
                             Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(Soin.accent)
                         } else {
@@ -103,8 +108,9 @@ struct CaptureView: View {
                         }
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(model.aiming ? Soin.accent : .clear, lineWidth: 2))
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(model.aiming ? Soin.accent : Soin.hairline, lineWidth: model.aiming ? 2 : 1))
+                .shadow(color: Soin.shadow, radius: 14, y: 6)
         } else {
             Text(model.webLive
                  ? "En attente de la première image de Chrome PapAI…"
@@ -191,14 +197,15 @@ struct HelperView: View {
                  ? "Holo a une question"
                  : model.questionToSenior
                      ? "Question posée à \(model.senior) sur son écran. Vous pouvez aussi répondre."
-                     : "\(model.seniorTitle) a besoin de vous").font(.system(size: 13)).foregroundStyle(Soin.secondary)
+                     : "\(model.seniorTitle) a besoin de vous").font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.accent)
             Text(q.text).font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
             if !q.options.isEmpty {
                 FlowLayout(spacing: 8) {
                     ForEach(q.options, id: \.self) { o in
                         Button { model.answer(o) } label: {
-                            Text(o).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.ink)
-                                .padding(.horizontal, 16).padding(.vertical, 11).background(Soin.card, in: Capsule())
+                            Text(o).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.accent)
+                                .padding(.horizontal, 16).frame(minHeight: 44).background(Soin.card, in: Capsule())
+                                .overlay(Capsule().strokeBorder(Soin.accent.opacity(0.25), lineWidth: 1))
                         }
                     }
                 }
@@ -207,12 +214,14 @@ struct HelperView: View {
                 TextField("Votre réponse…", text: $reply, axis: .vertical).font(.system(size: 16))
                     .lineLimit(1...4)
                     .padding(.horizontal, 16).padding(.vertical, 13).frame(minHeight: 48)
-                    .background(Soin.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .background(Soin.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(Soin.hairline, lineWidth: 1))
                     .submitLabel(.send).onSubmit(sendReply)
                     .disabled(dictation.phase != .idle)  // pas de saisie pendant la dictée
                 Button(action: sendReply) {
                     Image(systemName: "arrow.up").font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
-                        .frame(width: 48, height: 48).background(Soin.ink, in: Circle())
+                        .frame(width: 48, height: 48).background(Soin.primary, in: Circle())
+                        .shadow(color: Soin.gradientTop.opacity(0.3), radius: 8, y: 4)
                 }
                 .accessibilityLabel("Envoyer")
                 .disabled(dictation.phase != .idle)
@@ -228,7 +237,7 @@ struct HelperView: View {
                 CancelButton { dictation.cancel(); reply = "" }
             }
         }
-        .padding(18).frame(maxWidth: .infinity, alignment: .leading).soinCard(Soin.accentSoft, radius: 28)
+        .padding(18).frame(maxWidth: .infinity, alignment: .leading).soinCard(Soin.accentSoft, radius: 24)
     }
 
     private func sendReply() {
@@ -239,7 +248,7 @@ struct HelperView: View {
 
     private var handButton: some View {
         VStack(spacing: 8) {
-            Button("Prendre la main") { model.setAiming(true) }.buttonStyle(CapsuleButtonStyle())
+            Button { model.setAiming(true) } label: { Label("Prendre la main", systemImage: "hand.point.up.left") }.buttonStyle(CapsuleButtonStyle())
             Text("Vous pouvez cliquer vous-même sur l’écran de \(model.senior).").font(.system(size: 13)).foregroundStyle(Soin.secondary)
         }
     }

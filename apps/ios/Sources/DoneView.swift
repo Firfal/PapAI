@@ -13,7 +13,7 @@ struct DoneView: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .top, spacing: 14) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("Terminé", systemImage: "checkmark").font(.system(size: 15, weight: .bold)).foregroundStyle(Soin.leaf)
+                        StatusPill(text: "Terminé", tone: .green, icon: "checkmark")
                         if !model.task.isEmpty { Text("« \(model.task) »").font(.system(size: 15)).foregroundStyle(Soin.secondary) }
                         Text(model.doneAnswer ?? "Holo a terminé.").font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
                             .fixedSize(horizontal: false, vertical: true)
@@ -21,12 +21,12 @@ struct DoneView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     Mascotte(humeur: .bravo).frame(width: Mascotte.Taille.carte, height: Mascotte.Taille.carte)
                 }
-                .padding(20).soinCard(Soin.peach, radius: 28)
+                .padding(20).soinCard(radius: 24)
 
                 if let saved = model.savedTitle {
                     HStack(spacing: 12) {
                         Image(systemName: "checkmark").font(.system(size: 14, weight: .bold)).foregroundStyle(.white)
-                            .frame(width: 34, height: 34).background(Soin.accent, in: Circle())
+                            .frame(width: 34, height: 34).background(Soin.online, in: Circle())
                         Text("Automate « \(saved) » enregistré.").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.ink)
                     }.padding(16).frame(maxWidth: .infinity, alignment: .leading).soinCard()
                 } else if model.hasDraft {
@@ -34,7 +34,7 @@ struct DoneView: View {
                 } else {
                     Button { model.requestLesson() } label: {
                         HStack(spacing: 10) {
-                            if model.lessonBusy { ProgressView().tint(.white) }
+                            if model.lessonBusy { ProgressView().tint(.white) } else { Image(systemName: "square.and.arrow.down") }
                             Text(model.lessonBusy ? "Rédaction en cours…" : "Garder comme automate")
                         }
                     }.buttonStyle(CapsuleButtonStyle()).disabled(model.lessonBusy)
@@ -50,7 +50,7 @@ struct DoneView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Brouillon de l’automate").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
             TextField("Titre", text: $model.draftTitle)
-                .font(.system(size: 18, weight: .semibold)).padding(16).soinCard(radius: 18)
+                .font(.system(size: 18, weight: .semibold)).padding(16).soinField()
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "folder").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.accent)
                 VStack(alignment: .leading, spacing: 4) {
@@ -61,8 +61,7 @@ struct DoneView: View {
             }.padding(16).frame(maxWidth: .infinity, alignment: .leading).soinCard()
             ForEach($model.draftSteps) { $s in
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Étape \((model.draftSteps.firstIndex { $0.id == s.id } ?? 0) + 1)")
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.accent)
+                    StatusPill(text: "Étape \((model.draftSteps.firstIndex { $0.id == s.id } ?? 0) + 1)", tone: .blue)
                     TextField("Instruction", text: $s.instruction, axis: .vertical)
                         .font(.system(size: 16)).foregroundStyle(Soin.ink)
                     if let c = s.checkpoint { Text("\(model.seniorTitle) doit voir : \(c)").font(.system(size: 13)).foregroundStyle(Soin.secondary) }
@@ -83,7 +82,7 @@ struct DoneView: View {
                     }
                 }.padding(16).frame(maxWidth: .infinity, alignment: .leading).soinCard()
             }
-            Button("Valider") { model.approveLesson() }.buttonStyle(CapsuleButtonStyle())
+            Button { model.approveLesson() } label: { Label("Valider", systemImage: "checkmark") }.buttonStyle(CapsuleButtonStyle())
         }
     }
 }

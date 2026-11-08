@@ -114,7 +114,7 @@ struct PairSheet: View {
             .padding(24)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Soin.bg.ignoresSafeArea())
+        .background { SoinBackground() }
         .presentationDetents([.large])
         .interactiveDismissDisabled(model.pairBusy)
         .onAppear { if name.isEmpty { name = model.helperName ?? "" } }
@@ -129,7 +129,7 @@ struct PairSheet: View {
             TextField("000000", text: $code)
                 .keyboardType(.numberPad).textContentType(.oneTimeCode)
                 .font(.system(size: 28, weight: .semibold)).tracking(8).multilineTextAlignment(.center)
-                .padding(16).soinCard(radius: 18)
+                .padding(16).soinField()
                 .onChange(of: code) { _, v in
                     code = String(v.filter { $0.isASCII && $0.isNumber }.prefix(6))
                     if !code.isEmpty { model.pairNeedsNew = false }
@@ -137,15 +137,16 @@ struct PairSheet: View {
         }
         label("Votre prénom")
         TextField("Claire", text: $name)
-            .textContentType(.givenName).font(.system(size: 17)).padding(16).soinCard(radius: 18)
+            .textContentType(.givenName).font(.system(size: 17)).padding(16).soinField()
         label("Votre lien avec la personne aidée")
         FlowLayout(spacing: 8) {
             ForEach(relations, id: \.value) { r in
                 Button { relation = relation == r.value ? "" : r.value } label: {
                     Text(r.label).font(.system(size: 15, weight: .medium))
                         .foregroundStyle(relation == r.value ? .white : Soin.ink)
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .background(relation == r.value ? Soin.ink : Soin.card, in: Capsule())
+                        .padding(.horizontal, 16).frame(minHeight: 44)
+                        .background(relation == r.value ? Soin.accent : Soin.card, in: Capsule())
+                        .overlay(Capsule().strokeBorder(relation == r.value ? Color.clear : Soin.hairline, lineWidth: 1))
                 }
             }
         }
@@ -207,7 +208,7 @@ struct PairSheet: View {
             .frame(maxWidth: .infinity).multilineTextAlignment(.center)
         HStack(spacing: 8) {
             if model.connected {
-                Circle().fill(Soin.accent).frame(width: 8, height: 8)
+                Circle().fill(Soin.online).frame(width: 8, height: 8)
                 Text("Connecté. Vous serez prévenu dès qu’une demande d’aide arrive.")
             } else if let e = model.linkError {
                 Text(e).foregroundStyle(Soin.danger)
@@ -263,7 +264,7 @@ struct ScannerSheet: View {
                 .frame(maxWidth: .infinity)
         }
         .padding(24)
-        .background(Soin.bg.ignoresSafeArea())
+        .background { SoinBackground() }
         .presentationDetents([.large])
     }
 

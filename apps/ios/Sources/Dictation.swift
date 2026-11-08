@@ -376,7 +376,8 @@ struct BigMicButton: View {
                         .frame(width: size + 28 * dictation.level + 16, height: size + 28 * dictation.level + 16)
                         .opacity(dictation.listening ? 1 : 0)
                         .animation(.easeOut(duration: 0.12), value: dictation.level)
-                    Circle().fill(dictation.listening ? Soin.accent : Soin.ink).frame(width: size, height: size)
+                    Circle().fill(dictation.listening ? AnyShapeStyle(Soin.ink) : AnyShapeStyle(Soin.primary)).frame(width: size, height: size)
+                        .shadow(color: Soin.gradientTop.opacity(dictation.listening ? 0 : 0.35), radius: 14, y: 6)
                     if dictation.phase == .transcribing || dictation.phase == .starting {
                         ProgressView().tint(.white).controlSize(.large)
                     } else {

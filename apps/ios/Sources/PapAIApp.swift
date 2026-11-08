@@ -24,7 +24,6 @@ struct PapAIApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(model: model)
-                .fontDesign(.rounded)
                 .preferredColorScheme(.light)
                 .onOpenURL { model.open(url: $0) }
                 .onChange(of: scenePhase) { _, phase in

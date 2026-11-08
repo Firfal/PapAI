@@ -25,23 +25,23 @@ struct HelpLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(s.since, style: .relative)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.white.opacity(0.6)).multilineTextAlignment(.trailing)
                         .frame(maxWidth: 70, alignment: .trailing).padding(.trailing, 4)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    Text(s.headline).font(.system(size: 18, weight: .bold, design: .rounded))
+                    Text(s.headline).font(.system(size: 18, weight: .bold))
                         .foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.7)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text(s.subline).font(.system(size: 15, weight: .medium, design: .rounded))
+                        Text(s.subline).font(.system(size: 15, weight: .medium))
                             .foregroundStyle(.white.opacity(0.75)).lineLimit(2)
                         if let cta = s.cta {
-                            Text(cta).font(.system(size: 16, weight: .semibold, design: .rounded))
-                                .foregroundStyle(PapColors.ink)
-                                .frame(maxWidth: .infinity, minHeight: 40)
-                                .background(PapColors.accentBright, in: Capsule())
+                            Text(cta).font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .background(PapColors.primary, in: Capsule())
                         } else if s.phase == .working || s.phase == .paused {
                             Bar(value: s.progress, track: .white.opacity(0.15), fill: PapColors.accentBright)
                         }
@@ -52,7 +52,7 @@ struct HelpLiveActivity: Widget {
                 Image("Mascot").resizable().scaledToFit().frame(width: 22, height: 22)
                     .clipShape(Circle())
             } compactTrailing: {
-                Text(s.short).font(.system(size: 13, weight: .semibold, design: .rounded))
+                Text(s.short).font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(s.urgent ? PapColors.accentBright : .white)
                     .lineLimit(1)
             } minimal: {
