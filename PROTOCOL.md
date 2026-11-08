@@ -37,7 +37,8 @@ Envoie :
 - `{"type":"help_request","task":"…"}` quand elle appuie sur « Demander une assistance ».
 - `{"type":"stop"}` bouton Arrêter. **Le verrou local passe d'abord** : plus aucune action exécutée, même hors ligne.
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
-- `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt ou action interdite.
+- `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt, alerte du gardien affichée ou absence de plan validé (état requis : `active` ou `awaiting_helper`). Sur Mac et Windows, un refus local d'action sensible ajoute `"blocked":"sensitive"` avec `refused:false` : la session reste ouverte, le texte demande à Holo de ne pas réessayer et d'appeler `ask_helper`.
+  Le serveur transmet ce refus comme résultat d'outil à Holo et journalise `sensitive_blocked`. Tant que le support n'a pas répondu à `ask_helper`, toute nouvelle action d'écran proposée par Holo (`click`, `double_click`, `type_text`, `press_key`, `scroll`) est remplacée côté serveur par une question au support, sans envoi au pont ni arrêt de session. `refused:true` conserve sa priorité et entraîne l'arrêt habituel.
 - `{"type":"automation_failed","title":"…","detail":"…"}` quand un automate ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
 - `{"type":"pair_start"}` pour ajouter un support (QR code, 10 min) ; `{"type":"pair_start","long":true}` pour une **invitation opaque à envoyer** par SMS, WhatsApp, Mail… (24 h). Le serveur répond `pair_code`.
 - `{"type":"remove_helper","id":"…"}` retire un proche.
@@ -57,6 +58,13 @@ Reçoit :
 - `{"type":"lessons_changed","title":"…"}` le proche vient de valider un automate : l'app relit `/lessons`.
 - `{"type":"remote_request","from":"Claire","task":"…"}` un proche propose une session : rien ne démarre sans l'accord de la personne aidée.
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
+
+Sous Windows, avant chaque caractère et avant une touche, PapAI vérifie le style natif `ES_PASSWORD` et la propriété UI Automation `IsPassword` de l'élément focalisé, via `comtypes`. Un champ protégé ou une propriété illisible (UIA/COM indisponible, erreur) entraîne un refus sensible ; l'absence du style natif ne suffit pas à autoriser une saisie web/WinUI.
+
+Une fenêtre Explorer `CabinetWClass` dont la cible est illisible (erreur COM, cible absente ou vide) est refusée avec la raison « fenêtre protégée », quelle que soit la langue du titre. Une cible lisible de dossier utilisateur reste autorisée ; les titres reconnus et cibles shell du Panneau de configuration restent sensibles.
+
+Toute alerte affichée, même `info` ou `attention`, lève le verrou local sur Mac et Windows : la frappe en cours s'arrête avant le caractère suivant et fermer l'alerte ne relance pas le geste. Un clic du support bloqué comme sensible renvoie `refused` (« Clic non effectué »), sans accusé de réussite ni réponse automatique à Holo ; l'assistance reste en `awaiting_helper`.
+Le refus sensible d'un clic du support est `{"type":"refused","blocked":"sensitive","reason":"Clic non effectué : cette fenêtre est protégée (réglages ou mots de passe). Guidez <prénom> par téléphone pour faire cette étape sur l'ordinateur."}`. Le prénom vient du profil de l'espace, sinon « la personne aidée ». Les clients affichent ce message en carte persistante, fermée avec « Compris » ou à la prochaine action du support ; les autres refus restent des notifications temporaires. Après refus sensible, la question au support invite à guider la personne par téléphone puis à répondre pour reprendre Holo ; aucune raison technique n'est exposée au support, mais elle reste dans le résultat Holo et le journal.
 
 ## App de l'aidant (iPhone) : `ws://SERVEUR/ws/aidant/CLÉ`
 
@@ -81,7 +89,8 @@ Envoie :
 - `{"type":"pause"}` · `{"type":"refresh"}` · `{"type":"click","frame_id":"…","x":0..1,"y":0..1}` (seulement en `awaiting_helper`)
 - `{"type":"remote_request","text":"…","from":"Claire"}` proposer une session (seulement s'il n'y en a pas d'ouverte). Réponses : `ack` `remote_request`, puis `remote_refused` ou `remote_accepted`.
 - `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automate »
-  Si Holo n'a pas pu rédiger l'automate, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
+  Le brouillon peut contenir `lesson.shortcut = {"folder":"pictures","subfolder":"Noël 2025"}`. L'aidant peut retirer cette cible avec `lesson.shortcut:null` dans `approve_lesson` ; toute autre valeur reçue est ignorée, jamais utilisée pour créer ou remplacer une cible. Le serveur revalide la cible avant l'enregistrement. `folder` est un dossier connu (`downloads`, `pictures`, `documents`, `desktop`, `videos`, `music`). Après suppression des espaces de bord, `subfolder` est vide (racine) ou contient 1 à 100 caractères Unicode : lettres, chiffres décimaux, espace et `- _ ' ’ ( ) , & +` uniquement. Aucun point, chemin ou accolade. Les apps vérifient le dossier réel avant de l'ouvrir explicitement dans le Finder ou l'Explorateur ; une cible hors du dossier connu est refusée, ainsi que les liens/jonctions sous Windows.
+  Si Holo n'a pas pu rédiger l’automate, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
 
 ## Dictée de la demande
 

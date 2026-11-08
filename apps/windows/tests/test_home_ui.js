@@ -10,7 +10,7 @@ async function home(microPresent = true) {
     firstName: '', storedFirstName: '', helperName: 'Claire', textScale: 1,
     lessons: [], notice: null, homeShortcuts: [], microPresent,
     dictation: { phase: 'idle', message: null } };
-  const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [], calls = [];
+  const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [], actions = [], calls = [];
   const root = { innerHTML: '' }, sheet = { innerHTML: '' };
   const dialog = { focus() { document.activeElement = dialog; } };
   const document = { activeElement: null, documentElement: { style: { setProperty() {} } },
@@ -22,6 +22,8 @@ async function home(microPresent = true) {
     dictation_toggle: () => {},
     open_home_shortcut: id => { shortcuts.push(id); },
     remove_home_shortcut: id => { removed.push(id); },
+    dismiss_alert: () => { actions.push('dismiss_alert'); },
+    stop: () => { actions.push('stop'); },
     toggle_pause: () => { calls.push(['toggle_pause']); },
     answer_senior: t => { calls.push(['answer_senior', t]); },
     expand_window: () => { calls.push(['expand_window']); },
@@ -37,7 +39,8 @@ async function home(microPresent = true) {
     style: {}, scrollHeight: 30 } });
   context.getComputedStyle = () => ({ lineHeight: '22' });
   const enter = () => listeners.keydown({ key: 'Enter', target: { id: 'req' }, preventDefault() {} });
-  return { state, root, sheet, dialog, document, update, click, type, enter, sent, shortcuts, removed, calls, window, listeners };
+  return { state, root, sheet, dialog, document, update, click, type, enter, sent, shortcuts, removed, calls, window, listeners,
+    actions, key: event => listeners.keydown(event) };
 }
 
 test('demande de liaison au-dessus des feuilles, texte échappé et Entrée sans accord', async () => {
@@ -89,6 +92,23 @@ test('invitation sans code : affichage, partage et annulation ; relation vide ma
   const css = fs.readFileSync(path.join(__dirname, '../ui/style.css'), 'utf8');
   assert.match(css, /#pairDialog:focus\s*\{\s*outline:\s*none;/);
   assert.match(css, /button:focus-visible[^}]+outline:\s*3px/);
+});
+
+
+
+test('Entrée et Échap ne ferment aucune alerte ni ne déclenchent une action derrière', async () => {
+  const h = await home();
+  for (const blocked of [false, true]) {
+    h.update({ screen: 'session', sessionOpen: true,
+      alert: { level: 'info', title: 'Attention', detail: 'Attendez', blocked } });
+    for (const key of ['Enter', 'Escape']) {
+      let prevented = false;
+      h.key({ key, target: { tagName: 'BUTTON' }, preventDefault() { prevented = true; } });
+      assert.equal(prevented, true);
+      assert.match(h.sheet.innerHTML, /Attendez/);
+      assert.deepEqual(h.actions, []);
+    }
+  }
 });
 
 test('textes Mac #30, avertissement vide identique et titres renforcés', async () => {

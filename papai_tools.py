@@ -162,7 +162,8 @@ WEB_AGENT_INSTRUCTIONS = (
 
 
 def system_prompt(os_name: str) -> str:
-    return MAC_SYSTEM_PROMPT if os_name == "macos" else SYSTEM_PROMPT
+    prompt = MAC_SYSTEM_PROMPT if os_name == "macos" else SYSTEM_PROMPT
+    return prompt + '\nUn résultat commençant par « Action refusée par PapAI » signifie qu’une zone sensible a été bloquée par l’ordinateur : ne réessaie pas, appelle ask_helper.\n'
 
 
 TOOLS = [

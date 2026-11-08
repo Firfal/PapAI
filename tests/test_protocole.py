@@ -205,6 +205,9 @@ async def main() -> None:
             check("chaque étape de la fiche a une vraie capture de la session",
                   etapes != [] and all(apercu.get(e.get("frame")) for e in etapes),
                   [e.get("frame") for e in etapes])
+            check("le raccourci de démonstration conserve Noël 2025",
+                  ((fiche or {}).get("lesson") or {}).get("shortcut") ==
+                  {"folder": "pictures", "subfolder": "Noël 2025"})
 
         service.cancel()
 

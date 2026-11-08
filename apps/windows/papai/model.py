@@ -253,7 +253,8 @@ class Model:
             from .core import Screen
             screen_factory = Screen
         self.bridge = factory(self.server_url, self.gate, screen_factory, self._handle,
-                              self._connection, self._action, **bridge_kw)
+                              self._connection, self._action,
+                              alert_visible=lambda: self.alert is not None, **bridge_kw)
         self.bridge.protection = lambda: self.realtime_protection
         self.bridge.start()
         if settings.needs_space(self.prefs):

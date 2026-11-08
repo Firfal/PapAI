@@ -7,16 +7,6 @@ import UniformTypeIdentifiers
 
 // MARK: - Verrou d'arrêt
 
-/// Le verrou d'arrêt. Levé depuis l'interface AVANT d'envoyer `stop` au serveur,
-/// lu avant chaque action : il ne dépend d'aucun réseau.
-final class StopGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var stopped = false
-    func raise() { lock.lock(); stopped = true; lock.unlock() }
-    func reset() { lock.lock(); stopped = false; lock.unlock() }
-    var isStopped: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
-}
-
 // MARK: - Automates
 
 struct Lesson: Decodable, Identifiable {
@@ -78,24 +68,19 @@ enum Shortcuts {
     /// Ouvre le dossier enregistré. Le modèle ne fournit jamais de chemin :
     /// un dossier connu du système, et au plus un nom de sous-dossier.
     @MainActor
-    static func open(_ shortcut: Lesson.Shortcut) -> (ok: Bool, detail: String) {
+    static func open(_ shortcut: Lesson.Shortcut) async -> (ok: Bool, detail: String) {
         guard let dir = directory(for: shortcut.folder ?? ""),
               let base = FileManager.default.urls(for: dir, in: .userDomainMask).first
         else { return (false, "Aucun raccourci enregistré.") }
-        var target = base
-        let sub = (shortcut.subfolder ?? "").trimmingCharacters(in: .whitespaces)
-        if !sub.isEmpty {
-            if sub.contains("/") || sub.contains("\\") || sub.contains(":") || sub == "." || sub == ".." || sub.contains("..") {
-                return (false, "Nom de dossier invalide.")
+        guard let target = DossierRaccourci.cible(dans: base, sousDossier: shortcut.subfolder ?? "")
+        else { return (false, "Ce dossier n'est pas disponible ou ne peut pas être ouvert en toute sécurité.") }
+        let ouvert: Bool = await withCheckedContinuation { continuation in
+            let lance = DossierRaccourci.ouvrir(target) { erreur in
+                continuation.resume(returning: erreur == nil)
             }
-            target = base.appendingPathComponent(sub, isDirectory: true)
+            if !lance { continuation.resume(returning: false) }
         }
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: target.path, isDirectory: &isDir), isDir.boolValue else {
-            let quoi = sub.isEmpty ? "Ce dossier" : "« \(sub) »"
-            return (false, "\(quoi) n'existe pas (ou plus) sur cet ordinateur.")
-        }
-        return (NSWorkspace.shared.open(target), target.path)
+        return (ouvert, ouvert ? target.path : "Je n'arrive pas à ouvrir ce dossier dans le Finder.")
     }
 }
 
@@ -185,6 +170,7 @@ enum ScreenGrabber {
 enum ActionError: Error {
     case stopped
     case protectedZone
+    case sensitive(String)
     case noAccessibility
     case unknownKey(String)
 }
@@ -195,7 +181,9 @@ enum Actuator {
     static let marker: Int64 = 0x5041_5041_49
     /// Exécute une action. `protected` : cadre de la fenêtre PapAI, en points
     /// écran (origine en haut à gauche), que l'agent n'a pas le droit de viser.
+    @MainActor
     static func run(name: String, args: [String: Any], gate: StopGate, protected: CGRect?) async throws -> String {
+        let gate = gate.pin()
         if gate.isStopped { throw ActionError.stopped }
         let source = CGEventSource(stateID: .hidSystemState)
 
@@ -208,6 +196,8 @@ enum Actuator {
             if gate.isStopped { throw ActionError.stopped }
             let count = name == "double_click" ? 2 : 1
             for i in 1...count {
+                if gate.isStopped { throw ActionError.stopped }
+                try DesktopSafety.shared.checkPointer(p)
                 for type in [CGEventType.leftMouseDown, .leftMouseUp] {
                     let e = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: p, mouseButton: .left)
                     e?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
@@ -217,10 +207,12 @@ enum Actuator {
             return "\(name) à (\(Int(p.x)), \(Int(p.y))) sur « \(args["element"] as? String ?? "") »"
 
         case "type_text":
+            try await DesktopSafety.shared.prepareKeyboard()
             guard AXIsProcessTrusted() else { throw ActionError.noAccessibility }
             let text = args["text"] as? String ?? ""
             for ch in text {
                 if gate.isStopped { throw ActionError.stopped }
+                try DesktopSafety.shared.checkKeyboard()
                 if ch == "\n" {
                     key(36, [], source)
                 } else {
@@ -237,6 +229,8 @@ enum Actuator {
             return "texte tapé : \(text)"
 
         case "press_key":
+            try await DesktopSafety.shared.prepareKeyboard()
+            if gate.isStopped { throw ActionError.stopped }
             guard AXIsProcessTrusted() else { throw ActionError.noAccessibility }
             let spec = args["keys"] as? String ?? ""
             let (code, flags) = try parseKeys(spec)
@@ -281,12 +275,14 @@ enum Actuator {
     }
 
     /// [0,1000] -> points de l'écran principal, avec refus sur la fenêtre PapAI.
+    @MainActor
     private static func point(_ args: [String: Any], protected: CGRect?) throws -> CGPoint {
         func num(_ v: Any?) -> Double { (v as? NSNumber)?.doubleValue ?? 0 }
         let b = CGDisplayBounds(CGMainDisplayID())
         let p = CGPoint(x: b.minX + (num(args["x"]) / 1000 * b.width).rounded(),
                         y: b.minY + (num(args["y"]) / 1000 * b.height).rounded())
         if let r = protected, r.contains(p) { throw ActionError.protectedZone }
+        try DesktopSafety.shared.checkPointer(p)
         return p
     }
 
@@ -404,7 +400,7 @@ enum Automations {
             if gate.isStopped { return (false, "Arrêté.") }
             switch a.kind {
             case "open_folder":
-                let r = Shortcuts.open(Lesson.Shortcut(folder: a.folder, subfolder: a.subfolder))
+                let r = await Shortcuts.open(Lesson.Shortcut(folder: a.folder, subfolder: a.subfolder))
                 if !r.ok { return r }
             case "open_settings":
                 guard let u = settingsURL(a.page ?? ""), NSWorkspace.shared.open(u)

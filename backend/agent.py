@@ -29,6 +29,7 @@ from papai_tools import (
 )
 
 from .sessions import Owner, Refused, Session, State
+from . import space
 
 import os
 
@@ -39,6 +40,27 @@ MAX_STEPS = int(os.environ.get("PAPAI_MAX_STEPS") or os.environ.get("CAREPILOT_M
 MAX_BROWSER_HANDOFFS = 3
 
 client = make_client()
+
+
+class SensitiveBlocked(str):
+    def __new__(cls, result: str):
+        text = str(result or "Action refusée par PapAI : action sensible bloquée.")
+        if "appelle ask_helper" not in text:
+            text += " Ne réessaie pas : appelle ask_helper pour que le support s'en occupe."
+        return super().__new__(cls, text)
+
+    @property
+    def reason(self) -> str:
+        return self.removeprefix("Action refusée par PapAI : ").split(". Ne réessaie pas", 1)[0].rstrip(".")
+
+
+def protected_window_support_text(click: bool = False) -> str:
+    name = space.current().family.senior.strip() or "la personne aidée"
+    if click:
+        return ("Clic non effectué : cette fenêtre est protégée (réglages ou mots de passe). "
+                f"Guidez {name} par téléphone pour faire cette étape sur l'ordinateur.")
+    return ("Holo s'est arrêté devant une fenêtre protégée (réglages ou mots de passe). "
+            f"Guidez {name} par téléphone, puis répondez ici pour que Holo continue.")
 
 
 async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> list[str]:
@@ -171,6 +193,7 @@ class AgentRunner:
         self.notes = notes or []
         self.browser_handoff = browser_handoff
         self.browser_handoffs = 0
+        self._sensitive_blocked: SensitiveBlocked | None = None
 
     async def run(self) -> None:
         try:
@@ -366,6 +389,9 @@ class AgentRunner:
         if name not in ACTUATING_TOOLS:
             return f"outil inconnu : {name}"
 
+        if self._sensitive_blocked is not None:
+            return await self._escalate({})
+
         try:
             self.s.take_control(Owner.AGENT)
         except Refused as e:
@@ -376,12 +402,18 @@ class AgentRunner:
         self.s.log("action_result", tool=name, result=result)
         if result is None:
             return None
+        if isinstance(result, SensitiveBlocked):
+            self._sensitive_blocked = result
+            self.s.log("sensitive_blocked", tool=name, reason=result.reason)
         return result
 
     async def _escalate(self, args: dict, to: str = "helper") -> str | None:
         """Suspend l'agent et attend une réponse. None = arrêt ou expiration."""
         question = args.get("question", "")
         options = args.get("options") or []
+        if to == "helper" and self._sensitive_blocked is not None:
+            question = protected_window_support_text()
+            options = []
         fut = self.s.ask_helper(question, options, to=to)
         await self.broadcast(self.s.status())
         await self.broadcast({"type": "question", "question": question, "options": options, "to": to})
@@ -389,5 +421,7 @@ class AgentRunner:
         reply = await fut
         if reply is None or not self.s.is_open:
             return None
+        if to == "helper":
+            self._sensitive_blocked = None
         who = "la personne aidée" if to == "senior" else "du support"
         return f"Réponse de {who} : {reply}" if to == "senior" else f"Réponse du support : {reply}"

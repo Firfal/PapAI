@@ -101,6 +101,8 @@ final class AppModel {
     var guardAcknowledged = false
 
     @ObservationIgnored let gate = StopGate()
+    @ObservationIgnored private var planApproved = false
+    @ObservationIgnored private var executionState: String?
     @ObservationIgnored let client = BridgeClient()
     @ObservationIgnored let webHost = WebAgentHost()
     @ObservationIgnored private var webFronted = false
@@ -326,6 +328,7 @@ final class AppModel {
     // MARK: Démarrage
 
     func start() {
+        _ = DesktopSafety.shared
         guard !started else { return }
         started = true
         client.onMessage = { [weak self] m in self?.handle(m) }
@@ -663,6 +666,8 @@ final class AppModel {
         queuedShown = false
         if let ticket, queued?.ticket == ticket { queued = nil }
         gate.reset()
+        planApproved = false
+        executionState = nil
         stoppedBy = nil
         sessionWhere = nil
         guardAcknowledged = false
@@ -697,6 +702,8 @@ final class AppModel {
         homeTimer?.cancel()
         screen = .home
         state = nil
+        planApproved = false
+        executionState = nil
         applyLevel()
     }
 
@@ -821,6 +828,8 @@ final class AppModel {
     }
 
     private func applyStatus(_ m: [String: Any]) {
+        planApproved = m["plan_approved"] as? Bool ?? false
+        executionState = m["state"] as? String
         stoppedBy = m["stopped_by"] as? String
         sessionWhere = m["where"] as? String
         if let ack = m["guard_acknowledged"] as? Bool { guardAcknowledged = ack }
@@ -875,10 +884,16 @@ final class AppModel {
     private func doExecute(_ req: String, _ action: [String: Any]) async {
         let name = action["name"] as? String ?? ""
         let args = action["args"] as? [String: Any] ?? [:]
-        func reply(_ text: String, refused: Bool) {
-            client.send(["type": "result", "req": req, "result": text, "refused": refused])
+        func reply(_ text: String, refused: Bool, blocked: String? = nil) {
+            var message: [String: Any] = ["type": "result", "req": req, "result": text, "refused": refused]
+            if let blocked { message["blocked"] = blocked }
+            client.send(message)
         }
         if gate.isStopped || guardAlert != nil { reply("Assistance arrêtée ou alerte du gardien en attente.", refused: true); return }
+        guard planApproved && ["active", "awaiting_helper"].contains(executionState ?? "") else {
+            reply("Action refusée : aucun plan validé par le support.", refused: true)
+            return
+        }
         let said = describeAction(name, args)
         currentAction = said
         if actions.last != said { actions.append(said) }
@@ -888,8 +903,9 @@ final class AppModel {
         } catch ActionError.stopped {
             reply("Arrêt demandé par la personne aidée.", refused: true)
         } catch ActionError.protectedZone {
-            // Refus ciblé : l'agent l'apprend et continue, la session survit.
-            reply("Action refusée : cette zone appartient à la fenêtre PapAI, que seule la personne aidée peut manipuler.", refused: false)
+            reply("Action refusée par PapAI : cette zone appartient à PapAI. Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.", refused: false, blocked: "sensitive")
+        } catch ActionError.sensitive(let reason) {
+            reply("Action refusée par PapAI : \(reason). Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.", refused: false, blocked: "sensitive")
         } catch ActionError.noAccessibility {
             reply("Autorisation Accessibilité manquante sur cet ordinateur.", refused: true)
         } catch ActionError.unknownKey(let k) {
@@ -904,12 +920,14 @@ final class AppModel {
     func runShortcut(_ l: Lesson) {
         if !(l.actions ?? []).isEmpty { runAutomation(l); return }
         guard let sc = l.shortcut else { openLesson(l); return }
-        let r = Shortcuts.open(sc)
-        if r.ok {
-            showNotice("C'est ouvert.")
-        } else {
-            showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
-            client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+        Task {
+            let r = await Shortcuts.open(sc)
+            if r.ok {
+                showNotice("C'est ouvert.")
+            } else {
+                showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
+                client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+            }
         }
     }
 

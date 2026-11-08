@@ -248,6 +248,10 @@
 <div id="lost" hidden role="status"><div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:#fff;width:16px;height:16px"></div><span>Connexion perdue</span><span>reconnexion…</span></div>
 
 <main>
+  <div class="card stack" id="sensitiveRefusal" hidden role="alert" style="margin-bottom:16px;padding:20px">
+    <p id="sensitiveRefusalText"></p>
+    <button class="capsule" id="sensitiveRefusalOk" type="button">Compris</button>
+  </div>
 
   <div class="card alertcard" style="margin-bottom:16px" id="alert" hidden role="alert">
       <h3 id="alertTitle"></h3>
@@ -358,6 +362,10 @@
     <div class="draft" id="draft" hidden>
       <h3>Brouillon de l'automate</h3>
       <input type="text" id="lessonTitle" placeholder="Titre" aria-label="Titre de l'automate">
+      <div id="draftTarget" class="card" hidden>
+        <p id="draftTargetLabel"></p>
+        <label><input type="checkbox" id="noShortcut"> Ne pas ouvrir de dossier avec cet automate</label>
+      </div>
       <div id="steps"></div>
       <button class="capsule" id="approve" type="button">Valider</button>
     </div>
@@ -616,7 +624,10 @@ function dropSession() {
 
 function isOpen() { return ws && ws.readyState === WebSocket.OPEN; }
 function send(o) {
-  if (isOpen()) { ws.send(JSON.stringify(o)); return true; }
+  if (isOpen()) {
+    if (o.type !== 'helper_hello') $('sensitiveRefusal').hidden = true;
+    ws.send(JSON.stringify(o)); return true;
+  }
   toast('Pas de connexion au serveur.');
   return false;
 }
@@ -1027,7 +1038,11 @@ function onMessage(ev) {
   else if (m.type === 'answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
 
   else if (m.type === 'refused') {
-    toast(m.reason);
+    if (m.blocked === 'sensitive') {
+      $('sensitiveRefusalText').textContent = m.reason;
+      $('sensitiveRefusal').hidden = false;
+      $('toast').style.display = 'none';
+    } else toast(m.reason);
     sending = false; planBusy = false; lessonBusy = false;
     if (m.reason === 'Aucune demande en cours.') dropSession();
     render();
@@ -1049,6 +1064,14 @@ function onMessage(ev) {
   else if (m.type === 'lesson_draft') {
     lessonBusy = false; hasDraft = true;
     $('lessonTitle').value = m.lesson.title || '';
+    const shortcut = m.lesson.shortcut;
+    const folderNames = {downloads:'Téléchargements', pictures:'Images', documents:'Documents',
+      desktop:'Bureau', videos:'Vidéos', music:'Musique'};
+    const root = shortcut && folderNames[String(shortcut.folder || '').toLowerCase()];
+    $('draftTarget').hidden = !root;
+    $('noShortcut').checked = false;
+    const sub = shortcut && String(shortcut.subfolder || '').trim();
+    $('draftTargetLabel').textContent = root ? 'Ouvrira : ' + root + (sub ? ' › ' + sub : '') : '';
     $('steps').innerHTML = '';
     (m.lesson.steps || []).forEach((s, i) => {
       const d = document.createElement('div');
@@ -1151,6 +1174,7 @@ $('pause').onclick = () => {
 
 $('arm').onclick = () => setArmed(true);
 $('cancelAim').onclick = () => setArmed(false);
+$('sensitiveRefusalOk').onclick = () => { $('sensitiveRefusal').hidden = true; };
 $('refresh').onclick = requestRefresh;
 
 // Le clic part en coordonnées normalisées relatives à l'image affichée, jamais
@@ -1166,7 +1190,9 @@ $('confirm').onclick = () => {
 $('makeLesson').onclick = () => { if (send({ type: 'draft_lesson' })) { lessonBusy = true; render(); } };
 $('approve').onclick = () => {
   const steps = [...$('steps').querySelectorAll('textarea')].map(t => ({ instruction: t.value.trim() }));
-  send({ type: 'approve_lesson', lesson: { title: $('lessonTitle').value.trim(), steps } });
+  const lesson = { title: $('lessonTitle').value.trim(), steps };
+  if (!$('draftTarget').hidden && $('noShortcut').checked) lesson.shortcut = null;
+  send({ type: 'approve_lesson', lesson });
 };
 
 $('remoteSend').onclick = () => {

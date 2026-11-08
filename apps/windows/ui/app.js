@@ -697,10 +697,10 @@
       return;
     }
     const t = e.target;
+    if (S.alert && (e.key === 'Enter' || e.key === 'Escape')) { e.preventDefault(); return; }
     if (e.key === 'Escape') {
       if (S.onboarded && S.screen === 'session' && S.sessionOpen) { ui.sheet = null; return acts.stop(); }
       if (ui.sheet) { ui.sheet === 'helpers' ? acts.closeHelpers() : acts.closeSheet(); return; }
-      if (S.alert) return acts.dismissAlert();
       if (S.pairRequest) return acts.refusePair();
       if (!S.onboarded) return;
       if (S.remoteRequest) return acts.refuseRemote();
@@ -709,7 +709,6 @@
       return;
     }
     if (e.key !== 'Enter' || e.shiftKey || ui.sheet) return;
-    if (S.alert) { e.preventDefault(); acts.dismissAlert(); return; }
     if (t && t.tagName === 'BUTTON') return;
     if (t && t.id === 'req') { e.preventDefault(); submit(); return; }
     if (t && t.id === 'seniorReply') { e.preventDefault(); acts.seniorReply(); return; }

@@ -12,11 +12,15 @@ import base64
 import ctypes
 import io
 import os
+import subprocess
 import sys
 import threading
 import time
+import unicodedata
 from pathlib import Path
 from typing import Callable
+
+from . import apps
 
 WINDOWS = sys.platform == "win32"
 SEND_WIDTH = 1280  # comme le Mac : assez pour viser juste, pas plus
@@ -62,6 +66,295 @@ class ProtectedZone(Exception):
 
 class UnknownKey(Exception):
     pass
+
+
+class SensitiveTarget(Exception):
+    pass
+
+
+SENSITIVE_PROCESSES = frozenset({
+    "consent", "credentialuibroker", "systemsettings", "logonui", "sechealthui",
+    "useraccountcontrolsettings", "1password", "bitwarden", "dashlane", "lastpass",
+    "keepass", "keepassxc", "enpass", "keeper", "nordpass", "roboform",
+    "control", "rundll32", "mmc", "regedit",
+    "cmd", "powershell", "pwsh", "windowsterminal", "openconsole", "conhost",
+    "msiexec", "taskmgr", "resmon", "regedt32", "diskpart",
+    "anydesk", "teamviewer", "teamviewer_service", "tv_w32", "tv_x64", "rustdesk", "quickassist",
+    "msra", "srserver", "srmanager", "strwinclt", "splashtop",
+})
+
+
+def process_name(name: str | None) -> str:
+    return str(name or "").replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".exe")
+
+
+def pointer_verdict(pid: int, name: str | None, own_pid: int | None = None) -> str | None:
+    if pid == (os.getpid() if own_pid is None else own_pid):
+        return "PapAI ne peut pas se manipuler elle-même"
+    if not pid or not process_name(name):
+        return "l’application visée ne peut pas être vérifiée"
+    if process_name(name) in SENSITIVE_PROCESSES:
+        return "cette application contient des réglages ou des informations sensibles"
+    return None
+
+
+def keyboard_verdict(pid: int, name: str | None, own_pid: int | None = None) -> str | None:
+    return pointer_verdict(pid, name, own_pid)
+
+
+def control_panel_verdict(name: str, window_class: str, title: str, target: str = "") -> str | None:
+    if process_name(name) != "explorer" or window_class.casefold() != "cabinetwclass":
+        return None
+    titles = ("panneau de configuration", "control panel", "système et sécurité", "system and security",
+              "programmes et fonctionnalités", "programs and features", "comptes d’utilisateurs",
+              "comptes d'utilisateurs", "user accounts", "centre réseau et partage", "network and sharing center",
+              "sécurité et maintenance", "security and maintenance", "pare-feu windows", "windows defender firewall")
+    namespaces = ("{26ee0668-a00a-44d7-9371-beb064c98683}", "{21ec2020-3aea-1069-a2dd-08002b30309d}")
+    if any(label in title.casefold() for label in titles) or any(guid in target.casefold() for guid in namespaces):
+        return "cette fenêtre contient le Panneau de configuration ou des réglages sensibles"
+    return None
+
+
+def explorer_target(hwnd) -> str:
+    import comtypes
+    from comtypes.client import CreateObject
+
+    comtypes.CoInitialize()
+    shell = window = None
+    try:
+        shell = CreateObject("Shell.Application", dynamic=True)
+        for window in shell.Windows():
+            if int(window.HWND) == int(hwnd):
+                target = window.Document.Folder.Self.Path
+                return target if isinstance(target, str) else ""
+        return ""
+    finally:
+        window = shell = None
+        comtypes.CoUninitialize()
+
+
+def focused_password_uia() -> bool:
+    import comtypes
+    from comtypes.client import CreateObject, GetModule
+
+    comtypes.CoInitialize()
+    automation = element = None
+    try:
+        uia = GetModule("UIAutomationCore.dll")
+        automation = CreateObject(uia.CUIAutomation, interface=uia.IUIAutomation)
+        element = automation.GetFocusedElement()
+        password = element.CurrentIsPassword
+        if password is None:
+            raise ValueError("IsPassword indisponible")
+        return bool(password)
+    finally:
+        element = automation = None
+        comtypes.CoUninitialize()
+
+
+class Win32Targets:
+    def __init__(self):
+        from ctypes import wintypes as w
+
+        self.user = ctypes.WinDLL("user32", use_last_error=True)
+        self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.callback = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+        signatures = [
+            (self.user.WindowFromPoint, [w.POINT], w.HWND),
+            (self.user.GetAncestor, [w.HWND, w.UINT], w.HWND),
+            (self.user.GetWindowThreadProcessId, [w.HWND, ctypes.POINTER(w.DWORD)], w.DWORD),
+            (self.user.GetForegroundWindow, [], w.HWND),
+            (self.user.GetGUIThreadInfo, [w.DWORD, ctypes.c_void_p], w.BOOL),
+            (self.user.GetWindowLongW, [w.HWND, ctypes.c_int], w.LONG),
+            (self.user.SetForegroundWindow, [w.HWND], w.BOOL),
+            (self.user.GetWindow, [w.HWND, w.UINT], w.HWND),
+            (self.user.IsWindowVisible, [w.HWND], w.BOOL),
+            (self.user.GetClassNameW, [w.HWND, w.LPWSTR, ctypes.c_int], ctypes.c_int),
+            (self.user.GetWindowTextW, [w.HWND, w.LPWSTR, ctypes.c_int], ctypes.c_int),
+            (self.user.EnumChildWindows, [w.HWND, self.callback, w.LPARAM], w.BOOL),
+            (self.kernel.OpenProcess, [w.DWORD, w.BOOL, w.DWORD], w.HANDLE),
+            (self.kernel.QueryFullProcessImageNameW,
+             [w.HANDLE, w.DWORD, w.LPWSTR, ctypes.POINTER(w.DWORD)], w.BOOL),
+            (self.kernel.CloseHandle, [w.HANDLE], w.BOOL),
+        ]
+        for function, args, result in signatures:
+            function.argtypes, function.restype = args, result
+
+    def root(self, hwnd):
+        return self.user.GetAncestor(hwnd, 2) or hwnd
+
+    def at_point(self, x, y):
+        from ctypes.wintypes import POINT
+        return self.root(self.user.WindowFromPoint(POINT(x, y)))
+
+    def foreground(self):
+        return self.root(self.user.GetForegroundWindow())
+
+    def control_panel_reason(self, hwnd, name):
+        window_class = ctypes.create_unicode_buffer(256)
+        self.user.GetClassNameW(hwnd, window_class, len(window_class))
+        if process_name(name) != "explorer" or window_class.value.casefold() != "cabinetwclass":
+            return None
+        title = ctypes.create_unicode_buffer(32768)
+        self.user.GetWindowTextW(hwnd, title, len(title))
+        reason = control_panel_verdict(name, window_class.value, title.value)
+        if reason:
+            return reason
+        try:
+            target = explorer_target(hwnd)
+        except Exception:
+            return "fenêtre protégée"
+        if not isinstance(target, str) or not target.strip():
+            return "fenêtre protégée"
+        return control_panel_verdict(name, window_class.value, title.value, target)
+
+    def password_focused(self, hwnd):
+        from ctypes import wintypes as w
+
+        class GUIThreadInfo(ctypes.Structure):
+            _fields_ = [("cbSize", w.DWORD), ("flags", w.DWORD),
+                        ("hwndActive", w.HWND), ("hwndFocus", w.HWND),
+                        ("hwndCapture", w.HWND), ("hwndMenuOwner", w.HWND),
+                        ("hwndMoveSize", w.HWND), ("hwndCaret", w.HWND),
+                        ("rcCaret", w.RECT)]
+
+        info = GUIThreadInfo()
+        info.cbSize = ctypes.sizeof(info)
+        thread = self.user.GetWindowThreadProcessId(hwnd, None)
+        if not thread or not self.user.GetGUIThreadInfo(thread, ctypes.byref(info)):
+            raise SensitiveTarget("le champ au premier plan ne peut pas être vérifié")
+        return bool(info.hwndFocus and self.user.GetWindowLongW(info.hwndFocus, -16) & 0x20)
+
+    def identity(self, hwnd):
+        from ctypes.wintypes import DWORD
+        pid = DWORD()
+        self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        handle = self.kernel.OpenProcess(0x1000, False, pid.value)
+        if not handle:
+            return pid.value, None
+        try:
+            size = DWORD(32768)
+            name = ctypes.create_unicode_buffer(size.value)
+            if self.kernel.QueryFullProcessImageNameW(handle, 0, name, ctypes.byref(size)):
+                return pid.value, name.value
+            return pid.value, None
+        finally:
+            self.kernel.CloseHandle(handle)
+
+    def children(self, hwnd):
+        children = []
+
+        @self.callback
+        def collect(child, _):
+            name = ctypes.create_unicode_buffer(256)
+            self.user.GetClassNameW(child, name, len(name))
+            if name.value == "Windows.UI.Core.CoreWindow":
+                children.append(child)
+            return True
+
+        self.user.EnumChildWindows(hwnd, collect, 0)
+        return children
+
+    def next_visible(self, hwnd):
+        seen = set()
+        while hwnd and hwnd not in seen:
+            seen.add(hwnd)
+            hwnd = self.user.GetWindow(hwnd, 2)
+            if hwnd and self.user.IsWindowVisible(hwnd):
+                yield hwnd
+
+    def activate(self, hwnd):
+        self.user.SetForegroundWindow(hwnd)
+
+
+class DesktopSafety:
+    def __init__(self, api=None, own_pid=None, sleep=time.sleep, uia_password=None):
+        self.api = api
+        self.own_pid = os.getpid() if own_pid is None else own_pid
+        self.sleep = sleep
+        self.previous = None
+        self.uia_password = focused_password_uia if uia_password is None else uia_password
+
+    def window_reason(self, hwnd):
+        pid, name = self.api.identity(hwnd)
+        reason = pointer_verdict(pid, name, self.own_pid)
+        if reason:
+            return reason
+        if process_name(name) == "explorer":
+            reason = self.api.control_panel_reason(hwnd, name)
+            if reason:
+                return reason
+        if process_name(name) == "applicationframehost":
+            children = self.api.children(hwnd)
+            if not children:
+                return "l’application hébergée ne peut pas être vérifiée"
+            for child in children:
+                child_pid, child_name = self.api.identity(child)
+                if process_name(child_name) == "applicationframehost":
+                    return "l’application hébergée ne peut pas être vérifiée"
+                reason = pointer_verdict(child_pid, child_name, self.own_pid)
+                if reason:
+                    return reason
+        return None
+
+    def remember_foreground(self):
+        hwnd = self.api.foreground()
+        pid, _ = self.api.identity(hwnd)
+        if hwnd and pid and pid != self.own_pid:
+            self.previous = hwnd
+
+    def check_pointer(self, x, y):
+        if self.api is None:
+            return
+        self.remember_foreground()
+        reason = self.window_reason(self.api.at_point(x, y))
+        if reason:
+            raise SensitiveTarget(reason)
+
+    def check_keyboard(self):
+        if self.api is None:
+            return
+        self.remember_foreground()
+        hwnd = self.api.foreground()
+        reason = self.window_reason(hwnd)
+        if reason:
+            raise SensitiveTarget(reason)
+        if self.api.password_focused(hwnd):
+            raise SensitiveTarget("un champ protégé attend une saisie confidentielle")
+        try:
+            password = self.uia_password()
+        except Exception as error:
+            raise SensitiveTarget("le champ focalisé ne peut pas être vérifié par UI Automation") from error
+        if password is not False:
+            raise SensitiveTarget("un champ protégé attend une saisie confidentielle")
+
+    def prepare_keyboard(self):
+        if self.api is None:
+            return
+        hwnd = self.api.foreground()
+        pid, _ = self.api.identity(hwnd)
+        if pid == self.own_pid:
+            candidates = ([self.previous] if self.previous else [])
+            candidates.extend(self.api.next_visible(hwnd))
+            for candidate in candidates:
+                candidate_pid, name = self.api.identity(candidate)
+                if candidate_pid and candidate_pid != self.own_pid and name:
+                    self.api.activate(candidate)
+                    self.sleep(0.2)
+                    break
+        self.check_keyboard()
+
+
+desktop_safety = DesktopSafety(Win32Targets() if WINDOWS else None)
+
+
+if WINDOWS:
+    def _watch_foreground():
+        while True:
+            desktop_safety.remember_foreground()
+            time.sleep(0.1)
+
+    threading.Thread(target=_watch_foreground, daemon=True, name="papai-focus").start()
 
 
 # ------------------------------------------------------------------ l'écran
@@ -175,9 +468,10 @@ def _type_unicode(ch: str) -> None:
 
 
 def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
-               protected: tuple | None = None) -> str:
+               protected: tuple | None = None, safety=None) -> str:
     """Joue une action. Le verrou est relu juste avant chaque geste."""
     gate = gate.pin()
+    safety = desktop_safety if safety is None else safety
     if gate.is_stopped:
         raise Stopped()
     import pyautogui
@@ -191,6 +485,9 @@ def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
             a, b, c, d = protected
             if a <= px <= c and b <= py <= d:
                 raise ProtectedZone()
+        safety.check_pointer(px, py)
+        if gate.is_stopped:
+            raise Stopped()
         return px, py
 
     if name in ("click", "double_click"):
@@ -199,12 +496,19 @@ def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
         time.sleep(0.2)
         if gate.is_stopped:
             raise Stopped()
+        safety.check_pointer(px, py)
+        if gate.is_stopped:
+            raise Stopped()
         pyautogui.click(px, py, clicks=2 if name == "double_click" else 1, interval=0.08)
         return f"{name} à ({px}, {py}) sur « {args.get('element') or ''} »"
 
     if name == "type_text":
+        safety.prepare_keyboard()
         text = str(args.get("text") or "")
         for ch in text:
+            if gate.is_stopped:
+                raise Stopped()
+            safety.check_keyboard()
             if gate.is_stopped:
                 raise Stopped()
             if ch == "\n":
@@ -217,6 +521,7 @@ def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
         return f"texte tapé : {text}"
 
     if name == "press_key":
+        safety.prepare_keyboard()
         spec = str(args.get("keys") or "")
         keys = parse_keys(spec)
         if gate.is_stopped:
@@ -338,6 +643,18 @@ def known_folder(name: str) -> Path | None:
         ctypes.windll.ole32.CoTaskMemFree(out)
 
 
+def valid_subfolder(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    sub = value.strip()
+    if len(sub) > 100 or any(
+        unicodedata.category(c) not in {"Lu", "Ll", "Lt", "Lm", "Lo", "Nd"}
+        and c not in " -_'’(),&+" for c in sub
+    ):
+        return None
+    return sub
+
+
 def open_shortcut(shortcut: dict | None) -> tuple[bool, str]:
     """Ouvre le dossier d'un automate. Le modèle ne fournit jamais de chemin :
     un dossier connu du système et au plus un nom de sous-dossier. Si le dossier
@@ -346,22 +663,19 @@ def open_shortcut(shortcut: dict | None) -> tuple[bool, str]:
     base = known_folder(str(sc.get("folder") or ""))
     if base is None:
         return False, "Aucun raccourci enregistré."
-    sub = str(sc.get("subfolder") or "").strip()
-    target = base
-    if sub:
-        if any(c in sub for c in '\\/:*?"<>|') or ".." in sub or sub == ".":
-            return False, "Nom de dossier invalide."
-        target = base / sub
-    if not target.is_dir():
-        quoi = f"« {sub} »" if sub else "Ce dossier"
-        return False, f"{quoi} n'existe pas (ou plus) sur cet ordinateur."
+    sub = valid_subfolder(sc.get("subfolder", ""))
+    if sub is None:
+        return False, "Nom de dossier invalide."
+    from .home_shortcuts import valid_folder
+
+    target = valid_folder(base / sub if sub else base, reject_links=True)
+    if target is None or not target.is_relative_to(base.resolve()):
+        return False, "Ce dossier n'est pas disponible ou ne peut pas être ouvert en toute sécurité."
     try:
         if WINDOWS:
-            os.startfile(str(target))  # noqa: S606 — un dossier, dans l'Explorateur
+            subprocess.Popen([str(apps.windows_directory() / "explorer.exe"), str(target)], shell=False)
         else:
-            import subprocess
-
-            subprocess.Popen(["xdg-open", str(target)])  # noqa: S603,S607
+            return False, "L'Explorateur Windows n'est pas disponible."
     except OSError as e:
         return False, str(e)
     return True, str(target)

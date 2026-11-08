@@ -19,8 +19,8 @@ import time
 import uuid
 from typing import Callable
 
-from .core import (ProtectedZone, guard_signals, StopGate, Stopped, UnknownKey,
-                   describe_action, run_action)
+from .core import (ProtectedZone, SensitiveTarget, StopGate, Stopped, UnknownKey,
+                   describe_action, guard_signals, run_action)
 
 RECONNECT_S = 3
 MAX_SIZE = 16 * 1024 * 1024
@@ -34,6 +34,7 @@ class Bridge:
                  on_action: Callable[[str], None], protected: Callable[[], tuple | None] = lambda: None,
                  capture_mask: Callable[[], tuple | None] = lambda: None,
                  runner: Callable = run_action,
+                 alert_visible: Callable[[], bool] | None = None,
                  guard: Callable[[], dict | None] = guard_signals) -> None:
         self.url = url
         self.gate = gate
@@ -45,6 +46,8 @@ class Bridge:
         self.protected = protected
         self.capture_mask = capture_mask
         self.runner = runner
+        self._alert: dict | None = None
+        self.alert_visible = alert_visible or (lambda: self._alert is not None)
         self.guard = guard
         # Réglé par le modèle : la protection en temps réel est-elle activée ?
         self.protection: Callable[[], bool] = lambda: True
@@ -192,6 +195,11 @@ class Bridge:
             self._executions.add(task)
             task.add_done_callback(self._executions.discard)
             return
+        if kind == "alert":
+            self._alert = m
+            self.gate.raise_stop()
+        elif kind == "alert_cleared" and self._alert and m.get("alert_id") == self._alert.get("alert_id") and m.get("alert_id"):
+            self._alert = None
         if kind == "alert" and (m.get("level") == "danger" or m.get("blocked")):
             self.gate.raise_stop()
             for task in self._executions:
@@ -219,12 +227,17 @@ class Bridge:
         if not isinstance(args, dict):
             args = {}
 
-        async def reply(text: str, refused: bool) -> None:
-            await ws.send(json.dumps({"type": "result", "req": req, "result": text,
-                                      "refused": refused}, ensure_ascii=False))
+        async def reply(text: str, refused: bool, blocked: str | None = None) -> None:
+            message = {"type": "result", "req": req, "result": text, "refused": refused}
+            if blocked:
+                message["blocked"] = blocked
+            await ws.send(json.dumps(message, ensure_ascii=False))
 
         if self.gate.is_stopped:
             await reply(STOPPED_TEXT, True)
+            return
+        if self.alert_visible():
+            await reply("Assistance arrêtée ou alerte du gardien en attente.", True)
             return
         if not self.plan_allows_action():
             await reply("Action refusée : aucun plan validé par le support.", True)
@@ -243,9 +256,13 @@ class Bridge:
         except Stopped:
             await reply(STOPPED_TEXT, True)
         except ProtectedZone:
-            # Refus ciblé : l'agent l'apprend et continue, la session survit.
-            await reply("Action refusée : cette zone appartient à la fenêtre PapAI, "
-                        "que seule la personne aidée peut manipuler.", False)
+            await reply("Action refusée par PapAI : cette zone appartient à PapAI. "
+                        "Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.",
+                        False, "sensitive")
+        except SensitiveTarget as e:
+            await reply(f"Action refusée par PapAI : {e}. "
+                        "Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.",
+                        False, "sensitive")
         except UnknownKey as e:
             await reply(f"Touche inconnue : {e}", False)
         except Exception as e:  # noqa: BLE001
