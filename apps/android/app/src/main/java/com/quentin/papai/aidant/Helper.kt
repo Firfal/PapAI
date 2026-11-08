@@ -25,10 +25,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import okhttp3.Call
 import okhttp3.Callback
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
@@ -52,7 +50,6 @@ enum class Screen { IDLE, WAITING, PLANNING, APPROVAL, ACTIVE, HELPER, DONE, STO
 
 sealed interface AppSheet {
     data object Settings : AppSheet
-    data class Pair(val link: PairLink) : AppSheet
 }
 
 /** Étape du plan : « Ouvrir le Finder — dans le Dock » → titre + détail. */
@@ -65,7 +62,7 @@ fun splitStep(raw: String): Pair<String, String?> {
 }
 
 /**
- * Tout l'état de l'app de l'aidant, comme `HelperModel` sur l'iPhone.
+ * Tout l'état de l'app du support, comme `HelperModel` sur l'iPhone.
  * Les champs sont des états Compose ; on ne les modifie que sur le fil principal.
  */
 @SuppressLint("StaticFieldLeak")
@@ -76,20 +73,24 @@ object Helper {
     private val http = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
-        // Ping toutes les 15 s : garde la liaison à travers les proxys et coupe une liaison morte.
+        // Ping toutes les 15 s : garde la connexion à travers les proxys et coupe une connexion morte.
         .pingInterval(15, TimeUnit.SECONDS)
         .build()
     private val rest = http.newBuilder().readTimeout(20, TimeUnit.SECONDS).build()
 
-    // Réglages mémorisés
+    // Poste suivi en détail (`<serveur>/k/<clé>` et sa clé), choisi parmi les postes de l'organisation.
     var serverURL by mutableStateOf("")
+        private set
     var helperKey by mutableStateOf("")
+        private set
+    /** Nom affiché du support (restriction gérée `supportName`, facultative). */
     var helperName by mutableStateOf<String?>(null)
+        private set
+    /** Identifiant de ce support chez le serveur, par poste : il apparaît dans « Mon support » sur l'ordinateur. */
     private var helperId = ""
-    private var helperRelation = ""
     var seniorName by mutableStateOf("")
 
-    // Mes utilisateurs : une liaison par ordinateur, une seule suivie en détail à la fois.
+    // Les postes de l'organisation : un seul suivi en détail à la fois, les autres surveillés.
     val people = mutableStateListOf<Person>()
     /** Pour les autres personnes : clé → ordinateur connecté / demande en attente. */
     val othersOnline = mutableStateMapOf<String, Boolean>()
@@ -102,14 +103,7 @@ object Helper {
     var retryAt by mutableStateOf<Long?>(null)
     var keyRefused by mutableStateOf(false)
 
-    // Feuilles et appairage
     var sheet by mutableStateOf<AppSheet?>(null)
-    var pairBusy by mutableStateOf(false)
-    var pairError by mutableStateOf<String?>(null)
-    var pairRefused by mutableStateOf(false)
-    var pairNeedsNew by mutableStateOf(false)
-    var pairDone by mutableStateOf(false)
-    var pairingRefused by mutableStateOf(false)
 
     // Session
     var state by mutableStateOf<String?>(null)
@@ -117,6 +111,14 @@ object Helper {
     val webLive get() = sessionWhere == "web" && (state == "active" || state == "awaiting_helper")
     var task by mutableStateOf("")
     var plan by mutableStateOf<List<String>>(emptyList())
+    var linkupVisible by mutableStateOf(false)
+    var linkupPending by mutableStateOf(false)
+    var linkupQuery by mutableStateOf("")
+    var linkupText by mutableStateOf("")
+    var linkupId by mutableStateOf("")
+    var linkupSources by mutableStateOf<List<Pair<String, String>>>(emptyList())
+    var linkupError by mutableStateOf(false)
+    var linkupBusy by mutableStateOf(false)
     var planStep by mutableStateOf<Int?>(null)
     var doing by mutableStateOf<String?>(null)
     var question by mutableStateOf<Question?>(null)
@@ -172,20 +174,161 @@ object Helper {
     fun init(c: Context) {
         ctx = c.applicationContext
         prefs = ctx.getSharedPreferences("papai", Context.MODE_PRIVATE)
-        serverURL = prefs.getString("serverURL", "") ?: ""
-        helperKey = prefs.getString("helperKey", "") ?: ""
-        helperName = cleanText(prefs.getString("helperName", null)).ifEmpty { null }
-        helperId = prefs.getString("helperId", "") ?: ""
-        helperRelation = prefs.getString("helperRelation", "") ?: ""
-        seniorName = cleanText(prefs.getString("seniorName", ""))
-        prefs.edit().putString("seniorName", seniorName).putString("helperName", helperName).apply()
-        people.addAll(People.decode(prefs.getString("people", null)))
-        rememberCurrent()
-        orgs.addAll(Orgs.decode(prefs.getString("orgs", null)))
-        refreshOrgs()
+        // Restes de l'ancienne liaison poste par poste : plus rien de tout cela n'est lu.
+        prefs.edit().remove("people").remove("orgs").remove("lastGoodServerURL").remove("lastGoodHelperKey")
+            .remove("helperRelation").remove("helperName").remove("helperId").apply()
+        org = loadSupportOrg(ctx)
+        helperName = loadSupportName(ctx)
+        // Le dernier poste suivi, s'il est bien sur le serveur de l'organisation : on s'y
+        // reconnecte tout de suite, la liste des postes arrive juste après.
+        val s = prefs.getString("serverURL", "") ?: ""
+        val k = prefs.getString("helperKey", "") ?: ""
+        val o = org
+        if (o != null && k.isNotEmpty() && s == "${o.server}/k/$k") {
+            serverURL = s; helperKey = k
+            helperId = helperIds()[k] ?: ""
+            seniorName = cleanText(prefs.getString("seniorName", ""))
+        } else {
+            prefs.edit().remove("serverURL").remove("helperKey").remove("seniorName").apply()
+        }
     }
 
     val isConfigured get() = serverURL.isNotBlank() && helperKey.isNotBlank()
+
+    // MARK: Organisation (service IT) : tous les postes inscrits, sans liaison.
+
+    /** Jeton support et serveur déposés par l'administrateur ; null : rien n'est configuré. */
+    var org by mutableStateOf<SupportOrg?>(null)
+        private set
+    var orgName by mutableStateOf<String?>(null)
+        private set
+    /** Dernier échec de lecture de la liste des postes (null si tout va bien). */
+    var orgError by mutableStateOf<String?>(null)
+        private set
+    /** La liste des postes a été lue au moins une fois. */
+    var orgLoaded by mutableStateOf(false)
+        private set
+    private var orgPoll: Runnable? = null
+    private var orgFetching = false
+    private val noRedirect = rest.newBuilder().followRedirects(false).followSslRedirects(false).build()
+
+    val orgConfigured get() = org != null
+    /** « Support IT · Acme », ou « Support IT » tant que le nom n'est pas connu. */
+    val orgTitle get() = orgName?.let { "Support IT · $it" } ?: "Support IT"
+    /** Hôte du serveur de l'organisation, pour les Réglages et les messages. */
+    val orgHost get() = org?.let { hostOf(it.server) }
+
+    private fun hostOf(server: String): String {
+        val u = android.net.Uri.parse(server)
+        val h = u.host ?: return server
+        return if (u.port > 0) "$h:${u.port}" else h
+    }
+
+    /** Relit la liste des postes toutes les 30 s : un poste inscrit après coup apparaît seul. */
+    private fun startOrg() {
+        if (org == null || orgPoll != null) return
+        orgPoll = object : Runnable {
+            override fun run() {
+                refreshOrg()
+                main.postDelayed(this, 30_000)
+            }
+        }.also { main.post(it) }
+    }
+
+    /**
+     * La configuration gérée a pu changer (l'administrateur l'a poussée après coup) :
+     * on repart de zéro avec la nouvelle organisation.
+     */
+    private fun reloadConfig() {
+        helperName = loadSupportName(ctx)
+        val o = loadSupportOrg(ctx)
+        if (o == org) return
+        orgPoll?.let { main.removeCallbacks(it) }; orgPoll = null
+        if (isConfigured) leaveCurrent()
+        people.clear()
+        watchOthers()
+        org = o; orgName = null; orgError = null; orgLoaded = false
+        if (o == null) LinkService.stop(ctx) else startOrg()
+    }
+
+    fun refreshOrg() {
+        val o = org ?: return
+        if (orgFetching) return
+        val host = hostOf(o.server)
+        val req = try { Request.Builder().url("${o.server}/o/${o.token}/spaces").build() }
+        catch (_: IllegalArgumentException) { orgError = "Adresse du serveur invalide."; return }
+        orgFetching = true
+        noRedirect.newCall(req).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                main.post {
+                    orgFetching = false
+                    // Organisation changée pendant la requête : on relit tout de suite la nouvelle.
+                    if (org == o) orgError = "Le serveur $host ne répond pas." else refreshOrg()
+                }
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val code = response.code
+                val body = try { response.use { it.body?.string() } } catch (_: IOException) { null }
+                val r = try { JSONObject(body ?: "") } catch (_: Exception) { null }
+                main.post {
+                    orgFetching = false
+                    if (org != o) { refreshOrg(); return@post }
+                    if (code != 200 || r == null) {
+                        orgError = if (code == 404 || code == 403)
+                            "Jeton support refusé par $host. Contactez votre administrateur."
+                        else "Le serveur $host répond une erreur $code."
+                        return@post
+                    }
+                    orgError = null; orgLoaded = true
+                    r.text("org").takeIf { it.isNotEmpty() && it != orgName }?.let { orgName = it; LinkService.refresh(ctx) }
+                    val spaces = r.optJSONArray("spaces")
+                    applySpaces(People.fromSpaces(spaces, o.server, people.toList()), spaces)
+                }
+            }
+        })
+    }
+
+    /** La liste du serveur fait foi : un poste retiré de l'organisation disparaît d'ici. */
+    private fun applySpaces(list: List<Person>, spaces: JSONArray?) {
+        people.clear(); people.addAll(list)
+        for (i in 0 until (spaces?.length() ?: 0)) {
+            val s = spaces?.optJSONObject(i) ?: continue
+            val k = s.opt("key") as? String ?: continue
+            // Un canal de surveillance ouvert sait mieux ; sinon l'état renvoyé par la liste.
+            if (k !in watches) othersOnline[k] = s.optBoolean("online", false)
+        }
+        val i = people.indexOfFirst { isCurrent(it) }
+        if (i >= 0) {
+            if (people[i].name.isEmpty()) people[i] = people[i].copy(name = seniorName) else setSenior(people[i].name)
+        } else if (isConfigured) {
+            leaveCurrent()
+        }
+        if (!isConfigured) people.firstOrNull()?.let { switchTo(it) }
+        if (!isConfigured) LinkService.stop(ctx)
+        watchOthers()
+    }
+
+    /** Quitte le poste suivi (retiré de l'organisation, ou plus aucun poste). */
+    private fun leaveCurrent() {
+        generation++
+        socket?.cancel(); socket = null
+        retry?.let { main.removeCallbacks(it) }; retry = null
+        connected = false; keyRefused = false; linkError = null; retryAt = null
+        serverURL = ""; helperKey = ""; seniorName = ""; helperId = ""
+        prefs.edit().remove("serverURL").remove("helperKey").remove("seniorName").apply()
+        clearSession()
+    }
+
+    private fun helperIds(): Map<String, String> = try {
+        val o = JSONObject(prefs.getString("helperIds", null) ?: "{}")
+        o.keys().asSequence().associateWith { o.text(it) }.filterValues { it.isNotEmpty() }
+    } catch (_: Exception) { emptyMap() }
+
+    private fun saveHelperId(key: String, id: String) {
+        val o = try { JSONObject(prefs.getString("helperIds", null) ?: "{}") } catch (_: Exception) { JSONObject() }
+        prefs.edit().putString("helperIds", o.put(key, id).toString()).apply()
+    }
 
     /** Dans une phrase : « Rien à signaler pour Sophie », sinon « de l’utilisateur ». */
     val senior get() = seniorName.ifEmpty { "l’utilisateur" }
@@ -227,126 +370,37 @@ object Helper {
             return if (u.port > 0) "$h:${u.port}" else h
         }
 
-    val lastGood: Pair<String, String>?
-        get() {
-            val s = prefs.getString("lastGoodServerURL", null) ?: return null
-            val k = prefs.getString("lastGoodHelperKey", null) ?: return null
-            return s to k
-        }
+    // MARK: Postes
 
-    /** Jamais de valeur vide : une configuration qui marche n'est pas effacée par un champ blanc. */
-    fun applySettings(server: String, key: String) {
-        val s = server.trim()
-        val k = key.trim()
-        if (s.isEmpty() || k.isEmpty()) return
-        serverURL = s; helperKey = k
-        prefs.edit().putString("serverURL", s).putString("helperKey", k).apply()
-        rememberCurrent()
-        reconnect()
-        LinkService.start(ctx)
-    }
-
-    // MARK: Mes utilisateurs
-
-    // Organisations (service IT) : chaque poste inscrit devient un utilisateur, sans code.
-    val orgs = mutableStateListOf<Org>()
-    var orgError by mutableStateOf<String?>(null)
-    var orgBusy by mutableStateOf(false)
-
-    fun addOrg(input: String) {
-        val o = Orgs.parse(input, PairingPolicy.officialHost) ?: run { orgError = "Lien d'organisation non reconnu."; return }
-        PairingPolicy.error(o.server, BuildConfig.DEBUG)?.let { orgError = it; return }
-        orgError = null; orgBusy = true
-        fetchOrg(o, manual = true)
-    }
-
-    fun refreshOrgs() = orgs.toList().forEach { fetchOrg(it, manual = false) }
-
-    private fun fetchOrg(o: Org, manual: Boolean) {
-        val req = try { Request.Builder().url("${o.server}/o/${o.token}/spaces").build() }
-        catch (_: IllegalArgumentException) { orgBusy = false; return }
-        rest.newBuilder().followRedirects(false).followSslRedirects(false).build().newCall(req).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                main.post { orgBusy = false; if (manual) orgError = "Le serveur ne répond pas." }
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                val code = response.code
-                val r = try { JSONObject(response.body?.string() ?: "{}") } catch (_: Exception) { JSONObject() }
-                main.post {
-                    orgBusy = false
-                    if (code != 200) {
-                        if (manual) orgError = r.text("error").ifEmpty { "Lien d'organisation invalide." }
-                        return@post
-                    }
-                    val name = r.text("org")
-                    val list = orgs.filter { it.token != o.token } + o.copy(name = name.ifEmpty { o.name })
-                    orgs.clear(); orgs.addAll(list)
-                    prefs.edit().putString("orgs", Orgs.encode(list)).apply()
-                    var ps = people.toList()
-                    val a = r.optJSONArray("spaces")
-                    val n = a?.length() ?: 0
-                    for (i in 0 until n) {
-                        val s = a?.optJSONObject(i) ?: continue
-                        val key = s.text("key")
-                        if (key.isNotEmpty()) ps = People.upsert(ps, Person("${o.server}/k/$key", key, s.text("name")))
-                    }
-                    savePeople(ps)
-                    if (!isConfigured) ps.firstOrNull()?.let { switchTo(it) }
-                    watchOthers()
-                    if (manual) {
-                        showToast("$n poste${if (n > 1) "s" else ""} ajouté${if (n > 1) "s" else ""}${if (name.isNotEmpty()) " ($name)" else ""}.")
-                        sheet = null
-                    }
-                }
-            }
-        })
-    }
-
-    private fun savePeople(list: List<Person>) {
-        people.clear(); people.addAll(list)
-        prefs.edit().putString("people", People.encode(list)).apply()
-    }
-
+    /** Garde ce qu'on a appris du poste suivi (prénom, identifiant de support). */
     private fun rememberCurrent() {
         if (!isConfigured) return
-        savePeople(People.upsert(people, Person(serverURL.trim(), helperKey.trim(), seniorName, helperId, helperRelation)))
+        val i = people.indexOfFirst { isCurrent(it) }
+        if (i < 0) return
+        var p = people[i]
+        if (seniorName.isNotEmpty()) p = p.copy(name = seniorName)
+        if (helperId.isNotEmpty()) p = p.copy(helperId = helperId)
+        if (p != people[i]) people[i] = p
     }
 
     fun isCurrent(p: Person) = p.key == helperKey.trim()
 
-    /** Suivre une autre personne : la liaison active change, les autres restent surveillées. */
+    /** Suivre un autre poste : la connexion détaillée change, les autres restent surveillés. */
     fun switchTo(p: Person) {
         sensitiveRefusal = null
         if (isCurrent(p)) return
         rememberCurrent()
         serverURL = p.server; helperKey = p.key; seniorName = p.name
-        helperId = p.helperId; helperRelation = p.relation
-        prefs.edit().putString("serverURL", p.server).putString("helperKey", p.key).putString("seniorName", p.name)
-            .putString("helperId", p.helperId).putString("helperRelation", p.relation).apply()
+        helperId = p.helperId.ifEmpty { helperIds()[p.key] ?: "" }
+        prefs.edit().putString("serverURL", p.server).putString("helperKey", p.key).putString("seniorName", p.name).apply()
         clearSession()
         reconnect()
         LinkService.start(ctx)
         LinkService.refresh(ctx)
     }
 
-    fun forget(p: Person) {
-        val wasCurrent = isCurrent(p)
-        savePeople(people.filter { it.key != p.key })
-        if (!wasCurrent) { watchOthers(); return }
-        helperKey = ""
-        people.firstOrNull()?.let { switchTo(it); return }
-        generation++
-        socket?.cancel(); socket = null
-        retry?.let { main.removeCallbacks(it) }; retry = null
-        serverURL = ""; seniorName = ""; connected = false
-        prefs.edit().remove("serverURL").remove("helperKey").remove("seniorName").apply()
-        clearSession()
-        watchOthers()
-        LinkService.stop(ctx)
-    }
-
     private fun clearSession() {
+        clearLinkup()
         state = null; sessionWhere = null; sessionId = ""; task = ""; plan = emptyList(); planStep = null
         doing = null; question = null; questionToSenior = false; liveDictation = null
         frame = null; frameId = null; frameAt = null; aiming = false; target = null
@@ -376,7 +430,8 @@ object Helper {
                 val m = try { JSONObject(text) } catch (_: Exception) { return }
                 main.post {
                     if (watches[p.key] !== webSocket) return@post
-                    val who = people.firstOrNull { it.key == p.key }?.name?.ifEmpty { null } ?: "Un utilisateur"
+                    val who = people.firstOrNull { it.key == p.key }
+                        ?.let { it.name.ifEmpty { it.label } }?.ifEmpty { null } ?: "Un utilisateur"
                     when (m.text("type")) {
                         "refused" -> {
                             watches.remove(p.key); othersOnline[p.key] = false
@@ -398,7 +453,6 @@ object Helper {
                             }
                         }
                         "alert_cleared" -> othersAsking[p.key] = false
-                        "helper_added" -> showToast("${m.text("name")} est maintenant support.")
                         "alert" -> {
                             othersAsking[p.key] = true
                             notifyLocal("$who : ${m.text("title").ifEmpty { "alerte" }}", m.text("detail"), otherNotificationId(p.key))
@@ -408,6 +462,7 @@ object Helper {
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                if (SupportConfig.accessRevoked(code)) main.post { unwatch(p, webSocket) }
                 webSocket.close(1000, null)
             }
 
@@ -416,9 +471,16 @@ object Helper {
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                main.post { rewatch(p, webSocket) }
+                val refused = response?.code == 401 || response?.code == 403
+                main.post { if (refused) unwatch(p, webSocket) else rewatch(p, webSocket) }
             }
         })
+    }
+
+    /** Accès retiré à ce poste : on le laisse, sans réessayer ; la prochaine liste valide le rouvrira. */
+    private fun unwatch(p: Person, ws: WebSocket) {
+        if (watches[p.key] !== ws) return
+        watches.remove(p.key); othersOnline[p.key] = false
     }
 
     private fun rewatch(p: Person, ws: WebSocket) {
@@ -433,12 +495,13 @@ object Helper {
         val n = cleanText(name)
         val i = people.indexOfFirst { it.key == key }
         if (n.isEmpty() || i < 0 || people[i].name == n) return
-        savePeople(people.toMutableList().also { it[i] = it[i].copy(name = n) })
+        people[i] = people[i].copy(name = n)
     }
 
     private fun otherNotificationId(key: String) = 100 + (key.hashCode() and 0x3ff)
 
     fun start() {
+        startOrg()
         watchOthers()
         if (!isConfigured || socket != null || retry != null) return
         connect()
@@ -449,13 +512,16 @@ object Helper {
         generation++
         socket?.cancel(); socket = null
         retry?.let { main.removeCallbacks(it) }; retry = null
-        connected = false; keyRefused = false; linkError = null; retryAt = null; delay = 1
+        connected = false; keyRefused = false; linkError = null; retryAt = null; delay = 1; linkupBusy = false
         start()
     }
 
     /** Retour au premier plan : on n'attend pas la fin du délai d'attente. */
     fun wakeUp() {
-        if (!isConfigured) return
+        reloadConfig()
+        if (org == null) return
+        startOrg()
+        if (!isConfigured) { refreshOrg(); return }
         if (!connected && (retry != null || keyRefused)) { reconnect(); return }
         if (connected) loadLessons()
         start()
@@ -483,13 +549,11 @@ object Helper {
                         if (msg.text("type") == "refused") {
                             keyRefused = true
                             val reason = msg.text("reason").takeIf { it.isNotEmpty() }
-                            linkError = "Clé refusée par $host" + (reason?.let { " ($it)" } ?: "") + "."
+                            linkError = "Accès refusé par $host" + (reason?.let { " ($it)" } ?: "") + "."
                             webSocket.close(1000, null)
                             return@post
                         }
-                        hello = true; connected = true; linkError = null; retryAt = null; delay = 1
-                        prefs.edit().putString("lastGoodServerURL", serverURL)
-                            .putString("lastGoodHelperKey", helperKey).apply()
+                        hello = true; connected = true; linkError = null; retryAt = null; delay = 1; linkupBusy = false
                         Log.i(TAG, "connecté à $host")
                     }
                     handle(msg, img)
@@ -497,6 +561,9 @@ object Helper {
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                if (SupportConfig.accessRevoked(code)) main.post {
+                    if (gen == generation) { keyRefused = true; linkError = "Accès retiré par votre administrateur." }
+                }
                 webSocket.close(1000, null)
             }
 
@@ -510,8 +577,8 @@ object Helper {
                 main.post {
                     if (gen != generation) return@post
                     val e = when {
-                        http == 401 || http == 403 -> { keyRefused = true; "Clé refusée par $host." }
-                        http == 404 -> "Adresse introuvable sur $host : vérifiez l'adresse du serveur."
+                        http == 401 || http == 403 -> { keyRefused = true; "Accès refusé par $host." }
+                        http == 404 -> "Poste introuvable sur $host."
                         http >= 400 -> "Le serveur $host répond une erreur $http."
                         hello -> "Connexion coupée"
                         t is UnknownHostException && !online() -> "Ce téléphone n'a pas de connexion internet."
@@ -525,9 +592,10 @@ object Helper {
 
     private fun lost(gen: Int, error: String) {
         if (gen != generation) return
-        socket = null; connected = false
+        socket = null; connected = false; linkupBusy = false
         if (linkError == null || !keyRefused) linkError = error
-        if (keyRefused) { retryAt = null; return }   // on attend « Vérifier les réglages » ou le premier plan
+        // Poste retiré de l'organisation ? La liste des postes le dira.
+        if (keyRefused) { retryAt = null; refreshOrg(); return }
         val d = delay
         retryAt = System.currentTimeMillis() + d * 1000
         retry = Runnable { retry = null; retryAt = null; if (gen == generation) connect() }.also { main.postDelayed(it, d * 1000) }
@@ -555,89 +623,16 @@ object Helper {
         LinkService.refresh(ctx)
     }
 
-    /** Lien `papai://pair?u=…&n=…` ouvert depuis un QR, un SMS ou la page web. */
-    fun open(uri: String) {
-        val u = android.net.Uri.parse(uri)
-        if (u.host == "open") return
-        if (u.host == "org") { addOrg(uri); return }
-        if (PairingPolicy.invitationError(uri, BuildConfig.DEBUG) != null) {
-            pairingRefused = true; return
-        }
-        val link = PairLink.parse(uri) ?: run { pairingRefused = true; return }
-        openPair(link)
-    }
-
-    fun openPair(link: PairLink) {
-        if (pairBusy) return
-        PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairingRefused = true; return }
-        pairingRefused = false
-        pairDone = false; pairError = null; pairBusy = false; pairRefused = false; pairNeedsNew = false
-        sheet = AppSheet.Pair(link)
-    }
-
-    /** Saisie du code à la main : serveur déjà réglé, sinon le serveur PapAI officiel. */
-    fun manualPairLink(): PairLink =
-        if (serverURL.isBlank()) PairLink("https://${PairingPolicy.officialHost}", null) else PairLink(baseHTTP, null)
-
-    /** POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur. */
-    fun submitPair(link: PairLink, code: String?, name: String, relation: String) {
-        if (pairBusy || pairNeedsNew) return
-        pairRefused = false
-        PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairError = it; return }
-        val c = (link.code ?: code ?: "").filter { it.isDigit() }
-        val n = cleanText(name)
-        if (link.token == null && c.length != 6) { pairError = "Le code fait 6 chiffres."; return }
-        if (n.isEmpty()) { pairError = "Indiquez votre prénom."; return }
-        val body = JSONObject().put("name", n).put("relation", relation).toString()
-            .toRequestBody("application/json".toMediaType())
-        val req = try {
-            Request.Builder().url(link.endpoint(c)).post(body).build()
-        } catch (_: IllegalArgumentException) { pairError = "Adresse invalide."; return }
-        pairBusy = true; pairError = null
-        rest.newBuilder().readTimeout(150, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build().newCall(req).enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                main.post { pairBusy = false; pairError = "Le serveur ne répond pas à ${link.host}." }
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                val r = try { JSONObject(response.body?.string() ?: "{}") } catch (_: Exception) { JSONObject() }
-                main.post {
-                    pairBusy = false
-                    if (!PairingPolicy.isSuccess(response.code, r.opt("ok"))) {
-                        pairRefused = r.opt("refused") == true
-                        pairNeedsNew = PairingPolicy.needsNew(response.code, pairRefused)
-                        pairError = r.text("error").ifEmpty { "Le serveur a refusé la liaison." }
-                        return@post
-                    }
-                    val key = r.text("key")
-                    if (key.isEmpty()) {
-                        pairError = "Le serveur n'a pas renvoyé de clé : réglez la connexion à la main."
-                        return@post
-                    }
-                    val server = PairingPolicy.responseOrigin(link, r.text("server"))
-                    seniorName = r.text("senior")
-                    prefs.edit().putString("seniorName", seniorName).apply()
-                    LinkService.refresh(ctx)
-                    helperName = r.text("name").ifEmpty { n }
-                    helperId = r.text("id")
-                    helperRelation = relation
-                    prefs.edit().putString("helperName", helperName).putString("helperId", helperId)
-                        .putString("helperRelation", relation).apply()
-                    pairDone = true
-                    applySettings("$server/k/$key", key)
-                }
-            }
-        })
-    }
-
     fun send(o: JSONObject) {
         val s = socket
         if (s == null || !connected) {
-            planBusy = false; sending = false
+            planBusy = false; sending = false; linkupBusy = false
             showToast("Pas de connexion au serveur."); return
         }
         if (o.text("type") != "helper_hello") sensitiveRefusal = null
-        s.send(o.toString())
+        if (!s.send(o.toString()) && o.text("type") == "linkup_search") {
+            linkupBusy = false; linkupError = true
+        }
     }
 
     private fun send(vararg kv: Pair<String, Any?>) = send(JSONObject().apply { kv.forEach { (k, v) -> put(k, v) } })
@@ -676,13 +671,13 @@ object Helper {
                 // Le serveur renvoie status et capture juste après s'il y a une session :
                 // sans session (serveur redémarré), il ne reste rien de l'ancienne demande.
                 state = null; frame = null; frameId = null; frameAt = null
-                // On se présente : l'ordinateur doit voir ce proche dans sa liste.
-                send("type" to "helper_hello", "id" to helperId, "name" to (helperName ?: "Support"),
-                    "relation" to helperRelation)
+                // On se présente : l'ordinateur voit son support dans « Mon support ».
+                send("type" to "helper_hello", "id" to helperId, "name" to (helperName ?: orgTitle),
+                    "relation" to "le service informatique")
             }
 
             "helper_id" -> m.text("id").takeIf { it.isNotEmpty() }?.let {
-                helperId = it; prefs.edit().putString("helperId", it).apply()
+                helperId = it; saveHelperId(helperKey.trim(), it)
                 rememberCurrent()
             }
 
@@ -702,6 +697,7 @@ object Helper {
                 val sid = m.text("session")
                 var wasWebLive = webLive
                 if (sid != sessionId) {
+                    clearLinkup()
                     wasWebLive = false
                     liveDictation = null
                     sessionId = sid; requestStart = System.currentTimeMillis(); iRefusedPlan = false
@@ -760,7 +756,21 @@ object Helper {
                 question = Question(it, strings(m.optJSONArray("options")))
             }
 
-            "answer" -> doneAnswer = m.text("content").ifEmpty { null }
+            "linkup_proposed" -> if (m.text("session") == sessionId) {
+                linkupVisible = true; linkupPending = true; linkupQuery = m.text("query")
+                linkupText = ""; linkupId = ""; linkupSources = emptyList(); linkupError = false
+            }
+            "linkup_result" -> if (m.text("session") == sessionId) {
+                linkupVisible = true; linkupBusy = false; linkupError = m.has("error")
+                linkupText = m.text("summary"); linkupId = m.text("id")
+                val sources = m.optJSONArray("sources")
+                linkupSources = (0 until (sources?.length() ?: 0)).mapNotNull { i ->
+                    val s = sources?.optJSONObject(i) ?: return@mapNotNull null
+                    val url = s.text("url")
+                    if (url.startsWith("https://") || url.startsWith("http://")) s.text("name") to url else null
+                }
+            }
+            "linkup_answer", "answer" -> doneAnswer = m.text("content").ifEmpty { null }
 
             "alert" -> {
                 val t = m.text("title").ifEmpty { "Alerte" }
@@ -775,7 +785,7 @@ object Helper {
                     sensitiveRefusal = m.text("reason").ifEmpty { "Cette fenêtre est protégée (réglages ou mots de passe)." }
                     toast = null
                 } else showToast(m.text("reason").ifEmpty { "Refusé" })
-                sending = false; planBusy = false; lessonBusy = false
+                sending = false; planBusy = false; lessonBusy = false; linkupBusy = false
             }
 
             "ack" -> when (m.text("what")) {
@@ -811,7 +821,6 @@ object Helper {
                 savedTitle = m.optJSONObject("lesson")?.text("title")?.ifEmpty { null } ?: draftTitle
                 loadLessons()
             }
-            "helper_added" -> showToast("${m.text("name")} est maintenant support.")
         }
     }
 
@@ -870,6 +879,21 @@ object Helper {
     // MARK: Actions
 
     fun approvePlan() { planBusy = true; send("type" to "approve_plan") }
+    fun clearLinkup() {
+        linkupVisible = false; linkupPending = false; linkupQuery = ""; linkupText = ""
+        linkupId = ""; linkupSources = emptyList(); linkupError = false; linkupBusy = false
+    }
+    fun openLinkup() { clearLinkup(); linkupVisible = true; linkupQuery = task }
+    fun searchLinkup() {
+        linkupBusy = true; linkupId = ""; linkupText = ""; linkupSources = emptyList(); linkupError = false
+        send("type" to "linkup_search", "session" to sessionId, "query" to linkupQuery)
+    }
+    fun approveLinkup() = send("type" to "linkup_approve", "session" to sessionId,
+        "id" to linkupId, "approved" to true, "text" to linkupText)
+    fun refuseLinkup() {
+        if (linkupPending) send("type" to "linkup_approve", "session" to sessionId, "approved" to false)
+        else clearLinkup()
+    }
     fun refinePlan(text: String) { planBusy = true; send("type" to "refine_plan", "text" to text) }
     fun refusePlan() { iRefusedPlan = true; send("type" to "refuse_plan") }
     fun answer(t: String) = send("type" to "answer", "text" to t)

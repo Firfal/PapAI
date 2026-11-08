@@ -17,6 +17,10 @@ struct ApprovalView: View {
             Group {
                 RequestCard(model: model, onThumb: { zoom = true })
                     .listRowInsets(EdgeInsets(top: 0, leading: 20, bottom: 9, trailing: 20))
+                if model.linkupVisible {
+                    LinkupReview(model: model)
+                } else {
+                Button("Rechercher une réponse") { model.openLinkup() }
                 HStack {
                     Text("Plan proposé par Holo").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
                     Spacer()
@@ -43,6 +47,7 @@ struct ApprovalView: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                         .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 20, trailing: 20))
                 }
+                }
             }
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
@@ -50,7 +55,7 @@ struct ApprovalView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 0)
-        .safeAreaInset(edge: .bottom) { bottomBar }
+        .safeAreaInset(edge: .bottom) { if !model.linkupVisible { bottomBar } }
         .task(id: model.plan) { await showSwipeHint() }
         .sheet(isPresented: $showRefine) { RefineSheet(model: model) }
         .sheet(item: $editing) { e in StepEditSheet(model: model, step: e) }

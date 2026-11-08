@@ -25,15 +25,7 @@ extension HelperModel {
                     }
                     else if l == "click" { confirmClick() }
                     else if l.hasPrefix("answer:") { answer(String(l.dropFirst(7))) }
-                    else if l.hasPrefix("pair:") || l.hasPrefix("pairconfirm:"), case .pair(let link)? = sheet {
-                        // pair:Prénom|lien|code (code seulement pour la saisie manuelle)
-                        let confirmed = l.hasPrefix("pairconfirm:")
-                        let p = l.dropFirst(confirmed ? 12 : 5).split(separator: "|", omittingEmptySubsequences: false).map(String.init)
-                        Task { await submitPair(link, code: p.count > 2 ? p[2] : nil, name: p.first ?? "", relation: p.count > 1 ? p[1] : "") }
-                    }
                     else if l == "settings" { sheet = .settings }
-                    else if l == "scanner" { sheet = .scanner }
-                    else if l == "manual", let link = manualPairLink() { openPair(link) }
                     else if l == "close" { sheet = nil }
                     // Données de démo pour les captures : plan, automates, fin d'aide.
                     else if l.hasPrefix("plan:") { plan = l.dropFirst(5).split(separator: ";").map(String.init) }

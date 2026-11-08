@@ -276,6 +276,8 @@ struct ApplyAutomateSheet: View {
 /// niveau, jamais de commande) et le pas à pas « Montrez-moi ».
 struct SupportCreateAutomate: View {
     let model: HelperModel
+    /// Brouillon venu d'une suggestion de l'onglet Tickets (title, description, goal).
+    var prefill: [String: String]? = nil
     var done: ([String: Any]?) -> Void
 
     enum Kind: String, CaseIterable { case holo, folder, settings, url }
@@ -357,8 +359,11 @@ struct SupportCreateAutomate: View {
         }
         .foregroundStyle(T.ink)
         .frame(width: 640, height: 700).background(T.bg)
-    }
-        .onAppear { recorder.onStop = { reviewing = true } }
+        .onAppear {
+            if let p = prefill, title.isEmpty {
+                title = p["title"] ?? ""; detail = p["description"] ?? ""; goal = p["goal"] ?? ""; kind = .holo
+            }
+        }
     }
 
     private func label(_ s: String) -> some View {

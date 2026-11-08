@@ -11,8 +11,10 @@ repasse par les contrôles de sessions.py.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
+import mimetypes
 import os
 import re
 import secrets
@@ -22,15 +24,19 @@ from urllib.parse import quote, urlsplit
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.requests import HTTPConnection
 
-from . import automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
+from . import (
+    automations, billing, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
+    tickets as tickets_mod, voice,
+)
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
 from .caremamory import lessons_dir, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
+from . import rangement
 
 STATIC = Path(__file__).parent / "static"
 
@@ -66,6 +72,7 @@ app = FastAPI(title="PapAI")
 AIDANT_KEY = os.environ.get("PAPAI_AIDANT_KEY") or secrets.token_urlsafe(9)
 spaces = space.setup(AIDANT_KEY)
 orgs = orgs_mod.Orgs()
+billing.install(app, orgs.by_org_token, lambda o: spaces.members(o.id), PUBLIC_URL, orgs.get, lambda: orgs._by_id.values())
 
 
 def S() -> space.Space:
@@ -86,13 +93,65 @@ MAX_PROCESS_NAME = 200
 WEB_AGENT_START_TIMEOUT_S = 20.0
 
 
-def _key_ok(fam: str) -> bool:
-    """Vrai si la clé ouvre un espace ; cet espace devient celui de la requête."""
-    sp = spaces.get(fam)
+# Le support de l'organisation authentifié par sa clé dérivée (`sk…`) pour la
+# requête en cours : {"org", "id", "name"}, None pour la clé de l'espace.
+_support_ctx: contextvars.ContextVar[dict | None] = contextvars.ContextVar("papai_support", default=None)
+# Sockets ouvertes par chaque support ("<org>:<id>") : fermées dès sa révocation.
+_support_sockets: dict[str, set[WebSocket]] = {}
+_ws_support: dict[WebSocket, dict] = {}
+
+
+def _derived_space(key: str):
+    """Clé dérivée d'un support actif → (espace, organisation, support), sinon None."""
+    p = orgs_mod.parse_derived(key)
+    if p is None:
+        return None
+    sid, sup, seal = p
+    sp = next((x for x in spaces.all() if x.id == sid), None)
+    o = orgs.get(sp.org) if sp is not None and sp.org else None
+    rec = o.support_by_id(sup) if o is not None else None
+    if rec is None or not o.check_derived(rec, sid, seal):
+        return None
+    return sp, o, rec
+
+
+def _ctx(o: orgs_mod.Org, rec: dict | None) -> dict | None:
+    return {"org": o.id, "id": rec["id"], "name": rec.get("name", "")} if rec else None
+
+
+def _key_ok(fam: str, support: bool = True) -> bool:
+    """Vrai si la clé ouvre un espace ; cet espace devient celui de la requête.
+
+    `support` : accepte aussi la clé dérivée d'un support de l'organisation
+    (routes du support seulement, jamais le pont ni la liaison)."""
+    sp, ctx = spaces.get(fam), None
+    if sp is None and support:
+        d = _derived_space(fam)
+        if d is not None:
+            sp, ctx = d[0], _ctx(d[1], d[2])
     if sp is None:
         return False
     space.use(sp)
+    _support_ctx.set(ctx)
     return True
+
+
+def _space_key(sp: space.Space, o: orgs_mod.Org, rec: dict | None) -> str:
+    """La clé d'un poste telle que la voit ce support : jamais la vraie pour un jeton personnel."""
+    return sp.key if rec is None else o.derived_key(rec, sp.id)
+
+
+def _track_support(ws: WebSocket) -> None:
+    ctx = _support_ctx.get()
+    if ctx is not None:
+        _ws_support[ws] = ctx
+        _support_sockets.setdefault(f"{ctx['org']}:{ctx['id']}", set()).add(ws)
+
+
+def _untrack_support(ws: WebSocket) -> None:
+    ctx = _ws_support.pop(ws, None)
+    if ctx is not None:
+        _support_sockets.get(f"{ctx['org']}:{ctx['id']}", set()).discard(ws)
 
 
 _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
@@ -169,6 +228,7 @@ class BridgeLink:
         self._web_agent_waiter: asyncio.Future[str] | None = None
         self.active_web_session: Session | None = None
         self.active_web_browser_session: str | None = None
+        self.active_web_runner: WebAgentRunner | None = None
 
     async def close(self, code: int = 1000) -> None:
         try:
@@ -249,12 +309,19 @@ class BridgeLink:
             waiter.cancel()
         await self.send({"type": "web_agent_stop"})
 
-    async def start_web_agent(self) -> str | None:
+    def receive_web_off_site(self, url) -> None:
+        runner = self.active_web_runner
+        if runner is not None and runner.s is self.active_web_session:
+            runner.report_off_site(url)
+
+    async def start_web_agent(self, session=None) -> str | None:
         self.web_agent = None
         waiter = asyncio.get_running_loop().create_future()
         self._web_agent_waiter = waiter
         try:
-            await self.send({"type": "web_agent_start"})
+            await self.send({"type": "web_agent_start",
+                             "sites": list(session.plan_sites) if session else [],
+                             "hosts": list(session.web_hosts) if session else []})
             return await asyncio.wait_for(waiter, WEB_AGENT_START_TIMEOUT_S)
         except asyncio.TimeoutError:
             await self.stop_web_agent()
@@ -326,9 +393,35 @@ def _rdv_at(v) -> int | None:
     return int(at) if now + RDV_MIN_S <= at <= now + tickets_mod.RDV_MAX_S else None
 
 
-def _open_ticket(task: str, source: str, status: str = "nouveau", by: str = "") -> dict:
+def _open_ticket(task: str, source: str, status: str = "nouveau", by: str = "",
+                 suggestions: list[dict] | None = None) -> dict:
     o = orgs.get(S().org) if getattr(S(), "org", "") else None
-    return S().tickets.open(task, source, status=status, by=by, number=o.next_ticket() if o else None)
+    t = S().tickets.open(
+        task, source, status=status, by=by, number=o.next_ticket() if o else None,
+        suggestions=suggestions,
+    )
+    if t.get("category_by") == "doute" and task.strip():
+        _later(_holo_category(S(), t))
+    return t
+
+
+def _ticket_suggestions(task: str) -> list[dict]:
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    automates = [
+        a for a in (o.automations() if o else []) + list_lessons()
+        if isinstance(a, dict) and a.get("actions")
+    ]
+    return suggest.suggerer(task, automates, limite=2)
+
+
+async def _holo_category(sp, t: dict) -> None:
+    """Les règles hésitent : Holo choisit dans la liste, sans repasser sur le choix du support."""
+    cat = await ticket_stats.classify_holo(t.get("task", ""))
+    if cat is None:
+        return
+    space.use(sp)
+    if sp.tickets.categorize(t, cat, "holo"):
+        await _tickets_changed()
 
 
 async def _tickets_changed() -> None:
@@ -425,14 +518,37 @@ def helper_can_access_alert(ws: WebSocket, alert: dict) -> bool:
     return scope is None or scope == alert.get("session")
 
 
-async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
-    if payload.get("type") == "status":
+def _session_socket_live(ws: WebSocket, payload: dict) -> bool:
+    if ws not in S().helper_alert_scopes:
+        return False
+    scope = S().helper_alert_scopes[ws]
+    if scope is None:
+        return True
+    if payload.get("type") == "status" and payload.get("session") == scope:
+        return True
+    if payload.get("type") == "guard_advice" or (
+        payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged")
+        and payload.get("alert_id")
+    ):
+        return helper_can_access_alert(ws, payload)
+    session = current_session()
+    return session is not None and session.id == scope and (
+        session.is_open or payload.get("type") in ("answer", "linkup_answer")
+    )
+
+
+async def broadcast_helper(payload: dict, *, to_bridge: bool = True, sync_ticket: bool = True) -> None:
+    if sync_ticket and payload.get("type") == "status":
         await _sync_ticket(payload)
     if to_bridge and S().bridge is not None and payload.get("type") in BRIDGE_TYPES:
         await S().bridge.send(payload)
     dead = []
     for ws in S().helper_sockets:
-        scoped = payload.get("type") == "guard_advice" or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
+        if not _session_socket_live(ws, payload):
+            continue
+        scoped = payload.get("type") in (
+            "guard_advice", "linkup_proposed", "linkup_result", "linkup_answer",
+        ) or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
         if scoped and not helper_can_access_alert(ws, payload):
             continue
         if payload.get("type") in SUPPORT_ONLY and not _is_support(ws):
@@ -464,10 +580,11 @@ async def handle_web_agent_change(link: BridgeLink, value) -> None:
 
 @app.websocket("/k/{fam}/ws/bridge")
 async def ws_bridge_keyed(ws: WebSocket, fam: str) -> None:
-    if not _key_ok(fam):
+    if not _key_ok(fam, support=False):
         # Clé inconnue mais bien formée : l'ordinateur revient après un
         # redéploiement qui a effacé le disque. Il retrouve un espace à sa clé.
-        if not (space.KEY_RE.match(fam or "") and _rate_ok(_space_creations, _client_ip(ws), SPACES_PER_HOUR, 3600)):
+        # Jamais une clé dérivée de support : elle masquerait le vrai poste.
+        if not (space.KEY_RE.match(fam or "") and orgs_mod.parse_derived(fam) is None and _rate_ok(_space_creations, _client_ip(ws), SPACES_PER_HOUR, 3600)):
             await ws.close(code=4403)
             return
         space.use(spaces.create(fam))
@@ -514,6 +631,10 @@ async def _ws_bridge(ws: WebSocket) -> None:
 
             if kind in ("frame", "result", "pair_decision"):
                 link.resolve(str(msg.get("req", "")), msg)
+                continue
+
+            if kind == "web_off_site":
+                link.receive_web_off_site(msg.get("url"))
                 continue
 
             if kind in ("hello", "profile"):
@@ -583,6 +704,24 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 await _tickets_changed()
                 continue
 
+            if kind == "ticket_automate_launched":
+                t = S().tickets.get(str(msg.get("ticket") or ""))
+                lesson_id = str(msg.get("lesson") or "")
+                proposed = None
+                if t:
+                    proposed = next(
+                        (x for x in (t.get("suggestions") or []) if isinstance(x, dict)
+                         and str(x.get("id") or "") == lesson_id),
+                        None,
+                    )
+                if proposed is None:
+                    continue
+                S().tickets.update(t, suggestion_lancee=lesson_id)
+                S().tickets.note(t, "L’utilisateur",
+                                 f"Automate proposé lancé : {proposed.get('title') or 'Automate'}")
+                await _tickets_changed()
+                continue
+
             if kind == "help_request":
                 task = str(msg.get("task") or "").strip()[:MAX_TASK]
                 by = str(msg.get("requested_by") or "")[:40]
@@ -592,9 +731,14 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if ticket is None and not by and _support_expected() and not _support_available():
                     # Aucun support disponible : la demande attend, la personne
                     # sera reprévenue dès qu'un support est là (ou au rendez-vous).
-                    ticket = _open_ticket(task, "personne", status="en_attente", by=S().family.senior)
+                    suggestions = _ticket_suggestions(task)
+                    ticket = _open_ticket(
+                        task, "personne", status="en_attente", by=S().family.senior,
+                        suggestions=suggestions,
+                    )
                     await ws.send_json({"type": "ticket_queued", "ticket": ticket["id"],
-                                        "number": ticket["number"], "task": task})
+                                        "number": ticket["number"], "task": task,
+                                        "suggestions": suggestions})
                     await _tickets_changed()
                     print(f"[tickets] demande n° {ticket['number']} en attente d'un support")
                     continue
@@ -618,7 +762,10 @@ async def _ws_bridge(ws: WebSocket) -> None:
 
                 if S().agent_task and not S().agent_task.done():
                     S().agent_task.cancel()
-                S().agent_task = asyncio.create_task(run_session(session, link))
+                # Rangement guidé : noms de fichiers seulement, plan validé par le support.
+                S().agent_task = asyncio.create_task(
+                    rangement.run(session, link, broadcast_helper, check_request, msg["tidy"])
+                    if "tidy" in msg else run_session(session, link))
                 continue
 
             if kind == "run_automation":
@@ -796,7 +943,7 @@ async def browser_handoff(session, link: BridgeLink, notes: list[str],
         return None
 
     try:
-        browser = await link.start_web_agent()
+        browser = await link.start_web_agent(session)
     except asyncio.CancelledError:
         session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
                     result="annulée pendant le démarrage")
@@ -823,16 +970,19 @@ async def browser_handoff(session, link: BridgeLink, notes: list[str],
     result_log = "session arrêtée pendant la sous-tâche"
     try:
         await broadcast_helper(session.status())
-        summary = await WebAgentRunner(
+        runner = WebAgentRunner(
             session, browser, broadcast_helper, notes,
-            goal=goal, url=url, finish_session=False,
-        ).run()
+            goal=goal, url=url, finish_session=False, send_sites=link.send,
+        )
+        link.active_web_runner = runner
+        summary = await runner.run()
         if not session.is_open or summary is None:
             return None
         result = f"Partie navigateur terminée : {summary}"
         result_log = _safe_handoff_log_text(result)
         return result
     finally:
+        link.active_web_runner = None
         await asyncio.shield(link.stop_web_agent())
         if link.active_web_session is session:
             link.active_web_session = None
@@ -889,6 +1039,16 @@ async def run_session(session, link: "BridgeLink") -> None:
             steps = await propose_plan(session, link, broadcast_helper, " ; ".join(notes))
             if not session.is_open:
                 return
+            if session.linkup_id or session.linkup_result is not None:
+                return
+            if session.linkup_query:
+                session.plan = None
+                session.state = State.AWAITING_APPROVAL
+                session.owner = Owner.NONE
+                await broadcast_helper(session.status())
+                await broadcast_helper({"type": "linkup_proposed", "session": session.id,
+                                        "query": session.linkup_query}, to_bridge=False)
+                return
             for site in session.plan_sites:
                 alerte = guard.evaluer([], "", url=f"https://{site}")
                 if alerte:
@@ -909,6 +1069,8 @@ async def run_session(session, link: "BridgeLink") -> None:
             if result is None or not session.is_open:
                 return
             kind, note = result
+            if kind == "linkup":
+                return
             if kind == "approve":
                 break
             if kind == "refuse":
@@ -921,7 +1083,7 @@ async def run_session(session, link: "BridgeLink") -> None:
         # Mode web seulement si Holo l'a proposé ET si l'ordinateur sert un navigateur.
         browser = None
         if session.where == "web" and link.web_agent_available:
-            browser = await link.start_web_agent()
+            browser = await link.start_web_agent(session)
             if not session.is_open:
                 if browser is not None:
                     await link.stop_web_agent()
@@ -934,8 +1096,11 @@ async def run_session(session, link: "BridgeLink") -> None:
             link.active_web_session = session
             link.active_web_browser_session = browser
             try:
-                await WebAgentRunner(session, browser, broadcast_helper, notes).run()
+                runner = WebAgentRunner(session, browser, broadcast_helper, notes, send_sites=link.send)
+                link.active_web_runner = runner
+                await runner.run()
             finally:
+                link.active_web_runner = None
                 if link.active_web_session is session:
                     link.active_web_session = None
                     link.active_web_browser_session = None
@@ -952,6 +1117,84 @@ async def run_session(session, link: "BridgeLink") -> None:
 
 
 # ------------------------------------------------------------------ proche
+
+
+async def replay_linkup(session, ws: WebSocket) -> None:
+    if session.linkup_query and session.is_open:
+        await ws.send_json({"type": "linkup_proposed", "session": session.id,
+                            "query": session.linkup_query})
+        if session.linkup_result is not None:
+            await ws.send_json(session.linkup_result)
+
+
+async def handle_linkup_search(session, msg: dict, ws: WebSocket) -> None:
+    session.require_open()
+    if msg.get("session") != session.id:
+        raise Refused("La demande a changé. Rouvrez-la avant de rechercher.")
+    if session.state not in (State.PLANNING, State.AWAITING_APPROVAL) or session.plan_approved:
+        raise Refused("La recherche est disponible avant la validation du plan.")
+    query = linkup.plain(msg.get("query", session.linkup_query or session.task), 1000)
+    if not query:
+        raise Refused("Écrivez la question à rechercher.")
+    if not linkup.enabled():
+        await ws.send_json({"type": "linkup_result", "session": session.id, "query": query,
+                            "error": "disabled"})
+        return
+    session.linkup_query = query
+    session.linkup_id = secrets.token_hex(12)
+    request_id = session.linkup_id
+    session.linkup_result = None
+    session.plan = None
+    session.state = State.AWAITING_APPROVAL
+    session.owner = Owner.NONE
+    session._resolve_plan(("linkup", ""))
+    await broadcast_helper(session.status())
+    await broadcast_helper({"type": "linkup_proposed", "session": session.id, "query": query}, to_bridge=False)
+    result = await linkup.search(query)
+    if not session.is_open or request_id != session.linkup_id:
+        return
+    session.linkup_result = {"type": "linkup_result", "session": session.id,
+                             "id": request_id, "query": query, **result}
+    await broadcast_helper(session.linkup_result, to_bridge=False)
+
+
+async def handle_linkup_approve(session, msg: dict, ws: WebSocket) -> None:
+    session.require_open()
+    if msg.get("session") != session.id or not session.linkup_query:
+        raise Refused("Aucune réponse n'attend votre validation.")
+    if session.state is not State.AWAITING_APPROVAL or session.plan_approved:
+        raise Refused("Aucune réponse n'attend votre validation.")
+    if msg.get("approved") is False:
+        session.stop(by="support")
+        await broadcast_helper(session.status())
+        return
+    result = session.linkup_result
+    if (msg.get("approved") is not True or not result or result.get("error")
+            or msg.get("id") != session.linkup_id):
+        raise Refused("Recherchez une réponse avant de la valider.")
+    text = linkup.plain(msg.get("text", result["summary"]), 8000)
+    if not text:
+        raise Refused("La réponse ne peut pas être vide.")
+    sup = _ws_support.get(ws)
+    who = (sup["name"] if sup else S().helper_who.get(ws, {}).get("name", "")) or "Support"
+    answer = {"type": "linkup_answer", "session": session.id, "content": text,
+              "sources": result["sources"]}
+    session.finish(text)
+    session.helper_name = who
+    session.log("linkup_approved", by=who)
+    if S().bridge is not None:
+        await S().bridge.send(answer)
+    await broadcast_helper(answer, to_bridge=False)
+    try:
+        ticket = S().tickets.get(session.ticket)
+        if ticket is not None:
+            S().tickets.update(ticket, linkup_answer={"content": text, "sources": result["sources"],
+                                                     "query": session.linkup_query, "by": who})
+            await _tickets_changed()
+        await _sync_ticket(session.status())
+    except Exception as e:
+        session.log("linkup_ticket_failed", error=type(e).__name__)
+    await broadcast_helper(session.status(), sync_ticket=False)
 
 
 def _session_by_token(token: str):
@@ -989,10 +1232,11 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
     S().helper_sockets.add(ws)
     S().helper_alert_scopes[ws] = session.id
     await ws.send_json(session.status())
+    await replay_linkup(session, ws)
     await ws.send_json({"type": "senior", "name": S().family.senior or None})
     if S().pending_alert and helper_can_access_alert(ws, S().pending_alert["helper"]):
         await ws.send_json(S().pending_alert["helper"])
-    if session.last_frame:
+    if session.is_open and session is current_session() and session.last_frame:
         await ws.send_json(
             {
                 "type": "frame",
@@ -1010,6 +1254,16 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
     finally:
         S().helper_sockets.discard(ws)
         S().helper_alert_scopes.pop(ws, None)
+
+
+def _decided_by(ws: WebSocket, who: str) -> dict:
+    """Qui décide du plan, pour le journal : support à jeton personnel (sûr), sinon
+    le nom annoncé par l'app sur la clé de l'espace ou le lien de la session."""
+    sup = _ws_support.get(ws)
+    if sup is not None:
+        return {"name": sup["name"], "via": "jeton_support", "support": sup["id"]}
+    via = "cle_espace" if S().helper_alert_scopes.get(ws, "") is None else "lien_session"
+    return {"name": who, "via": via}
 
 
 async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
@@ -1034,11 +1288,22 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             return
 
     try:
-        who = S().helper_who.get(ws, {}).get("name", "")
+        sup = _ws_support.get(ws)
+        who = sup["name"] if sup else S().helper_who.get(ws, {}).get("name", "")
         if who and kind in ("approve_plan", "answer", "click"):
             session.helper_name = who
-        if kind in ("approve_plan", "refine_plan", "refuse_plan"):
-            session.decide_plan(kind.split("_")[0], str(msg.get("text", "")).strip())
+        if kind == "linkup_search":
+            await handle_linkup_search(session, msg, ws)
+
+        elif kind == "linkup_approve":
+            await handle_linkup_approve(session, msg, ws)
+
+        elif kind in ("approve_plan", "refine_plan", "refuse_plan"):
+            by = _decided_by(ws, who)
+            session.decide_plan(kind.split("_")[0], str(msg.get("text", "")).strip(), by=by)
+            if kind == "approve_plan":
+                print(f"[plan] session {session.id} validée par {by['name'] or 'un support'} "
+                      f"({by['via']}{' ' + by['support'] if by.get('support') else ''})")
             await broadcast_helper(session.status())
 
         elif kind == "answer":
@@ -1113,6 +1378,9 @@ async def handle_helper_refresh(session, ws: WebSocket) -> None:
     Ne touche à rien sur le PC : c'est une lecture d'écran, soumise aux mêmes
     conditions que le reste (session ouverte, partage autorisé).
     """
+    session.require_open()
+    if session is not current_session():
+        raise Refused("Cette assistance n'est plus en cours.")
     if not session.consented:
         raise Refused("Le partage d'écran n'a pas été autorisé.")
     if session.where == "web":
@@ -1125,6 +1393,9 @@ async def handle_helper_refresh(session, ws: WebSocket) -> None:
         raise Refused("Le PC n'est pas connecté.")
 
     frame = await S().bridge.capture()
+    session.require_open()
+    if session is not current_session():
+        raise Refused("Cette assistance n'est plus en cours.")
     if frame is None:
         raise Refused("Le PC n'a pas répondu.")
 
@@ -1315,7 +1586,7 @@ async def pair_page_manual():
 
 @app.get("/k/{fam}/p")
 async def pair_page_manual_keyed(fam: str):
-    if not _key_ok(fam):
+    if not _key_ok(fam, support=False):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return await _pair_page("")
 
@@ -1407,7 +1678,7 @@ async def create_org(request: Request):
 @app.post("/k/{fam}/org")
 async def join_org(fam: str, request: Request):
     """Un poste déjà installé rejoint l'organisation (jeton déposé après coup par l'IT)."""
-    if not _key_ok(fam):
+    if not _key_ok(fam, support=False):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     body = await _small_json(request)
     o = orgs.by_enroll(str(body.get("org") or ""))
@@ -1435,13 +1706,98 @@ async def org_page(token: str):
 
 @app.get("/o/{token}/spaces")
 async def org_spaces(token: str):
-    """Tous les postes de l'organisation, avec leur clé : le support les suit sans appairage."""
-    o = orgs.by_support(token)
-    if o is None:
+    """Tous les postes de l'organisation : le support les suit sans appairage. Avec un
+    jeton personnel, chaque clé est dérivée pour ce support (refusée s'il est révoqué)."""
+    found = orgs.auth(token)
+    if found is None:
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    o, rec = found
     return {"org": o.name, "server": PUBLIC_URL, "spaces": [
-        {"key": sp.key, "name": sp.family.senior or sp.label, "label": sp.label,
+        {"key": _space_key(sp, o, rec), "name": sp.family.senior or sp.label, "label": sp.label,
          "online": sp.bridge is not None} for sp in spaces.members(o.id)]}
+
+
+# --- Supports de l'organisation : un jeton chacun, révocable (console de l'IT) ---
+
+def _support_online(o: orgs_mod.Org, sid: str) -> bool:
+    return bool(_support_sockets.get(f"{o.id}:{sid}"))
+
+
+@app.get("/o/{token}/supports")
+async def org_supports(token: str):
+    """Seulement avec le jeton de l'organisation : un support ne gère pas les autres."""
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    return {"org": o.name, "supports": [o.public_support(d, _support_online(o, d["id"])) for d in o.supports]}
+
+
+@app.post("/o/{token}/supports")
+async def org_add_support(token: str, request: Request):
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    name = _label(await _small_json(request))
+    if not name:
+        return JSONResponse({"error": "Donnez le nom du support."}, status_code=400)
+    try:
+        rec, tok = o.add_support(name)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=409)
+    print(f"[organisations] support {rec['id']} ajouté à {o.id}")
+    return {**o.public_support(rec), "token": tok, "server": PUBLIC_URL,
+            "support_url": f"{PUBLIC_URL}/o/{tok}",
+            "app_url": f"papai://org?u={quote(PUBLIC_URL, safe='')}&t={tok}"}
+
+
+@app.post("/o/{token}/supports/{sid}/revoke")
+async def org_revoke_support(token: str, sid: str):
+    """Révoque un support : jeton et clés dérivées refusés, sockets fermées tout de suite,
+    assistance qu'il avait validée arrêtée."""
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    rec = o.revoke_support(sid)
+    if rec is None:
+        return JSONResponse({"error": "Support introuvable."}, status_code=404)
+    closed = 0
+    for ws in list(_support_sockets.pop(f"{o.id}:{sid}", set())):
+        _ws_support.pop(ws, None)
+        try:
+            await ws.close(code=4401, reason="Accès retiré")
+            closed += 1
+        except Exception:  # noqa: BLE001
+            pass
+    stopped = 0
+    for sp in spaces.members(o.id):
+        space.use(sp)
+        for s in list(sp.registry._by_id.values()):
+            if s.is_open and (s.approved_by or {}).get("support") == sid:
+                s.stop(by="support_revoque")
+                stopped += 1
+                await broadcast_helper(s.status())
+        if any(h["id"] == "s" + sid for h in sp.family.helpers):
+            sp.family.remove("s" + sid)
+            if sp.bridge is not None:
+                await sp.bridge.send({"type": "helpers", "helpers": sp.family.public(_online_ids())})
+    print(f"[organisations] support {sid} révoqué dans {o.id} ({closed} connexion(s) fermée(s), "
+          f"{stopped} assistance(s) arrêtée(s))")
+    return {**o.public_support(rec), "closed": closed, "stopped": stopped}
+
+
+@app.post("/o/{token}/rotate")
+async def org_rotate_token(token: str):
+    """Nouveau jeton de l'organisation (fin de migration, fuite) : l'ancien est refusé."""
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    o.rotate()
+    print(f"[organisations] jeton de l'organisation {o.id} renouvelé")
+    return {"support_token": o.support, "server": PUBLIC_URL, **_org_links(o)}
 
 
 @app.get("/o/{token}/automations")
@@ -1455,14 +1811,16 @@ async def org_automations(token: str):
 @app.post("/o/{token}/automations")
 async def org_import_automation(token: str, request: Request):
     """Importé une fois par l'IT, proposé sur tous les postes, présents et à venir."""
-    o = orgs.by_support(token)
-    if o is None:
+    found = orgs.auth(token)
+    if found is None:
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    o, rec = found
     pack = await _read_pack(request)
     if isinstance(pack, JSONResponse):
         return pack
+    by = rec["name"] if rec else request.query_params.get("by", "") or o.name
     try:
-        lesson = automations.save(pack, by=request.query_params.get("by", "") or o.name, folder=o.lessons_dir)
+        lesson = automations.save(pack, by=by, folder=o.lessons_dir)
     except automations.Invalid as e:
         return JSONResponse({"error": str(e)}, status_code=422)
     print(f"[organisations] automate {lesson['id']} pour {o.id}")
@@ -1488,14 +1846,14 @@ async def org_remove_automation(token: str, lesson_id: str):
 
 @app.get("/k/{fam}/p/{code}")
 async def pair_page_keyed(fam: str, code: str):
-    if not _key_ok(fam):
+    if not _key_ok(fam, support=False):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return await _pair_page(code)
 
 
 @app.post("/k/{fam}/p/{code}")
 async def pair_submit_keyed(fam: str, code: str, request: Request):
-    if not _key_ok(fam):
+    if not _key_ok(fam, support=False):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return await _pair_submit(code, request, confirm=PUBLIC_MODE)
 
@@ -1556,6 +1914,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
         await ws.send_json({"type": "refused", "reason": "Lien invalide."})
         await ws.close()
         return
+    _track_support(ws)
     S().helper_sockets.add(ws)
     S().helper_alert_scopes[ws] = None
     await ws.send_json({"type": "hello", "bridge": S().bridge is not None,
@@ -1565,6 +1924,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     s = current_session()
     if s is not None:
         await ws.send_json(s.status())
+        await replay_linkup(s, ws)
         if s.last_frame:
             await ws.send_json({"type": "frame", "frame_id": s.last_frame.frame_id,
                                 "png_b64": s.last_frame.png_b64})
@@ -1579,8 +1939,11 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
                 continue
             if msg.get("type") == "helper_hello":
                 # L'app se présente : elle apparaît dans « Mes proches » sur l'ordinateur.
-                h = S().family.connect(str(msg.get("id", "")), str(msg.get("name", "")),
-                                   str(msg.get("relation", "")))
+                # Un support à jeton personnel garde le nom donné par l'IT.
+                sup = _ws_support.get(ws)
+                h = S().family.connect("s" + sup["id"] if sup else str(msg.get("id", "")),
+                                       sup["name"] if sup else str(msg.get("name", "")),
+                                       str(msg.get("relation", "")))
                 if h is not None:
                     S().helper_who[ws] = {"id": h["id"], "name": h["name"]}
                     await ws.send_json({"type": "helper_id", "id": h["id"]})
@@ -1601,6 +1964,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     except WebSocketDisconnect:
         pass
     finally:
+        _untrack_support(ws)
         S().helper_sockets.discard(ws)
         S().helper_alert_scopes.pop(ws, None)
         if S().helper_who.pop(ws, None) is not None:
@@ -1796,7 +2160,11 @@ async def transcribe_live_keyed(ws: WebSocket, fam: str) -> None:
     if not _key_ok(fam):
         await ws.close(code=4403)
         return
-    await voice.relay_live(ws)
+    _track_support(ws)
+    try:
+        await voice.relay_live(ws)
+    finally:
+        _untrack_support(ws)
 
 
 MAX_IMPORT = 15_000_000
@@ -1827,7 +2195,8 @@ async def _import_automation(request: Request):
     if isinstance(pack, JSONResponse):
         return pack
     try:
-        lesson = automations.save(pack, by=request.query_params.get("by", ""))
+        sup = _support_ctx.get()
+        lesson = automations.save(pack, by=sup["name"] if sup else request.query_params.get("by", ""))
     except automations.Invalid as e:
         return JSONResponse({"error": str(e)}, status_code=422)
     print(f"[automate] importé {lesson['id']}")
@@ -1910,11 +2279,20 @@ async def lesson_file(lesson_id: str, filename: str, request: Request):
 
 def _serve_lesson_file(lesson_id: str, filename: str):
     """Sert une capture de fiche. Chemins cloisonnés : pas de remontée possible."""
-    safe = Path(filename).name
-    path = (lessons_dir() / Path(lesson_id).name / safe).resolve()
-    if not str(path).startswith(str(lessons_dir().resolve())) or not path.is_file():
+    try:
+        storage.validate(lesson_id)
+        storage.validate(filename)
+        if "/" in lesson_id or "/" in filename:
+            raise ValueError("Chemin invalide")
+        path = lessons_dir() / lesson_id / filename
+        if not path.resolve().is_relative_to(lessons_dir().resolve()):
+            raise ValueError("Chemin hors des automates")
+        data = storage.read(path)
+    except ValueError:
+        data = None
+    if data is None:
         return JSONResponse({"error": "introuvable"}, status_code=404)
-    return FileResponse(path)
+    return Response(data, media_type=mimetypes.guess_type(filename)[0] or "application/octet-stream")
 
 
 def _sessions_journal():
@@ -1931,7 +2309,8 @@ async def _ticket_action(tid: str, body: dict):
     if t is None:
         return JSONResponse({"error": "Ticket introuvable."}, status_code=404)
     act = body.get("action")
-    by = str(body.get("by") or "").strip()[:40]
+    sup = _support_ctx.get()
+    by = sup["name"][:40] if sup else str(body.get("by") or "").strip()[:40]
     text = str(body.get("text") or "").strip()
     if act == "note":
         if not text:
@@ -1955,6 +2334,9 @@ async def _ticket_action(tid: str, body: dict):
         if S().bridge is not None:
             await S().bridge.send({"type": "ticket_scheduled", "ticket": t["id"], "number": t["number"],
                                    "at": at, "by": by})
+    elif act == "category":
+        if not S().tickets.categorize(t, str(body.get("category") or ""), "support", by):
+            return JSONResponse({"error": "Catégorie inconnue."}, status_code=400)
     elif act == "take":
         if t["status"] in ("en_cours", "resolu"):
             return JSONResponse({"error": "Ce ticket n'est pas en attente."}, status_code=409)
@@ -1985,11 +2367,23 @@ async def tickets_js():
     return FileResponse(STATIC / "tickets.js", media_type="text/javascript")
 
 
+@app.get("/ticket_stats.js")
+async def ticket_stats_js():
+    return FileResponse(STATIC / "ticket_stats.js", media_type="text/javascript")
+
+
 @app.get("/k/{fam}/tickets")
 async def tickets_keyed(fam: str):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return {"tickets": [tickets_mod.public(t) for t in S().tickets.all()[:200]]}
+
+
+@app.get("/k/{fam}/tickets/stats")
+async def tickets_stats_keyed(fam: str, weeks: int = ticket_stats.WEEKS):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return ticket_stats.stats(S().tickets.all(), weeks=weeks)
 
 
 @app.post("/k/{fam}/tickets/{tid}")
@@ -2002,25 +2396,46 @@ async def ticket_action_keyed(fam: str, tid: str, request: Request):
 @app.get("/o/{token}/tickets")
 async def org_tickets(token: str):
     """Les tickets de tous les postes de l'organisation, les plus récents d'abord."""
-    o = orgs.by_support(token)
-    if o is None:
+    found = orgs.auth(token)
+    if found is None:
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    o, rec = found
     out = []
     for sp in spaces.members(o.id):
         poste = sp.family.senior or getattr(sp, "label", "") or "Poste"
-        out += [{**tickets_mod.public(t), "space": sp.key, "poste": poste,
+        out += [{**tickets_mod.public(t), "space": _space_key(sp, o, rec), "poste": poste,
                  "online": sp.bridge is not None} for t in sp.tickets.all()[:200]]
     out.sort(key=lambda t: t.get("updated", 0), reverse=True)
     return {"org": o.name, "tickets": out[:1000]}
 
 
+@app.get("/o/{token}/tickets/stats")
+async def org_tickets_stats(token: str, weeks: int = ticket_stats.WEEKS):
+    """Les mêmes agrégats, sur tous les postes de l'organisation."""
+    found = orgs.auth(token)
+    if found is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    o, rec = found
+    rows = []
+    for sp in spaces.members(o.id):
+        poste = sp.family.senior or getattr(sp, "label", "") or "Poste"
+        rows += [{**t, "space": _space_key(sp, o, rec), "poste": poste} for t in sp.tickets.all()]
+    return {"org": o.name, **ticket_stats.stats(rows, weeks=weeks)}
+
+
 @app.post("/o/{token}/tickets/{key}/{tid}")
 async def org_ticket_action(token: str, key: str, tid: str, request: Request):
-    o = orgs.by_support(token)
-    sp = spaces.get(key)
+    found = orgs.auth(token)
+    o, rec = found if found else (None, None)
+    if rec is None:
+        sp = spaces.get(key)
+    else:
+        d = _derived_space(key)
+        sp = d[0] if d is not None and d[1] is o and d[2] is rec else None
     if o is None or sp is None or getattr(sp, "org", None) != o.id:
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     space.use(sp)
+    _support_ctx.set(_ctx(o, rec))
     return await _ticket_action(tid, await _json_body(request))
 
 

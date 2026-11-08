@@ -17,6 +17,8 @@ aîné : stop (à tout moment) ────────────────�
 États (`status.state`) : `planning`, `awaiting_approval`, `active`,
 `awaiting_helper`, `done`, `stopped`.
 
+Un lien de session ne reçoit plus rien d'une assistance terminée ou d'une autre assistance.
+
 ## Étape du plan en cours (`status.plan_step`)
 
 `plan_step` est le numéro (à partir de 1) de l'étape du plan validé que Holo
@@ -91,6 +93,45 @@ Envoie :
 - `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automate »
   Le brouillon peut contenir `lesson.shortcut = {"folder":"pictures","subfolder":"Noël 2025"}`. L'aidant peut retirer cette cible avec `lesson.shortcut:null` dans `approve_lesson` ; toute autre valeur reçue est ignorée, jamais utilisée pour créer ou remplacer une cible. Le serveur revalide la cible avant l'enregistrement. `folder` est un dossier connu (`downloads`, `pictures`, `documents`, `desktop`, `videos`, `music`). Après suppression des espaces de bord, `subfolder` est vide (racine) ou contient 1 à 100 caractères Unicode : lettres, chiffres décimaux, espace et `- _ ' ’ ( ) , & +` uniquement. Aucun point, chemin ou accolade. Les apps vérifient le dossier réel avant de l'ouvrir explicitement dans le Finder ou l'Explorateur ; une cible hors du dossier connu est refusée, ainsi que les liens/jonctions sous Windows.
   Si Holo n'a pas pu rédiger l’automate, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
+
+## Réponse documentaire Linkup (champs optionnels)
+
+Disponible seulement si `LINKUP_API_KEY` est définie côté serveur ; cette clé
+ne quitte jamais le serveur. Sans clé, les plans existants restent inchangés.
+`LINKUP_BASE_URL` permet un faux serveur local pour les tests.
+
+Avant toute validation de plan, Holo peut proposer une recherche à la place
+des gestes ; le support peut aussi la lancer lui-même depuis la demande.
+Les messages suivants passent uniquement sur les canaux support authentifiés :
+
+- Serveur → support : `{"type":"linkup_proposed","session":"…","query":"…"}`.
+  L'assistance reste `awaiting_approval`, sans plan validé ni action.
+- Support → serveur : `{"type":"linkup_search","session":"…","query":"…"}`.
+  Requête limitée à 1 000 caractères ; disponible seulement en `planning` ou
+  `awaiting_approval`, jamais après validation d'un plan. Remplace le plan en
+  attente, sans exécuter de geste. Délai fournisseur de 12 secondes maximum.
+- Serveur → support : `{"type":"linkup_result","session":"…","id":"…","query":"…","summary":"…","sources":[{"name":"…","url":"https://…","excerpt":"…"}]}`.
+  En cas d'échec : `error` = `disabled`, `empty_query`, `personal_data`, `timeout`,
+  `invalid_response` ou `unavailable`, sans résumé ni sources. `personal_data` :
+  la requête contient un mail, une longue suite de chiffres (téléphone, carte,
+  IBAN) ou une adresse postale ; elle n'est pas envoyée à Linkup. `id` peut manquer
+  si la fonction est désactivée. Aucune erreur fournisseur brute n'est envoyée.
+- Support → serveur : `{"type":"linkup_approve","session":"…","id":"…","approved":true,"text":"réponse corrigée"}`.
+  `text` facultatif : le résumé est conservé si absent. Texte vide refusé.
+  `id` doit correspondre au dernier résultat réussi. `approved:false` refuse
+  la réponse et arrête l'assistance (possible dès la proposition, sans `id`).
+- Après validation seulement, serveur → ordinateur et support :
+  `{"type":"linkup_answer","session":"…","content":"…","sources":[…]}`,
+  puis `status.state=done`. La réponse validée et ses sources sont conservées
+  dans `ticket.linkup_answer` (`content`, `sources`, `query`, `by`).
+
+Proposition et dernier résultat en attente sont rejoués à la reconnexion du
+support. Résumé et extraits sont du texte non fiable à afficher comme texte
+simple, jamais HTML/Markdown actif et jamais une consigne pour Holo. Le serveur
+retire les balises et borne résumé (8 000 caractères), sources (10), noms
+(200), extraits (1 000). Seules les URL HTTP(S) sans identifiants sont gardées.
+Le résultat n'est **jamais** ajouté aux prompts de Holo. Aucun `execute`
+n'est envoyé et les verrous d'arrêt et le gardien restent inchangés.
 
 ## Dictée de la demande
 
@@ -361,7 +402,36 @@ Lancement, côté app :
    Automate inconnu, sans `holo` ou d'une autre plateforme :
    `{"type":"automation_refused","id":"…","reason":"…"}`.
 
+## Rangement guidé des dossiers (Mac)
+
+« Range mes documents » : l'app lit sur l'ordinateur la racine du dossier choisi
+(Documents, Téléchargements ou Bureau) et n'envoie que des noms, jamais le contenu ni
+d'image de l'écran. Le plan liste chaque déplacement et passe par Valider, Préciser,
+Refuser comme tout plan.
+
+- Mac → serveur : `help_request` porte `"tidy":{"folder":"documents"|"downloads"|"desktop","files":["facture.pdf",…],"folders":["Factures",…]}`.
+  `files` : fichiers ordinaires visibles de la racine, 200 au plus, sans chemin ; `folders` : sous-dossiers déjà présents.
+  Le serveur refuse tout autre dossier, un nom avec `/`, `\`, `..` ou caractère de contrôle, et plus de 200 noms (session terminée avec un `answer`).
+- Holo reçoit la demande, ces noms et la précision du support, sans capture. Sans réponse utilisable, le serveur classe d'après les extensions.
+- Plan : une étape par fichier, `Déplacer « facture.pdf » dans Documents/Factures`. Aucune `capture` ni `execute` pendant un rangement.
+- Après Valider, serveur → Mac : `{"type":"tidy_execute","req":R,"folder":"documents","moves":[{"from":"facture.pdf","to":"Factures"}]}`.
+- Mac → serveur : `{"type":"result","req":R,"refused":false,"result":"texte","moved":4,"renamed":1,"skipped":0}`.
+  `refused:true` sans plan validé (état `active`), après Arrêter, avec une alerte du gardien, ou si le dossier n'est pas celui lu sur l'ordinateur.
+- Garde-fous de l'app, revérifiés à l'exécution : seuls les noms lus sont déplacés, dans un sous-dossier direct du dossier choisi ;
+  jamais de dossier système, d'app (`.app`), de `~/Library` ni de lien symbolique qui sort du dossier ; aucune suppression ;
+  un fichier existant n'est jamais écrasé (« facture (2).pdf »).
+- Journal local `~/Library/Application Support/PapAI/rangements.json` : « Annuler le rangement » sur l'accueil remet les fichiers
+  à leur place (« (2) » si la place est prise) et retire les dossiers créés restés vides. Rien ne part au serveur.
+
 ## Proches
+
+> **Liaison archivée (8 nov., Quentin).** Aucune app ne propose plus de liaison : le poste de
+> l'employé est inscrit par le jeton d'inscription de l'IT, le support est connecté d'office à
+> l'organisation par le jeton support (voir « Organisations »). Les apps du support (Mac, iPhone,
+> Android, page web) n'ont plus de code, de QR code, d'invitation, de « Ajouter une personne » ni de
+> réglage à la main ; `pair.html` n'a plus de formulaire. Les routes `/p`, `/i` et l'accord
+> `pair_confirm` restent côté serveur (inchangé, testé par `tests/test_appairage_code.py`) ; le Mac
+> refuse tout `pair_confirm`. La version complète est dans la branche `archive/particuliers`.
 
 La personne aidée affiche un code à 6 chiffres et son QR code (`pair_code`). Le support ouvre
 `/p/{code}` (ou `/p` pour taper le code), donne son prénom et son lien, et reçoit le lien
@@ -377,19 +447,7 @@ le même accord `pair_confirm`/`pair_decision` que le code, en cherchant parmi t
 Les supports sont gardés dans `family.json`.
 
 `POST …/p/{code}` avec `{"name","relation"}` répond `{"ok":true,"name","aidant_url","server","key"}`
-(ou `{"ok":false,"error"}` en 400). L'app iPhone s'en sert pour se régler seule :
-
-- **Lien d'app** `papai://pair?u=<URL d'appairage encodée>` (QR du Mac, bouton de `pair.html`).
-  L'app lit `u` (`PUBLIC_URL/p/<code>` ou `PUBLIC_URL/i/<jeton>`), demande prénom et lien, fait le POST sur `u`,
-  puis enregistre `serverURL = server + "/k/" + key` et `helperKey = key`, et se connecte.
-- Le scanner de l'app accepte `papai://pair?u=…` comme l'ancien `https://…/p/<code>`.
-- Saisie du code à la main : le support ne tape que le code, jamais d'adresse. POST sur
-  `<serverURL réglé>/p/<code>`, ou sur `https://papai-450417131702.europe-west1.run.app/p/<code>`
-  (serveur officiel) si l'app n'est pas encore réglée. En ligne, `GET /p`, `GET /p/<code>` et
-  `POST /p/<code>` répondent donc aussi sans clé : le code est le secret (une seule fois, 10 min
-  pour le code ; 24 h pour le jeton d'invitation), et la réponse donne `server` et `key` après accord. Voir « Plusieurs espaces » : le code tapé
-  sans clé cherche son espace et doit être accepté sur l'ordinateur aidé.
-- Arguments de lancement `-serverURL` et `-helperKey` (dépannage, démo) : l'app les enregistre.
+(ou `{"ok":false,"error"}` en 400). Plus aucune app du support ne l'appelle (voir l'encadré).
 
 ## Plusieurs espaces (un par ordinateur aidé)
 
@@ -450,10 +508,16 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
 
 - `POST /orgs` `{"name"}` → `{"id","name","enroll_token","support_token","server","support_url","app_url"}`.
   3 créations par heure et par adresse IP (429). Les deux jetons ne sont donnés qu'ici.
-  - `enroll_token` (`ins-…`) : déposé sur les postes. Windows : `apps\windows\organisation.txt`
-    (ignoré par git) ou `PAPAI_ORG`. Mac : préférence `orgToken` (`defaults write`, profil MDM) ou `PAPAI_ORG`.
+  - `enroll_token` (`ins-…`) : déposé sur les postes. Windows : stratégie de groupe
+    `HKLM|HKCU\SOFTWARE\Policies\PapAI\OrgToken` (modèle `apps/windows/policies/PapAI.admx`), à défaut
+    `apps\windows\organisation.txt` (ignoré par git) ou `PAPAI_ORG`. Mac : préférence gérée `orgToken` (profil MDM, ou
+    `defaults write com.quentin.papai orgToken ins-…`) ou `PAPAI_ORG`. Préférence `server` facultative
+    (adresse du serveur, ex. `https://…` ou `http://localhost:8071`) : le Mac y fait `POST /spaces` et
+    garde le pont reçu dans `bridgeURL` (recalé sur l'adresse configurée). Sans `server`, serveur officiel.
+    Le Mac n'a plus de liaison manuelle : un `pair_confirm` reçu est refusé aussitôt (`pair_decision` false).
   - `support_token` (`sup-…`) : donné aux supports (personnes ou support IA). `support_url` =
-    `<server>/o/<jeton>` (page web), `app_url` = `papai://org?u=<server>&t=<jeton>` (Android, iPhone).
+    `<server>/o/<jeton>` (page web). `app_url` = `papai://org?u=<server>&t=<jeton>` est encore renvoyé,
+    mais plus aucune app ne l'ouvre : le jeton est déposé par l'IT (voir « Support connecté d'office »).
 - `POST /spaces` `{"org": "<enroll_token>", "name": "<utilisateur · poste>"}` : le poste s'inscrit
   au premier lancement (pas de limite par IP). Réponse : en plus, `"org": "<nom>"`.
   Jeton inconnu → 403 : l'app crée alors son espace sans organisation. Plus de
@@ -462,15 +526,84 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
 - `POST /k/<clé>/org` `{"org","name"}` : un poste déjà installé rejoint l'organisation → `{"org"}`.
   403 jeton inconnu, 409 si le poste appartient à une autre organisation ou si c'est l'espace historique.
 - `GET /o/<support_token>/spaces` → `{"org","server","spaces":[{"key","name","label","online"}]}`
-  (`name` = prénom donné sur le poste, sinon `label`). Le support garde une liaison par `key`
-  (`<server>/k/<key>`), comme après un appairage. Jeton inconnu → 404.
+  (`name` = prénom donné sur le poste, sinon `label` ; `label` = nom envoyé par le poste à
+  l'inscription, affiché « prénom · service »). Le support se connecte à chaque poste par sa `key`
+  (`<server>/k/<key>/ws/aidant/<key>`). Jeton inconnu → 404.
+- Abonnement entreprise, mode test uniquement : `GET /o/<support_token>/abonnement` sert la page ;
+  `GET /o/<support_token>/billing` renvoie `disponible`, `gerable` (portail accessible même sans prix,
+  sauf après un statut terminal : proposer alors Checkout),
+  `postes`, `abonne`, `statut` et, si disponible,
+  `prix` (`unit_amount` en centimes, `currency`, `interval=month`). `POST …/billing/checkout`
+  et `POST …/billing/portal` renvoient `{"url"}` (503 si non configuré ; portail 409 sans client ;
+  Checkout 409 si déjà abonné ou abonnement connu non terminal, utiliser alors le portail).
+  Jeton inconnu : 404. Aucun blocage des fonctions sans abonnement. `POST /stripe/webhook`
+  vérifie le corps brut (256 Kio max) signé Stripe (tolérance ±300 s), puis conserve l'état
+  dans `billing.json` par organisation, avec le dernier `created` appliqué : événement plus ancien
+  pour le même abonnement ignoré (à date égale, un statut terminal prime sur un non terminal),
+  autre abonnement ignoré tant que celui en cours n'est pas
+  `canceled` ou `incomplete_expired`. Signature invalide : 400 ; secret absent : 503.
 - `GET|POST /o/<support_token>/automations`, `DELETE /o/<support_token>/automations/<id>` : catalogue
   de l'organisation (même format `.papai` que `POST /k/<clé>/automations`). Un import est copié sur
   chaque poste et sur ceux qui s'inscrivent plus tard ; un retrait l'enlève partout. Les postes
   connectés reçoivent `lessons_changed`.
-- `GET /o/<support_token>` : page web de l'organisation (postes, automatismes partagés). Elle ajoute
-  les postes à « Mes personnes aidées » de ce navigateur (`papai_people`, `papai_orgs`).
+- `GET /o/<support_token>` : page web de l'organisation (postes, tickets, automatismes partagés),
+  l'entrée du support sur le web. Elle garde seulement le jeton dans ce navigateur (`papai_orgs`) ;
+  la page du support `/a/<clé>` en tire sa barre « Postes » (relue toutes les 30 s), sans ajout ni retrait.
 - Test : `python tests/test_organisation.py`.
+
+### Support connecté d'office (8 nov.)
+
+Le support ne relie rien : avec le jeton support, il voit tous les postes de l'organisation et
+reçoit leurs demandes. Il lit `GET /o/<jeton>/spaces` au lancement puis toutes les 30 s (la liste
+du serveur fait foi : un poste retiré disparaît), suit un poste en détail (`/k/<key>/ws/aidant/<key>`,
+le premier par défaut) et garde un canal discret vers les autres (demande, alerte, en ligne). Il se
+présente avec `helper_hello` `{"name": "<nom géré ou Support IT · organisation>", "relation":
+"le service informatique", "id"}` ; `helper_id` est gardé par poste. Sans jeton : écran « Aucune
+organisation configurée : contactez votre administrateur », sans formulaire. Où déposer le jeton :
+
+- **Mac** (mode support, préférence `role` = `support`) : préférences gérées `supportToken` et
+  `server` (facultatif, serveur officiel sinon), profil MDM ou, pour un essai,
+  `defaults write com.quentin.papai supportToken sup-…` et `defaults write com.quentin.papai server https://…`.
+- **iPhone** : configuration gérée MDM (`com.apple.configuration.managed` : `supportToken`, `server`) ;
+  démo sans MDM : `PAPAI_SUPPORT_TOKEN` / `PAPAI_SERVER` dans `apps/ios/Config/Support.local.xcconfig`
+  (ignoré par git, modèle `Support.local.xcconfig.example`), injectés dans Info.plist
+  (`PapAISupportToken`, `PapAIServer`) ; `-supportToken sup-…` au lancement pour un essai.
+- **Android** : restrictions gérées (`supportToken`, `server`) ; démo : `apps/android/support.local.properties`
+  (ignoré par git).
+- **Web** : la page `/o/<jeton>` donnée par l'IT.
+- Tests : `apps/mac/tests/support_org_test.swift` (vrai `HelperModel`, essai réel contre un serveur
+  local avec `PAPAI_TEST_SERVER`, `PAPAI_TEST_SUPPORT`, `PAPAI_TEST_POSTES`), `tests/test_helper_postes.js`.
+
+### Un jeton par support, révocable (sécurité C1, #51)
+
+Le `support_token` ci-dessus est le **jeton de l'organisation** : il reste accepté partout
+(migration), et lui seul gère les supports. Chaque support reçoit en plus son **jeton personnel**
+(`sup-…`, 32 caractères), dont le serveur ne garde que l'empreinte SHA-256 dans `org.json`
+(`supports: [{"id","name","hash","created","revoked"}]`).
+
+- `GET /o/<jeton org>/supports` → `{"org","supports":[{"id","name","created","revoked","online"}]}`
+  (`revoked` = date de retrait, `null` sinon). Jeton personnel → 403, inconnu → 404.
+- `POST /o/<jeton org>/supports` `{"name"}` → `{"id","name","created","revoked","online","token",
+  "server","support_url","app_url"}`. Le jeton n'est donné qu'ici. Nom vide → 400 ; 200 supports max → 409.
+- `POST /o/<jeton org>/supports/<id>/revoke` → `{… ,"closed","stopped"}` : ses sockets (`ws/aidant`,
+  `transcribe/live`) sont fermées tout de suite (code **4401**), l'assistance qu'il avait validée
+  s'arrête (`status` `stopped`, `stopped_by: "support_revoque"`), il sort de la liste des supports de
+  chaque poste (`helpers` renvoyé au pont), puis son jeton et ses clés dérivées
+  sont refusés (404 en HTTP, 4403 ou `refused` en WebSocket). Une autre organisation → 404.
+- `POST /o/<jeton org>/rotate` → `{"support_token","server","support_url","app_url"}` : nouveau
+  jeton de l'organisation (fin de migration ou fuite), l'ancien est refusé. Les jetons personnels restent.
+- Avec un jeton personnel, `GET /o/<jeton>/spaces` et `GET /o/<jeton>/tickets` donnent pour chaque
+  poste une **clé dérivée** `sk<id du poste, 12><id du support, 8><sceau, 32>` (54 caractères, HMAC
+  de l'id du poste par l'empreinte du jeton), jamais la vraie clé. Elle s'utilise comme une clé
+  d'espace sur les routes du support (`/a/<clé>`, `/k/<clé>/…`, `ws/aidant/<clé>`,
+  `POST /o/<jeton>/tickets/<clé dérivée>/<id>`), jamais sur le pont (`/k/<clé>/ws/bridge`), la
+  liaison (`/k/<clé>/p…`) ni l'inscription (`/k/<clé>/org`). Elle ne vaut que pour un poste de
+  l'organisation de ce support, et seulement avec son jeton à lui.
+- Sur ces sockets, le nom du support est celui donné par l'IT (`helper_hello.name` est ignoré),
+  de même pour `by` des actions de ticket et l'auteur d'un automate importé.
+- Journal de l'assistance : `plan_decision` porte `by` `{"name","via","support"?}` ; `via` vaut
+  `jeton_support` (identité sûre, `support` = id), `cle_espace` ou `lien_session` (nom annoncé par l'app).
+- Test : `python tests/test_supports_revocables.py`.
 
 ## Tickets (chaque demande d'assistance)
 
@@ -479,12 +612,21 @@ aucune capture). Numéro `number` par espace, ou unique dans l’organisation (`
 (aucun support disponible), `rdv`, `en_cours`, `a_reprendre` (session arrêtée ou échouée), `resolu`.
 `source` : `personne`, `support` ou `automatisme`. Le ticket suit la session (`plan`, `steps_done`,
 `helper`, `stopped_by`, `tokens`) ; `assignee`, `closed_by`, `notes` [{t, by, text}], `rdv` (secondes Unix).
+Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus deux) et
+`suggestion_lancee` (`id` ou `null`).
 
 **Ordinateur aidé (`/ws/bridge`)**
 - `help_request` peut porter `"ticket"` (reprise d'un ticket proposé par `remote_request`).
 - Sans `requested_by` ni `ticket`, si l'espace a un support connu (appairé ou organisation) mais
-  aucun connecté : pas de session. Serveur → `{"type":"ticket_queued","ticket","number","task"}`.
-  L'app revient à l'accueil et propose un rendez-vous. Sans aucun support connu : session comme avant.
+  aucun connecté : pas de session. Serveur → `{"type":"ticket_queued","ticket","number","task","suggestions"}`.
+  `suggestions` est une liste (vide si aucun résultat) d'au plus deux automates de l'organisation ou de
+  l'espace, rapprochés par mots du titre et de la description, sans modèle. Les anciennes apps peuvent
+  ignorer ce champ. L'app revient à l'accueil et propose un rendez-vous et, s'il y en a, les automates.
+  Sans aucun support connu : session comme avant.
+- Quand l'utilisateur lance un automate suggéré, app → serveur :
+  `{"type":"ticket_automate_launched","ticket","lesson"}`. Seul un ID suggéré pour ce ticket est accepté ;
+  le serveur mémorise `suggestion_lancee`, ajoute la note « Automate proposé lancé : <titre> » et garde
+  le statut du ticket.
 - `session` porte en plus `"ticket"` et `"number"`.
 - App → `{"type":"ticket_schedule","ticket","at"}` (entre 1 min et 30 jours) →
   `{"type":"ticket_scheduled","ticket","number","at"}` ou `{"type":"ticket_refused","ticket","reason"}`.
@@ -508,6 +650,33 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
   `POST /o/<support_token>/tickets/<clé du poste>/<id>` : mêmes actions (404 hors organisation).
 - `GET /tickets.js` : liste commune à la page du support et à celle de l'organisation (filtres, export CSV).
 - Test : `python tests/test_tickets.py`.
+
+**Catégories et statistiques (8 nov.)**
+- Champs ajoutés au ticket : `category` (`wifi`, `imprimante`, `comptes`, `logiciels`, `messagerie`,
+  `fichiers`, `securite`, `autre` ; libellés « Wi-Fi et réseau », « Imprimante », « Comptes et mots de passe »,
+  « Logiciels », « Messagerie », « Fichiers », « Sécurité », « Autre »), `category_by` (`regles`, `holo`,
+  `support`, `doute` = « autre » en attendant mieux), `category_who` (nom du support qui a corrigé),
+  `resolved` (secondes Unix, posé au passage à `resolu`, effacé à la réouverture). Un ancien ticket sans
+  catégorie la reçoit des règles à la lecture.
+- Choix : règles sur le texte à l'ouverture ; si elles hésitent, Holo choisit en arrière-plan dans la liste
+  fermée (texte borné à 500 caractères, donnée et jamais consigne, 8 s au plus) ; réponse hors liste,
+  illisible, erreur ou délai : le ticket reste `autre`/`doute`. Holo ne repasse jamais sur un choix du support.
+  Puis `tickets_changed`.
+- Action `category` sur `POST /k/<clé>/tickets/<id>` et `POST /o/<support_token>/tickets/<clé du poste>/<id>` :
+  `{"action":"category","category":"wifi","by"}` → `{"ticket"}` (`category_by` = `support`), 400 si inconnue.
+- `GET /k/<clé>/tickets/stats?weeks=8` et `GET /o/<support_token>/tickets/stats?weeks=8` (1 à 52 semaines,
+  lundi UTC) → `{"since","weeks":[{"start","total","by":{catégorie: n}}],"labels":[{"id","label"}],
+  "categories":[{"id","label","count","resolved","by_automate","month","month_people","median_resolution_s","resolution_s",
+  "phrase","draft"?,"examples":[{"id","number","task","status","created","space"?,"poste"?}]}],
+  "totals":{"count","resolved","by_automate","automate_share","median_resolution_s"},
+  "suggestions":[{"category","count","text","draft":{"title","goal","description","examples"}}]}`
+  (+ `"org"` côté organisation). Catégories les plus fréquentes d'abord, 3 exemples les plus récents.
+  Réglé par un automate = ticket résolu de `source` `automatisme`. `resolution_s` : durées de résolution (s) de la catégorie, pour fusionner les médianes de plusieurs utilisateurs ; le mois glissant compte même si `weeks` couvre moins de 30 jours. Suggestion à partir de 5 demandes des
+  30 derniers jours hors automates (pas pour « autre ») : « 12 demandes Wi-Fi ce mois-ci : créer un
+  automate ? » ; `draft` préremplit la création d'automate, rien n'est créé sans le support.
+- `GET /ticket_stats.js` : graphiques SVG (page du support et organisation), sans bibliothèque.
+- Mac support : `TicketStats.merge` additionne les statistiques de tous les utilisateurs reliés.
+- Tests : `python tests/test_ticket_categories.py`, `apps/mac/tests/ticket_stats_test.swift`.
 
 ## Prénom et invitation (7 novembre au soir)
 
@@ -555,9 +724,47 @@ bureau reste le comportement par défaut.
   n'annonce plus de session navigateur dans `hello`; l'absence du champ signifie
   que le serveur doit rester en mode bureau.
 - Après la validation du plan, serveur → Mac :
-  `{"type":"web_agent_start"}` si le plan demande le web et que le Mac a annoncé
+  `{"type":"web_agent_start","sites":["ameli.fr"],"hosts":[]}` si le plan demande le web et que le Mac a annoncé
   cette capacité. Le Mac ne démarre le navigateur que pour une session en cours
   et si le verrou local n'est pas levé.
+  `sites` reprend les domaines du plan validé (sous-domaines inclus).
+  `hosts` contient les hôtes autorisés ensuite par le support, sans leurs
+  sous-domaines, uniquement pour cette assistance ; la liste est vide au départ.
+  Un ancien serveur sans `sites` ne déclenche aucune surveillance locale.
+- Serveur → Mac, `{"type":"web_sites","sites":["ameli.fr"],"hosts":["connexion.exemple.fr"]}` :
+  actualise ces deux listes après une autorisation.
+- Mac → serveur, `{"type":"web_off_site","url":"https://autre.fr/chemin?x=…"}` :
+  une cible CDP de type `page` est hors des sites validés. Le Mac interroge
+  `127.0.0.1:9222/json/list` toutes les 0,5 s, avec un délai court,
+  et limite les rapports à un toutes les 2 s ; il arrête la surveillance avec
+  Chrome PapAI. Le serveur recontrôle l'URL et ignore les rapports sans pilote
+  navigateur actif, après l'arrêt, sur un site autorisé, ou pendant une décision.
+  Les URL HTTPS seules sont autorisables (port absent ou 443, sans identifiant,
+  espace, contrôle, antislash ni IP). Les pages internes vides reconnues par
+  `SiteCheck` sont neutres. Les hôtes sont normalisés en minuscules et punycode.
+- Le pilote met immédiatement H en pause sur un hors-site, y compris lorsqu'un
+  `tool_req` de navigation porte lui-même une URL hors site.
+  `status.doing` devient « Holo attend l'accord du support pour un autre site ».
+  `status.off_site` vaut `{"host":"autre.fr","url":"https://autre.fr/chemin"}`
+  pendant la décision, `null` sinon. L'URL affichée est limitée à 200 caractères,
+  sans identifiant, requête ni fragment ; le journal `web_off_site` ne contient
+  que l'hôte, jamais l'URL complète.
+- La question utilise le message `question` habituel destiné au support :
+  « Holo a quitté les sites validés : <hôte>. Autoriser ce site pour cette
+  assistance, ou arrêter ? », avec les options
+  `["Autoriser ce site une fois", "Arrêter l'assistance"]`.
+  Autoriser ajoute l'hôte exact à `hosts`, envoie `web_sites`, journalise
+  `web_site_allowed` avec l'hôte et le prénom du support disponible, puis reprend H.
+  Arrêter termine l'assistance et annule H. Une réponse libre n'autorise rien :
+  H reçoit la consigne du support et l'ordre de revenir sur les sites validés
+  sans agir sur ce site. Un nouveau rapport relance la question.
+  Une IP ou une URL non HTTPS reste non autorisable, même avec l'option Autoriser.
+  Aucune reprise ne lève une pause de l’utilisateur ni une pause du support
+  encore en attente ; le contenu de la page n'entre jamais dans cette consigne.
+- Limite : le mode web pur, sans `plan_sites`, reste inchangé et n'est pas
+  surveillé. Il s'agit d'une détection suivie d'une pause, pas d'un filtrage réseau
+  préalable des requêtes. Windows dispose d'un surveillant CDP autonome prêt à
+  l'emploi, non branché au pont et sans annonce `web_agent_available`.
 - Si aucune session navigateur valide n'arrive dans les 20 secondes, ou si la
   session est arrêtée pendant son démarrage, le serveur envoie
   `{"type":"web_agent_stop"}` au Mac. Celui-ci annule son démarrage local sans

@@ -1,0 +1,16 @@
+Windows Registry Editor Version 5.00
+
+; Exemple : poste rattache a l'organisation, sans console de strategies de groupe.
+; Remplacer le jeton par l'enroll_token recu a la creation de l'organisation (POST /orgs).
+; Importer en administrateur : reg import PapAI-exemple.reg
+; Server est facultatif (serveur PapAI officiel par defaut).
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\PapAI]
+"OrgToken"="ins-REMPLACER-PAR-LE-JETON"
+"Server"="https://papai-450417131702.europe-west1.run.app"
+
+; Facultatif, par utilisateur : nom affiche et service.
+; Sans DisplayName, l'app prend le nom complet du compte Windows.
+; [HKEY_CURRENT_USER\SOFTWARE\Policies\PapAI]
+; "DisplayName"="Jeanne Martin"
+; "Role"="Comptabilite"

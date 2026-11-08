@@ -129,7 +129,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 TimelineView(.everyMinute) { ctx in
                     let hello = Greeting.word(at: ctx.date)
-                    Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName) !")
+                    Text(model.displayName.isEmpty ? hello : "\(hello) \(model.displayName) !")
                         .font(rounded(34, .bold)).tracking(-0.6)
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
@@ -268,6 +268,7 @@ struct HomeView: View {
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
             }
+            if let t = model.lastTidy { annulerRangement(t) }
             Group {
                 if model.lessons.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -295,6 +296,23 @@ struct HomeView: View {
             }
             .carte(T.rBig)
         }
+    }
+
+    /// Le dernier rangement guidé se défait d'un clic, sans rien supprimer.
+    private func annulerRangement(_ t: TidyRecord) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: "folder.badge.gearshape").font(.system(size: 22)).foregroundStyle(T.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(t.folder.label) rangé").font(rounded(17, .semibold))
+                Text("\(t.moves.count) fichier\(t.moves.count > 1 ? "s" : "") déplacé\(t.moves.count > 1 ? "s" : ""), rien de supprimé")
+                    .font(rounded(15)).foregroundStyle(T.muted)
+            }
+            Spacer(minLength: 8)
+            Button("Annuler le rangement") { model.undoTidy() }
+                .buttonStyle(.bordered).controlSize(.large)
+        }
+        .padding(18).frame(maxWidth: .infinity, alignment: .leading)
+        .carte(T.r)
     }
 
     private func tuile(_ l: Lesson) -> some View {
