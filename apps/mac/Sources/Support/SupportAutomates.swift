@@ -97,6 +97,9 @@ final class AutomateLibrary {
 
 /// Onglet « Mes automates » du mode support.
 struct SupportAutomates: View {
+    /// Création d'automate (à la main, document, enregistrement) masquée pour l'instant.
+    /// Le code reste en place : repasser à `true` pour la réactiver.
+    static let creationActive = false
     let model: HelperModel
     @State private var lib = AutomateLibrary.shared
     @State private var creating = false
@@ -114,8 +117,10 @@ struct SupportAutomates: View {
                         .font(rounded(17, .medium)).opacity(0.92)
                 }
                 Spacer(minLength: 0)
-                Button { creating = true } label: { Label("Créer un automate", systemImage: "plus.circle.fill") }
-                    .buttonStyle(PillStyle(filled: false, height: 50))
+                if Self.creationActive {
+                    Button { creating = true } label: { Label("Créer un automate", systemImage: "plus.circle.fill") }
+                        .buttonStyle(PillStyle(filled: false, height: 50))
+                }
             }
         } corps: {
             ScrollView(showsIndicators: false) {
@@ -132,7 +137,8 @@ struct SupportAutomates: View {
                             .foregroundStyle(T.danger)
                     }
                     if lib.entries.isEmpty {
-                        Text("Aucun automate. Créez-en un à partir d’un document, d’un enregistrement de votre écran, ou à la main.")
+                        Text(Self.creationActive ? "Aucun automate. Créez-en un à partir d’un document, d’un enregistrement de votre écran, ou à la main."
+                                                 : "Aucun automate. Importez un fichier .papai.")
                             .font(rounded(16)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                     }
                     ForEach(lib.entries) { e in row(e) }
