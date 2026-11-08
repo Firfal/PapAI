@@ -45,13 +45,13 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794130157-docs-entreprise` | Chantier 4 : textes entreprise et statistiques Devin vérifiées | `README.md`, `docs/soumission.md` ; lignes de coordination `AGENTS.md` et `TODO.md` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 8 nov. | Devin | `devin/1794130157-docs-entreprise` | Chantier 4 : README et soumission recentrés sur Christine, le support IT, les organisations, automates et tickets. Quinze PR entreprise relues et marquées [en PR] sur main `19a958d` ; blocs à copier conservés, archive particuliers citée. Git log recompté (620 commits, 471 aux identités Devin, fusions incluses), 52 PR fusionnées dont 47 de Devin contrôlées par SHA ; liste des 30 PR de Devin créées le 8 novembre et états réels au relevé. Aucun essai natif ni service externe/production vérifié dans ce chantier documentaire. Aucun changement de protocole ni de docs/pitch/. Fichiers libérés. |
 | 8 nov. | Claude | `claude/masquer-creation-automate` | « Mes automates » : le bouton « Créer un automate » (à la main, document, enregistrement) est masqué à la demande de B, via `SupportAutomates.creationActive = false`. Code, route `POST /automations/draft` et tests conservés pour le réactiver. Liste, import `.papai` et « Appliquer… » inchangés. Mac compilé. Pas poussé. |
 | 8 nov. | Claude | `claude/support-tickets` | Accueil support Mac en trois onglets : **Tickets** en premier (tous les tickets de tous les utilisateurs reliés, `GET …/k/<clé>/tickets` pour chacun, filtres Ouverts/Tous, Prendre en charge / Clore / Rouvrir via `POST …/tickets/<id>`, « Voir l’utilisateur »), **Utilisateurs** (liste des personnes et assistance en cours, comme avant) et **Mes automates**. Bascule automatique sur Utilisateurs quand une assistance démarre. Swift seul, serveur inchangé. Mac compilé, essayé en local avec 3 tickets d'exemple. Pas poussé. |
 | 8 nov. | Claude | `claude/lexique-utilisateur` | Lexique : « personne aidée / aidé » devient « utilisateur » partout (Mac, iPhone, Android, Windows, pages web, messages et consignes du serveur, docs), « support » restant le mot pour celui qui aide ; accords corrigés (« lui-même », « Aucun utilisateur relié »). Identifiants et protocole inchangés (`senior`, `aidant`, routes). Glossaire mis à jour. Tests : gardien 14, automates 64, brouillon 12, sécurité 35, profil 6, parcours 27, Windows 123 + home/safety/shortcuts ; Mac compilé. Android non compilé (ni test JVM). |
