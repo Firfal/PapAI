@@ -696,10 +696,10 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
 - App de la personne aidée → serveur : `{"type":"dictation","text":"…","final":false}` pendant qu'elle parle (au plus 3 par seconde), puis `final:true` avec le texte retenu.
 - Serveur → aidants : le même message. L'iPhone affiche « Sophie est en train de parler : « … » ».
 
-## Pause de la personne aidée et contrôle des entrées
+## Pause de la personne aidée
 
 - App de la personne aidée → serveur : `{"type":"pause"}` / `{"type":"resume"}`. Le serveur met `status.paused` à vrai ou faux et le transmet à tous. Holo n'agit pas tant que `paused` est vrai.
-- Pendant que Holo agit (`active`, `awaiting_helper`, hors pause), l'app Mac bloque la souris et le clavier de la personne aidée hors de sa fenêtre. Échap arrête tout. Le verrou se lève à la pause, à l'arrêt, à la fin, si la connexion tombe, ou après 45 s sans message du serveur.
+- La souris et le clavier de la personne aidée ne sont jamais bloqués pendant que Holo agit (verrou des entrées retiré le 8 nov.).
 
 ## Aidant connecté, nom de l'aidant, phrase de Holo (7 nov.)
 

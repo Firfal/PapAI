@@ -177,9 +177,6 @@ enum ActionError: Error {
 }
 
 enum Actuator {
-    /// Marque posée sur chaque événement envoyé par Holo, pour que le verrou des
-    /// entrées (`InputLock`) le laisse passer et bloque seulement la vraie souris.
-    static let marker: Int64 = 0x5041_5041_49
     /// Exécute une action. `protected` : cadre de la fenêtre PapAI, en points
     /// écran (origine en haut à gauche), que l'agent n'a pas le droit de viser.
     @MainActor
@@ -263,7 +260,6 @@ enum Actuator {
     }
 
     private static func post(_ e: CGEvent?) {
-        e?.setIntegerValueField(.eventSourceUserData, value: marker)
         e?.post(tap: .cghidEventTap)
     }
 
