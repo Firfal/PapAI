@@ -8,9 +8,11 @@ Windows ni WebView.
 from __future__ import annotations
 
 import base64
+import datetime
 import json
 import os
 import threading
+import time
 import urllib.request
 from urllib.parse import quote
 from typing import Callable
@@ -18,7 +20,7 @@ from typing import Callable
 from . import apps as start_apps
 from . import settings
 from .bridge import Bridge
-from .core import StopGate, open_shortcut
+from .core import StopGate, open_shortcut, play_actions
 
 OPEN_STATES = ("planning", "awaiting_approval", "active", "awaiting_helper")
 STATES = OPEN_STATES + ("done", "stopped")
@@ -91,12 +93,18 @@ class Model:
         self.pair_expires = 600
         self.pair_added: str | None = None
         self.remote_request: dict | None = None
+        # Demande partie en ticket sans support disponible : {ticket, number, task, rdv, show}.
+        self.queued: dict | None = None
+        self.pair_request: dict | None = None
         self.pending_task = ""
+        self.pending_automation: str | None = None
+        self.automation_running: str | None = None
         self.apps: list[dict] = []
         self.dictation = {"phase": "idle", "message": None}
         self.onboarded = bool(self.prefs.get("onboarded"))
         self.onboarding_step = 0
         self.auto_sent = False
+        self._org_name = ""
 
         self.gate = StopGate()
         self._notice_timer: threading.Timer | None = None
@@ -161,6 +169,7 @@ class Model:
                 "helperName": hn, "HelperName": hn[:1].upper() + hn[1:],
                 "textScale": self.text_scale, "textScales": TEXT_SCALES,
                 "server": self.server_url, "httpBase": self.http_base,
+                "orgName": str(self.prefs.get("orgName") or ""),
                 "screen": self.screen, "state": self.state, "sessionOpen": self.session_open,
                 "stoppedBy": self.stopped_by,
                 "task": self.task, "pendingTask": self.pending_task, "screenConsent": self.screen_consent,
@@ -170,11 +179,12 @@ class Model:
                 "paused": self.paused, "guardAcknowledged": self.guard_acknowledged,
                 "carer": self.carer, "compact": self.compact,
                 "currentAction": self.current_action, "actions": list(self.actions),
-                "lessons": list(self.lessons), "lesson": self.lesson, "notice": self.notice, "alert": self.alert,
+                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "notice": self.notice, "alert": self.alert,
                 "helpers": list(self.helpers), "pairCode": self.pair_code,
                 "pairURL": self.pair_url, "pairQR": qr_data_url(self.pair_app_url or self.pair_url or ""),
                 "pairLong": self.pair_long, "pairExpires": self.pair_expires,
-                "pairAdded": self.pair_added, "remoteRequest": self.remote_request,
+                "pairAdded": self.pair_added, "remoteRequest": self.remote_request, "queued": self.queued,
+                "pairRequest": self.pair_request,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
 
@@ -239,9 +249,63 @@ class Model:
                               self._connection, self._action,
                               alert_visible=lambda: self.alert is not None, **bridge_kw)
         self.bridge.start()
+        if settings.needs_space(self.prefs):
+            threading.Thread(target=self._create_space, daemon=True).start()
+        elif self._org_pending():
+            threading.Thread(target=self._join_org, daemon=True).start()
         threading.Thread(target=self._load_apps, daemon=True).start()
         threading.Thread(target=self.refresh_lessons, daemon=True).start()
         self.push()
+
+    def _create_space(self, wait=time.sleep) -> None:
+        """Premier lancement sans serveur réglé : l'espace est créé sur le serveur officiel.
+
+        Hors ligne, on réessaie jusqu'au retour du réseau, sans redémarrer l'app."""
+        delay = 5
+        while settings.needs_space():
+            url = self._provision()
+            if not settings.needs_space():
+                return  # un serveur a été choisi entre-temps : on n'y touche pas
+            if url:
+                org = {"orgJoined": settings.org_token(), "orgName": self._org_name} if self._org_name else {}
+                self.prefs = settings.save({"server": url, **org})
+                self.reconnect()
+                return
+            wait(delay)
+            delay = min(delay * 2, 60)
+
+    def _provision(self) -> str | None:
+        info: dict = {}
+        tok = settings.org_token()
+        url = settings.provision(org=tok, info=info)
+        if url is None and tok and info.get("status") == 403:
+            # Jeton refusé : le poste a quand même son espace, hors organisation.
+            info = {}
+            url = settings.provision(info=info)
+        self._org_name = str(info.get("org") or "")
+        return url
+
+    def _org_pending(self) -> bool:
+        """Jeton d'organisation déposé par l'IT, pas encore utilisé par ce poste."""
+        tok = settings.org_token()
+        return bool(tok) and self.prefs.get("orgJoined") != tok and "/k/" in self.server_url
+
+    def _join_org(self, wait=time.sleep) -> None:
+        delay = 5
+        while self._org_pending():
+            name = self._join(settings.org_token())
+            if name:
+                self.prefs = settings.save({"orgJoined": settings.org_token(), "orgName": name})
+                self.push()
+                threading.Thread(target=self.refresh_lessons, daemon=True).start()
+                return
+            if name == "":
+                return  # refusé (jeton inconnu, autre organisation) : on n'insiste pas
+            wait(delay)
+            delay = min(delay * 2, 60)
+
+    def _join(self, token: str) -> str | None:
+        return settings.join_org(self.http_base, token)
 
     def _load_apps(self) -> None:
         try:
@@ -378,6 +442,15 @@ class Model:
             return False
         return True
 
+    def answer_pair(self, accept: bool) -> None:
+        """Quelqu'un a tapé le code à 6 chiffres : il ne devient support qu'avec ce clic."""
+        r = self.pair_request
+        if not r:
+            return
+        self.pair_request = None
+        self._send({"type": "pair_decision", "req": r["req"], "accept": bool(accept)})
+        self.push()
+
     def remove_helper(self, helper_id: str) -> None:
         self._send({"type": "remove_helper", "id": helper_id})
 
@@ -388,7 +461,7 @@ class Model:
             return
         self.remote_request = None
         task = r.get("task") or f"{r.get('from')} propose de m'aider sur l'ordinateur"
-        self.ask_help(task, requested_by=r.get("from"))
+        self.ask_help(task, requested_by=r.get("from"), ticket=r.get("ticket"))
 
     def dismiss_alert(self) -> None:
         if self.alert and self.alert.get("blocked"):
@@ -397,8 +470,32 @@ class Model:
         self.push()
 
     def refuse_remote(self) -> None:
+        r = self.remote_request or {}
         self.remote_request = None
-        self._send({"type": "remote_answer", "accepted": False})
+        msg = {"type": "remote_answer", "accepted": False}
+        if r.get("ticket"):
+            msg["ticket"] = r["ticket"]
+        self._send(msg)
+        self.push()
+
+    # ------------------------------------------------------ ticket en attente
+
+    def schedule_ticket(self, slot: str) -> None:
+        """Rendez-vous pour la demande en attente : dans 1 h, demain 9 h ou 14 h."""
+        q = self.queued
+        if not q:
+            return
+        now = datetime.datetime.now()
+        tomorrow = (now + datetime.timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
+        at = {"1h": now + datetime.timedelta(hours=1), "demain9": tomorrow.replace(hour=9),
+              "demain14": tomorrow.replace(hour=14)}.get(slot)
+        if at is None:
+            return
+        self._send({"type": "ticket_schedule", "ticket": q["ticket"], "at": int(at.timestamp())})
+
+    def close_queued(self, show: bool = False) -> None:
+        if self.queued:
+            self.queued["show"] = show
         self.push()
 
     # ------------------------------------------------------ demande d'aide
@@ -419,6 +516,12 @@ class Model:
 
     def give_consent(self) -> None:
         self.save_prefs(screenConsent=True)
+        if self.pending_automation:
+            lesson_id, self.pending_automation = self.pending_automation, None
+            self.pending_task = ""
+            self.screen = "home"
+            self.run_automation(lesson_id)
+            return
         self.ask_help(self.pending_task)
 
     def revoke_consent(self) -> None:
@@ -427,10 +530,15 @@ class Model:
 
     def cancel_consent(self) -> None:
         self.pending_task = ""
+        self.pending_automation = None
         self.screen = "home"
         self.push()
 
-    def ask_help(self, task: str, requested_by: str | None = None) -> None:
+    def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None) -> None:
+        if self.queued:
+            self.queued["show"] = False
+            if ticket and self.queued["ticket"] == ticket:
+                self.queued = None
         self.gate.reset()
         self.stopped_by = None
         self._cancel(self._home_timer)
@@ -445,7 +553,10 @@ class Model:
             self.screen = "session"
         self._level()
         if self.bridge is not None:
-            self.bridge.ask_help(self.task, requested_by)
+            if ticket:
+                self.bridge.ask_help(self.task, requested_by, ticket)
+            else:
+                self.bridge.ask_help(self.task, requested_by)
         self.push()
 
     def stop(self) -> None:
@@ -520,10 +631,27 @@ class Model:
                 self.pair_expires = int(m.get("expires_in") or 600)
             except (TypeError, ValueError):
                 self.pair_expires = 600
+        elif kind == "pair_confirm":
+            if m.get("req") is None:
+                return
+            self.pair_request = {"req": m["req"], "name": str(m.get("name") or "Quelqu'un")[:40],
+                                 "relation": str(m.get("relation") or "")[:60]}
+            self._on_remote()
+        elif kind == "ticket_queued":
+            # Aucun support disponible : la demande attend, on revient à l'accueil.
+            with self._lock:
+                self.queued = {"ticket": str(m.get("ticket") or ""), "number": m.get("number"),
+                               "task": str(m.get("task") or self.task), "rdv": None, "show": True}
+                self.state, self.screen = None, "home"
+            self._level()
+        elif kind == "ticket_scheduled":
+            if self.queued and self.queued["ticket"] == m.get("ticket"):
+                self.queued["rdv"] = m.get("at")
         elif kind == "remote_request":
             if self.session_open:
                 return
-            self.remote_request = {"from": m.get("from") or "Votre support", "task": m.get("task") or ""}
+            self.remote_request = {"from": m.get("from") or "Votre support", "task": m.get("task") or "",
+                                   "ticket": m.get("ticket"), "rdv": bool(m.get("rdv"))}
             self._on_remote()
         else:
             return
@@ -574,7 +702,7 @@ class Model:
         self._home_timer.daemon = True
         self._home_timer.start()
 
-    # ---------------------------------------------- automatismes, tutoriels
+    # ---------------------------------------------- automates, tutoriels
 
     def _find_lesson(self, lesson_id: str) -> dict | None:
         return next((x for x in self.lessons if x.get("id") == lesson_id), None)
@@ -582,6 +710,9 @@ class Model:
     def run_shortcut(self, lesson_id: str) -> None:
         lesson = self._find_lesson(lesson_id)
         if lesson is None:
+            return
+        if lesson.get("actions"):
+            self.run_automation(lesson_id)
             return
         if not lesson.get("shortcut"):
             self.open_lesson(lesson_id)
@@ -595,6 +726,67 @@ class Model:
                              "a reçu un message pour s'en occuper.")
             self._send({"type": "automation_failed", "title": lesson.get("title") or "",
                         "detail": detail})
+
+    def run_automation(self, lesson_id: str) -> None:
+        """Un automate importé par un support, lancé en un clic. Pas de
+        validation à chaque fois : le support l'a validé à l'import."""
+        lesson = self._find_lesson(lesson_id)
+        if lesson is None or not lesson.get("actions"):
+            return
+        if "windows" not in (lesson.get("platforms") or ["windows"]):
+            self.show_notice("Cet automate est prévu pour un autre ordinateur.")
+            return
+        holo = any(a.get("do") == "holo" for a in lesson["actions"])
+        if holo and not self.screen_consent:
+            self.pending_automation = lesson_id
+            self.pending_task = str(lesson.get("title") or "")
+            self.screen = "consent"
+            self.push()
+            return
+        if self.automation_running:
+            return
+        self.gate.reset()
+        self.automation_running = str(lesson.get("title") or "Automate")
+        self.show_notice(f"C'est parti : {lesson.get('title') or 'automate'}…")
+        threading.Thread(target=self._play_automation, args=(lesson, holo), daemon=True).start()
+
+    def _fetch_lesson_file(self, lesson_id: str, name: str) -> bytes:
+        from urllib.parse import quote
+        url = f"{self.http_base}/lessons/{quote(lesson_id)}/{quote(name)}"
+        with urllib.request.urlopen(url, timeout=20) as r:  # noqa: S310
+            return r.read(3_000_000)
+
+    def _play_automation(self, lesson: dict, holo: bool) -> None:
+        gate = self.gate
+        try:
+            ok, detail = play_actions(lesson, lambda n: self._fetch_lesson_file(lesson["id"], n), gate)
+        finally:
+            self.automation_running = None
+        if gate.is_stopped:
+            self.show_notice("Arrêté. Rien d'autre ne sera fait.")
+            return
+        if not ok:
+            hn = self.helper_name
+            self.show_notice(f"« {lesson.get('title') or 'Cet automate'} » n'a pas pu aller au bout. "
+                             f"{hn[:1].upper() + hn[1:]} a reçu un message pour s'en occuper.")
+            self._send({"type": "automation_failed", "title": lesson.get("title") or "",
+                        "detail": detail})
+            return
+        if not holo:
+            self.show_notice(detail or "C'est fait.")
+            return
+        goal = next(a.get("goal") for a in lesson["actions"] if a.get("do") == "holo")
+        self._cancel(self._home_timer)
+        with self._lock:
+            self.task = str(goal or lesson.get("title") or "")
+            self.plan, self.plan_step, self.question = [], None, None
+            self.answer, self.current_action, self.actions = None, None, []
+            self.state = "planning"
+            self.screen = "session"
+        self._level()
+        if self.bridge is not None:
+            self.bridge.run_automation(lesson["id"])
+        self.push()
 
     def open_lesson(self, lesson_id: str) -> None:
         lesson = self._find_lesson(lesson_id)

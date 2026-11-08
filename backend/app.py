@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import secrets
+import time
 from pathlib import Path
 from urllib.parse import quote
 
@@ -24,11 +25,11 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import guard, voice
+from . import automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
 from .agent import AgentRunner, SensitiveBlocked, propose_plan
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, Family, PairingError
-from .caremamory import LESSONS_DIR, approve_and_save, draft_lesson, list_lessons
+from .caremamory import lessons_dir, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
 
 STATIC = Path(__file__).parent / "static"
@@ -59,12 +60,17 @@ def _lan_ip() -> str:
 PUBLIC_URL = os.environ.get("PAPAI_PUBLIC_URL") or os.environ.get("CAREPILOT_PUBLIC_URL") or f"http://{_lan_ip()}:{os.environ.get('PORT', '8000')}"
 
 app = FastAPI(title="PapAI")
-registry = Registry()
-family = Family()
 
 # Clé du lien permanent de l'aidant (app iPhone ou page /a/{clé}). Stable d'un
 # lancement à l'autre si on la fixe dans .env, sinon tirée au démarrage.
 AIDANT_KEY = os.environ.get("PAPAI_AIDANT_KEY") or secrets.token_urlsafe(9)
+spaces = space.setup(AIDANT_KEY)
+orgs = orgs_mod.Orgs()
+
+
+def S() -> space.Space:
+    """L'espace de la requête en cours (voir space.py)."""
+    return space.current()
 
 # Tout passe par /k/{clé de la famille}/… : sans la clé, personne ne peut se
 # faire passer pour le PC de la personne aidée, ni lire ses fiches. En local
@@ -81,7 +87,12 @@ WEB_AGENT_START_TIMEOUT_S = 20.0
 
 
 def _key_ok(fam: str) -> bool:
-    return secrets.compare_digest(fam or "", AIDANT_KEY)
+    """Vrai si la clé ouvre un espace ; cet espace devient celui de la requête."""
+    sp = spaces.get(fam)
+    if sp is None:
+        return False
+    space.use(sp)
+    return True
 
 
 _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
@@ -121,7 +132,7 @@ def _same_machine(conn: HTTPConnection) -> bool:
 
 # Jamais de clé ni de jeton dans les journaux : les chemins qui en portent un
 # sont masqués, y compris dans les journaux d'accès d'uvicorn.
-_SECRET_PATH = re.compile(r"/(k|a|h|p|ws/aidant|ws/helper)/[^/?#\s\"']+")
+_SECRET_PATH = re.compile(r"/(k|a|h|p|o|ws/aidant|ws/helper)/[^/?#\s\"']+")
 
 
 def masquer(texte: str) -> str:
@@ -191,7 +202,7 @@ class BridgeLink:
         )
 
     async def execute(self, name: str, args: dict) -> str | None:
-        if pending_alert:
+        if S().pending_alert:
             return None
         data = await self._request({"type": "execute", "action": {"name": name, "args": args}})
         if data is None:
@@ -246,10 +257,6 @@ class BridgeLink:
                 waiter.cancel()
 
 
-bridge: BridgeLink | None = None
-helper_sockets: set[WebSocket] = set()
-helper_alert_scopes: dict[WebSocket, str | None] = {}
-agent_task: asyncio.Task | None = None
 
 
 # Ce que la personne aidée doit aussi voir : l'état de la session, le plan en
@@ -258,42 +265,172 @@ BRIDGE_TYPES = {"status", "answer", "alert", "alert_cleared", "alert_acknowledge
 
 
 # Qui est derrière chaque app d'aidant ouverte : son prénom et son identifiant.
-helper_who: dict[WebSocket, dict] = {}
 
 
 def _online_ids() -> set[str]:
-    return {w["id"] for w in helper_who.values() if w.get("id")}
+    return {w["id"] for w in S().helper_who.values() if w.get("id")}
 
 
 async def _send_helpers_to_bridge() -> None:
-    if bridge is not None:
+    if S().bridge is not None:
         try:
-            await bridge.send({"type": "helpers", "helpers": family.public(_online_ids())})
+            await S().bridge.send({"type": "helpers", "helpers": S().family.public(_online_ids())})
         except Exception:  # noqa: BLE001
             pass
 
 
-def helper_can_access_alert(ws: WebSocket, alert: dict) -> bool:
-    if ws not in helper_alert_scopes:
+# --- Tickets : chaque demande laisse une trace, et attend un support si besoin ---
+
+OFFER_AGAIN_S = 600
+RDV_TICK_S = float(os.environ.get("PAPAI_RDV_TICK_S", "20"))
+RDV_MIN_S = float(os.environ.get("PAPAI_RDV_MIN_S", "60"))
+_bg_tasks: set = set()
+
+
+def _support_expected() -> bool:
+    """Quelqu'un peut répondre à cette personne : un support connu ou une organisation."""
+    return bool(S().family.helpers) or bool(getattr(S(), "org", None))
+
+
+def _is_support(ws) -> bool:
+    """Socket d'un support de l'espace (pas un lien de session, limité à sa session)."""
+    return ws in S().helper_alert_scopes and S().helper_alert_scopes[ws] is None
+
+
+def _support_available() -> bool:
+    return any(_is_support(ws) for ws in S().helper_sockets)
+
+
+SUPPORT_ONLY = ("ticket_due", "tickets_changed")
+
+
+def _rdv_at(v) -> int | None:
+    """Un rendez-vous : un instant (secondes Unix) entre 1 min (par défaut) et 30 jours d'ici."""
+    try:
+        at = float(v)
+    except (TypeError, ValueError):
+        return None
+    now = time.time()
+    return int(at) if now + RDV_MIN_S <= at <= now + tickets_mod.RDV_MAX_S else None
+
+
+def _open_ticket(task: str, source: str, status: str = "nouveau", by: str = "") -> dict:
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    return S().tickets.open(task, source, status=status, by=by, number=o.next_ticket() if o else None)
+
+
+async def _tickets_changed() -> None:
+    await broadcast_helper({"type": "tickets_changed"}, to_bridge=False)
+
+
+async def _sync_ticket(st: dict) -> None:
+    s = S().registry.get(str(st.get("session", "")))
+    t = S().tickets.get(s.ticket) if s is not None and s.ticket else None
+    if t is None or t["status"] == "resolu" and t.get("closed_by"):
+        return
+    before = t["status"]
+    if S().tickets.sync(t, st) and t["status"] != before:
+        await _tickets_changed()
+        if t["status"] in ("resolu", "a_reprendre"):
+            _later(_offer_next(space.current()))
+
+
+async def _offer_waiting(who: str = "") -> bool:
+    """Un support est là (ou c'est l'heure du rendez-vous) : on repropose la
+    demande en attente à la personne aidée, qui accepte ou non."""
+    if S().bridge is None:
         return False
-    scope = helper_alert_scopes[ws]
+    s = current_session()
+    if s is not None and s.is_open:
+        return False
+    now = time.time()
+    due = S().tickets.due(now)
+    waiting = [t for t in S().tickets.waiting() if now - t.get("offered", 0) > OFFER_AGAIN_S]
+    if not due and not waiting:
+        return False
+    t = (due or waiting)[0]
+    rdv = bool(due)
+    # Rendez-vous sans support en ligne : le prochain support qui arrive le repropose.
+    offered = int(now) if not rdv or _support_available() else 0
+    S().tickets.update(t, offered=offered, **({"rdv_notified": True, "status": "en_attente"} if rdv else {}))
+    names = [h["name"] for h in S().family.helpers]
+    who = who or t.get("assignee") or (names[0] if len(names) == 1 else "Votre support")
+    await S().bridge.send({"type": "remote_request", "from": who, "task": t["task"],
+                           "ticket": t["id"], "number": t["number"], "rdv": rdv})
+    if rdv:
+        await broadcast_helper({"type": "ticket_due", "ticket": t["id"], "number": t["number"],
+                                "task": t["task"]}, to_bridge=False)
+    await _tickets_changed()
+    print(f"[tickets] demande n° {t['number']} reproposée")
+    return True
+
+
+async def _offer_soon(sp, ws) -> None:
+    # La page du support ne se présente pas toujours (helper_hello) : on lui
+    # laisse un instant, puis on repropose ce qui attend.
+    await asyncio.sleep(1.5)
+    space.use(sp)
+    if ws in sp.helper_sockets:
+        await _offer_waiting(sp.helper_who.get(ws, {}).get("name", ""))
+
+
+async def _offer_next(sp) -> None:
+    # Une demande vient d'être refusée ou finie : la suivante en attente est proposée.
+    await asyncio.sleep(2)
+    space.use(sp)
+    if _support_available():
+        await _offer_waiting("")
+
+
+def _later(coro) -> None:
+    task = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+
+
+async def _rdv_loop() -> None:
+    while True:
+        await asyncio.sleep(RDV_TICK_S)
+        for sp in spaces.all():
+            try:
+                if sp.bridge is None or not sp.tickets.due():
+                    continue
+                space.use(sp)
+                await _offer_waiting("")
+            except Exception as e:  # noqa: BLE001
+                print(f"[tickets] rendez-vous : {type(e).__name__}")
+
+
+@app.on_event("startup")
+async def _start_rdv_loop() -> None:
+    _later(_rdv_loop())
+
+
+def helper_can_access_alert(ws: WebSocket, alert: dict) -> bool:
+    if ws not in S().helper_alert_scopes:
+        return False
+    scope = S().helper_alert_scopes[ws]
     return scope is None or scope == alert.get("session")
 
 
 async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
-    if to_bridge and bridge is not None and payload.get("type") in BRIDGE_TYPES:
-        await bridge.send(payload)
+    if payload.get("type") == "status":
+        await _sync_ticket(payload)
+    if to_bridge and S().bridge is not None and payload.get("type") in BRIDGE_TYPES:
+        await S().bridge.send(payload)
     dead = []
-    for ws in helper_sockets:
+    for ws in S().helper_sockets:
         scoped = payload.get("type") == "guard_advice" or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
         if scoped and not helper_can_access_alert(ws, payload):
+            continue
+        if payload.get("type") in SUPPORT_ONLY and not _is_support(ws):
             continue
         try:
             await ws.send_json(payload)
         except Exception:  # noqa: BLE001
             dead.append(ws)
     for ws in dead:
-        helper_sockets.discard(ws)
+        S().helper_sockets.discard(ws)
 
 
 async def handle_web_agent_change(link: BridgeLink, value) -> None:
@@ -305,8 +442,8 @@ async def handle_web_agent_change(link: BridgeLink, value) -> None:
         return
     session.stop(by="navigateur")
     session.doing = "Le navigateur PapAI s'est fermé : l'aide est arrêtée."
-    if agent_task and not agent_task.done():
-        agent_task.cancel()
+    if S().agent_task and not S().agent_task.done():
+        S().agent_task.cancel()
     await broadcast_helper(session.status())
 
 
@@ -316,8 +453,12 @@ async def handle_web_agent_change(link: BridgeLink, value) -> None:
 @app.websocket("/k/{fam}/ws/bridge")
 async def ws_bridge_keyed(ws: WebSocket, fam: str) -> None:
     if not _key_ok(fam):
-        await ws.close(code=4403)
-        return
+        # Clé inconnue mais bien formée : l'ordinateur revient après un
+        # redéploiement qui a effacé le disque. Il retrouve un espace à sa clé.
+        if not (space.KEY_RE.match(fam or "") and _rate_ok(_space_creations, _client_ip(ws), SPACES_PER_HOUR, 3600)):
+            await ws.close(code=4403)
+            return
+        space.use(spaces.create(fam))
     await _ws_bridge(ws)
 
 
@@ -331,24 +472,23 @@ async def ws_bridge(ws: WebSocket) -> None:
 
 
 async def _stop_open_sessions(by: str) -> None:
-    for s in list(registry._by_id.values()):
+    for s in list(S().registry._by_id.values()):
         if s.is_open:
             s.stop(by=by)
             await broadcast_helper(s.status())
 
 
 async def _ws_bridge(ws: WebSocket) -> None:
-    global bridge, agent_task
     await ws.accept()
     link = BridgeLink(ws)
-    old, bridge = bridge, link
+    old, S().bridge = S().bridge, link
     if old is not None:
         # Un seul pont. Le nouveau a passé le même contrôle que l'ancien :
         # c'est en général le même Mac qui se reconnecte après une coupure.
         # La session de l'ancien lien ne peut plus agir : on l'arrête.
         print("[pont] remplacé par une nouvelle connexion")
-        if agent_task and not agent_task.done():
-            agent_task.cancel()
+        if S().agent_task and not S().agent_task.done():
+            S().agent_task.cancel()
         await _stop_open_sessions("pont remplacé")
         await old.close(code=4409)
     print("[pont] connecté")
@@ -359,7 +499,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
             kind = msg.get("type")
 
-            if kind in ("frame", "result"):
+            if kind in ("frame", "result", "pair_decision"):
                 link.resolve(str(msg.get("req", "")), msg)
                 continue
 
@@ -370,56 +510,125 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     link.web_agent = None
                     print(f"[pont] système : {link.os}, navigateur : {'disponible' if link.web_agent_available else 'non'}")
                 # Le prénom saisi sur l'ordinateur, transmis aux aidants.
-                if family.set_senior(str(msg.get("name", ""))):
-                    await broadcast_helper({"type": "senior", "name": family.senior})
+                if S().family.set_senior(str(msg.get("name", ""))):
+                    await broadcast_helper({"type": "senior", "name": S().family.senior})
                 # Les proches que l'ordinateur connaît : la liste survit aux redémarrages.
-                if isinstance(msg.get("known_helpers"), list) and family.restore(msg["known_helpers"]):
-                    await ws.send_json({"type": "helpers", "helpers": family.public(_online_ids())})
+                if isinstance(msg.get("known_helpers"), list) and S().family.restore(msg["known_helpers"]):
+                    await ws.send_json({"type": "helpers", "helpers": S().family.public(_online_ids())})
                 if kind == "profile":
                     continue
-                await ws.send_json({"type": "helpers", "helpers": family.public(_online_ids())})
-                if pending_alert:
-                    await ws.send_json(pending_alert["senior"])
+                await ws.send_json({"type": "helpers", "helpers": S().family.public(_online_ids())})
+                if S().pending_alert:
+                    await ws.send_json(S().pending_alert["senior"])
+                if _support_available():
+                    await _offer_waiting("")
                 continue
 
             if kind == "pair_start":
                 # Ajout d'un proche : un code à 6 chiffres et son lien (QR).
                 # `long` : invitation à envoyer par SMS ou WhatsApp, valable 24 h.
                 ttl = INVITE_TTL if msg.get("long") else CODE_TTL
-                code = family.new_code(ttl)
+                code = S().family.new_code(ttl)
                 await ws.send_json({"type": "pair_code", "code": code, "url": pairing_url(code),
                                     "app_url": app_pairing_url(code), "expires_in": ttl,
                                     "long": bool(msg.get("long"))})
                 continue
 
             if kind == "remove_helper":
-                family.remove(str(msg.get("id", "")))
-                await ws.send_json({"type": "helpers", "helpers": family.public(_online_ids())})
+                S().family.remove(str(msg.get("id", "")))
+                await ws.send_json({"type": "helpers", "helpers": S().family.public(_online_ids())})
                 continue
 
             if kind == "remote_answer":
                 # Réponse de la personne aidée à une session proposée par un proche.
                 if not msg.get("accepted"):
+                    t = S().tickets.get(str(msg.get("ticket") or ""))
+                    if t is not None:
+                        S().tickets.note(t, S().family.senior or "La personne aidée", "Pas disponible pour l'instant.")
+                        await _tickets_changed()
+                        _later(_offer_next(space.current()))
                     await broadcast_helper({"type": "remote_refused"})
                     print("[pont] session à distance refusée")
                 continue
 
+            if kind == "ticket_schedule":
+                # La personne fixe un rendez-vous pour sa demande en attente.
+                t = S().tickets.get(str(msg.get("ticket") or ""))
+                at = _rdv_at(msg.get("at"))
+                if t is None or at is None or t["status"] not in ("nouveau", "en_attente", "rdv", "a_reprendre"):
+                    await ws.send_json({"type": "ticket_refused", "ticket": str(msg.get("ticket") or "")[:40],
+                                        "reason": "Ce rendez-vous n'est pas possible."})
+                    continue
+                S().tickets.update(t, status="rdv", rdv=at, rdv_notified=False)
+                await ws.send_json({"type": "ticket_scheduled", "ticket": t["id"], "number": t["number"], "at": at})
+                await _tickets_changed()
+                continue
+
             if kind == "help_request":
-                session = registry.create(str(msg.get("task") or "").strip()[:MAX_TASK])
+                task = str(msg.get("task") or "").strip()[:MAX_TASK]
+                by = str(msg.get("requested_by") or "")[:40]
+                ticket = S().tickets.get(str(msg.get("ticket") or ""))
+                if ticket is not None and ticket["status"] == "resolu":
+                    ticket = None
+                if ticket is None and not by and _support_expected() and not _support_available():
+                    # Aucun support disponible : la demande attend, la personne
+                    # sera reprévenue dès qu'un support est là (ou au rendez-vous).
+                    ticket = _open_ticket(task, "personne", status="en_attente", by=S().family.senior)
+                    await ws.send_json({"type": "ticket_queued", "ticket": ticket["id"],
+                                        "number": ticket["number"], "task": task})
+                    await _tickets_changed()
+                    print(f"[tickets] demande n° {ticket['number']} en attente d'un support")
+                    continue
+                session = S().registry.create(task)
                 session.grant_consent()  # le consentement est donné dans la même fenêtre
                 if msg.get("requested_by"):
                     # Lancée par un proche, acceptée à l'instant sur le Mac.
                     session.log("remote_accepted", by=str(msg["requested_by"])[:40])
                     await broadcast_helper({"type": "remote_accepted"})
+                if ticket is None:
+                    ticket = _open_ticket(task, "support" if by else "personne", by=by or S().family.senior)
+                session.ticket = ticket["id"]
+                S().tickets.update(ticket, session=session.id, status="en_cours", rdv=None)
+                await _tickets_changed()
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
-                await ws.send_json({"type": "session", "id": session.id, "helper_url": url})
+                await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
+                                    "ticket": ticket["id"], "number": ticket["number"]})
                 # Ni la demande ni le lien du proche (son jeton) dans le journal.
                 print(f"[session {session.id}] nouvelle demande")
                 await broadcast_helper(session.status())
 
-                if agent_task and not agent_task.done():
-                    agent_task.cancel()
-                agent_task = asyncio.create_task(run_session(session, link))
+                if S().agent_task and not S().agent_task.done():
+                    S().agent_task.cancel()
+                S().agent_task = asyncio.create_task(run_session(session, link))
+                continue
+
+            if kind == "run_automation":
+                # Un automate importé, lancé en un clic : son plan a été
+                # validé par le support à l'import, pas besoin d'un aidant en ligne.
+                lesson = automations.load(str(msg.get("id", "")))
+                task = automations.holo_task(lesson) if lesson else None
+                if task is None or _os_family(link.os) not in lesson.get("platforms", []):
+                    await ws.send_json({"type": "automation_refused", "id": str(msg.get("id", ""))[:40],
+                                        "reason": "Cet automate n'est pas disponible sur cet ordinateur."})
+                    continue
+                goal, steps = task
+                session = S().registry.create(goal[:MAX_TASK])
+                session.grant_consent()
+                session.preapprove_plan(steps, by=lesson.get("approved_by", ""))
+                session.log("automation", id=lesson["id"], title=lesson.get("title", ""))
+                ticket = _open_ticket(lesson.get("title") or goal[:MAX_TASK], "automatisme",
+                                          status="en_cours", by=S().family.senior)
+                session.ticket = ticket["id"]
+                S().tickets.update(ticket, session=session.id)
+                await _tickets_changed()
+                url = f"{PUBLIC_URL}/h/{session.helper_token}"
+                await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
+                                    "automation": lesson["id"]})
+                print(f"[session {session.id}] automate importé {lesson['id']}")
+                await broadcast_helper(session.status())
+                if S().agent_task and not S().agent_task.done():
+                    S().agent_task.cancel()
+                S().agent_task = asyncio.create_task(run_automation(session, link))
                 continue
 
             if kind == "automation_failed":
@@ -478,12 +687,12 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "stop":
-                for s in list(registry._by_id.values()):
+                for s in list(S().registry._by_id.values()):
                     if s.is_open:
                         s.stop(by="senior")
                         await broadcast_helper(s.status())
-                if agent_task and not agent_task.done():
-                    agent_task.cancel()
+                if S().agent_task and not S().agent_task.done():
+                    S().agent_task.cancel()
                 print("[pont] ARRÊT demandé par la personne aidée")
                 continue
 
@@ -492,20 +701,46 @@ async def _ws_bridge(ws: WebSocket) -> None:
     finally:
         # Un nouveau pont a pu prendre la place entre-temps : on ne le
         # débranche pas, et ses sessions continuent.
-        if bridge is link:
-            bridge = None
+        if S().bridge is link:
+            S().bridge = None
             await _stop_open_sessions("pont déconnecté")
+
+
+def _os_family(name: str) -> str:
+    n = (name or "").lower()
+    return "mac" if n.startswith(("mac", "darwin", "osx")) else "windows"
+
+
+async def run_automation(session, link: "BridgeLink") -> None:
+    """Plan déjà validé par le support : l'agent agit directement.
+
+    Le gardien relit quand même l'objectif et les étapes : un fichier importé
+    ne doit pas pouvoir faire ce qu'une demande libre ne ferait pas."""
+    try:
+        if S().pending_alert:
+            session.stop(by="gardien")
+            await broadcast_helper(session.status())
+            await link.send(S().pending_alert["senior"])
+            await broadcast_helper(S().pending_alert["helper"], to_bridge=False)
+            return
+        if await check_request(session, " ; ".join([session.task, *session.plan]), "plan"):
+            return
+        await broadcast_helper(session.status())
+        await AgentRunner(session, link, broadcast_helper).run()
+    except asyncio.CancelledError:
+        session.stop(by="annulation")
+        raise
 
 
 async def run_session(session, link: "BridgeLink") -> None:
     """Plan d'abord, validé par l'aidant ; l'agent n'agit qu'ensuite."""
     notes: list[str] = []
     try:
-        if pending_alert:
+        if S().pending_alert:
             session.stop(by="gardien")
             await broadcast_helper(session.status())
-            await link.send(pending_alert["senior"])
-            await broadcast_helper(pending_alert["helper"], to_bridge=False)
+            await link.send(S().pending_alert["senior"])
+            await broadcast_helper(S().pending_alert["helper"], to_bridge=False)
             return
         if await check_request(session, session.task, "request"):
             return
@@ -565,10 +800,22 @@ async def run_session(session, link: "BridgeLink") -> None:
 # ------------------------------------------------------------------ proche
 
 
+def _session_by_token(token: str):
+    """Le jeton d'une session désigne aussi son espace."""
+    for sp in spaces.all():
+        try:
+            session = sp.registry.by_token(token)
+        except Refused:
+            continue
+        space.use(sp)
+        return session
+    return S().registry.by_token(token)  # lève le bon message
+
+
 @app.get("/h/{token}")
 async def helper_page(token: str):
     try:
-        registry.by_token(token)
+        _session_by_token(token)
     except Refused as e:
         return JSONResponse({"error": str(e)}, status_code=404)
     return FileResponse(STATIC / "helper.html")
@@ -577,7 +824,7 @@ async def helper_page(token: str):
 @app.websocket("/ws/helper/{token}")
 async def ws_helper(ws: WebSocket, token: str) -> None:
     try:
-        session = registry.by_token(token)
+        session = _session_by_token(token)
     except Refused as e:
         await ws.accept()
         await ws.send_json({"type": "refused", "reason": str(e)})
@@ -585,12 +832,12 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
         return
 
     await ws.accept()
-    helper_sockets.add(ws)
-    helper_alert_scopes[ws] = session.id
+    S().helper_sockets.add(ws)
+    S().helper_alert_scopes[ws] = session.id
     await ws.send_json(session.status())
-    await ws.send_json({"type": "senior", "name": family.senior or None})
-    if pending_alert and helper_can_access_alert(ws, pending_alert["helper"]):
-        await ws.send_json(pending_alert["helper"])
+    await ws.send_json({"type": "senior", "name": S().family.senior or None})
+    if S().pending_alert and helper_can_access_alert(ws, S().pending_alert["helper"]):
+        await ws.send_json(S().pending_alert["helper"])
     if session.last_frame:
         await ws.send_json(
             {
@@ -607,8 +854,8 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
     except WebSocketDisconnect:
         pass
     finally:
-        helper_sockets.discard(ws)
-        helper_alert_scopes.pop(ws, None)
+        S().helper_sockets.discard(ws)
+        S().helper_alert_scopes.pop(ws, None)
 
 
 async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
@@ -633,7 +880,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             return
 
     try:
-        who = helper_who.get(ws, {}).get("name", "")
+        who = S().helper_who.get(ws, {}).get("name", "")
         if who and kind in ("approve_plan", "answer", "click"):
             session.helper_name = who
         if kind in ("approve_plan", "refine_plan", "refuse_plan"):
@@ -694,9 +941,9 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             ).strip()
             saved = approve_and_save(session.lesson, session)
             await ws.send_json({"type": "lesson_saved", "lesson": saved})
-            if bridge is not None:
+            if S().bridge is not None:
                 # La personne aidée le retrouve aussitôt dans « Mes automates ».
-                await bridge.send({"type": "lessons_changed", "title": saved.get("title", "")})
+                await S().bridge.send({"type": "lessons_changed", "title": saved.get("title", "")})
 
         else:
             await ws.send_json({"type": "refused", "reason": "Message inconnu."})
@@ -720,10 +967,10 @@ async def handle_helper_refresh(session, ws: WebSocket) -> None:
         if frame is not None:
             await ws.send_json({"type": "frame", "frame_id": frame.frame_id, "png_b64": frame.png_b64})
         return
-    if bridge is None:
+    if S().bridge is None:
         raise Refused("Le PC n'est pas connecté.")
 
-    frame = await bridge.capture()
+    frame = await S().bridge.capture()
     if frame is None:
         raise Refused("Le PC n'a pas répondu.")
 
@@ -752,14 +999,14 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
     if not (0.0 <= x <= 1.0 and 0.0 <= y <= 1.0):
         raise Refused("Coordonnées hors de la capture.")
 
-    if bridge is None:
+    if S().bridge is None:
         raise Refused("Le PC n'est pas connecté.")
 
     session.take_control(Owner.HELPER)
     args = {"element": "clic du support", "x": round(x * 1000), "y": round(y * 1000)}
     session.log("helper_click", x=args["x"], y=args["y"])
     session.execution_started = True
-    result = await bridge.execute("click", args)
+    result = await S().bridge.execute("click", args)
     session.release_control()
 
     if result is None:
@@ -774,7 +1021,7 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
 
 
 def pairing_url(code: str) -> str:
-    base = f"{PUBLIC_URL}/k/{AIDANT_KEY}" if PUBLIC_MODE else PUBLIC_URL
+    base = f"{PUBLIC_URL}/k/{S().key}" if PUBLIC_MODE else PUBLIC_URL
     return f"{base}/p/{code}"
 
 
@@ -785,40 +1032,83 @@ def app_pairing_url(code: str) -> str:
     Sophie » avant même d'avoir validé.
     """
     link = "papai://pair?u=" + quote(pairing_url(code), safe="")
-    if family.senior:
-        link += "&n=" + quote(family.senior, safe="")
+    if S().family.senior:
+        link += "&n=" + quote(S().family.senior, safe="")
     return link
 
 
 def aidant_url() -> str:
-    return f"{PUBLIC_URL}/a/{AIDANT_KEY}"
+    return f"{PUBLIC_URL}/a/{S().key}"
 
 
 async def _pair_page(code: str):
     return FileResponse(STATIC / "pair.html")
 
 
-async def _pair_submit(code: str, request: Request):
+async def _pair_submit(code: str, request: Request, confirm: bool = False):
     try:
         body = await request.json()
     except ValueError:
         body = {}
+    if not isinstance(body, dict):
+        body = {}
+    if confirm:
+        # Code tapé sans clé : avec plusieurs espaces, 6 chiffres se devinent.
+        # La personne aidée accepte donc ce support sur son écran.
+        name = str(body.get("name", "")).strip()[:40]
+        if not name:
+            return JSONResponse({"ok": False, "error": "Indiquez votre prénom."}, status_code=400)
+        if S().bridge is None:
+            return JSONResponse({"ok": False, "error": "L'ordinateur n'est pas connecté."}, status_code=400)
+        answer = await S().bridge._request({"type": "pair_confirm", "name": name,
+                                            "relation": str(body.get("relation", ""))[:60]}, timeout=PAIR_CONFIRM_S)
+        if not (isinstance(answer, dict) and answer.get("accept") is True):
+            return JSONResponse({"ok": False, "error": "La personne aidée n'a pas accepté."}, status_code=403)
     try:
-        helper = family.pair(code, str(body.get("name", "")), str(body.get("relation", "")))
+        helper = S().family.pair(code, str(body.get("name", "")), str(body.get("relation", "")))
     except PairingError as e:
         return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
     print("[proches] un proche ajouté")
-    if bridge is not None:
-        await bridge.send({"type": "helpers", "helpers": family.public(_online_ids()), "added": helper["name"]})
-    return {"ok": True, "name": helper["name"], "id": helper["id"], "senior": family.senior or None,
+    if S().bridge is not None:
+        await S().bridge.send({"type": "helpers", "helpers": S().family.public(_online_ids()), "added": helper["name"]})
+    return {"ok": True, "name": helper["name"], "id": helper["id"], "senior": S().family.senior or None,
             "aidant_url": aidant_url(),
-            "server": PUBLIC_URL, "key": AIDANT_KEY}
+            "server": PUBLIC_URL, "key": S().key}
+
+
+# Sans clé, même en ligne : le support tape seulement le code à 6 chiffres.
+# Le code est le secret (10 min ou 24 h, une seule fois, invalidé après
+# MAX_TRIES essais faux) et la réponse lui donne l'adresse et la clé.
+PAIR_CONFIRM_S = 120
+WRONG_CODES_MAX = 10
+SPACES_PER_HOUR = 5
+_wrong_codes: dict[str, list[float]] = {}
+_space_creations: dict[str, list[float]] = {}
+# Postes d'une même organisation (souvent derrière la même adresse IP) : plafond par organisation.
+ORG_ENROLLS_PER_HOUR = int(os.environ.get("PAPAI_ORG_ENROLLS_PER_HOUR", "200"))
+_org_enrolls: dict[str, list[float]] = {}
+
+
+def _client_ip(request: HTTPConnection) -> str:
+    if PUBLIC_MODE:  # derrière le proxy de Cloud Run
+        fwd = request.headers.get("x-forwarded-for", "")
+        if fwd:
+            return fwd.split(",")[0].strip()
+    return request.client.host if request.client else ""
+
+
+def _rate_ok(book: dict[str, list[float]], who: str, limit: int, window: float) -> bool:
+    now = time.time()
+    hits = [t for t in book.get(who, []) if now - t < window]
+    ok = len(hits) < limit
+    if ok:
+        hits.append(now)
+    book[who] = hits
+    return ok
 
 
 @app.get("/p")
 async def pair_page_manual():
-    if PUBLIC_MODE:
-        return JSONResponse({"error": "introuvable"}, status_code=404)
     return await _pair_page("")
 
 
@@ -831,16 +1121,164 @@ async def pair_page_manual_keyed(fam: str):
 
 @app.get("/p/{code}")
 async def pair_page(code: str):
-    if PUBLIC_MODE:
-        return JSONResponse({"error": "introuvable"}, status_code=404)
     return await _pair_page(code)
 
 
 @app.post("/p/{code}")
 async def pair_submit(code: str, request: Request):
-    if PUBLIC_MODE:
+    sp = next((x for x in spaces.all() if x.family.code_valid(code)), None)
+    if sp is None:
+        if not _rate_ok(_wrong_codes, _client_ip(request), WRONG_CODES_MAX, 600):
+            return JSONResponse({"ok": False, "error": "Trop d'essais. Réessayez dans 10 minutes."}, status_code=429)
+        return JSONResponse({"ok": False, "error": "Code incorrect ou expiré."}, status_code=400)
+    space.use(sp)
+    return await _pair_submit(code, request, confirm=PUBLIC_MODE)
+
+
+# Création d'un espace : au premier lancement, l'ordinateur aidé reçoit sa clé.
+@app.post("/spaces")
+async def create_space(request: Request):
+    body = await _small_json(request)
+    org = None
+    if body.get("org"):
+        # Poste d'entreprise : le jeton d'inscription le rattache à son organisation.
+        org = orgs.by_enroll(str(body["org"]))
+        if org is None:
+            return JSONResponse({"error": "Jeton d'organisation inconnu."}, status_code=403)
+        if not _rate_ok(_org_enrolls, org.id, ORG_ENROLLS_PER_HOUR, 3600):
+            return JSONResponse({"error": "Trop d'inscriptions. Réessayez plus tard."}, status_code=429)
+    elif not _rate_ok(_space_creations, _client_ip(request), SPACES_PER_HOUR, 3600):
+        return JSONResponse({"error": "Trop de créations. Réessayez plus tard."}, status_code=429)
+    sp = spaces.create(org=org.id if org else "", label=_label(body))
+    if org is not None:
+        org.copy_automations(sp.lessons_dir)
+    print(f"[espaces] nouvel espace {sp.id}" + (f" (organisation {org.id})" if org else ""))
+    ws_base = PUBLIC_URL.replace("https://", "wss://").replace("http://", "ws://")
+    return {"key": sp.key, "server": PUBLIC_URL, "bridge_url": f"{ws_base}/k/{sp.key}/ws/bridge",
+            **({"org": org.name} if org else {})}
+
+
+# ------------------------------------------------------------------ organisations (service IT)
+
+ORGS_PER_HOUR = 3
+_org_creations: dict[str, list[float]] = {}
+
+
+async def _small_json(request: Request, limit: int = 4096) -> dict:
+    raw = await request.body()
+    if not raw or len(raw) > limit:
+        return {}
+    try:
+        d = json.loads(raw)
+    except ValueError:
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def _label(body: dict) -> str:
+    return re.sub(r"\s+", " ", str(body.get("name") or "")).strip()[:60]
+
+
+def _org_links(o: orgs_mod.Org) -> dict:
+    return {"support_url": f"{PUBLIC_URL}/o/{o.support}",
+            "app_url": f"papai://org?u={quote(PUBLIC_URL, safe='')}&t={o.support}"}
+
+
+@app.post("/orgs")
+async def create_org(request: Request):
+    """Le service IT crée son organisation : un jeton pour les postes, un pour les supports."""
+    body = await _small_json(request)
+    name = _label(body)
+    if not name:
+        return JSONResponse({"error": "Donnez le nom de l'organisation."}, status_code=400)
+    if not _rate_ok(_org_creations, _client_ip(request), ORGS_PER_HOUR, 3600):
+        return JSONResponse({"error": "Trop de créations. Réessayez plus tard."}, status_code=429)
+    o = orgs.create(name)
+    print(f"[organisations] nouvelle organisation {o.id}")
+    return {"id": o.id, "name": o.name, "enroll_token": o.enroll, "support_token": o.support,
+            "server": PUBLIC_URL, **_org_links(o)}
+
+
+@app.post("/k/{fam}/org")
+async def join_org(fam: str, request: Request):
+    """Un poste déjà installé rejoint l'organisation (jeton déposé après coup par l'IT)."""
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    body = await _small_json(request)
+    o = orgs.by_enroll(str(body.get("org") or ""))
+    if o is None:
+        return JSONResponse({"error": "Jeton d'organisation inconnu."}, status_code=403)
+    if S().org and S().org != o.id:
+        return JSONResponse({"error": "Ce poste appartient déjà à une autre organisation."}, status_code=409)
+    first = S().org != o.id
+    if not spaces.join(S(), o.id, _label(body)):
+        return JSONResponse({"error": "Cet espace ne peut pas rejoindre une organisation."}, status_code=409)
+    o.copy_automations(S().lessons_dir)
+    if first:
+        S().tickets.renumber(o.next_ticket)
+    if S().bridge is not None:
+        await S().bridge.send({"type": "lessons_changed", "title": ""})
+    return {"org": o.name}
+
+
+@app.get("/o/{token}")
+async def org_page(token: str):
+    if orgs.by_support(token) is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return FileResponse(STATIC / "org.html")
+
+
+@app.get("/o/{token}/spaces")
+async def org_spaces(token: str):
+    """Tous les postes de l'organisation, avec leur clé : le support les suit sans appairage."""
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return {"org": o.name, "server": PUBLIC_URL, "spaces": [
+        {"key": sp.key, "name": sp.family.senior or sp.label, "label": sp.label,
+         "online": sp.bridge is not None} for sp in spaces.members(o.id)]}
+
+
+@app.get("/o/{token}/automations")
+async def org_automations(token: str):
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return o.automations()
+
+
+@app.post("/o/{token}/automations")
+async def org_import_automation(token: str, request: Request):
+    """Importé une fois par l'IT, proposé sur tous les postes, présents et à venir."""
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    pack = await _read_pack(request)
+    if isinstance(pack, JSONResponse):
+        return pack
+    try:
+        lesson = automations.save(pack, by=request.query_params.get("by", "") or o.name, folder=o.lessons_dir)
+    except automations.Invalid as e:
+        return JSONResponse({"error": str(e)}, status_code=422)
+    print(f"[organisations] automate {lesson['id']} pour {o.id}")
+    for sp in spaces.members(o.id):
+        o.copy_automations(sp.lessons_dir, only=lesson["id"])
+        if sp.bridge is not None:
+            await sp.bridge.send({"type": "lessons_changed", "title": lesson["title"]})
+    return lesson
+
+
+@app.delete("/o/{token}/automations/{lesson_id}")
+async def org_remove_automation(token: str, lesson_id: str):
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    if not automations.remove(lesson_id, o.lessons_dir):
         return JSONResponse({"error": "introuvable"}, status_code=404)
-    return await _pair_submit(code, request)
+    for sp in spaces.members(o.id):
+        if automations.remove(lesson_id, sp.lessons_dir) and sp.bridge is not None:
+            await sp.bridge.send({"type": "lessons_changed", "title": ""})
+    return {"removed": lesson_id}
 
 
 @app.get("/k/{fam}/p/{code}")
@@ -859,19 +1297,19 @@ async def pair_submit_keyed(fam: str, code: str, request: Request):
 
 async def handle_remote_request(msg: dict, ws: WebSocket) -> None:
     """Le proche propose une session. Rien ne démarre sans l'accord du Mac."""
-    if bridge is None:
+    if S().bridge is None:
         await ws.send_json({"type": "refused", "reason": "L'ordinateur n'est pas connecté."})
         return
     s = current_session()
     if s is not None and s.is_open:
         await ws.send_json({"type": "refused", "reason": "Une demande est déjà en cours."})
         return
-    names = [h["name"] for h in family.helpers]
+    names = [h["name"] for h in S().family.helpers]
     who = str(msg.get("from", "")).strip()
     if who not in names:
         who = names[0] if len(names) == 1 else "Votre support"
     task = str(msg.get("text", "")).strip()[:300]
-    await bridge.send({"type": "remote_request", "from": who, "task": task})
+    await S().bridge.send({"type": "remote_request", "from": who, "task": task})
     await ws.send_json({"type": "ack", "what": "remote_request"})
     print("[proches] un proche propose une session")
 
@@ -881,20 +1319,21 @@ async def handle_remote_request(msg: dict, ws: WebSocket) -> None:
 
 def current_session():
     """La session la plus récente : c'est celle que suit l'aidant."""
-    sessions = list(registry._by_id.values())
+    sessions = list(S().registry._by_id.values())
     return sessions[-1] if sessions else None
 
 
 @app.get("/a/{key}")
 async def aidant_page(key: str):
-    if not secrets.compare_digest(key, AIDANT_KEY):
+    if not _key_ok(key):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return FileResponse(STATIC / "helper.html")
 
 
 @app.websocket("/k/{fam}/ws/aidant/{key}")
 async def ws_aidant_keyed(ws: WebSocket, fam: str, key: str) -> None:
-    if not _key_ok(fam):
+    # Les deux clés désignent le même espace : pas de mélange entre espaces.
+    if not (_key_ok(fam) and secrets.compare_digest(fam, key)):
         await ws.close(code=4403)
         return
     await ws_aidant(ws, key)
@@ -908,22 +1347,24 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     c'est lui qui « sonne » quand la personne aidée appuie sur le bouton.
     """
     await ws.accept()
-    if not secrets.compare_digest(key, AIDANT_KEY):
+    if not _key_ok(key):
         await ws.send_json({"type": "refused", "reason": "Lien invalide."})
         await ws.close()
         return
-    helper_sockets.add(ws)
-    helper_alert_scopes[ws] = None
-    await ws.send_json({"type": "hello", "bridge": bridge is not None,
-                        "os": bridge.os if bridge else None, "senior": family.senior or None})
+    S().helper_sockets.add(ws)
+    S().helper_alert_scopes[ws] = None
+    await ws.send_json({"type": "hello", "bridge": S().bridge is not None,
+                        "os": S().bridge.os if S().bridge else None, "senior": S().family.senior or None,
+                        "tickets_waiting": len(S().tickets.waiting()) + len(S().tickets.due())})
     s = current_session()
     if s is not None:
         await ws.send_json(s.status())
         if s.last_frame:
             await ws.send_json({"type": "frame", "frame_id": s.last_frame.frame_id,
                                 "png_b64": s.last_frame.png_b64})
-    if pending_alert and helper_can_access_alert(ws, pending_alert["helper"]):
-        await ws.send_json(pending_alert["helper"])
+    if S().pending_alert and helper_can_access_alert(ws, S().pending_alert["helper"]):
+        await ws.send_json(S().pending_alert["helper"])
+    _later(_offer_soon(space.current(), ws))
     try:
         while True:
             msg = await ws.receive_json()
@@ -932,12 +1373,13 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
                 continue
             if msg.get("type") == "helper_hello":
                 # L'app se présente : elle apparaît dans « Mes proches » sur l'ordinateur.
-                h = family.connect(str(msg.get("id", "")), str(msg.get("name", "")),
+                h = S().family.connect(str(msg.get("id", "")), str(msg.get("name", "")),
                                    str(msg.get("relation", "")))
                 if h is not None:
-                    helper_who[ws] = {"id": h["id"], "name": h["name"]}
+                    S().helper_who[ws] = {"id": h["id"], "name": h["name"]}
                     await ws.send_json({"type": "helper_id", "id": h["id"]})
                     await _send_helpers_to_bridge()
+                    await _offer_waiting(h["name"])
                 continue
             if msg.get("type") == "dismiss_alert":
                 await dismiss_guard(msg, ws)
@@ -953,36 +1395,33 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     except WebSocketDisconnect:
         pass
     finally:
-        helper_sockets.discard(ws)
-        helper_alert_scopes.pop(ws, None)
-        if helper_who.pop(ws, None) is not None:
+        S().helper_sockets.discard(ws)
+        S().helper_alert_scopes.pop(ws, None)
+        if S().helper_who.pop(ws, None) is not None:
             await _send_helpers_to_bridge()
 
 
 # Une même situation ne doit pas sonner en boucle : on retient ce qui a déjà
 # été signalé, pour ne pas apprendre à la personne à ignorer les alertes.
-_guard_vu: dict[str, float] = {}
 _guard_taches: set[asyncio.Task] = set()
 GUARD_SILENCE_S = 300
-pending_alert: dict | None = None
 GUARD_ADVICE_TIMEOUT_S = 9
 
 
 def guard_contact() -> str:
-    if not family.helpers:
+    if not S().family.helpers:
         return "votre support"
-    h = next((h for h in family.helpers if h["id"] in _online_ids()), family.helpers[0])
+    h = next((h for h in S().family.helpers if h["id"] in _online_ids()), S().family.helpers[0])
     relation = re.sub(r"^(mon|ma|mes|son|sa|ses|votre|un|une|le|la)\s+", "", h.get("relation", "").strip(), flags=re.I)
     return f"votre {relation} {h['name']}" if relation else h["name"]
 
 
 async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
                         senior_detail: str | None = None, helper_detail: str | None = None) -> None:
-    global pending_alert
-    for s in registry._by_id.values():
+    for s in S().registry._by_id.values():
         if s.is_open:
             s.stop(by="gardien")
-    if pending_alert:
+    if S().pending_alert:
         return
     common = {"type": "alert", "alert_id": secrets.token_hex(12), "level": alerte.niveau,
               "source": source, "blocked": True,
@@ -992,15 +1431,15 @@ async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
                else "L'assistance est arrêtée.")
     senior = {**common, "title": "Attention, cette démarche peut être une arnaque.",
               "detail": senior_detail or detail}
-    who = family.senior or "La personne aidée"
+    who = S().family.senior or "La personne aidée"
     detail = f"{who} a besoin de votre avis. {alerte.detail}"
     if session:
         detail += f"\nDemande : « {session.task} »"
-    detail += f"\nPrenez contact avec {family.senior or 'la personne aidée'} avant de poursuivre. Choisissez « C'est normal » uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
+    detail += f"\nPrenez contact avec {S().family.senior or 'la personne aidée'} avant de poursuivre. Choisissez « C'est normal » uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
     helper = {**common, "title": f"Démarche à vérifier pour {who}", "detail": helper_detail or detail}
-    pending_alert = {"senior": senior, "helper": helper}
-    if bridge:
-        await bridge.send(senior)
+    S().pending_alert = {"senior": senior, "helper": helper}
+    if S().bridge:
+        await S().bridge.send(senior)
     await broadcast_helper(helper, to_bridge=False)
     s = session or current_session()
     if s:
@@ -1008,18 +1447,18 @@ async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
 
 
 def guard_action_allowed(msg: dict, ws: WebSocket) -> bool:
-    return bool(pending_alert and helper_can_access_alert(ws, pending_alert["helper"])
-                and msg.get("alert_id") == pending_alert["helper"]["alert_id"])
+    return bool(S().pending_alert and helper_can_access_alert(ws, S().pending_alert["helper"])
+                and msg.get("alert_id") == S().pending_alert["helper"]["alert_id"])
 
 
 async def acknowledge_guard(msg: dict, ws: WebSocket) -> None:
     if not guard_action_allowed(msg, ws):
         await ws.send_json({"type": "refused", "reason": "Cette alerte n'est plus en attente."})
         return
-    alert = pending_alert
+    alert = S().pending_alert
     for payload in alert.values():
         payload["acknowledged"] = True
-    session = registry.get(alert["helper"]["session"])
+    session = S().registry.get(alert["helper"]["session"])
     if session:
         session.guard_acknowledged = True
     await broadcast_helper({"type": "alert_acknowledged", "alert_id": alert["helper"]["alert_id"],
@@ -1028,13 +1467,12 @@ async def acknowledge_guard(msg: dict, ws: WebSocket) -> None:
 
 
 async def dismiss_guard(msg: dict, ws: WebSocket) -> None:
-    global pending_alert
     if not guard_action_allowed(msg, ws):
         await ws.send_json({"type": "refused", "reason": "Cette alerte n'est plus en attente."})
         return
-    aid = pending_alert["helper"]["alert_id"]
-    session_id = pending_alert["helper"]["session"]
-    pending_alert = None
+    aid = S().pending_alert["helper"]["alert_id"]
+    session_id = S().pending_alert["helper"]["session"]
+    S().pending_alert = None
     await broadcast_helper({"type": "alert_cleared", "alert_id": aid, "session": session_id})
 
 
@@ -1087,10 +1525,10 @@ async def handle_guard(msg: dict) -> None:
     if alerte is None:
         return
 
-    dernier = _guard_vu.get(alerte.motif, 0.0)
+    dernier = S().guard_vu.get(alerte.motif, 0.0)
     if time.time() - dernier < GUARD_SILENCE_S:
         return
-    _guard_vu[alerte.motif] = time.time()
+    S().guard_vu[alerte.motif] = time.time()
 
     s = current_session()
     print(f"[gardien] {alerte.niveau} — {alerte.motif}", flush=True)
@@ -1099,9 +1537,9 @@ async def handle_guard(msg: dict) -> None:
 
 async def confirmer_par_le_modele(alerte) -> str:
     """Une capture, un appel, une description. Rien de plus."""
-    if bridge is None:
+    if S().bridge is None:
         return ""
-    frame = await bridge.capture()
+    frame = await S().bridge.capture()
     if frame is None:
         return ""
     try:
@@ -1130,7 +1568,7 @@ async def confirmer_par_le_modele(alerte) -> str:
 
 @app.get("/")
 async def root():
-    return {"service": "PapAI", "bridge": bridge is not None}
+    return {"service": "PapAI", "bridge": S().bridge is not None}
 
 
 @app.get("/k/{fam}/lessons")
@@ -1145,6 +1583,79 @@ async def lesson_file_keyed(fam: str, lesson_id: str, filename: str):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return _serve_lesson_file(lesson_id, filename)
+
+
+MAX_IMPORT = 15_000_000
+
+
+async def _read_pack(request: Request):
+    """Le fichier `.papai` envoyé, ou la réponse d'erreur à renvoyer telle quelle."""
+    trop = JSONResponse({"error": "Fichier trop gros."}, status_code=413)
+    try:
+        if int(request.headers.get("content-length") or 0) > MAX_IMPORT:
+            return trop
+    except ValueError:
+        return trop
+    body = bytearray()
+    async for part in request.stream():
+        body += part
+        if len(body) > MAX_IMPORT:
+            return trop
+    try:
+        return json.loads(body)
+    except ValueError:
+        return JSONResponse({"error": "Ce n'est pas un fichier .papai (JSON attendu)."}, status_code=400)
+
+
+async def _import_automation(request: Request):
+    """Le support (service IT, proche) importe un automate : c'est sa validation."""
+    pack = await _read_pack(request)
+    if isinstance(pack, JSONResponse):
+        return pack
+    try:
+        lesson = automations.save(pack, by=request.query_params.get("by", ""))
+    except automations.Invalid as e:
+        return JSONResponse({"error": str(e)}, status_code=422)
+    print(f"[automate] importé {lesson['id']}")
+    if S().bridge is not None:
+        await S().bridge.send({"type": "lessons_changed", "title": lesson["title"]})
+    return lesson
+
+
+async def _remove_automation(lesson_id: str):
+    if not automations.remove(lesson_id):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    if S().bridge is not None:
+        await S().bridge.send({"type": "lessons_changed", "title": ""})
+    return {"removed": lesson_id}
+
+
+@app.post("/k/{fam}/automations")
+async def import_automation_keyed(fam: str, request: Request):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _import_automation(request)
+
+
+@app.delete("/k/{fam}/automations/{lesson_id}")
+async def remove_automation_keyed(fam: str, lesson_id: str):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _remove_automation(lesson_id)
+
+
+@app.post("/automations")
+async def import_automation(request: Request):
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _import_automation(request)
+
+
+@app.delete("/automations/{lesson_id}")
+async def remove_automation(lesson_id: str, request: Request):
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _remove_automation(lesson_id)
 
 
 @app.post("/k/{fam}/transcribe")
@@ -1186,8 +1697,8 @@ async def lesson_file(lesson_id: str, filename: str, request: Request):
 def _serve_lesson_file(lesson_id: str, filename: str):
     """Sert une capture de fiche. Chemins cloisonnés : pas de remontée possible."""
     safe = Path(filename).name
-    path = (LESSONS_DIR / Path(lesson_id).name / safe).resolve()
-    if not str(path).startswith(str(LESSONS_DIR.resolve())) or not path.is_file():
+    path = (lessons_dir() / Path(lesson_id).name / safe).resolve()
+    if not str(path).startswith(str(lessons_dir().resolve())) or not path.is_file():
         return JSONResponse({"error": "introuvable"}, status_code=404)
     return FileResponse(path)
 
@@ -1195,8 +1706,108 @@ def _serve_lesson_file(lesson_id: str, filename: str):
 def _sessions_journal():
     return [
         {**s.status(), "journal": s.journal}
-        for s in registry._by_id.values()
+        for s in S().registry._by_id.values()
     ]
+
+
+# --- Tickets : vus et traités par le support (page web, apps, organisation) ---
+
+async def _ticket_action(tid: str, body: dict):
+    t = S().tickets.get(tid)
+    if t is None:
+        return JSONResponse({"error": "Ticket introuvable."}, status_code=404)
+    act = body.get("action")
+    by = str(body.get("by") or "").strip()[:40]
+    text = str(body.get("text") or "").strip()
+    if act == "note":
+        if not text:
+            return JSONResponse({"error": "Note vide."}, status_code=400)
+        S().tickets.note(t, by, text)
+    elif act == "close":
+        if t["status"] == "en_cours":
+            return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
+        S().tickets.update(t, status="resolu", closed_by=by or "Support", rdv=None)
+        if text:
+            S().tickets.note(t, by, text)
+    elif act == "reopen":
+        if t["status"] == "en_cours":
+            return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
+        S().tickets.update(t, status="en_attente", offered=0, rdv=None, closed_by="")
+    elif act == "schedule":
+        at = _rdv_at(body.get("at"))
+        if at is None or t["status"] in ("en_cours", "resolu"):
+            return JSONResponse({"error": "Ce rendez-vous n'est pas possible."}, status_code=400)
+        S().tickets.update(t, status="rdv", rdv=at, rdv_notified=False, assignee=by or t.get("assignee", ""))
+        if S().bridge is not None:
+            await S().bridge.send({"type": "ticket_scheduled", "ticket": t["id"], "number": t["number"],
+                                   "at": at, "by": by})
+    elif act == "take":
+        if t["status"] in ("en_cours", "resolu"):
+            return JSONResponse({"error": "Ce ticket n'est pas en attente."}, status_code=409)
+        if S().bridge is None:
+            return JSONResponse({"error": "L'ordinateur n'est pas connecté."}, status_code=409)
+        s = current_session()
+        if s is not None and s.is_open:
+            return JSONResponse({"error": "Une demande est déjà en cours."}, status_code=409)
+        S().tickets.update(t, assignee=by, status="en_attente", offered=int(time.time()))
+        await S().bridge.send({"type": "remote_request", "from": by or "Votre support", "task": t["task"],
+                               "ticket": t["id"], "number": t["number"], "rdv": False})
+    else:
+        return JSONResponse({"error": "Action inconnue."}, status_code=400)
+    await _tickets_changed()
+    return {"ticket": tickets_mod.public(t)}
+
+
+async def _json_body(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+@app.get("/tickets.js")
+async def tickets_js():
+    return FileResponse(STATIC / "tickets.js", media_type="text/javascript")
+
+
+@app.get("/k/{fam}/tickets")
+async def tickets_keyed(fam: str):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return {"tickets": [tickets_mod.public(t) for t in S().tickets.all()[:200]]}
+
+
+@app.post("/k/{fam}/tickets/{tid}")
+async def ticket_action_keyed(fam: str, tid: str, request: Request):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _ticket_action(tid, await _json_body(request))
+
+
+@app.get("/o/{token}/tickets")
+async def org_tickets(token: str):
+    """Les tickets de tous les postes de l'organisation, les plus récents d'abord."""
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    out = []
+    for sp in spaces.members(o.id):
+        poste = sp.family.senior or getattr(sp, "label", "") or "Poste"
+        out += [{**tickets_mod.public(t), "space": sp.key, "poste": poste,
+                 "online": sp.bridge is not None} for t in sp.tickets.all()[:200]]
+    out.sort(key=lambda t: t.get("updated", 0), reverse=True)
+    return {"org": o.name, "tickets": out[:1000]}
+
+
+@app.post("/o/{token}/tickets/{key}/{tid}")
+async def org_ticket_action(token: str, key: str, tid: str, request: Request):
+    o = orgs.by_support(token)
+    sp = spaces.get(key)
+    if o is None or sp is None or getattr(sp, "org", None) != o.id:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    space.use(sp)
+    return await _ticket_action(tid, await _json_body(request))
 
 
 @app.get("/sessions")
@@ -1225,7 +1836,7 @@ if __name__ == "__main__":
     # La clé ne s'écrit pas dans le journal : un proche la reçoit en
     # s'ajoutant par code ou QR. PAPAI_SHOW_KEY=1 l'affiche sur ce terminal.
     if os.environ.get("PAPAI_SHOW_KEY") == "1":
-        print(f"[aidant] lien permanent : {PUBLIC_URL}/a/{AIDANT_KEY}")
+        print(f"[aidant] lien permanent : {PUBLIC_URL}/a/{S().key}")
     else:
         origine = "PAPAI_AIDANT_KEY" if os.environ.get("PAPAI_AIDANT_KEY") else "tirée au hasard"
         print(f"[aidant] lien permanent : {PUBLIC_URL}/a/<clé famille> ({origine} ; "

@@ -94,6 +94,8 @@ class Session:
 
     # Brouillon de fiche CareMemory, en attente de validation du proche.
     lesson: dict | None = None
+    # Le ticket de cette demande (suivi par le support IT).
+    ticket: str = ""
     journal: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)
@@ -261,6 +263,19 @@ class Session:
         self.log("plan_proposed", steps=steps)
         self._plan_decision = asyncio.get_running_loop().create_future()
         return self._plan_decision
+
+    def preapprove_plan(self, steps: list[str], by: str) -> None:
+        """Automate importé : le support a validé le plan à l'import.
+        La personne le lance seule ; Arrêter et les garde-fous restent les mêmes."""
+        self.require_open()
+        if not self.consented:
+            raise Refused("Partage d'écran non accordé.")
+        self.plan = steps
+        self.plan_approved = True
+        self.plan_step = 1 if steps else None
+        self.state = State.ACTIVE
+        self.owner = Owner.AGENT
+        self.log("plan_preapproved", by=by, steps=steps)
 
     def decide_plan(self, decision: str, note: str = "") -> None:
         """approve, refine (avec une précision) ou refuse. Revalidé côté serveur."""

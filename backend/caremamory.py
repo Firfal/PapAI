@@ -23,7 +23,11 @@ from papai_tools import MODEL, TEMPERATURE, make_client, observation
 
 from .sessions import Session
 
-LESSONS_DIR = Path(__file__).parent.parent / "lessons"
+def lessons_dir() -> Path:
+    """Les fiches et automatismes de l'espace en cours."""
+    from . import space
+    return space.current().lessons_dir
+
 
 client = make_client()
 
@@ -279,7 +283,7 @@ def approve_and_save(lesson: dict, session: Session) -> dict:
     lesson["approved_by_helper"] = True
     lesson["approved_at"] = time.time()
 
-    folder = LESSONS_DIR / lesson["id"]
+    folder = lessons_dir() / lesson["id"]
     folder.mkdir(parents=True, exist_ok=True)
 
     for i, step in enumerate(lesson["steps"], start=1):
@@ -299,10 +303,10 @@ def approve_and_save(lesson: dict, session: Session) -> dict:
 
 
 def list_lessons() -> list[dict]:
-    if not LESSONS_DIR.exists():
+    if not lessons_dir().exists():
         return []
     out = []
-    for f in sorted(LESSONS_DIR.glob("*/lesson.json")):
+    for f in sorted(lessons_dir().glob("*/lesson.json")):
         try:
             out.append(json.loads(f.read_text(encoding="utf-8")))
         except (OSError, json.JSONDecodeError):

@@ -60,8 +60,10 @@
   function helpCard() {
     const mic = S.microPresent;
     const busy = ui.dictating || S.dictation.phase !== 'idle';
-    const warn = ui.warning ? `<div class="pillChip" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
-        ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '';
+    const wait = S.queued && !S.queued.show ? `<button class="pillChip press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
+        ${icon('personWave', 20)}<span>Demande n° ${esc(S.queued.number)} ${S.queued.rdv ? '· rendez-vous ' + esc(rdvText(S.queued.rdv)) : 'en attente'}</span></button>` : '';
+    const warn = (ui.warning ? `<div class="pillChip" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
+        ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '') + wait;
     return `<div class="mintCard homeCard" style="padding:32px;gap:16px">
       <div style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) : ''}</div>
       <div class="muted" style="${f(18, 5)}">Un souci sur l'ordinateur ? ${mic ? 'Dites-le simplement' : 'Écrivez ce dont vous avez besoin'}, un message part tout de suite à ${esc(S.helperName)}.</div>
@@ -102,14 +104,19 @@
       return `<div class="card row" style="padding:12px;gap:10px">
         <button class="row press grow" data-act="shortcut" data-arg="${esc(l.id)}" aria-label="${esc(l.title)}" style="gap:10px;text-align:left;min-height:36px">
           <span class="circle" style="width:36px;height:36px;background:var(--mint);color:var(--accent)">${icon(folderIcon((l.shortcut || {}).folder), 19)}</span>
-          <span style="${f(18, 6)}">${esc(l.title)}</span>
+          <span class="col" style="gap:2px"><span style="${f(18, 6)}">${esc(l.title)}</span>${l.publisher ? `<span class="muted" style="${f(14, 4)}">${esc('Fourni par ' + l.publisher)}</span>` : ''}</span>
         </button>
         ${steps ? `<button class="press accent" data-act="lesson" data-arg="${esc(l.id)}"
           style="white-space:nowrap;min-height:44px;padding:5px 10px;border-radius:999px;background:var(--mint);${f(15, 6)}">Montrez-moi</button>` : ''}
       </div>`;
     }).join('');
-    if (!S.lessons.length && !notice) return '';
-    return `<div class="col" style="gap:14px">${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes automates</div>` : ''}${tiles}</div>`;
+    const running = S.automationRunning ? `<div class="card row" style="padding:18px;gap:14px;align-items:center">
+        <span class="grow" style="${f(18, 6)}">En cours : ${esc(S.automationRunning)}</span>
+        <button class="row press" data-act="stop" aria-label="Arrêter l'automate (Échap)"
+          style="gap:10px;height:52px;padding:0 20px;border-radius:999px;background:var(--ink);color:#fff">
+          ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
+    if (!S.lessons.length && !notice && !running) return '';
+    return `<div class="col" style="gap:14px">${running}${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes automates</div>` : ''}${tiles}</div>`;
   }
 
   const APP_STYLE = {
@@ -422,11 +429,42 @@
       </div>${code}</div>`;
   }
 
+  // ------------------------------------------------------------- PairRequest
+  function pairAsk() {
+    const r = S.pairRequest;
+    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Nouveau support</span></div>
+      <div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.name)} veut devenir votre support</div>
+      ${r.relation ? `<div class="card" style="padding:24px;${f(26, 5)}">${esc(r.relation)}</div>` : ''}
+      ${lead("Cette personne vient de taper votre code à 6 chiffres. Acceptez seulement si vous la connaissez et que vous lui avez donné ce code.")}`, 40, 22) +
+      `<div class="row" style="gap:14px;margin-top:18px">
+        ${pill('Refuser', 'refusePair', { filled: false, height: 78, grow: true })}
+        ${pill("Accepter", 'acceptPair', { height: 78, grow: true, disabled: !S.connected })}
+      </div>`;
+  }
+
+  // ------------------------------------------------- Demande en attente (ticket)
+  function rdvText(at) {
+    return new Date(at * 1000).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function queued() {
+    const q = S.queued;
+    const slots = [['Dans 1 heure', '1h'], ['Demain à 9 h', 'demain9'], ['Demain à 14 h', 'demain14']];
+    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Demande n° ${esc(q.number)}</span></div>
+      <div style="${f(44, 6)};letter-spacing:-0.7px;line-height:1.1">Votre demande est partie</div>
+      ${q.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(q.task)} »</div>` : ''}
+      ${q.rdv ? lead(`Rendez-vous ${esc(rdvText(q.rdv))}. PapAI vous préviendra à l'heure dite.`)
+        : lead(`Personne n'est disponible pour l'instant. PapAI vous préviendra dès que ${esc(S.helperName)} sera là. Vous pouvez aussi fixer un rendez-vous.`)}
+      ${q.rdv ? '' : `<div class="row" style="gap:10px;flex-wrap:wrap">${slots.map(([label, v]) =>
+        `<button class="pill plain" data-act="scheduleTicket" data-arg="${v}" style="height:56px;padding:0 22px;${f(20, 6)}">${label}</button>`).join('')}</div>`}`, 40, 22) +
+      `<div class="row" style="gap:14px;margin-top:18px">${pill("D'accord", 'closeQueued', { height: 78, grow: true })}</div>`;
+  }
+
   // ----------------------------------------------------------- RemoteRequest
   function remote() {
     const r = S.remoteRequest;
-    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Proposition d'aide</span></div>
-      <div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.from)} propose de vous aider</div>
+    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">${r.rdv ? "C'est l'heure de votre rendez-vous" : r.ticket ? 'Votre demande en attente' : "Proposition d'aide"}</span></div>
+      <div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.from)} ${r.ticket ? 'est disponible pour vous aider' : 'propose de vous aider'}</div>
       ${r.task ? `<div class="card" style="padding:24px;${f(26, 5)}">« ${esc(r.task)} »</div>` : ''}
       ${lead(`Si vous acceptez, PapAI va regarder votre écran. Rien ne bouge avant l'accord de ${r.from}, et vous pouvez arrêter à tout moment.`)}`, 40, 22) +
       `<div class="row" style="gap:14px;margin-top:18px">
@@ -445,8 +483,9 @@
       `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
     return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--bg)">
       <div style="${f(30, 6)}">Réglages</div>
+      ${S.orgName ? `<div class="muted" style="${f(15, 5)}">Poste géré par ${esc(S.orgName)}</div>` : ''}
       ${field('Prénom', 'setName', ui.settings.name, 'Jeanne')}
-      ${field('Serveur', 'setServer', ui.settings.server, 'ws://localhost:8000/ws/bridge')}
+      ${field('Serveur', 'setServer', ui.settings.server, 'serveur PapAI officiel')}
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Taille du texte</div><div class="seg">${seg}</div></div>
       <div class="row" style="gap:12px">
         ${pill(`Mon support (${S.helpers.length})`, 'openHelpers', { filled: false, height: 50 })}
@@ -479,8 +518,10 @@
 
   // ------------------------------------------------------------------- rendu
   function body() {
+    if (S.pairRequest) return pairAsk();
     if (!S.onboarded) return onboarding();
     if (S.remoteRequest) return remote();
+    if (S.queued && S.queued.show) return queued();
     if (S.screen === 'consent') return consent();
     if (S.screen === 'session') return session();
     if (S.screen === 'lesson' && S.lesson) return lesson();
@@ -600,7 +641,12 @@
       render();
     }),
     removeHelper: (id) => call('remove_helper', id),
+    acceptPair: () => call('answer_pair', true),
+    refusePair: () => call('answer_pair', false),
     acceptRemote: () => call('accept_remote'),
+    scheduleTicket: (slot) => call('schedule_ticket', slot),
+    closeQueued: () => call('close_queued'),
+    openQueued: () => { S.queued.show = true; render(); call('open_queued'); },
     refuseRemote: () => call('refuse_remote'),
   };
 
@@ -630,6 +676,7 @@
     if (e.key === 'Escape') {
       if (S.onboarded && S.screen === 'session' && S.sessionOpen) { ui.sheet = null; return acts.stop(); }
       if (ui.sheet) { ui.sheet === 'helpers' ? acts.closeHelpers() : acts.closeSheet(); return; }
+      if (S.pairRequest) return acts.refusePair();
       if (!S.onboarded) return;
       if (S.remoteRequest) return acts.refuseRemote();
       if (S.screen === 'consent') return acts.cancelConsent();
@@ -640,6 +687,7 @@
     if (t && t.tagName === 'BUTTON') return;
     if (t && t.id === 'req') { e.preventDefault(); submit(); return; }
     if (t && t.id === 'seniorReply') { e.preventDefault(); acts.seniorReply(); return; }
+    if (S.pairRequest) return;
     if (!S.onboarded) { e.preventDefault(); onbNext(); return; }
     if (S.remoteRequest) return;
     if (S.screen === 'consent' && S.connected) acts.share();

@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 
 // MARK: - Verrou d'arrêt
 
-// MARK: - Automatismes
+// MARK: - Automates
 
 struct Lesson: Decodable, Identifiable {
     struct Step: Decodable {
@@ -19,10 +19,25 @@ struct Lesson: Decodable, Identifiable {
         var folder: String?
         var subfolder: String?
     }
+    /// Action de premier niveau d'un automate importé par un support.
+    /// Jamais de commande ni de script : l'app ne connaît que ces actions-là.
+    struct Action: Decodable {
+        var kind: String
+        var folder: String?
+        var subfolder: String?
+        var page: String?
+        var url: String?
+        var goal: String?
+        var files: [String]?
+        enum CodingKeys: String, CodingKey { case kind = "do", folder, subfolder, page, url, goal, files }
+    }
     var id: String
     var title: String
     var steps: [Step]?
     var shortcut: Shortcut?
+    var actions: [Action]?
+    var publisher: String?
+    var platforms: [String]?
 }
 
 enum Shortcuts {
@@ -306,5 +321,104 @@ enum Actuator {
         }
         guard let code else { throw ActionError.unknownKey(spec) }
         return (code, flags)
+    }
+}
+
+
+/// Automates importés par un support (service IT, proche). Le serveur a
+/// vérifié chaque action à l'import ; on revérifie ici avant de la jouer.
+enum Automations {
+    static let templateExt = [".dotx", ".potx", ".xltx"]
+
+    static func settingsURL(_ page: String) -> URL? {
+        let id: String? = switch page.lowercased() {
+        case "printers": "com.apple.Print-Scan-Settings.extension"
+        case "default_apps": "com.apple.Desktop-Settings.extension"
+        case "updates": "com.apple.Software-Update-Settings.extension"
+        case "wifi": "com.apple.wifi-settings-extension"
+        case "bluetooth": "com.apple.BluetoothSettings"
+        case "sound": "com.apple.Sound-Settings.extension"
+        case "display": "com.apple.Displays-Settings.extension"
+        default: nil
+        }
+        return id.flatMap { URL(string: "x-apple.systempreferences:\($0)") }
+    }
+
+    /// Le dossier des modèles personnels de Word pour Mac.
+    static var wordTemplates: URL? {
+        let office = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Group Containers/UBF8T346G9.Office", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: office.path) else { return nil }
+        return office.appendingPathComponent("User Content.localized/Templates.localized", isDirectory: true)
+    }
+
+    static func nameOK(_ n: String) -> Bool {
+        !n.isEmpty && !n.hasPrefix(".") && !n.contains("..") &&
+            n.rangeOfCharacter(from: CharacterSet(charactersIn: "/\\:*?\"<>|")) == nil &&
+            templateExt.contains { n.lowercased().hasSuffix($0) }
+    }
+
+    static func installTemplates(lessonID: String, files: [String], base: String) async -> (ok: Bool, detail: String) {
+        guard let dest = wordTemplates else { return (false, "Microsoft Word n'est pas installé sur ce Mac.") }
+        var got: [(String, Data)] = []
+        for n in files where nameOK(n) {
+            guard let enc = n.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                  let url = URL(string: "\(base)/lessons/\(lessonID)/\(enc)"),
+                  let (data, resp) = try? await URLSession.shared.data(from: url),
+                  (resp as? HTTPURLResponse)?.statusCode == 200,
+                  data.starts(with: [0x50, 0x4B])
+            else { return (false, "Modèle introuvable : \(n)") }
+            got.append((n, data))
+        }
+        guard !got.isEmpty else { return (false, "Aucun modèle valable.") }
+        do {
+            try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+            for (n, d) in got {
+                let target = dest.appendingPathComponent(n)
+                if let old = try? Data(contentsOf: target), old != d {
+                    // Jamais rien de perdu : une copie de l'ancien modèle est gardée à côté.
+                    let ext = target.pathExtension, stem = target.deletingPathExtension().lastPathComponent
+                    var n = 1
+                    var backup = dest.appendingPathComponent("\(stem) (avant PapAI).\(ext)")
+                    while FileManager.default.fileExists(atPath: backup.path) {
+                        n += 1
+                        backup = dest.appendingPathComponent("\(stem) (avant PapAI \(n)).\(ext)")
+                    }
+                    try FileManager.default.copyItem(at: target, to: backup)
+                }
+                try d.write(to: target, options: .atomic)
+            }
+        } catch { return (false, error.localizedDescription) }
+        return (true, got.count > 1 ? "\(got.count) modèles ajoutés dans Word." : "Modèle ajouté dans Word.")
+    }
+
+    /// Joue les actions locales, dans l'ordre. L'action `holo` est confiée ensuite au serveur.
+    @MainActor
+    static func play(_ l: Lesson, base: String, gate: StopGate) async -> (ok: Bool, detail: String) {
+        var detail = ""
+        for a in l.actions ?? [] {
+            if gate.isStopped { return (false, "Arrêté.") }
+            switch a.kind {
+            case "open_folder":
+                let r = Shortcuts.open(Lesson.Shortcut(folder: a.folder, subfolder: a.subfolder))
+                if !r.ok { return r }
+            case "open_settings":
+                guard let u = settingsURL(a.page ?? ""), NSWorkspace.shared.open(u)
+                else { return (false, "Cette page de Réglages n'existe pas sur ce Mac.") }
+            case "open_url":
+                guard let u = URL(string: a.url ?? ""), u.scheme == "https", u.host != nil,
+                      u.user == nil, u.password == nil, NSWorkspace.shared.open(u)
+                else { return (false, "Lien refusé : seulement https://.") }
+            case "install_templates":
+                let r = await installTemplates(lessonID: l.id, files: a.files ?? [], base: base)
+                if !r.ok { return r }
+                detail = r.detail
+            case "holo":
+                continue
+            default:
+                return (false, "Cette action n'existe pas sur Mac : \(a.kind)")
+            }
+        }
+        return (true, detail)
     }
 }

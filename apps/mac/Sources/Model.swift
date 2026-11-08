@@ -10,9 +10,27 @@ struct Helper: Identifiable, Equatable {
     var relation: String
 }
 
+/// Quelqu'un a tapé le code à 6 chiffres sans clé : il ne devient support qu'avec l'accord de la personne.
+struct PairRequest: Equatable {
+    var req: String
+    var name: String
+    var relation: String
+}
+
 struct RemoteRequest: Equatable {
     var from: String
     var task: String
+    /// Ticket en attente que le support reprend (ou rendez-vous arrivé).
+    var ticket: String? = nil
+    var rdv = false
+}
+
+/// Demande partie en ticket sans support disponible.
+struct QueuedTicket: Equatable {
+    var ticket: String
+    var number: Int
+    var task: String
+    var rdv: Date?
 }
 
 enum SessionState: String {
@@ -67,9 +85,13 @@ final class AppModel {
     var pairLong = false
     var pairExpires = 600
     var remoteRequest: RemoteRequest?
+    var queued: QueuedTicket?
+    var queuedShown = false
+    var pairRequest: PairRequest?
     var showHelpers = false
     var pairingWhenConnected = false
     var pendingTask = ""
+    var pendingAutomation: Lesson?
     var actions: [String] = []
     var guardAlert: GuardAlert?
     var stoppedBy: String?
@@ -99,6 +121,23 @@ final class AppModel {
         if !stored.isEmpty { return stored }
         if let env = ProcessInfo.processInfo.environment["PAPAI_SERVER"], !env.isEmpty { return env }
         return "ws://localhost:8000/ws/bridge"
+    }
+    /// Serveur PapAI officiel : sans réglage, le Mac y crée son espace au premier lancement.
+    static let officialHTTP = "https://papai-450417131702.europe-west1.run.app"
+    /// Jeton d'inscription d'une organisation (service IT) : préférence gérée
+    /// (`defaults write … orgToken ins-…` ou profil MDM), ou PAPAI_ORG.
+    var orgToken: String {
+        let t = (ProcessInfo.processInfo.environment["PAPAI_ORG"]
+                 ?? UserDefaults.standard.string(forKey: "orgToken") ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.hasPrefix("ins-") && t.count <= 100 ? t : ""
+    }
+    var orgName: String { UserDefaults.standard.string(forKey: "orgName") ?? "" }
+    private var machineName: String {
+        [NSFullUserName(), Host.current().localizedName ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+    var needsSpace: Bool {
+        let stored = UserDefaults.standard.string(forKey: "server")?.trimmingCharacters(in: .whitespaces) ?? ""
+        return stored.isEmpty && (ProcessInfo.processInfo.environment["PAPAI_SERVER"] ?? "").isEmpty
     }
     var httpBase: String {
         var s = serverURL
@@ -223,12 +262,37 @@ final class AppModel {
         guard let r = remoteRequest else { return }
         remoteRequest = nil
         let task = r.task.isEmpty ? "\(r.from) propose de m'aider sur l'ordinateur" : r.task
-        askHelp(task: task, requestedBy: r.from)
+        askHelp(task: task, requestedBy: r.from, ticket: r.ticket)
+    }
+
+    func answerPair(_ accept: Bool) {
+        guard let r = pairRequest else { return }
+        pairRequest = nil
+        client.send(["type": "pair_decision", "req": r.req, "accept": accept])
     }
 
     func refuseRemote() {
+        let ticket = remoteRequest?.ticket
         remoteRequest = nil
-        client.send(["type": "remote_answer", "accepted": false])
+        var msg: [String: Any] = ["type": "remote_answer", "accepted": false]
+        if let ticket { msg["ticket"] = ticket }
+        client.send(msg)
+    }
+
+    /// Rendez-vous pour la demande en attente : dans 1 h, demain 9 h ou 14 h.
+    func scheduleTicket(_ slot: String) {
+        guard let q = queued else { return }
+        let cal = Calendar.current
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        let at: Date?
+        switch slot {
+        case "1h": at = Date().addingTimeInterval(3600)
+        case "demain9": at = cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)
+        case "demain14": at = cal.date(bySettingHour: 14, minute: 0, second: 0, of: tomorrow)
+        default: at = nil
+        }
+        guard let at else { return }
+        client.send(["type": "ticket_schedule", "ticket": q.ticket, "at": Int(at.timeIntervalSince1970)])
     }
 
     // MARK: Démarrage
@@ -276,14 +340,6 @@ final class AppModel {
                 screenOK = Permissions.screenOK
                 axOK = Permissions.accessibilityOK
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
-            }
-        }
-        if ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil {
-            Task {
-                while true {
-                    try? await Task.sleep(nanoseconds: GuardSignals.period)
-                    if connected { client.send(GuardSignals.collect(withURL: !sessionOpen)) }
-                }
             }
         }
         // Mode capture d'écran : PAPAI_DEMO=awaiting_approval etc.
@@ -336,8 +392,78 @@ final class AppModel {
 
     func reconnect() {
         guard ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil else { return }
+        if needsSpace {
+            Task { [weak self] in await self?.createSpace() }
+            return
+        }
         guard let url = URL(string: serverURL) else { return }
         client.start(url: url)
+        let tok = orgToken
+        if !tok.isEmpty, UserDefaults.standard.string(forKey: "orgJoined") != tok, serverURL.contains("/k/") {
+            Task { [weak self] in await self?.joinOrg(tok) }
+        }
+    }
+
+    @ObservationIgnored private var joiningOrg = false
+
+    /// Poste déjà installé : le jeton déposé par l'IT le rattache à son organisation.
+    /// Hors ligne, on réessaie ; un refus du serveur (jeton inconnu, autre organisation) est définitif.
+    private func joinOrg(_ tok: String) async {
+        guard !joiningOrg else { return }
+        joiningOrg = true
+        defer { joiningOrg = false }
+        var delay = 5.0
+        while orgToken == tok, UserDefaults.standard.string(forKey: "orgJoined") != tok {
+            guard let url = URL(string: httpBase + "/org") else { return }
+            var req = URLRequest(url: url)
+            req.httpMethod = "POST"
+            req.httpBody = try? JSONSerialization.data(withJSONObject: ["org": tok, "name": machineName])
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.timeoutInterval = 10
+            let r = try? await URLSession.shared.data(for: req)
+            let status = (r?.1 as? HTTPURLResponse)?.statusCode ?? 0
+            if status == 200, let data = r?.0,
+               let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                UserDefaults.standard.set(tok, forKey: "orgJoined")
+                UserDefaults.standard.set(d["org"] as? String ?? "", forKey: "orgName")
+                await refreshLessons()
+                return
+            }
+            if (400..<500).contains(status) && status != 429 { return }
+            try? await Task.sleep(for: .seconds(delay))
+            delay = min(delay * 2, 60)
+        }
+    }
+
+    /// Premier lancement : `POST /spaces` donne l'adresse du pont, clé comprise. Rien à régler.
+    private func createSpace(withOrg: Bool = true) async {
+        guard let url = URL(string: Self.officialHTTP + "/spaces") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        let tok = withOrg ? orgToken : ""
+        req.httpBody = tok.isEmpty ? Data("{}".utf8)
+            : try? JSONSerialization.data(withJSONObject: ["org": tok, "name": machineName])
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 10
+        let r = try? await URLSession.shared.data(for: req)
+        if !tok.isEmpty, (r?.1 as? HTTPURLResponse)?.statusCode == 403 {
+            // Jeton refusé : le poste a quand même son espace, hors organisation.
+            await createSpace(withOrg: false)
+            return
+        }
+        if let data = r?.0,
+           let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let b = d["bridge_url"] as? String, b.hasPrefix("wss://") || b.hasPrefix("ws://"), b.contains("/k/") {
+            if let org = d["org"] as? String, !tok.isEmpty {
+                UserDefaults.standard.set(tok, forKey: "orgJoined")
+                UserDefaults.standard.set(org, forKey: "orgName")
+            }
+            UserDefaults.standard.set(b, forKey: "server")
+            reconnect()
+            return
+        }
+        try? await Task.sleep(for: .seconds(30))  // serveur injoignable : on réessaie
+        reconnect()
     }
 
     func refreshLessons() async {
@@ -463,6 +589,13 @@ final class AppModel {
     func giveConsent() {
         UserDefaults.standard.set(true, forKey: "screenConsent")
         screenConsent = true
+        if let a = pendingAutomation {
+            pendingAutomation = nil
+            pendingTask = ""
+            screen = .home
+            runAutomation(a)
+            return
+        }
         askHelp(task: pendingTask)
     }
 
@@ -473,11 +606,14 @@ final class AppModel {
 
     func cancelConsent() {
         pendingTask = ""
+        pendingAutomation = nil
         screen = .home
     }
 
-    func askHelp(task: String, requestedBy: String? = nil) {
+    func askHelp(task: String, requestedBy: String? = nil, ticket: String? = nil) {
         guard guardAlert == nil else { return }
+        queuedShown = false
+        if let ticket, queued?.ticket == ticket { queued = nil }
         gate.reset()
         planApproved = false
         executionState = nil
@@ -496,6 +632,7 @@ final class AppModel {
         applyLevel()
         var msg: [String: Any] = ["type": "help_request", "task": task]
         if let requestedBy { msg["requested_by"] = requestedBy }
+        if let ticket { msg["ticket"] = ticket }
         client.send(msg)
     }
 
@@ -588,10 +725,29 @@ final class AppModel {
             }
         case "alert_cleared":
             if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
+        case "pair_confirm":
+            guard let req = (m["req"] as? String) ?? (m["req"] as? Int).map(String.init) else { return }
+            pairRequest = PairRequest(req: req, name: m["name"] as? String ?? "Quelqu'un",
+                                      relation: m["relation"] as? String ?? "")
+            NSApp.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
+        case "ticket_queued":
+            // Aucun support disponible : la demande attend, retour à l'accueil.
+            queued = QueuedTicket(ticket: m["ticket"] as? String ?? "", number: m["number"] as? Int ?? 0,
+                                  task: m["task"] as? String ?? task, rdv: nil)
+            queuedShown = true
+            state = nil
+            screen = .home
+            applyLevel()
+        case "ticket_scheduled":
+            if let at = m["at"] as? Double, queued?.ticket == m["ticket"] as? String {
+                queued?.rdv = Date(timeIntervalSince1970: at)
+            }
         case "remote_request":
             guard !sessionOpen else { return }
             remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre support",
-                                          task: m["task"] as? String ?? "")
+                                          task: m["task"] as? String ?? "",
+                                          ticket: m["ticket"] as? String, rdv: m["rdv"] as? Bool ?? false)
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
         default:
@@ -687,9 +843,10 @@ final class AppModel {
         }
     }
 
-    // MARK: Automatismes
+    // MARK: Automates
 
     func runShortcut(_ l: Lesson) {
+        if !(l.actions ?? []).isEmpty { runAutomation(l); return }
         guard let sc = l.shortcut else { openLesson(l); return }
         Task {
             let r = await Shortcuts.open(sc)
@@ -699,6 +856,43 @@ final class AppModel {
                 showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
                 client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
             }
+        }
+    }
+
+    /// Un automate importé par un support, lancé en un clic. Pas de
+    /// validation à chaque fois : le support l'a validé à l'import.
+    func runAutomation(_ l: Lesson) {
+        let acts = l.actions ?? []
+        if let p = l.platforms, !p.contains("mac") {
+            showNotice("Cet automate est prévu pour un autre ordinateur.")
+            return
+        }
+        let holo = acts.first { $0.kind == "holo" }
+        if holo != nil && !screenConsent {
+            pendingAutomation = l
+            pendingTask = l.title
+            screen = .consent
+            return
+        }
+        gate.reset()
+        showNotice("C'est parti : \(l.title)…")
+        Task {
+            let r = await Automations.play(l, base: httpBase, gate: gate)
+            if gate.isStopped { showNotice("Arrêté. Rien d'autre ne sera fait."); return }
+            guard r.ok else {
+                showNotice("« \(l.title) » n'a pas pu aller au bout. \(HelperName) a reçu un message pour s'en occuper.")
+                client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+                return
+            }
+            guard let holo else { showNotice(r.detail.isEmpty ? "C'est fait." : r.detail); return }
+            homeTimer?.cancel()
+            task = holo.goal ?? l.title
+            plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
+            sessionHelper = nil
+            state = .planning
+            screen = .session
+            applyLevel()
+            client.send(["type": "run_automation", "id": l.id])
         }
     }
 

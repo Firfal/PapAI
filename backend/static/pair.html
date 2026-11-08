@@ -74,6 +74,7 @@
   const base = m ? m[1] : "";
   let code = m && m[2] ? m[2] : "";
   const $ = (id) => document.getElementById(id);
+  try { $("name").value = localStorage.getItem("papai_name") || ""; } catch (e) {}
   if (!code) $("codeRow").hidden = false;
   else {
     // L'app iPhone fait elle-même l'appairage à partir de cette adresse.
