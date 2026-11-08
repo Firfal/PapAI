@@ -45,7 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794127230-linkup` | Bascule vers Linkup pour les questions complexes (préalable clé + chantier 1) | `backend/linkup.py`, `backend/app.py`, `backend/agent.py`, `backend/sessions.py`, `tests/faux_linkup.py`, `tests/test_linkup.py`, `tests/faux_holo.py`, `.env.example`, `PROTOCOL.md`, `TODO.md` ; apps réservées à la prochaine étape | 8 nov. |
+| Devin | `devin/1794127230-linkup` | Bascule vers Linkup pour les questions complexes (préalable clé + chantier 1) | `backend/linkup.py`, `backend/app.py`, `backend/agent.py`, `backend/sessions.py`, `tests/faux_linkup.py`, `tests/test_linkup.py`, `tests/faux_holo.py`, `.env.example`, `PROTOCOL.md`, `TODO.md`, `apps/ios/Sources/HelperModel.swift`, `apps/ios/Sources/ApprovalView.swift`, `apps/mac/Sources/Support/SupportScreens.swift`, `backend/static/helper.html`, `backend/static/tickets.js`, `apps/mac/Sources/Support/SupportTickets.swift`, `apps/android/app/src/main/java/com/quentin/papai/aidant/Helper.kt`, `apps/android/app/src/main/java/com/quentin/papai/aidant/Approval.kt`, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/SessionView.swift`, `apps/windows/papai/model.py`, `apps/windows/ui/app.js`, `apps/windows/tests/test_linkup.py` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
