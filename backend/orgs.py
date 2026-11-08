@@ -33,6 +33,17 @@ class Org:
         self.folder = ORGS_DIR / oid
         self.lessons_dir = self.folder / "lessons"
 
+    def next_ticket(self) -> int:
+        """Numéro de ticket unique dans toute l'organisation (T-0042 ne désigne qu'un ticket)."""
+        seq = self.folder / "tickets_seq"
+        try:
+            n = int(seq.read_text().strip()) + 1
+        except (OSError, ValueError):
+            n = 1
+        self.folder.mkdir(parents=True, exist_ok=True)
+        seq.write_text(str(n))
+        return n
+
     def automations(self) -> list[dict]:
         out = []
         for f in sorted(self.lessons_dir.glob("imp-*/lesson.json")):

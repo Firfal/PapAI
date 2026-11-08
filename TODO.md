@@ -103,3 +103,5 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] UX plus chaleureuse : mascotte Papaye et palette réchauffée sur Mac et iPhone, mascotte qui s'efface en petite fenêtre, iPhone hors connexion sans fausse assurance (PR #39). Reste : Windows et Android, essai VoiceOver, écran « Lancer une tâche » `.papi` à la place de « Mes tutoriels ».
 - [x] Accueil Mac simplifié : barre de demande avec petit micro et « Mes automates » (automates existants, futurs `.papi`) à la place de « Mes tutoriels ». Reste : Windows, et l'import des `.papi` (#34).
 - [x] Notion du hackathon avec la base Features, mise à jour le 7 novembre à 18 h 30 selon l'état réel.
+- [x] Tickets : chaque demande d'assistance suivie (numéro, statut, plan, fin), demande en attente quand aucun support n'est là, personne reprévenue dès qu'un support arrive, rendez-vous et rappel ; onglet Tickets de l'organisation (filtres, CSV) et liste sur la page du support (`tests/test_tickets.py`).
+- [ ] Tickets dans les apps Android et iPhone du support (aujourd'hui : page web seulement).

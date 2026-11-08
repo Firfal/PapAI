@@ -352,6 +352,43 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
   les postes à « Mes personnes aidées » de ce navigateur (`papai_people`, `papai_orgs`).
 - Test : `python tests/test_organisation.py`.
 
+## Tickets (chaque demande d'assistance)
+
+Chaque demande devient un ticket, gardé dans `<espace>/tickets.json` (500 derniers, texte seulement :
+aucune capture). Numéro `number` par espace, ou unique dans l’organisation (`orgs/<id>/tickets_seq`), affiché `T-0001`. Statuts : `nouveau`, `en_attente`
+(aucun support disponible), `rdv`, `en_cours`, `a_reprendre` (session arrêtée ou échouée), `resolu`.
+`source` : `personne`, `support` ou `automatisme`. Le ticket suit la session (`plan`, `steps_done`,
+`helper`, `stopped_by`, `tokens`) ; `assignee`, `closed_by`, `notes` [{t, by, text}], `rdv` (secondes Unix).
+
+**Ordinateur aidé (`/ws/bridge`)**
+- `help_request` peut porter `"ticket"` (reprise d'un ticket proposé par `remote_request`).
+- Sans `requested_by` ni `ticket`, si l'espace a un support connu (appairé ou organisation) mais
+  aucun connecté : pas de session. Serveur → `{"type":"ticket_queued","ticket","number","task"}`.
+  L'app revient à l'accueil et propose un rendez-vous. Sans aucun support connu : session comme avant.
+- `session` porte en plus `"ticket"` et `"number"`.
+- App → `{"type":"ticket_schedule","ticket","at"}` (entre 1 min et 30 jours) →
+  `{"type":"ticket_scheduled","ticket","number","at"}` ou `{"type":"ticket_refused","ticket","reason"}`.
+  `ticket_scheduled` arrive aussi quand le support fixe le rendez-vous (avec `by`).
+- Le serveur repropose la demande par `remote_request` avec `"ticket"`, `"number"` et `"rdv"` (vrai à
+  l'heure du rendez-vous) : quand un support se connecte (`/ws/aidant`, au plus une fois par 10 min et
+  par ticket), quand l'ordinateur se reconnecte avec un support en ligne, à l'heure d'un rendez-vous
+  (vérifié toutes les `PAPAI_RDV_TICK_S` secondes, 20 par défaut), ou quand un support prend le ticket.
+  Accepter = `help_request` avec `requested_by` et `ticket` ; refuser = `remote_answer` avec `ticket`
+  (note « Pas disponible » sur le ticket, qui reste en attente).
+
+**Support (`/ws/aidant`)** : `hello` porte `tickets_waiting` (nombre en attente ou rendez-vous échu).
+Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_due","ticket","number","task"}`.
+
+**HTTP**
+- `GET /k/<clé>/tickets` → `{"tickets":[…]}` (200 plus récents d'abord).
+- `POST /k/<clé>/tickets/<id>` `{"action","by","text"?,"at"?}` → `{"ticket"}`. Actions : `take`
+  (propose la session à la personne ; 409 si ordinateur hors ligne ou session en cours), `note`,
+  `schedule` (`at`), `close`, `reopen` (409 pendant une session).
+- `GET /o/<support_token>/tickets` → `{"org","tickets":[… + "space","poste","online"]}` ;
+  `POST /o/<support_token>/tickets/<clé du poste>/<id>` : mêmes actions (404 hors organisation).
+- `GET /tickets.js` : liste commune à la page du support et à celle de l'organisation (filtres, export CSV).
+- Test : `python tests/test_tickets.py`.
+
 ## Prénom et invitation (7 novembre au soir)
 
 - `pair_code` porte `expires_in` (600 ou 86400) et `long` (vrai pour une invitation). `app_url` = `papai://pair?u=<url>&n=<prénom>` : l'app iPhone affiche « Rejoindre Sophie » avant même l'appairage.

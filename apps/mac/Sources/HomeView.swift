@@ -27,6 +27,15 @@ struct HomeView: View {
                         .padding(.horizontal, 18).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(T.card))
                 }
+                if let q = model.queued, !model.queuedShown {
+                    Button { model.queuedShown = true } label: {
+                        Label(q.rdv.map { "Demande n° \(q.number) · rendez-vous \(rdvText($0))" } ?? "Demande n° \(q.number) en attente",
+                              systemImage: "person.wave.2.fill")
+                            .font(rounded(17, .semibold))
+                    }
+                    .buttonStyle(.plain).padding(.horizontal, 18).padding(.vertical, 12)
+                    .background(Capsule().fill(T.card))
+                }
             }
             ScrollView(showsIndicators: false) {
                 automates.padding(.bottom, 8)

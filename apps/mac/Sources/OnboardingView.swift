@@ -325,8 +325,8 @@ struct RemoteRequestView: View {
                         .overlay(Circle().strokeBorder(.white, lineWidth: 5))
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Proposition d'aide").font(rounded(20, .semibold)).foregroundStyle(T.leaf)
-                        Text("\(request.from) propose de vous aider").font(rounded(48, .bold)).tracking(-0.7)
+                        Text(request.rdv ? "C'est l'heure de votre rendez-vous" : request.ticket != nil ? "Votre demande en attente" : "Proposition d'aide").font(rounded(20, .semibold)).foregroundStyle(T.leaf)
+                        Text(request.ticket != nil ? "\(request.from) est disponible pour vous aider" : "\(request.from) propose de vous aider").font(rounded(48, .bold)).tracking(-0.7)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -351,6 +351,57 @@ struct RemoteRequestView: View {
                     .buttonStyle(PillStyle(height: 78))
                     .disabled(!model.connected)
             }
+        }
+    }
+}
+
+func rdvText(_ d: Date) -> String {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "fr_FR")
+    f.dateFormat = "EEEE d MMMM 'à' HH:mm"
+    return f.string(from: d)
+}
+
+/// La demande est partie mais aucun support n'est disponible : elle attend.
+struct QueuedView: View {
+    @Environment(AppModel.self) private var model
+    let ticket: QueuedTicket
+
+    var body: some View {
+        VStack(spacing: 18) {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(T.accent)
+                    Text("Demande n° \(ticket.number)").font(rounded(20, .semibold)).foregroundStyle(T.accent)
+                }
+                Text("Votre demande est partie").font(rounded(44, .semibold)).tracking(-0.7)
+                if !ticket.task.isEmpty {
+                    Text("« \(ticket.task) »").font(rounded(24, .medium))
+                        .padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                }
+                if let rdv = ticket.rdv {
+                    Text("Rendez-vous \(rdvText(rdv)). PapAI vous préviendra à l'heure dite.")
+                        .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Personne n'est disponible pour l'instant. PapAI vous préviendra dès que \(model.helperName) sera là. Vous pouvez aussi fixer un rendez-vous.")
+                        .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 10) {
+                        ForEach([("Dans 1 heure", "1h"), ("Demain à 9 h", "demain9"), ("Demain à 14 h", "demain14")], id: \.1) { slot in
+                            Button { model.scheduleTicket(slot.1) } label: { Text(slot.0) }
+                                .buttonStyle(PillStyle(filled: false, height: 56))
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(T.ink).padding(40)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
+
+            Button { model.queuedShown = false } label: { Text("D'accord").frame(maxWidth: .infinity) }
+                .buttonStyle(PillStyle(height: 78))
+                .keyboardShortcut(.defaultAction)
         }
     }
 }

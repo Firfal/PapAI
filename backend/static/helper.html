@@ -268,6 +268,10 @@
       <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Objet de l'assistance">
       <button class="capsule" id="remoteSend" type="button">Proposer</button>
     </div>
+    <div id="ticketsCard" class="stack" hidden>
+      <h3 class="section-title">Tickets</h3>
+      <div id="tickets"></div>
+    </div>
     <h3 class="section-title">Derniers automates</h3>
     <div id="lessons" class="stack"><p class="muted" style="font-size:15px">Aucun automate pour l'instant.</p></div>
     <div class="card stack" id="importCard" hidden>
@@ -415,6 +419,7 @@
 
 <div id="toast" role="alert"></div>
 
+<script src="/tickets.js"></script>
 <script>
 const token = location.pathname.split('/').filter(Boolean).pop();
 const $ = id => document.getElementById(id);
@@ -489,7 +494,7 @@ function watchPeople() {
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         if (m.type === 'refused') { w.closed = true; ws.close(); }
         else if (m.type === 'hello') {
-          w.online = !!m.bridge; w.asking = false;
+          w.online = !!m.bridge; w.asking = !!m.tickets_waiting;
           if (m.senior && m.senior !== p.name) { p.name = m.senior; savePeople(); }
         }
         else if (m.type === 'senior' && m.name) { p.name = m.name; savePeople(); }
@@ -502,6 +507,7 @@ function watchPeople() {
           }
         }
         else if (m.type === 'alert_cleared') { w.asking = false; }
+        else if (m.type === 'ticket_due') { w.asking = true; toast(`${p.name || 'Une personne aidée'} : rendez-vous`); }
         else if (m.type === 'alert') { w.asking = true; toast(`${p.name || 'Une personne aidée'} : ${m.title || 'alerte'}`); }
         renderPeople();
       };
@@ -694,6 +700,26 @@ function tickSince() {
 setInterval(tickSince, 20000);
 
 /* ----------------------------------------------------- les automates */
+
+// Tickets de la personne suivie : demandes en attente, rendez-vous, historique.
+async function loadTickets() {
+  if (!permanent || !window.PapaiTickets) return;
+  try {
+    const r = await fetch(`/k/${encodeURIComponent(token)}/tickets`);
+    if (!r.ok) return;
+    const list = (await r.json()).tickets || [];
+    $('ticketsCard').hidden = !list.length;
+    PapaiTickets.render($('tickets'), list.slice(0, 20), async (t, action, extra) => {
+      const x = await fetch(`/k/${encodeURIComponent(token)}/tickets/${encodeURIComponent(t.id)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, by: myName || 'Support', ...(extra || {}) }) });
+      const d = await x.json().catch(() => ({}));
+      if (!x.ok) toast(d.error || 'Action impossible.');
+      else if (action === 'take') toast("Proposition envoyée : la personne doit l'accepter sur son ordinateur.");
+      loadTickets();
+    });
+  } catch (e) {}
+}
 
 async function loadLessons() {
   if (!permanent) return;
@@ -907,12 +933,22 @@ function onMessage(ev) {
 
   else if (m.type === 'question') { showQuestion(m); render(); }
 
+  else if (m.type === 'tickets_changed') { loadTickets(); }
+
+  else if (m.type === 'ticket_due') {
+    toast(`Rendez-vous : demande T-${String(m.number).padStart(4, '0')} « ${m.task} »`);
+    if (navigator.vibrate) navigator.vibrate(200);
+    loadTickets();
+  }
+
   else if (m.type === 'hello') {
     seniorName = m.senior || '';
     rememberHere();
     if (!m.bridge) $('idleSub').textContent = "L'ordinateur de la personne aidée n'est pas connecté pour le moment.";
     else $('idleSub').textContent = "Vous serez prévenu dès que la personne aidée demande de l'aide.";
     loadLessons();
+    loadTickets();
+    if (m.tickets_waiting) toast(`${m.tickets_waiting} demande${m.tickets_waiting > 1 ? 's' : ''} en attente d'un support.`);
     // Le serveur envoie l'état juste après « hello » s'il a une demande en cours.
     // Sans état (serveur redémarré), on ne garde pas un plan fantôme à l'écran.
     sawStatus = false;

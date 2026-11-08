@@ -25,7 +25,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import automations, guard, orgs as orgs_mod, space, voice
+from . import automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
 from .agent import AgentRunner, propose_plan
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, Family, PairingError
@@ -277,6 +277,133 @@ async def _send_helpers_to_bridge() -> None:
             pass
 
 
+# --- Tickets : chaque demande laisse une trace, et attend un support si besoin ---
+
+OFFER_AGAIN_S = 600
+RDV_TICK_S = float(os.environ.get("PAPAI_RDV_TICK_S", "20"))
+RDV_MIN_S = float(os.environ.get("PAPAI_RDV_MIN_S", "60"))
+_bg_tasks: set = set()
+
+
+def _support_expected() -> bool:
+    """Quelqu'un peut répondre à cette personne : un support connu ou une organisation."""
+    return bool(S().family.helpers) or bool(getattr(S(), "org", None))
+
+
+def _is_support(ws) -> bool:
+    """Socket d'un support de l'espace (pas un lien de session, limité à sa session)."""
+    return ws in S().helper_alert_scopes and S().helper_alert_scopes[ws] is None
+
+
+def _support_available() -> bool:
+    return any(_is_support(ws) for ws in S().helper_sockets)
+
+
+SUPPORT_ONLY = ("ticket_due", "tickets_changed")
+
+
+def _rdv_at(v) -> int | None:
+    """Un rendez-vous : un instant (secondes Unix) entre 1 min (par défaut) et 30 jours d'ici."""
+    try:
+        at = float(v)
+    except (TypeError, ValueError):
+        return None
+    now = time.time()
+    return int(at) if now + RDV_MIN_S <= at <= now + tickets_mod.RDV_MAX_S else None
+
+
+def _open_ticket(task: str, source: str, status: str = "nouveau", by: str = "") -> dict:
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    return S().tickets.open(task, source, status=status, by=by, number=o.next_ticket() if o else None)
+
+
+async def _tickets_changed() -> None:
+    await broadcast_helper({"type": "tickets_changed"}, to_bridge=False)
+
+
+async def _sync_ticket(st: dict) -> None:
+    s = S().registry.get(str(st.get("session", "")))
+    t = S().tickets.get(s.ticket) if s is not None and s.ticket else None
+    if t is None or t["status"] == "resolu" and t.get("closed_by"):
+        return
+    before = t["status"]
+    if S().tickets.sync(t, st) and t["status"] != before:
+        await _tickets_changed()
+        if t["status"] in ("resolu", "a_reprendre"):
+            _later(_offer_next(space.current()))
+
+
+async def _offer_waiting(who: str = "") -> bool:
+    """Un support est là (ou c'est l'heure du rendez-vous) : on repropose la
+    demande en attente à la personne aidée, qui accepte ou non."""
+    if S().bridge is None:
+        return False
+    s = current_session()
+    if s is not None and s.is_open:
+        return False
+    now = time.time()
+    due = S().tickets.due(now)
+    waiting = [t for t in S().tickets.waiting() if now - t.get("offered", 0) > OFFER_AGAIN_S]
+    if not due and not waiting:
+        return False
+    t = (due or waiting)[0]
+    rdv = bool(due)
+    # Rendez-vous sans support en ligne : le prochain support qui arrive le repropose.
+    offered = int(now) if not rdv or _support_available() else 0
+    S().tickets.update(t, offered=offered, **({"rdv_notified": True, "status": "en_attente"} if rdv else {}))
+    names = [h["name"] for h in S().family.helpers]
+    who = who or t.get("assignee") or (names[0] if len(names) == 1 else "Votre support")
+    await S().bridge.send({"type": "remote_request", "from": who, "task": t["task"],
+                           "ticket": t["id"], "number": t["number"], "rdv": rdv})
+    if rdv:
+        await broadcast_helper({"type": "ticket_due", "ticket": t["id"], "number": t["number"],
+                                "task": t["task"]}, to_bridge=False)
+    await _tickets_changed()
+    print(f"[tickets] demande n° {t['number']} reproposée")
+    return True
+
+
+async def _offer_soon(sp, ws) -> None:
+    # La page du support ne se présente pas toujours (helper_hello) : on lui
+    # laisse un instant, puis on repropose ce qui attend.
+    await asyncio.sleep(1.5)
+    space.use(sp)
+    if ws in sp.helper_sockets:
+        await _offer_waiting(sp.helper_who.get(ws, {}).get("name", ""))
+
+
+async def _offer_next(sp) -> None:
+    # Une demande vient d'être refusée ou finie : la suivante en attente est proposée.
+    await asyncio.sleep(2)
+    space.use(sp)
+    if _support_available():
+        await _offer_waiting("")
+
+
+def _later(coro) -> None:
+    task = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+
+
+async def _rdv_loop() -> None:
+    while True:
+        await asyncio.sleep(RDV_TICK_S)
+        for sp in spaces.all():
+            try:
+                if sp.bridge is None or not sp.tickets.due():
+                    continue
+                space.use(sp)
+                await _offer_waiting("")
+            except Exception as e:  # noqa: BLE001
+                print(f"[tickets] rendez-vous : {type(e).__name__}")
+
+
+@app.on_event("startup")
+async def _start_rdv_loop() -> None:
+    _later(_rdv_loop())
+
+
 def helper_can_access_alert(ws: WebSocket, alert: dict) -> bool:
     if ws not in S().helper_alert_scopes:
         return False
@@ -285,12 +412,16 @@ def helper_can_access_alert(ws: WebSocket, alert: dict) -> bool:
 
 
 async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
+    if payload.get("type") == "status":
+        await _sync_ticket(payload)
     if to_bridge and S().bridge is not None and payload.get("type") in BRIDGE_TYPES:
         await S().bridge.send(payload)
     dead = []
     for ws in S().helper_sockets:
         scoped = payload.get("type") == "guard_advice" or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
         if scoped and not helper_can_access_alert(ws, payload):
+            continue
+        if payload.get("type") in SUPPORT_ONLY and not _is_support(ws):
             continue
         try:
             await ws.send_json(payload)
@@ -387,6 +518,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 await ws.send_json({"type": "helpers", "helpers": S().family.public(_online_ids())})
                 if S().pending_alert:
                     await ws.send_json(S().pending_alert["senior"])
+                if _support_available():
+                    await _offer_waiting("")
                 continue
 
             if kind == "pair_start":
@@ -407,19 +540,57 @@ async def _ws_bridge(ws: WebSocket) -> None:
             if kind == "remote_answer":
                 # Réponse de la personne aidée à une session proposée par un proche.
                 if not msg.get("accepted"):
+                    t = S().tickets.get(str(msg.get("ticket") or ""))
+                    if t is not None:
+                        S().tickets.note(t, S().family.senior or "La personne aidée", "Pas disponible pour l'instant.")
+                        await _tickets_changed()
+                        _later(_offer_next(space.current()))
                     await broadcast_helper({"type": "remote_refused"})
                     print("[pont] session à distance refusée")
                 continue
 
+            if kind == "ticket_schedule":
+                # La personne fixe un rendez-vous pour sa demande en attente.
+                t = S().tickets.get(str(msg.get("ticket") or ""))
+                at = _rdv_at(msg.get("at"))
+                if t is None or at is None or t["status"] not in ("nouveau", "en_attente", "rdv", "a_reprendre"):
+                    await ws.send_json({"type": "ticket_refused", "ticket": str(msg.get("ticket") or "")[:40],
+                                        "reason": "Ce rendez-vous n'est pas possible."})
+                    continue
+                S().tickets.update(t, status="rdv", rdv=at, rdv_notified=False)
+                await ws.send_json({"type": "ticket_scheduled", "ticket": t["id"], "number": t["number"], "at": at})
+                await _tickets_changed()
+                continue
+
             if kind == "help_request":
-                session = S().registry.create(str(msg.get("task") or "").strip()[:MAX_TASK])
+                task = str(msg.get("task") or "").strip()[:MAX_TASK]
+                by = str(msg.get("requested_by") or "")[:40]
+                ticket = S().tickets.get(str(msg.get("ticket") or ""))
+                if ticket is not None and ticket["status"] == "resolu":
+                    ticket = None
+                if ticket is None and not by and _support_expected() and not _support_available():
+                    # Aucun support disponible : la demande attend, la personne
+                    # sera reprévenue dès qu'un support est là (ou au rendez-vous).
+                    ticket = _open_ticket(task, "personne", status="en_attente", by=S().family.senior)
+                    await ws.send_json({"type": "ticket_queued", "ticket": ticket["id"],
+                                        "number": ticket["number"], "task": task})
+                    await _tickets_changed()
+                    print(f"[tickets] demande n° {ticket['number']} en attente d'un support")
+                    continue
+                session = S().registry.create(task)
                 session.grant_consent()  # le consentement est donné dans la même fenêtre
                 if msg.get("requested_by"):
                     # Lancée par un proche, acceptée à l'instant sur le Mac.
                     session.log("remote_accepted", by=str(msg["requested_by"])[:40])
                     await broadcast_helper({"type": "remote_accepted"})
+                if ticket is None:
+                    ticket = _open_ticket(task, "support" if by else "personne", by=by or S().family.senior)
+                session.ticket = ticket["id"]
+                S().tickets.update(ticket, session=session.id, status="en_cours", rdv=None)
+                await _tickets_changed()
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
-                await ws.send_json({"type": "session", "id": session.id, "helper_url": url})
+                await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
+                                    "ticket": ticket["id"], "number": ticket["number"]})
                 # Ni la demande ni le lien du proche (son jeton) dans le journal.
                 print(f"[session {session.id}] nouvelle demande")
                 await broadcast_helper(session.status())
@@ -443,6 +614,11 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 session.grant_consent()
                 session.preapprove_plan(steps, by=lesson.get("approved_by", ""))
                 session.log("automation", id=lesson["id"], title=lesson.get("title", ""))
+                ticket = _open_ticket(lesson.get("title") or goal[:MAX_TASK], "automatisme",
+                                          status="en_cours", by=S().family.senior)
+                session.ticket = ticket["id"]
+                S().tickets.update(ticket, session=session.id)
+                await _tickets_changed()
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
                 await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
                                     "automation": lesson["id"]})
@@ -1030,9 +1206,12 @@ async def join_org(fam: str, request: Request):
         return JSONResponse({"error": "Jeton d'organisation inconnu."}, status_code=403)
     if S().org and S().org != o.id:
         return JSONResponse({"error": "Ce poste appartient déjà à une autre organisation."}, status_code=409)
+    first = S().org != o.id
     if not spaces.join(S(), o.id, _label(body)):
         return JSONResponse({"error": "Cet espace ne peut pas rejoindre une organisation."}, status_code=409)
     o.copy_automations(S().lessons_dir)
+    if first:
+        S().tickets.renumber(o.next_ticket)
     if S().bridge is not None:
         await S().bridge.send({"type": "lessons_changed", "title": ""})
     return {"org": o.name}
@@ -1171,7 +1350,8 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     S().helper_sockets.add(ws)
     S().helper_alert_scopes[ws] = None
     await ws.send_json({"type": "hello", "bridge": S().bridge is not None,
-                        "os": S().bridge.os if S().bridge else None, "senior": S().family.senior or None})
+                        "os": S().bridge.os if S().bridge else None, "senior": S().family.senior or None,
+                        "tickets_waiting": len(S().tickets.waiting()) + len(S().tickets.due())})
     s = current_session()
     if s is not None:
         await ws.send_json(s.status())
@@ -1180,6 +1360,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
                                 "png_b64": s.last_frame.png_b64})
     if S().pending_alert and helper_can_access_alert(ws, S().pending_alert["helper"]):
         await ws.send_json(S().pending_alert["helper"])
+    _later(_offer_soon(space.current(), ws))
     try:
         while True:
             msg = await ws.receive_json()
@@ -1194,6 +1375,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
                     S().helper_who[ws] = {"id": h["id"], "name": h["name"]}
                     await ws.send_json({"type": "helper_id", "id": h["id"]})
                     await _send_helpers_to_bridge()
+                    await _offer_waiting(h["name"])
                 continue
             if msg.get("type") == "dismiss_alert":
                 await dismiss_guard(msg, ws)
@@ -1522,6 +1704,106 @@ def _sessions_journal():
         {**s.status(), "journal": s.journal}
         for s in S().registry._by_id.values()
     ]
+
+
+# --- Tickets : vus et traités par le support (page web, apps, organisation) ---
+
+async def _ticket_action(tid: str, body: dict):
+    t = S().tickets.get(tid)
+    if t is None:
+        return JSONResponse({"error": "Ticket introuvable."}, status_code=404)
+    act = body.get("action")
+    by = str(body.get("by") or "").strip()[:40]
+    text = str(body.get("text") or "").strip()
+    if act == "note":
+        if not text:
+            return JSONResponse({"error": "Note vide."}, status_code=400)
+        S().tickets.note(t, by, text)
+    elif act == "close":
+        if t["status"] == "en_cours":
+            return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
+        S().tickets.update(t, status="resolu", closed_by=by or "Support", rdv=None)
+        if text:
+            S().tickets.note(t, by, text)
+    elif act == "reopen":
+        if t["status"] == "en_cours":
+            return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
+        S().tickets.update(t, status="en_attente", offered=0, rdv=None, closed_by="")
+    elif act == "schedule":
+        at = _rdv_at(body.get("at"))
+        if at is None or t["status"] in ("en_cours", "resolu"):
+            return JSONResponse({"error": "Ce rendez-vous n'est pas possible."}, status_code=400)
+        S().tickets.update(t, status="rdv", rdv=at, rdv_notified=False, assignee=by or t.get("assignee", ""))
+        if S().bridge is not None:
+            await S().bridge.send({"type": "ticket_scheduled", "ticket": t["id"], "number": t["number"],
+                                   "at": at, "by": by})
+    elif act == "take":
+        if t["status"] in ("en_cours", "resolu"):
+            return JSONResponse({"error": "Ce ticket n'est pas en attente."}, status_code=409)
+        if S().bridge is None:
+            return JSONResponse({"error": "L'ordinateur n'est pas connecté."}, status_code=409)
+        s = current_session()
+        if s is not None and s.is_open:
+            return JSONResponse({"error": "Une demande est déjà en cours."}, status_code=409)
+        S().tickets.update(t, assignee=by, status="en_attente", offered=int(time.time()))
+        await S().bridge.send({"type": "remote_request", "from": by or "Votre support", "task": t["task"],
+                               "ticket": t["id"], "number": t["number"], "rdv": False})
+    else:
+        return JSONResponse({"error": "Action inconnue."}, status_code=400)
+    await _tickets_changed()
+    return {"ticket": tickets_mod.public(t)}
+
+
+async def _json_body(request: Request) -> dict:
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        return {}
+    return body if isinstance(body, dict) else {}
+
+
+@app.get("/tickets.js")
+async def tickets_js():
+    return FileResponse(STATIC / "tickets.js", media_type="text/javascript")
+
+
+@app.get("/k/{fam}/tickets")
+async def tickets_keyed(fam: str):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return {"tickets": [tickets_mod.public(t) for t in S().tickets.all()[:200]]}
+
+
+@app.post("/k/{fam}/tickets/{tid}")
+async def ticket_action_keyed(fam: str, tid: str, request: Request):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _ticket_action(tid, await _json_body(request))
+
+
+@app.get("/o/{token}/tickets")
+async def org_tickets(token: str):
+    """Les tickets de tous les postes de l'organisation, les plus récents d'abord."""
+    o = orgs.by_support(token)
+    if o is None:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    out = []
+    for sp in spaces.members(o.id):
+        poste = sp.family.senior or getattr(sp, "label", "") or "Poste"
+        out += [{**tickets_mod.public(t), "space": sp.key, "poste": poste,
+                 "online": sp.bridge is not None} for t in sp.tickets.all()[:200]]
+    out.sort(key=lambda t: t.get("updated", 0), reverse=True)
+    return {"org": o.name, "tickets": out[:1000]}
+
+
+@app.post("/o/{token}/tickets/{key}/{tid}")
+async def org_ticket_action(token: str, key: str, tid: str, request: Request):
+    o = orgs.by_support(token)
+    sp = spaces.get(key)
+    if o is None or sp is None or getattr(sp, "org", None) != o.id:
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    space.use(sp)
+    return await _ticket_action(tid, await _json_body(request))
 
 
 @app.get("/sessions")

@@ -35,6 +35,19 @@
 <h1 id="title">Organisation</h1>
 <p class="muted">Tous les postes inscrits avec le jeton de l'organisation. Ils s'ajoutent à « Mes personnes aidées » dans ce navigateur, sans appairage.</p>
 
+<h2>Tickets</h2>
+<p class="row" style="padding:0 0 10px;gap:8px;flex-wrap:wrap">
+  <select id="filter" aria-label="Filtrer les tickets" style="font:inherit;font-size:15px;border-radius:999px;padding:8px 12px;border:0">
+    <option value="open">Ouverts</option><option value="mine">Pris par moi</option>
+    <option value="resolu">Résolus</option><option value="all">Tous</option>
+  </select>
+  <select id="poste" aria-label="Poste" style="font:inherit;font-size:15px;border-radius:999px;padding:8px 12px;border:0">
+    <option value="">Tous les postes</option>
+  </select>
+  <button class="light" id="csv">Exporter (CSV)</button>
+</p>
+<div id="tickets"><p class="empty">Chargement…</p></div>
+
 <h2>Postes</h2>
 <div class="card" id="spaces"><p class="empty">Chargement…</p></div>
 
@@ -45,6 +58,7 @@
 <input type="file" id="file" accept=".papai,application/json" hidden></p>
 <div id="toast" hidden></div>
 
+<script src="/tickets.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const token = location.pathname.split('/').filter(Boolean)[1] || '';
@@ -135,8 +149,56 @@ $('file').onchange = async () => {
   loadAutos();
 };
 
-loadSpaces(); loadAutos();
+let allTickets = [];
+let me = '';
+try { me = localStorage.getItem('papai_name') || ''; } catch (e) {}
+
+function shownTickets() {
+  const f = $('filter').value, p = $('poste').value;
+  return allTickets.filter(t => (!p || t.space === p) && (
+    f === 'all' || (f === 'resolu' ? t.status === 'resolu' : f === 'mine' ? me && t.assignee === me : t.status !== 'resolu')));
+}
+
+function drawTickets() {
+  PapaiTickets.render($('tickets'), shownTickets().slice(0, 200), async (t, action, extra) => {
+    const by = me || prompt('Votre nom (affiché sur le ticket) :') || '';
+    if (by && !me) { me = by; try { localStorage.setItem('papai_name', by); } catch (e) {} }
+    const x = await fetch(`${api}/tickets/${encodeURIComponent(t.space)}/${encodeURIComponent(t.id)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, by: by || 'Support IT', ...(extra || {}) }) });
+    const d = await x.json().catch(() => ({}));
+    if (!x.ok) toast(d.error || 'Action impossible.');
+    else if (action === 'take') toast("Proposition envoyée : la personne doit l'accepter sur son poste.");
+    loadTickets();
+  });
+}
+
+async function loadTickets() {
+  const r = await fetch(`${api}/tickets`);
+  if (!r.ok) { $('tickets').replaceChildren(el('p', 'empty', 'Lien invalide.')); return; }
+  allTickets = (await r.json()).tickets || [];
+  const sel = $('poste'), cur = sel.value;
+  const postes = [...new Map(allTickets.map(t => [t.space, t.poste])).entries()];
+  sel.replaceChildren(el('option', '', 'Tous les postes'), ...postes.map(([k, n]) => { const o = el('option', '', n); o.value = k; return o; }));
+  sel.firstChild.value = '';
+  sel.value = postes.some(([k]) => k === cur) ? cur : '';
+  drawTickets();
+}
+
+$('filter').onchange = drawTickets;
+$('poste').onchange = drawTickets;
+$('csv').onclick = () => {
+  const blob = new Blob(['\ufeff' + PapaiTickets.csv(shownTickets())], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tickets-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+loadSpaces(); loadAutos(); loadTickets();
 setInterval(loadSpaces, 30000);
+setInterval(loadTickets, 15000);
 </script>
 </body>
 </html>
