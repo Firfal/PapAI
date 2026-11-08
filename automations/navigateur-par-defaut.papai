@@ -1,7 +1,7 @@
 {
   "papai": 1,
   "title": "Remettre Chrome ou Edge à zéro",
-  "publisher": "Service IT Acme",
+  "publisher": "Service IT",
   "description": "Holo remet les paramètres du navigateur par défaut : page d'accueil, moteur de recherche, onglets épinglés, extensions désactivées. Les favoris, l'historique et les mots de passe enregistrés par le navigateur ne sont pas effacés.",
   "platforms": [
     "windows",

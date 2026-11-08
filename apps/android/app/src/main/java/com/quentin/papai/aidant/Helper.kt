@@ -213,7 +213,7 @@ object Helper {
     private val noRedirect = rest.newBuilder().followRedirects(false).followSslRedirects(false).build()
 
     val orgConfigured get() = org != null
-    /** « Support IT · Acme », ou « Support IT » tant que le nom n'est pas connu. */
+    /** Titre du support : « Support IT ». */
     val orgTitle get() = orgName?.let { "Support IT · $it" } ?: "Support IT"
     /** Hôte du serveur de l'organisation, pour les Réglages et les messages. */
     val orgHost get() = org?.let { hostOf(it.server) }

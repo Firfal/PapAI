@@ -356,7 +356,7 @@ final class AppModel {
             permissionsDismissed = true
             connected = true
             helpers = [Helper(id: "1", name: "Marc", relation: "Service informatique", online: true)]
-            if orgName.isEmpty { orgName = "Acme" }
+            if orgName.isEmpty { orgName = "Mon entreprise" }
             if demo == "settings" || demo == "settings_none" {
                 if demo == "settings_none" { orgName = ""; helpers = [] }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showSettings = true }

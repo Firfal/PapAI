@@ -1,7 +1,7 @@
 {
   "papai": 1,
   "title": "Remettre Google comme moteur de recherche",
-  "publisher": "Service IT Acme",
+  "publisher": "Service IT",
   "description": "Holo remet Google comme moteur de recherche par défaut du navigateur.",
   "platforms": [
     "windows",

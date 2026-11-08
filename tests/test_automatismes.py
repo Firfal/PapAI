@@ -139,8 +139,8 @@ async def parcours(base: str) -> None:
           sorted(x["id"] for x in liste) == sorted(ids.values()), [x.get("id") for x in liste])
     tpl = next(x for x in liste if x["id"] == ids["modeles-word-acme.papai"])
     check("le modèle Word est rangé à part, la fiche ne garde que son nom",
-          tpl["actions"][0]["files"] == ["Lettre Acme.dotx"], tpl["actions"])
-    with urllib.request.urlopen(f"{k}/lessons/{tpl['id']}/Lettre%20Acme.dotx", timeout=10) as f:
+          tpl["actions"][0]["files"] == ["Lettre entreprise.dotx"], tpl["actions"])
+    with urllib.request.urlopen(f"{k}/lessons/{tpl['id']}/Lettre%20entreprise.dotx", timeout=10) as f:
         check("le modèle se télécharge, c'est bien un fichier Office", f.read(2) == b"PK")
 
     print("\n1 bis. Captures du pas à pas « Montrez-moi »")

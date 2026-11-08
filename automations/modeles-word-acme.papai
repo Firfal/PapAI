@@ -1,8 +1,8 @@
 {
   "papai": 1,
-  "title": "Installer les modèles Word d'Acme",
-  "publisher": "Service IT Acme",
-  "description": "Ajoute le papier à en-tête d'Acme dans Word (Fichier > Nouveau > Personnel).",
+  "title": "Installer les modèles Word de l'entreprise",
+  "publisher": "Service IT",
+  "description": "Ajoute le papier à en-tête de l'entreprise dans Word (Fichier > Nouveau > Personnel).",
   "platforms": [
     "windows",
     "mac"
@@ -12,7 +12,7 @@
       "do": "install_templates",
       "files": [
         {
-          "name": "Lettre Acme.dotx",
+          "name": "Lettre entreprise.dotx",
           "data": "UEsDBBQAAAAIAHGvZ11ehZSM7AAAAK0BAAATAAAAW0NvbnRlbnRfVHlwZXNdLnhtbH1QyU7DMBD9FctXFDtwQAgl6YHlCBzKB4zsSWLhTR63tH/PpC0cqpaj/dZ53WoXvNhiIZdiL29VKwVGk6yLUy8/16/NgxRUIVrwKWIv90hyNXTrfUYSrI3Uy7nW/Kg1mRkDkEoZIyNjKgEqP8ukM5gvmFDfte29NilWjLWpi4ccumccYeOreNnx97FHQU9SPB2JS1YvIWfvDFTG9Tbas5TmlKBYeeDQ7DLdMEHqiwkLcj3gpHvnYYqzKD6g1DcIzNLfqVhtk9kEVqr/bS70TOPoDP7pF7dckkEiXjx4VTFkvgBVABd/++vD3MMPUEsDBBQAAAAIAHGvZ12b/TfqrQAAACkBAAALAAAAX3JlbHMvLnJlbHONzzsOwjAMBuCrRN5pWgaEUNMuCKkrKgewEjetaB5KwqO3JwMDRQyMtn9/luv2aWZ2pxAnZwVURQmMrHRqslrApT9t9sBiQqtwdpYELBShbeozzZjyShwnH1k2bBQwpuQPnEc5ksFYOE82TwYXDKZcBs09yitq4tuy3PHwacDaZJ0SEDpVAesXT//YbhgmSUcnb4Zs+nHiK5FlDJqSgIcLiqt3u8gs8KbmqxebF1BLAwQUAAAACABxr2ddBz/N/6AAAADWAAAAEQAAAHdvcmQvZG9jdW1lbnQueG1sRY4xDsIwDEWvEmWnKQwIVU0rFiZGOEBITFupsSMnUHp7kjKwvC/b+k9u+4+fxRs4ToRa7qtaCkBLbsJBy/vtsjtJEZNBZ2ZC0HKFKPuuXRpH9uUBk8gCjM2i5ZhSaJSKdgRvYkUBMN+exN6kPPKgFmIXmCzEmP1+Voe6PipvJpRF+SC3lgwFXJC6s/UgduIKKTG0qqwKeWPY+Kup/0vdF1BLAQIUAxQAAAAIAHGvZ11ehZSM7AAAAK0BAAATAAAAAAAAAAAAAACAAQAAAABbQ29udGVudF9UeXBlc10ueG1sUEsBAhQDFAAAAAgAca9nXZv9N+qtAAAAKQEAAAsAAAAAAAAAAAAAAIABHQEAAF9yZWxzLy5yZWxzUEsBAhQDFAAAAAgAca9nXQc/zf+gAAAA1gAAABEAAAAAAAAAAAAAAIAB8wEAAHdvcmQvZG9jdW1lbnQueG1sUEsFBgAAAAADAAMAuQAAAMICAAAAAA=="
         }
       ]
@@ -24,7 +24,7 @@
       "image": "etape-1.png"
     },
     {
-      "instruction": "Cliquez sur « Personnel » : le modèle « Lettre Acme » y est.",
+      "instruction": "Cliquez sur « Personnel » : le modèle « Lettre entreprise » y est.",
       "image": "etape-2.png"
     }
   ],
