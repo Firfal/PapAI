@@ -22,10 +22,10 @@ targets:
         CFBundleName: PapAI
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: "15.0"
-        NSScreenCaptureUsageDescription: "PapAI partage votre écran avec vos proches et Holo uniquement quand vous demandez de l'aide."
+        NSScreenCaptureUsageDescription: "PapAI partage votre écran avec votre support et Holo uniquement quand vous demandez de l'aide."
         NSMicrophoneUsageDescription: "PapAI écoute votre voix uniquement quand vous touchez le micro, pour écrire votre demande à votre place."
         NSSpeechRecognitionUsageDescription: "PapAI transforme votre voix en texte pour écrire votre demande à votre place."
-        NSAppleEventsUsageDescription: "PapAI lit l'adresse de la page ouverte dans votre navigateur pour repérer les sites d'arnaque et prévenir vos proches, et ouvre dans Photos les albums que vous avez ajoutés à l'accueil."
+        NSAppleEventsUsageDescription: "PapAI lit l'adresse de la page ouverte dans votre navigateur pour repérer les sites d'arnaque et prévenir votre support, et ouvre dans Photos les albums que vous avez ajoutés à l'accueil."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
     settings:
