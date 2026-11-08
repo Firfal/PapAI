@@ -36,6 +36,12 @@ ASK_HELPER_DESCRIPTION = (
     "ou si une page demande de payer, d'installer, d'appeler ou d'autoriser un accès à distance."
 )
 
+ASK_SENIOR_DESCRIPTION = (
+    "Demande quelque chose à la personne aidée elle-même, sur son écran, et attends sa réponse. "
+    "À utiliser quand une page demande de se connecter : elle se connecte elle-même, puis tu continues. "
+    "Jamais pour obtenir un mot de passe, un code ou un numéro de carte."
+)
+
 _BROWSER_SESSION = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 _STEP = re.compile(r"\b[ÉéEe]tape\s+(\d+)\b")
 
@@ -86,6 +92,8 @@ def describe_web_action(tool: str, args: dict) -> str:
     url = str(a.get("url") or "").strip()
     if t in ("ask_helper",):
         return "Holo vous pose une question"
+    if t == "ask_senior":
+        return "Holo pose une question à la personne aidée"
     if "navigate" in t or "goto" in t or "open" in t or url:
         site = re.sub(r"^https?://(www\.)?", "", url).split("/")[0] if url else ""
         return f"Holo ouvre {site}" if site else "Holo ouvre une page"
@@ -158,6 +166,7 @@ class WebAgentRunner:
             from hai_agents import tool
 
             ask = tool(name="ask_helper", description=ASK_HELPER_DESCRIPTION)(self._ask_helper_tool)
+            ask_senior = tool(name="ask_senior", description=ASK_SENIOR_DESCRIPTION)(self._ask_senior_tool)
             self.client = self.client or make_client()
             # Dès la création, H peut agir sans repasser par nous.
             self.s.execution_started = True
@@ -166,7 +175,7 @@ class WebAgentRunner:
             creation = asyncio.create_task(self.client.start_session(
                 agent=agent_spec(self.browser_session),
                 messages=brief(self.s, self.notes),
-                tools=[ask],
+                tools=[ask, ask_senior],
                 max_steps=MAX_STEPS,
                 max_time_s=MAX_TIME_S,
                 idempotency_key=f"papai-{self.s.id}-{secrets.token_hex(4)}",
@@ -298,10 +307,11 @@ class WebAgentRunner:
             await self.handle.send_message(f"Consigne du support : {reply}")
             await self.handle.resume()
 
-    async def _escalate(self, question: str, options: list[str] | None = None) -> str | None:
-        fut = self.s.ask_helper(question, options or [], to="helper")
+    async def _escalate(self, question: str, options: list[str] | None = None,
+                        to: str = "helper") -> str | None:
+        fut = self.s.ask_helper(question, options or [], to=to)
         await self.broadcast(self.s.status())
-        await self.broadcast({"type": "question", "question": question, "options": options or [], "to": "helper"})
+        await self.broadcast({"type": "question", "question": question, "options": options or [], "to": to})
         reply = await fut
         if reply is None or not self.s.is_open:
             return None
@@ -315,6 +325,15 @@ class WebAgentRunner:
         if reply is None:
             return "L'assistance est arrêtée. Arrête-toi tout de suite, sans rien faire d'autre."
         return f"Réponse du support : {reply}"
+
+    async def _ask_senior_tool(self, question: str) -> str:
+        """Demande à la personne aidée elle-même (se connecter à un site…) et attends sa réponse."""
+        self.s.doing = describe_web_action("ask_senior", {})
+        self.s.log("tool_call", tool="ask_senior", args={"question": question[:300]})
+        reply = await self._escalate(str(question)[:300], to="senior")
+        if reply is None:
+            return "L'assistance est arrêtée. Arrête-toi tout de suite, sans rien faire d'autre."
+        return f"Réponse de la personne aidée : {reply}"
 
     async def _on_event(self, event) -> None:
         ev = event.model_dump(mode="json") if hasattr(event, "model_dump") else dict(event)
@@ -330,7 +349,7 @@ class WebAgentRunner:
             for req in data.get("tool_reqs") or []:
                 name = str(req.get("tool_name", ""))
                 args = req.get("args") or {}
-                if name == "ask_helper":
+                if name in ("ask_helper", "ask_senior"):
                     continue
                 self.s.doing = describe_web_action(name, args)
                 self.s.log("tool_call", tool=name, web=True)

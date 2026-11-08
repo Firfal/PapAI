@@ -93,10 +93,35 @@ jamais le serveur. Erreurs : 404 mauvaise clé, 503 `{"error":"gladia_absent"}`
 
 ## Gardien anti-arnaque
 
-Les apps n'envoient plus de signaux en continu : PapAI n'est plus un outil de
-surveillance, il exécute des automates fournis par un support. Le serveur
-sait toujours traiter un message `guard` (`backend/guard.py`) si une app en
-envoie un ponctuellement, et répond alors par :
+### Protection en temps réel
+
+Comme la protection en temps réel d'un antivirus, elle s'active ou se coupe
+dans les Réglages de l'ordinateur (Mac et Windows) ; elle est **activée par
+défaut** et l'état est gardé (`realtimeProtection`). Activée, l'app envoie
+toutes les 8 secondes **trois signaux textuels**, et rien d'autre. Jamais de
+capture, jamais d'appel au modèle à ce stade :
+
+```json
+{"type":"guard",
+ "processes":["Safari","AnyDesk"],
+ "window":"Votre ordinateur est infecté",
+ "url":"https://mabanque.exemple.fr"}
+```
+
+`url` ne garde que le site (schéma et hôte, sans chemin ni paramètres) ; le Mac
+ne le lit pas pendant une assistance, Windows l'envoie vide. **Coupée, rien ne
+part** ; le serveur ignore d'ailleurs tout `guard` d'un ordinateur qui a
+annoncé la protection coupée.
+
+L'état voyage dans `hello` et dans `profile` (`"protection": true|false`,
+renvoyé dès qu'il change). Le serveur le relaie aux supports :
+`{"type":"protection","on":false}` (`"on": null` quand l'ordinateur se
+déconnecte), et le `hello` des supports porte
+`"protection": true|false|null` (`null` : ordinateur hors ligne ou app qui ne
+le connaît pas). La page du support l'affiche.
+
+Le serveur évalue (`backend/guard.py`) et ne répond que s'il reconnaît une
+situation. Une même situation ne resonne pas avant 5 minutes. Il répond par :
 
 ```json
 {"type":"alert","level":"danger|attention|info","title":"…","detail":"…"}
@@ -492,6 +517,9 @@ bureau reste le comportement par défaut.
   « Arrêter », une alerte ou la fin de session (`done`, `stopped`) exécutent
   `holo local stop` et terminent le process, même hors ligne. Chrome PapAI
   reste ouvert, plus rien ne le pilote.
+- Chrome PapAI part d'un profil neuf à chaque assistance, effacé une fois
+  Chrome fermé : l'app ne retient jamais de compte, d'identifiant ni de
+  cookie. La personne aidée se connecte elle-même à ses sites.
 - Limite : `holo local browser` exige une clé H (`HAI_API_KEY`) sur le Mac de
   la personne aidée (`~/.config/hai/.env` ou variable d'environnement). Elle
   n'est jamais dans le dépôt ni dans les journaux.
