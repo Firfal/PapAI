@@ -94,6 +94,8 @@ class Session:
 
     # Brouillon de fiche CareMemory, en attente de validation du proche.
     lesson: dict | None = None
+    # Le ticket de cette demande (suivi par le support IT).
+    ticket: str = ""
     journal: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)

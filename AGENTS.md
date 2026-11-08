@@ -17,7 +17,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | 8 nov. | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces (`backend/space.py`) : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), Windows et Mac créent leur espace au premier lancement. |
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794096823-tickets` | Tickets : chaque demande d'assistance suivie, attente d'un support, rendez-vous | `backend/tickets.py`, `backend/app.py`, `backend/space.py`, `backend/sessions.py`, `backend/static/helper.html`, `backend/static/org.html`, `apps/windows/`, `apps/mac/Sources/`, `tests/test_tickets.py`, `PROTOCOL.md` | 8 nov. |
 
 ## Journal
 

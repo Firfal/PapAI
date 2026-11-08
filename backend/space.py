@@ -21,6 +21,7 @@ from pathlib import Path
 
 from .family import Family
 from .sessions import Registry
+from .tickets import Tickets
 
 ROOT = Path(__file__).parent.parent
 DATA_DIR = Path(os.environ.get("PAPAI_DATA_DIR") or ROOT / "data") / "spaces"
@@ -37,6 +38,7 @@ class Space:
         self.folder = folder
         self.family = Family(folder / "family.json")
         self.registry = Registry()
+        self.tickets = Tickets(folder / "tickets.json")
         self.lessons_dir = folder / "lessons"
         self.bridge = None
         self.helper_sockets: set = set()
