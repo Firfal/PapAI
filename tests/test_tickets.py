@@ -197,6 +197,28 @@ async def parcours(base: str) -> None:
         check("ordinateur sans aucun support : la session démarre comme avant", sess is not None and sess.get("ticket"))
         await wb.send(json.dumps({"type": "stop"}))
 
+    st, o2 = http(f"{base}/orgs", {"name": "Poste avec automate local"})
+    st, local_space = http(f"{base}/spaces", {"org": o2["enroll_token"], "name": "Poste local"})
+    local_key = local_space["key"]
+    st, local_automation = http(f"{base}/k/{local_key}/automations", {
+        "papai": 1, "title": "Imprimer le document du scanner", "description": "Configurer l'imprimante",
+        "publisher": "Utilisateur", "platforms": ["windows"],
+        "actions": [{"do": "open_settings", "page": "printers"}],
+    })
+    st, org_automations = http(f"{base}/o/{o2['support_token']}/automations")
+    check("l'automate de test est importé dans l'espace, pas dans l'organisation",
+          st == 200 and local_automation.get("id")
+          and all(x.get("id") != local_automation["id"] for x in org_automations))
+    async with websockets.connect(local_space["bridge_url"]) as ws:
+        await ws.send(json.dumps({"type": "hello", "os": "windows"}))
+        await drain(ws, 0.5)
+        await ws.send(json.dumps({"type": "help_request", "task": "Imprimer le document du scanner"}))
+        local_queued = await attendre(ws, "ticket_queued")
+    check("un automate importé seulement dans l'espace est proposé au poste d'organisation",
+          local_queued is not None and local_queued.get("suggestions") == [
+              {"id": local_automation["id"], "title": local_automation["title"]}
+          ])
+
 
 if __name__ == "__main__":
     os.environ["PAPAI_RDV_TICK_S"] = "0.5"

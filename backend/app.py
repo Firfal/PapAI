@@ -340,7 +340,7 @@ def _open_ticket(task: str, source: str, status: str = "nouveau", by: str = "",
 
 def _ticket_suggestions(task: str) -> list[dict]:
     o = orgs.get(S().org) if getattr(S(), "org", "") else None
-    automates = o.automations() if o else list_lessons()
+    automates = (o.automations() if o else []) + list_lessons()
     return suggest.suggerer(task, automates, limite=2)
 
 
