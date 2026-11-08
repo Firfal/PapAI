@@ -128,7 +128,7 @@ async def parcours(base: str) -> None:
     check("refusé : fichier illisible", st == 400, r)
 
     liste = json.loads(tp.get(f"{k}/lessons"))
-    check("les 4 exemples sont au catalogue, et rien d'autre",
+    check("les exemples sont au catalogue, et rien d'autre",
           sorted(x["id"] for x in liste) == sorted(ids.values()), [x.get("id") for x in liste])
     tpl = next(x for x in liste if x["id"] == ids["modeles-word-acme.papai"])
     check("le modèle Word est rangé à part, la fiche ne garde que son nom",

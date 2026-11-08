@@ -1,0 +1,23 @@
+{
+  "papai": 1,
+  "title": "Remettre Chrome ou Edge à zéro",
+  "publisher": "Service IT Acme",
+  "description": "Holo remet les paramètres du navigateur par défaut : page d'accueil, moteur de recherche, onglets épinglés, extensions désactivées. Les favoris, l'historique et les mots de passe enregistrés par le navigateur ne sont pas effacés.",
+  "platforms": [
+    "windows",
+    "mac"
+  ],
+  "actions": [
+    {
+      "do": "holo",
+      "goal": "Rétablir les paramètres par défaut du navigateur habituel (Google Chrome ou Microsoft Edge), sans effacer les favoris ni l'historique.",
+      "steps": [
+        "Ouvrir le navigateur habituel",
+        "Ouvrir la page de réinitialisation : chrome://settings/reset dans Chrome, edge://settings/resetProfileSettings dans Edge",
+        "Choisir « Restaurer les paramètres par défaut »",
+        "Confirmer avec le bouton « Réinitialiser les paramètres »",
+        "Fermer l'onglet des paramètres"
+      ]
+    }
+  ]
+}
