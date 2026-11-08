@@ -1,4 +1,4 @@
-# PapAI Android : l'app de l'aidant
+# PapAI Android : l'app du support
 
 Même app que l'iPhone (`apps/ios`), en Kotlin + Jetpack Compose, distribuée en APK
 à installer hors Play Store (« sources inconnues »). Il n'y a pas d'app mobile pour la personne aidée.
@@ -6,7 +6,7 @@ Même app que l'iPhone (`apps/ios`), en Kotlin + Jetpack Compose, distribuée en
 Ce qu'elle fait : appairage (QR, code à 6 chiffres, lien `papai://pair?u=…&n=…`), demande et plan
 (valider, préciser au clavier ou à la voix, refuser), écran en direct, pause, question de Holo,
 prise en main (viseur et loupe ×3, clic normalisé), dictée en direct de la personne aidée, alertes,
-fin de session et automatisme (brouillon modifiable avec ses captures réelles).
+fin de session et automate (brouillon modifiable avec ses captures réelles).
 Une notification « Liaison » (service de premier plan) garde la connexion ouverte, et une
 notification forte arrive quand une demande ou une question attend l'aidant.
 

@@ -167,7 +167,7 @@ struct HomeView: View {
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
             }
             if !model.lessons.isEmpty {
-                Text("Mes tutoriels").font(rounded(21, .semibold))
+                Text("Mes automates").font(rounded(21, .semibold))
             }
             ForEach(model.lessons) { l in tile(l) }
         }

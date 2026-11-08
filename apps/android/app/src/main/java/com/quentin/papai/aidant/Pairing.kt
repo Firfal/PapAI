@@ -57,7 +57,7 @@ fun rememberQrScanner(): () -> Unit {
     }
     return {
         launcher.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setBeepEnabled(false)
-            .setOrientationLocked(true).setPrompt("Visez le QR affiché sur l'ordinateur de ${Helper.senior}"))
+            .setOrientationLocked(true).setPrompt("Visez le QR code affiché sur l'ordinateur de ${Helper.senior}"))
     }
 }
 
@@ -71,9 +71,9 @@ fun SettingsSheet() {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         SheetTitle("Connexion")
-        T("Le plus simple : scannez le QR affiché sur l'ordinateur de ${m.senior} (Mon support › Ajouter un support).",
+        T("Le plus simple : scannez le QR code affiché sur l'ordinateur de ${m.senior} (Mon support › Ajouter un support).",
             15.sp, color = Soin.secondary)
-        CapsuleButton("Scanner le QR de l'ordinateur", fill = Soin.accent, onClick = scan)
+        CapsuleButton("Scanner le QR code de l'ordinateur", fill = Soin.accent, onClick = scan)
         m.manualPairLink()?.let { l ->
             CapsuleButton("Entrer le code à 6 chiffres", fill = Soin.card, text = Soin.ink) { m.openPair(l) }
         }
@@ -115,7 +115,7 @@ fun PairingRefusal() {
         Column(Modifier.fillMaxWidth().soinCard().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             T("Lien refusé", 24.sp, FontWeight.Bold)
             T(PairingPolicy.refusal, 18.sp, FontWeight.SemiBold, Soin.danger)
-            CapsuleButton("Scanner le QR de l'ordinateur") { Helper.pairingRefused = false; scan() }
+            CapsuleButton("Scanner le QR code de l'ordinateur") { Helper.pairingRefused = false; scan() }
             TextLink("Fermer") { Helper.pairingRefused = false }
         }
     }
