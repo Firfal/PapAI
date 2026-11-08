@@ -36,6 +36,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 ## Parcours de la personne aidée (app Mac, fusionné le 7 novembre)
 
 - [x] 1. Accueil au premier lancement : bienvenue, prénom, taille du texte (grande par défaut), autorisations expliquées.
+  - [x] Étape prénom Mac : « Revoir l'accueil » repart de la bienvenue (plus de prénom sauté), prénom des Réglages affiché aussitôt sur l'accueil.
 - [x] 2. Ajouter un proche : QR ou code à 6 chiffres (10 min, usage unique), prénom et lien, plusieurs proches. Page `/p/{code}`, `backend/family.py`.
   - [x] Réglages Mac : section Mon support, Ajouter un support avec démarrage à la connexion, liste existante, QR/code/lien et copie confirmée ; partage SMS, WhatsApp ou mail, panneaux défilants en Très grande.
 - [x] Session proposée à distance par le proche, que la personne aidée accepte ou refuse sur le Mac (`remote_request`).

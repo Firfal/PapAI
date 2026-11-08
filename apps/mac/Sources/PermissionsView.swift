@@ -115,8 +115,7 @@ struct SettingsView: View {
                 Button("Annuler") { dismiss() }.buttonStyle(PillStyle(filled: false, height: 50))
                 Button("Enregistrer") {
                     // L'adresse du serveur ne se règle plus ici : elle vient de l'installation.
-                    UserDefaults.standard.set(name, forKey: "firstName")
-                    model.sendProfile()
+                    model.setFirstName(name)
                     dismiss()
                 }.buttonStyle(PillStyle(height: 50))
             }
