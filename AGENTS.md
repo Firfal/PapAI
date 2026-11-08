@@ -41,7 +41,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | 8 nov. | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces (`backend/space.py`) : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), Windows et Mac créent leur espace au premier lancement. |
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794098007-securite-actions-sensibles` | PR #55 partie B : textes support et cartes persistantes | backend/agent.py, backend/app.py, backend/static/helper.html, apps/ios/Sources/HelperModel.swift, apps/ios/Sources/RootView.swift, apps/android/app/src/main/java/com/quentin/papai/aidant/Helper.kt, apps/android/app/src/main/java/com/quentin/papai/aidant/Root.kt, apps/mac/Sources/Model.swift, tests/test_actions_sensibles.py, tests/test_helper_shortcut.js, PROTOCOL.md | 8 nov. |
 
 ## Journal
 

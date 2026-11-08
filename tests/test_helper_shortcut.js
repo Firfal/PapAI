@@ -12,7 +12,9 @@ test('la cible est visible, retirable seulement, et réinitialisée entre brouil
       children: [], classList: { add() {}, remove() {}, toggle() {} },
       addEventListener() {}, setAttribute() {}, removeAttribute() {},
       querySelector() { return element(); }, querySelectorAll() { return []; },
-      appendChild(child) { this.children.push(child); } };
+      appendChild(child) { this.children.push(child); },
+      append(...children) { this.children.push(...children); },
+      replaceChildren(...children) { this.children = [...children]; } };
   }
   function get(id) {
     if (!nodes.has(id)) nodes.set(id, element());
