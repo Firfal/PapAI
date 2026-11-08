@@ -19,7 +19,7 @@ targets:
       # Mode support : la logique de l'app iPhone, partagée telle quelle.
       - ../ios/Sources/HelperModel.swift
       - ../ios/Sources/People.swift
-      - ../ios/Sources/Pairing.swift
+      - ../ios/Sources/SupportConfig.swift
       - ../ios/Sources/Platform.swift
       - ../ios/Sources/FlowLayout.swift
       - ../ios/Sources/SupportData.swift

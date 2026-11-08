@@ -12,8 +12,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 
 /**
- * Service de premier plan : garde le processus (et donc la liaison WebSocket)
- * vivant quand l'app est fermée, pour que l'aidant soit prévenu tout de suite.
+ * Service de premier plan : garde le processus (et donc la connexion WebSocket)
+ * vivant quand l'app est fermée, pour que le support soit prévenu tout de suite.
  * Sur Android on n'a pas besoin du son muet de l'iPhone.
  */
 class LinkService : Service() {
@@ -26,7 +26,7 @@ class LinkService : Service() {
                 if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0,
             )
         } catch (e: Exception) {
-            // Démarrage refusé (app en arrière-plan) : la liaison vit tant que l'app est ouverte.
+            // Démarrage refusé (app en arrière-plan) : la connexion vit tant que l'app est ouverte.
             stopSelf()
             return START_NOT_STICKY
         }
@@ -55,11 +55,11 @@ class LinkService : Service() {
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
                 .setPublicVersion(NotificationCompat.Builder(ctx, PapAIApp.CHANNEL_LINK)
                     .setSmallIcon(R.drawable.ic_notif)
-                    .setContentTitle("PapAI est relié")
+                    .setContentTitle("PapAI est connecté")
                     .setContentIntent(open)
                     .build())
                 .setSmallIcon(R.drawable.ic_notif)
-                .setContentTitle("Relié à ${Helper.senior}")
+                .setContentTitle(Helper.orgTitle)
                 .setContentText("Vous serez prévenu dès qu'une demande d'aide arrive.")
                 .setOngoing(true)
                 .setSilent(true)

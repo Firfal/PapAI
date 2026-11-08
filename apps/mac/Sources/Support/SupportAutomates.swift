@@ -99,7 +99,7 @@ struct SupportAutomates: View {
                     if !e.platforms.isEmpty { tag(e.platforms.map { $0 == "mac" ? "Mac" : "Windows" }.joined(separator: " · ")) }
                     if !e.publisher.isEmpty { tag(e.publisher) }
                 }
-                let names = AutomateLibrary.appliedTo(e, people: model.people, orgs: model.orgs)
+                let names = AutomateLibrary.appliedTo(e, people: model.people, orgName: model.orgName)
                 Text(names.isEmpty ? "Appliqué à personne" : "Appliqué à : " + names.joined(separator: ", "))
                     .font(rounded(14, .semibold)).foregroundStyle(names.isEmpty ? T.muted : T.leaf)
             }
@@ -163,7 +163,7 @@ struct ApplyAutomateSheet: View {
                             Toggle(isOn: Binding(get: { chosenOrgs.contains(o.token) || already || done },
                                                  set: { on in if on { chosenOrgs.insert(o.token) } else { chosenOrgs.remove(o.token) } })) {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Toute l’organisation \(o.name)").font(rounded(17, .semibold))
+                                    Text(o.name.isEmpty ? "Toute l’organisation" : "Toute l’organisation \(o.name)").font(rounded(17, .semibold))
                                     Text(o.detail).font(rounded(13)).foregroundStyle(T.muted)
                                 }
                             }
@@ -207,7 +207,7 @@ struct ApplyAutomateSheet: View {
             }
         }
         .padding(24).frame(width: 480, height: 460).background(T.bg).foregroundStyle(T.ink)
-        .task { orgs = await OrgMembers.load(model.orgs) }
+        .task { orgs = await OrgMembers.load(model.org, name: model.orgName) }
     }
 
     private func apply() async {
@@ -225,6 +225,8 @@ struct ApplyAutomateSheet: View {
 /// niveau, jamais de commande) et le pas à pas « Montrez-moi ».
 struct SupportCreateAutomate: View {
     let model: HelperModel
+    /// Brouillon venu d'une suggestion de l'onglet Tickets (title, description, goal).
+    var prefill: [String: String]? = nil
     var done: ([String: Any]?) -> Void
 
     enum Kind: String, CaseIterable { case holo, folder, settings, url }
@@ -317,7 +319,12 @@ struct SupportCreateAutomate: View {
                       allowedContentTypes: [.plainText, .pdf, UTType(filenameExtension: "md") ?? .plainText]) { r in
             if case .success(let url) = r { Task { await importDocument(url) } }
         }
-        .onAppear { recorder.onStop = { reviewing = true } }
+        .onAppear {
+            recorder.onStop = { reviewing = true }
+            if let p = prefill, title.isEmpty {
+                title = p["title"] ?? ""; detail = p["description"] ?? ""; goal = p["goal"] ?? ""; kind = .holo
+            }
+        }
     }
 
     // MARK: Sources (document, enregistrement)

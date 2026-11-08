@@ -6,6 +6,11 @@ import Observation
 
 // MARK: - Tickets
 
+struct SupportTicketSuggestion: Identifiable {
+    var id: String
+    var title: String
+}
+
 /// Un ticket d'un utilisateur (`GET …/k/<clé>/tickets`), avec la personne d'où il vient.
 struct SupportTicket: Identifiable {
     var id: String { person.key + "/" + tid }
@@ -18,6 +23,11 @@ struct SupportTicket: Identifiable {
     var created: Double
     var rdv: Double?
     var assignee: String
+    var suggestions: [SupportTicketSuggestion] = []
+    var suggestionLancee: String?
+    var category: String
+    var categoryBy: String
+    var resolved: Double?
     var person: Person
 
     var label: String { String(format: "T-%04d", number) }
@@ -37,6 +47,14 @@ struct SupportTicket: Identifiable {
         created = (d["created"] as? NSNumber)?.doubleValue ?? updated
         rdv = (d["rdv"] as? NSNumber)?.doubleValue
         assignee = d["assignee"] as? String ?? ""
+        suggestions = (d["suggestions"] as? [[String: Any]] ?? []).compactMap { item in
+            guard let id = item["id"] as? String, let title = item["title"] as? String else { return nil }
+            return SupportTicketSuggestion(id: id, title: title)
+        }
+        suggestionLancee = d["suggestion_lancee"] as? String
+        category = d["category"] as? String ?? "autre"
+        categoryBy = d["category_by"] as? String ?? ""
+        resolved = (d["resolved"] as? NSNumber)?.doubleValue
         self.person = person
     }
 
@@ -211,14 +229,11 @@ final class AutomateLibrary {
         return results
     }
 
-    /// Pour « Appliqué à : … » : les organisations entières, puis les autres utilisateurs.
-    static func appliedTo(_ e: Entry, people: [Person], orgs: [Org]) -> [String] {
+    /// Pour « Appliqué à : … » : l'organisation entière, puis les autres utilisateurs.
+    static func appliedTo(_ e: Entry, people: [Person], orgName: String?) -> [String] {
         let whole = e.orgKeys ?? [:]
         let inOrgs = Set(whole.values.flatMap { $0 })
-        let orgNames = whole.keys.sorted().map { t in
-            let n = orgs.first(where: { $0.token == t })?.name ?? ""
-            return n.isEmpty ? "toute une organisation" : "toute l’organisation \(n)"
-        }
+        let orgNames = whole.isEmpty ? [] : [orgName.map { "toute l’organisation \($0)" } ?? "toute l’organisation"]
         return orgNames + people.filter { e.applied.contains($0.key) && !inOrgs.contains($0.key) }
             .map { $0.name.isEmpty ? "Utilisateur" : $0.name }
     }
@@ -262,7 +277,7 @@ final class AutomateLibrary {
     }
 }
 
-/// Une organisation suivie par le support et ses utilisateurs (`GET /o/<jeton>/spaces`),
+/// L'organisation du support et ses utilisateurs (`GET /o/<jeton>/spaces`),
 /// pour « Appliquer… » à toute l'organisation d'un coup.
 struct OrgMembers: Identifiable, Equatable {
     var id: String { token }
@@ -271,15 +286,15 @@ struct OrgMembers: Identifiable, Equatable {
     var name: String
     var keys: [String]
 
-    static func load(_ orgs: [Org]) async -> [OrgMembers] {
+    static func load(_ org: SupportOrg?, name: String?) async -> [OrgMembers] {
         var out: [OrgMembers] = []
-        for o in orgs {
+        for o in [org].compactMap({ $0 }) {
             guard let url = URL(string: "\(o.server)/o/\(o.token)/spaces"),
                   let (d, r) = try? await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 20)),
                   (r as? HTTPURLResponse)?.statusCode == 200,
                   let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else { continue }
             let keys = (obj["spaces"] as? [[String: Any]] ?? []).compactMap { $0["key"] as? String }
-            let name = (obj["org"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? o.name
+            let name = (obj["org"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? name ?? ""
             out.append(OrgMembers(server: o.server, token: o.token, name: name, keys: keys))
         }
         return out

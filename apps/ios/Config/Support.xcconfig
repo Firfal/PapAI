@@ -1,0 +1,7 @@
+// Organisation du support pour une démo sans MDM. Ne mettez JAMAIS de jeton ici :
+// ce fichier est suivi par git. Copiez plutôt Support.local.xcconfig.example en
+// Support.local.xcconfig (ignoré par git) et remplissez-le.
+// En production, la configuration gérée MDM (supportToken, server) l'emporte.
+PAPAI_SUPPORT_TOKEN =
+PAPAI_SERVER =
+#include? "Support.local.xcconfig"

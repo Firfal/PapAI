@@ -11,7 +11,7 @@ mkdir -p "$OUT"
 # PAPAI_DEBUG=1 : build de mise au point (-D DEBUG), qui accepte un serveur http local.
 swiftc -O $([[ "${PAPAI_DEBUG:-}" == 1 ]] && echo "-D DEBUG") -swift-version 5 -enable-bare-slash-regex -parse-as-library -target "$(uname -m)-apple-macos15.0" \
   Sources/*.swift Sources/Support/*.swift ../shared/*.swift \
-  ../ios/Sources/{HelperModel,People,Pairing,Platform,FlowLayout,SupportData}.swift -o "$OUT/PapAI"
+  ../ios/Sources/{HelperModel,People,SupportConfig,Platform,FlowLayout,SupportData}.swift -o "$OUT/PapAI"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"

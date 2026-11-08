@@ -14,6 +14,7 @@ import asyncio
 import os
 import re
 import secrets
+from urllib.parse import urlsplit
 
 # Obligatoire côté serveur : sinon le SDK branche le navigateur ou l'écran du
 # serveur lui-même au lieu de celui de l’utilisateur.
@@ -22,6 +23,7 @@ os.environ["HAI_AUTO_BRIDGE"] = "0"
 from papai_tools import WEB_AGENT_INSTRUCTIONS  # noqa: E402
 
 from .sessions import Frame, Refused, Session  # noqa: E402
+from . import site_check  # noqa: E402
 
 ENV_ID = "papai-chrome"
 MAX_STEPS = int(os.environ.get("PAPAI_WEB_MAX_STEPS", "40"))
@@ -173,7 +175,7 @@ class WebAgentRunner:
 
     def __init__(self, session: Session, browser_session: str, broadcast,
                  notes: list[str] | None = None, client=None, goal: str | None = None,
-                 url: str | None = None, finish_session: bool = True) -> None:
+                 url: str | None = None, finish_session: bool = True, send_sites=None) -> None:
         self.s = session
         self.browser_session = browser_session
         self.broadcast = broadcast
@@ -186,6 +188,12 @@ class WebAgentRunner:
         self._h_paused = False
         self._answer = ""
         self._cancel_task: asyncio.Future | None = None
+        self.send_sites = send_sites or broadcast
+        self._off_site_task: asyncio.Task | None = None
+        self._question_lock = asyncio.Lock()
+        self._control_lock = asyncio.Lock()
+        self._running = False
+        self._pending_messages: list[str] = []
 
     async def run(self) -> str | None:
         watcher = None
@@ -237,11 +245,14 @@ class WebAgentRunner:
                     await self._cancel_remote()
                 raise
             self.s.log("web_agent_started", h_session=self.handle.id)
+            self._running = True
             watcher = asyncio.create_task(self._watch())
             async for event in self.handle.stream(tools=[ask, ask_senior]):
                 if not self.s.is_open:
                     break
                 await self._on_event(event)
+            if self._off_site_task and not self._off_site_task.done():
+                await asyncio.shield(self._off_site_task)
             if not self.s.is_open:
                 return
             status = await self.handle.status()
@@ -266,6 +277,11 @@ class WebAgentRunner:
             if self.s.is_open:
                 self.s.stop(by="erreur interne")
         finally:
+            self._running = False
+            if self._off_site_task:
+                self._off_site_task.cancel()
+                await asyncio.gather(self._off_site_task, return_exceptions=True)
+            self.s.off_site = None
             if watcher:
                 watcher.cancel()
             if not self.s.is_open and self.s.state.value != "done":
@@ -306,15 +322,11 @@ class WebAgentRunner:
                 await self._cancel_remote()
                 return
             try:
-                if self.s.paused and not self._h_paused:
-                    self._h_paused = True
-                    await self.handle.pause()
-                    self.s.log("web_agent_paused")
-                elif not self.s.paused and self._h_paused and self.s.question is None:
-                    self._h_paused = False
-                    await self.handle.resume()
-                    self.s.log("web_agent_resumed")
-                if self.s.pause_requested:
+                if self.s.paused:
+                    await self._pause()
+                else:
+                    await self._resume()
+                if self.s.pause_requested and self.s.off_site is None:
                     self.s.pause_requested = False
                     await self._helper_pause()
             except asyncio.CancelledError:
@@ -324,31 +336,100 @@ class WebAgentRunner:
 
     async def _helper_pause(self) -> None:
         """Le support a demandé une pause : H s'arrête, puis on lui demande quoi faire."""
-        if not self._h_paused:
-            await self.handle.pause()
-            self._h_paused = True
+        await self._pause()
         reply = await self._escalate("Vous avez mis l'assistance en pause. Que faut-il faire ?",
                                      ["Continuer", "Indiquez-moi quoi faire"])
         if reply is None or not self.s.is_open:
             return
         if self.s.paused:
             return  # l’utilisateur a aussi mis en pause : sa reprise relancera H
-        self._h_paused = False
-        if reply.strip().lower() == "continuer":
-            await self.handle.resume()
-        else:
-            await self.handle.send_message(f"Consigne du support : {reply}")
-            await self.handle.resume()
+        if reply.strip().lower() != "continuer":
+            self._pending_messages.append(f"Consigne du support : {reply}")
+        await self._resume()
+
+    async def _pause(self) -> None:
+        async with self._control_lock:
+            if not self._h_paused:
+                await self.handle.pause()
+                self._h_paused = True
+                self.s.log("web_agent_paused")
+
+    async def _resume(self) -> None:
+        async with self._control_lock:
+            if (self._h_paused and self.s.is_open and not self.s.paused
+                    and not self.s.pause_requested and self.s.question is None
+                    and self.s.off_site is None):
+                while self._pending_messages:
+                    await self.handle.send_message(self._pending_messages[0])
+                    self._pending_messages.pop(0)
+                await self.handle.resume()
+                self._h_paused = False
+                self.s.log("web_agent_resumed")
+
+    def report_off_site(self, url) -> asyncio.Task | None:
+        if (not self._running or not self.s.is_open or not self.s.plan_sites
+                or not isinstance(url, str)
+                or site_check.classify(url, self.s.plan_sites, self.s.web_hosts) != "hors"
+                or (self._off_site_task is not None and not self._off_site_task.done())):
+            return None
+        self._off_site_task = asyncio.create_task(self._off_site(url))
+        return self._off_site_task
+
+    async def _off_site(self, url: str) -> None:
+        try:
+            parsed = urlsplit(url)
+            host = site_check.host_of(url) or (parsed.hostname or "").encode("idna").decode("ascii")
+            authority = f"[{host}]" if ":" in host else host
+            short = f"{parsed.scheme}://{authority}{parsed.path}"
+            short = "".join(c for c in short if c.isprintable())[:200]
+        except (ValueError, UnicodeError):
+            host, short = "", "URL non valide"
+        self.s.off_site = {"host": host, "url": short}
+        self.s.doing = "Holo attend l'accord du support pour un autre site"
+        self.s.log("web_off_site", host=host)
+        try:
+            await self._pause()
+            question = f"Holo a quitté les sites validés : {host or "site inconnu"}. Autoriser ce site pour cette assistance, ou arrêter ?"
+            options = ["Autoriser ce site une fois", "Arrêter l'assistance"]
+            while self.s.is_open:
+                reply = await self._escalate(question, options)
+                if reply is None or not self.s.is_open:
+                    return
+                if reply.strip() == "Arrêter l'assistance":
+                    self.s.stop(by="support")
+                    await self._cancel_remote()
+                    return
+                if reply.strip() == "Autoriser ce site une fois" and site_check.host_of(url):
+                    if host not in self.s.web_hosts:
+                        self.s.web_hosts.append(host)
+                    await self.send_sites({"type": "web_sites", "sites": list(self.s.plan_sites),
+                                           "hosts": list(self.s.web_hosts)})
+                    self.s.log("web_site_allowed", host=host, by=self.s.helper_name)
+                    return
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.s.stop(by="contrôle navigateur")
+            await self._cancel_remote()
+        finally:
+            self.s.off_site = None
+            if self.s.is_open:
+                self.s.doing = ""
+                await self._resume()
+            await self.broadcast(self.s.status())
 
     async def _escalate(self, question: str, options: list[str] | None = None,
                         to: str = "helper") -> str | None:
-        fut = self.s.ask_helper(question, options or [], to=to)
-        await self.broadcast(self.s.status())
-        await self.broadcast({"type": "question", "question": question, "options": options or [], "to": to})
-        reply = await fut
-        if reply is None or not self.s.is_open:
-            return None
-        return reply
+        async with self._question_lock:
+            if not self.s.is_open:
+                return None
+            fut = self.s.ask_helper(question, options or [], to=to)
+            await self.broadcast(self.s.status())
+            await self.broadcast({"type": "question", "question": question, "options": options or [], "to": to})
+            reply = await fut
+            if reply is None or not self.s.is_open:
+                return None
+            return reply
 
     async def _ask_helper_tool(self, question: str) -> str:
         """Pose une question au support et attends sa réponse."""
@@ -369,6 +450,10 @@ class WebAgentRunner:
         return f"Réponse de l’utilisateur : {reply}"
 
     async def _on_event(self, event) -> None:
+        if self._off_site_task and not self._off_site_task.done():
+            await asyncio.shield(self._off_site_task)
+            if not self.s.is_open:
+                return
         ev = event.model_dump(mode="json") if hasattr(event, "model_dump") else dict(event)
         data = ev.get("data") or {}
         if not isinstance(data, dict):
@@ -382,6 +467,13 @@ class WebAgentRunner:
             for req in data.get("tool_reqs") or []:
                 name = str(req.get("tool_name", ""))
                 args = req.get("args") or {}
+                if isinstance(args, dict) and "url" in args:
+                    pending = self.report_off_site(args["url"])
+                    if pending:
+                        await asyncio.shield(pending)
+                        if not self.s.is_open:
+                            return
+                        continue
                 if name in ("ask_helper", "ask_senior"):
                     continue
                 self.s.doing = describe_web_action(name, args)

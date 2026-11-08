@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Modèle d'administration PapAI : configure l'app de l'employé par stratégie de groupe.
+     Valeurs écrites dans HKLM ou HKCU\SOFTWARE\Policies\PapAI (stratégie ordinateur prioritaire).
+     Copier ce fichier dans PolicyDefinitions, et fr-FR\PapAI.adml dans PolicyDefinitions\fr-FR. -->
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   revision="1.0" schemaVersion="1.0"
+                   xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="papai" namespace="PapAI.Policies.PapAI" />
+    <using prefix="windows" namespace="Microsoft.Policies.Windows" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <categories>
+    <category name="PapAI" displayName="$(string.PapAI)" />
+  </categories>
+  <policies>
+    <policy name="OrgToken" class="Both" displayName="$(string.OrgToken)"
+            explainText="$(string.OrgToken_Help)" presentation="$(presentation.OrgToken)"
+            key="SOFTWARE\Policies\PapAI">
+      <parentCategory ref="PapAI" />
+      <supportedOn ref="windows:SUPPORTED_Windows_10_0" />
+      <elements>
+        <text id="OrgToken" valueName="OrgToken" required="true" maxLength="100" />
+      </elements>
+    </policy>
+    <policy name="Server" class="Both" displayName="$(string.Server)"
+            explainText="$(string.Server_Help)" presentation="$(presentation.Server)"
+            key="SOFTWARE\Policies\PapAI">
+      <parentCategory ref="PapAI" />
+      <supportedOn ref="windows:SUPPORTED_Windows_10_0" />
+      <elements>
+        <text id="Server" valueName="Server" required="true" maxLength="200" />
+      </elements>
+    </policy>
+    <policy name="DisplayName" class="Both" displayName="$(string.DisplayName)"
+            explainText="$(string.DisplayName_Help)" presentation="$(presentation.DisplayName)"
+            key="SOFTWARE\Policies\PapAI">
+      <parentCategory ref="PapAI" />
+      <supportedOn ref="windows:SUPPORTED_Windows_10_0" />
+      <elements>
+        <text id="DisplayName" valueName="DisplayName" required="true" maxLength="60" />
+      </elements>
+    </policy>
+    <policy name="Role" class="Both" displayName="$(string.Role)"
+            explainText="$(string.Role_Help)" presentation="$(presentation.Role)"
+            key="SOFTWARE\Policies\PapAI">
+      <parentCategory ref="PapAI" />
+      <supportedOn ref="windows:SUPPORTED_Windows_10_0" />
+      <elements>
+        <text id="Role" valueName="Role" required="true" maxLength="60" />
+      </elements>
+    </policy>
+  </policies>
+</policyDefinitions>

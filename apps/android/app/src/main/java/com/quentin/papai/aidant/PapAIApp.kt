@@ -22,8 +22,8 @@ class PapAIApp : Application() {
             },
         )
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_LINK, "Liaison", NotificationManager.IMPORTANCE_MIN).apply {
-                description = "Garde la liaison ouverte pour être prévenu tout de suite."
+            NotificationChannel(CHANNEL_LINK, "Connexion", NotificationManager.IMPORTANCE_MIN).apply {
+                description = "Garde la connexion ouverte pour être prévenu tout de suite."
                 setShowBadge(false)
             },
         )

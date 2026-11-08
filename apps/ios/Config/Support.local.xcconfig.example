@@ -1,0 +1,6 @@
+// Copiez ce fichier en Support.local.xcconfig (ignoré par git), puis relancez xcodegen.
+// Jeton support de l'organisation, tel que renvoyé par POST /orgs (champ support_token).
+PAPAI_SUPPORT_TOKEN = sup-REMPLACER
+// Facultatif (serveur PapAI officiel sinon). « // » ouvre un commentaire en xcconfig :
+// écrivez https:/$()/ au lieu de https://.
+PAPAI_SERVER = https:/$()/papai-450417131702.europe-west1.run.app

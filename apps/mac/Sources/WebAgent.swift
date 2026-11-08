@@ -13,6 +13,51 @@ final class WebAgentHost {
     /// Annoncé au serveur seulement quand Chrome PapAI et holo tournent.
     private(set) var sessionID: String?
     var onChange: ((String?) -> Void)?
+    var onOffSite: ((String) -> Void)?
+    private var sites: [String] = []
+    private var hosts: [String] = []
+    private var siteMonitor: Task<Void, Never>?
+    private var lastOffSite = Date.distantPast
+
+    func updateSites(_ sites: [String], hosts: [String]) {
+        self.sites = sites
+        self.hosts = hosts
+        if sites.isEmpty {
+            siteMonitor?.cancel()
+            siteMonitor = nil
+        } else if sessionID != nil {
+            monitorSites()
+        }
+    }
+
+    private func monitorSites() {
+        guard siteMonitor == nil, !sites.isEmpty else { return }
+        let monitorGeneration = generation
+        siteMonitor = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, self.generation == monitorGeneration else { return }
+                var request = URLRequest(url: URL(string: "http://127.0.0.1:\(Self.debugPort)/json/list")!)
+                request.timeoutInterval = 0.4
+                request.cachePolicy = .reloadIgnoringLocalCacheData
+                if let (data, response) = try? await URLSession.shared.data(for: request),
+                   !Task.isCancelled, self.generation == monitorGeneration,
+                   (response as? HTTPURLResponse)?.statusCode == 200,
+                   let pages = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]],
+                   !self.sites.isEmpty {
+                    for page in pages where page["type"] as? String == "page" {
+                        if let url = page["url"] as? String,
+                           SiteCheck.classify(url, sites: self.sites, hosts: self.hosts) == "hors",
+                           Date().timeIntervalSince(self.lastOffSite) >= 2 {
+                            self.lastOffSite = Date()
+                            self.onOffSite?(url)
+                            break
+                        }
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
+    }
 
     private var holo: Process?
     private var chromePID: pid_t?
@@ -115,6 +160,7 @@ final class WebAgentHost {
         if abortIfStopped(launchGeneration, chrome: startedChrome, holo: startedHolo) { return }
         guard h.isRunning, holo === h else { return }
         sessionID = id
+        monitorSites()
         if abortIfStopped(launchGeneration, chrome: startedChrome, holo: startedHolo) { return }
         onChange?(id)
     }
@@ -134,6 +180,8 @@ final class WebAgentHost {
     private func holoEnded(_ h: Process) {
         guard holo === h else { return }
         holo = nil
+        siteMonitor?.cancel()
+        siteMonitor = nil
         if sessionID != nil {
             sessionID = nil
             onChange?(nil)
@@ -143,6 +191,11 @@ final class WebAgentHost {
     /// Arrêter, fin de session ou alerte : marche hors ligne, sans le serveur.
     func stopLocal(notifyServer: Bool = true) {
         generation += 1
+        siteMonitor?.cancel()
+        siteMonitor = nil
+        sites = []
+        hosts = []
+        lastOffSite = .distantPast
         guard holo != nil || sessionID != nil || chromePID != nil || starting else { return }
         let h = holo
         holo = nil

@@ -272,7 +272,7 @@ struct AutomatesTab: View {
                 if !e.platforms.isEmpty { tag(e.platforms.map { $0 == "mac" ? "Mac" : "Windows" }.joined(separator: " · ")) }
                 if !e.publisher.isEmpty { tag(e.publisher) }
             }
-            let names = AutomateLibrary.appliedTo(e, people: model.people, orgs: model.orgs)
+            let names = AutomateLibrary.appliedTo(e, people: model.people, orgName: model.orgName)
             Text(names.isEmpty ? "Appliqué à personne" : "Appliqué à : " + names.joined(separator: ", "))
                 .font(.footnote.weight(.semibold)).foregroundStyle(names.isEmpty ? T.muted : T.leaf)
             HStack(spacing: 8) {
@@ -334,7 +334,7 @@ struct ApplyAutomateSheet: View {
                 }
                 .padding(20)
             }
-            .task { orgs = await OrgMembers.load(model.orgs) }
+            .task { orgs = await OrgMembers.load(model.org, name: model.orgName) }
             .safeAreaInset(edge: .bottom) {
                 Button(sending ? "Envoi…" : "Appliquer") { Task { await apply() } }
                     .buttonStyle(CapsuleButtonStyle())
@@ -365,7 +365,7 @@ struct ApplyAutomateSheet: View {
                     .font(.title3).foregroundStyle(on ? T.accent : T.muted)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Toute l’organisation \(o.name)").font(.body.weight(.semibold)).foregroundStyle(T.ink)
+                    Text(o.name.isEmpty ? "Toute l’organisation" : "Toute l’organisation \(o.name)").font(.body.weight(.semibold)).foregroundStyle(T.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(o.detail).font(.footnote).foregroundStyle(T.muted)
                         .fixedSize(horizontal: false, vertical: true)
