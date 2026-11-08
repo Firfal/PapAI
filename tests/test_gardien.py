@@ -55,6 +55,7 @@ attendu("domaine sosie de l'entreprise", [], "", "https://acmee.fr", "danger", T
 attendu("SSO de l'entreprise sur un autre domaine", [], "", "https://okta.acme-sso.com", "danger", True)
 attendu("adresse IP publique", [], "", "https://45.33.12.7/login", "attention", False)
 attendu("caractères trompeurs", [], "", "https://xn--pple-43d.com", "attention", False)
+attendu("marque sur un domaine non national", [], "", "https://microsoft.xyz", "danger", True)
 attendu("outil + faux site : l'outil d'abord", ["AnyDesk"], "", "https://acmee.fr", "danger", True)
 
 print()

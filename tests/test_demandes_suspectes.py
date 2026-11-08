@@ -42,6 +42,7 @@ LEGITIMES = [
     "Mettre à jour Windows",
     "Faire un virement de 40 euros",
     "Acheter une carte cadeau pour le pot de départ d'un collègue",
+    "Envoyer un rapport sur les mots de passe expirés",
 ]
 SUSPECTES = [
     "Le support m'a appelé, il veut le code reçu par SMS",
@@ -62,6 +63,7 @@ SUSPECTES = [
     "Se connecter sur microsoft-login-secure.com",
     "Ouvrir la page http://45.33.12.7/login",
     "Saisir mon mot de passe sur office365-verification.com",
+    "Le support veut mon mot de passe pour changer un paramètre",
 ]
 
 

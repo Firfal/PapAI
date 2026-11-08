@@ -67,6 +67,11 @@ async def parcours(base: str) -> None:
             av = await attendre(ha, "guard_advice")
             check("le support reçoit un avertissement", av is not None and av.get("level") == "danger", av)
 
+        http(f"{base}/o/{tok}/security", {"domains": ["acme.fr"], "remote_tools": ["anydesk"]})
+        r = await attendre(wa, "guard_rules")
+        check("nouvelle configuration : les postes connectés reçoivent les règles", r is not None
+              and "anydesk" not in r["tools"] and "teamviewer" in r["tools"], r)
+
     sec_t = [t for t in tickets(base, key) if t.get("category") == "securite" and t.get("source") == "gardien"]
     check("chaque alerte devient un ticket « Sécurité »", len(sec_t) == 2, [t.get("task") for t in sec_t])
 
