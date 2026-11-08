@@ -495,6 +495,84 @@ async def _ws_bridge(ws: WebSocket) -> None:
             await _stop_open_sessions("pont déconnecté")
 
 
+def _safe_handoff_log_text(text: str) -> str:
+    value = re.sub(r"https?://\S+", "[URL masquée]", str(text or ""), flags=re.I)
+    value = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", "[adresse masquée]", value)
+    value = re.sub(r"\b[A-Z]{2}\d{2}(?:[\s-]?[A-Z0-9]){10,30}\b", "[IBAN masqué]", value, flags=re.I)
+    value = re.sub(
+        r"\b(?:mot de passe|password|code(?: de sécurité)?|iban|numéro de carte|"
+        r"identifiant|carte bancaire)\b[^.!?\n]*",
+        "[donnée sensible masquée]", value, flags=re.I
+    )
+    value = re.sub(
+        r"\b\d[\d\s.,]*\s*(?:euros?|eur|dollars?)\b",
+        "[montant masqué]", value, flags=re.I
+    )
+    value = re.sub(r"\b\d[\d\s.,]*\s*[€$]", "[montant masqué]", value)
+    value = re.sub(r"(?<!\w)\+?\d[\d\s().-]{5,}\d(?!\w)", "[numéro masqué]", value)
+    return value[:240]
+
+
+async def browser_handoff(session, link: BridgeLink, notes: list[str],
+                          goal: str, url: str | None) -> str | None:
+    demande = goal + (f"\nURL de départ : {url}" if url else "")
+    if await check_request(session, demande, "plan"):
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result=("bloquée par le Gardien" if session.stopped_by == "gardien"
+                            else "session arrêtée"))
+        return None
+
+    try:
+        browser = await link.start_web_agent()
+    except asyncio.CancelledError:
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result="annulée pendant le démarrage")
+        raise
+    except Exception:
+        await link.stop_web_agent()
+        browser = None
+    if not session.is_open:
+        if browser is not None:
+            await link.stop_web_agent()
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
+                    result="session arrêtée avant l'ouverture")
+        return None
+    if browser is None:
+        result = "Le navigateur PapAI n'a pas démarré : continue sur le bureau."
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal), result=result)
+        return result
+
+    session.where = "web"
+    session.last_frame = None
+    session.log("mode", where="web")
+    link.active_web_session = session
+    link.active_web_browser_session = browser
+    await broadcast_helper(session.status())
+    result_log = "session arrêtée pendant la sous-tâche"
+    try:
+        summary = await WebAgentRunner(
+            session, browser, broadcast_helper, notes,
+            goal=goal, url=url, finish_session=False,
+        ).run()
+        if not session.is_open or summary is None:
+            return None
+        result = f"Partie navigateur terminée : {summary}"
+        result_log = _safe_handoff_log_text(result)
+        return result
+    finally:
+        await asyncio.shield(link.stop_web_agent())
+        if link.active_web_session is session:
+            link.active_web_session = None
+            link.active_web_browser_session = None
+        if session.is_open and session.where == "web":
+            session.where = "desktop"
+            session.last_frame = None
+            session.doing = "Holo reprend sur le bureau"
+            session.log("mode", where="desktop")
+            await asyncio.shield(broadcast_helper(session.status()))
+        session.log("browser_handoff", goal=_safe_handoff_log_text(goal), result=result_log)
+
+
 async def run_session(session, link: "BridgeLink") -> None:
     """Plan d'abord, validé par l'aidant ; l'agent n'agit qu'ensuite."""
     notes: list[str] = []
@@ -554,7 +632,12 @@ async def run_session(session, link: "BridgeLink") -> None:
                     link.active_web_session = None
                     link.active_web_browser_session = None
         else:
-            await AgentRunner(session, link, broadcast_helper, notes).run()
+            handoff = None
+            if link.web_agent_available:
+                async def handoff(goal, url):
+                    return await browser_handoff(session, link, notes, goal, url)
+            await AgentRunner(session, link, broadcast_helper, notes,
+                              browser_handoff=handoff).run()
     except asyncio.CancelledError:
         session.stop(by="annulation")
         raise

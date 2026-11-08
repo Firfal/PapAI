@@ -273,9 +273,29 @@ TOOLS = [
     },
 ]
 
+OPEN_BROWSER_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "open_browser",
+        "description": (
+            "À utiliser quand les prochaines étapes se passent sur un site web. "
+            "Un agent navigateur les réalise dans une fenêtre Chrome PapAI séparée "
+            "et renvoie un résumé."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "goal": {"type": "string", "description": "Ce qu'il faut faire sur le web, en une phrase"},
+                "url": {"type": "string", "description": "URL HTTPS de départ, facultative"},
+            },
+            "required": ["goal"],
+        },
+    },
+}
+
 # Holo annonce l'étape du plan validé qu'il exécute : le serveur la retire des
 # arguments avant l'envoi à l'app et la publie dans `status.plan_step`.
-for _tool in TOOLS:
+for _tool in [*TOOLS, OPEN_BROWSER_TOOL]:
     if _tool["function"]["name"] != "answer":
         _tool["function"]["parameters"].setdefault("properties", {})["plan_step"] = {
             "type": "integer",

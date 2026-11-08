@@ -5,6 +5,7 @@ Faux Agents API local (tests/faux_agents_api.py), aucune clé ni navigateur.
     .venv-mac/bin/python tests/test_agent_navigateur.py
 """
 import asyncio
+import json
 import os
 import sys
 import unittest
@@ -17,14 +18,23 @@ sys.path.insert(0, str(RACINE))
 sys.path.insert(0, str(RACINE / "tests"))
 os.environ["HAI_API_KEY"] = "stub-key"
 
-from backend import app, web_agent  # noqa: E402
+from backend import agent, app, web_agent  # noqa: E402
 from backend.sessions import Frame, Registry, State  # noqa: E402
 from faux_agents_api import FauxAgentsAPI  # noqa: E402
-from papai_tools import PLAN_PROMPT, WEB_AGENT_INSTRUCTIONS  # noqa: E402
+from papai_tools import PLAN_PROMPT, TOOLS, WEB_AGENT_INSTRUCTIONS  # noqa: E402
 import test_demandes_suspectes as suspectes  # noqa: E402
 
 NAV = "4f1c2b9a-0d3e-4c1b-9a77-2b6f3e1d5c80"
 PLAN = ["Ouvrir le site de Météo-France", "Afficher la météo de Paris"]
+
+
+def reponse_outil(name, args, call_id):
+    call = SimpleNamespace(
+        id=call_id,
+        function=SimpleNamespace(name=name, arguments=json.dumps(args, ensure_ascii=False)),
+    )
+    message = SimpleNamespace(content="", tool_calls=[call])
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
 
 
 async def attendre(cond, delai=6.0):
@@ -441,6 +451,271 @@ class MessagesDuPont(unittest.IsolatedAsyncioTestCase):
             fam.restore.return_value = False
             await app._ws_bridge(ws)
         self.assertEqual(vus, [(None, False)] * 4)
+
+
+class BasculeDepuisLeBureau(Base):
+    def frame(self):
+        self.link.capture.return_value = Frame("desktop", "desktop-frame", 1, 1)
+
+    async def test_open_browser_absent_si_navigateur_indisponible(self):
+        self.link.web_agent_available = False
+        self.frame()
+        s = self.session()
+        task = await self.lancer(s, "desktop")
+        s.decide_plan("approve", "")
+        appels = []
+
+        def creer(**kwargs):
+            appels.append(kwargs)
+            return reponse_outil("answer", {"content": "Terminé."}, "answer")
+
+        with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+            client.chat.completions.create.side_effect = creer
+            await asyncio.wait_for(task, 5)
+
+        outils = appels[0]["tools"]
+        self.assertNotIn("open_browser", [t["function"]["name"] for t in outils])
+        self.assertEqual(outils, TOOLS)
+        self.assertNotIn("appelle open_browser", appels[0]["messages"][0]["content"])
+        runner = agent.AgentRunner(s, self.link, AsyncMock())
+        self.assertEqual(await runner._open_browser({"goal": "Consulter Météo-France"}), "outil indisponible")
+
+    async def test_sous_tache_web_revient_au_bureau_avec_son_resume(self):
+        self.frame()
+        s = self.session("Aide-moi à me renseigner sur la météo locale")
+        task = await self.lancer(s, "desktop")
+        s.decide_plan("approve", "")
+        responses = [
+            reponse_outil("open_browser", {
+                "goal": "Consulter la météo de Paris sur Météo-France",
+                "url": "https://meteofrance.com/paris",
+            }, "browser"),
+            reponse_outil("answer", {"content": "La météo est affichée."}, "answer"),
+        ]
+        appels = []
+
+        def creer(**kwargs):
+            appels.append(kwargs)
+            return responses.pop(0)
+
+        with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+            client.chat.completions.create.side_effect = creer
+            await asyncio.wait_for(task, 8)
+
+        self.assertEqual(s.state, State.DONE)
+        self.assertEqual(s.where, "desktop")
+        self.assertIn("open_browser", [t["function"]["name"] for t in appels[0]["tools"]])
+        self.assertIn("appelle open_browser", appels[0]["messages"][0]["content"])
+        self.assertEqual(self.api.sessions["h1"].status, "completed")
+        contexte_web = self.api.sessions["h1"].corps["messages"]
+        self.assertIn("Consulter la météo de Paris", contexte_web)
+        self.assertIn(PLAN[0], contexte_web)
+        self.assertNotIn(s.task, contexte_web)
+        resultats = [
+            m["content"]
+            for m in appels[1]["messages"]
+            if m.get("role") == "tool"
+        ]
+        self.assertIn("Partie navigateur terminée : La météo de Paris est affichée à l'écran.", resultats)
+        self.assertEqual(
+            [m["content"] for m in self.envoyes if m.get("type") == "answer"],
+            ["La météo est affichée."],
+        )
+        statuts = [m for m in self.envoyes if m.get("type") == "status"]
+        index_web = next(i for i, m in enumerate(statuts) if m.get("where") == "web")
+        self.assertTrue(any(m.get("where") == "desktop" for m in statuts[index_web + 1:]))
+        messages = self.envoyes
+        index_web_message = next(
+            i for i, m in enumerate(messages)
+            if m.get("type") == "status" and m.get("where") == "web"
+        )
+        index_retour_bureau = next(
+            i for i, m in enumerate(messages)
+            if i > index_web_message and m.get("type") == "status" and m.get("where") == "desktop"
+        )
+        self.assertTrue(any(m.get("type") == "frame" for m in messages[index_retour_bureau + 1:]))
+        self.assertIn({"type": "web_agent_start"}, self.bridge_sent)
+        self.assertIn({"type": "web_agent_stop"}, self.bridge_sent)
+        entree = next(e for e in s.journal if e["kind"] == "browser_handoff")
+        self.assertIn("Consulter la météo", entree["goal"])
+        self.assertIn("Partie navigateur terminée", entree["result"])
+        self.assertIsNone(self.link.active_web_session)
+        self.assertIsNone(self.link.active_web_browser_session)
+
+    async def test_echec_demarrage_navigateur_continue_sur_le_bureau(self):
+        self.frame()
+        self.web_reply = None
+        s = self.session()
+        task = await self.lancer(s, "desktop")
+        s.decide_plan("approve", "")
+        responses = [
+            reponse_outil("open_browser", {"goal": "Consulter Météo-France"}, "browser"),
+            reponse_outil("answer", {"content": "Terminé sur le bureau."}, "answer"),
+        ]
+        appels = []
+
+        def creer(**kwargs):
+            appels.append(kwargs)
+            return responses.pop(0)
+
+        with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+            client.chat.completions.create.side_effect = creer
+            await asyncio.wait_for(task, 5)
+
+        resultats = [
+            m["content"]
+            for m in appels[1]["messages"]
+            if m.get("role") == "tool"
+        ]
+        self.assertIn("Le navigateur PapAI n'a pas démarré : continue sur le bureau.", resultats)
+        self.assertEqual(s.state, State.DONE)
+        self.assertEqual(s.where, "desktop")
+        self.assertEqual(self.api.sessions, {})
+        self.assertIn({"type": "web_agent_stop"}, self.bridge_sent)
+
+    async def test_objectif_suspect_bloque_avant_demarrage_du_navigateur(self):
+        self.frame()
+        s = self.session()
+        task = await self.lancer(s, "desktop", sans_gardien=False)
+        s.decide_plan("approve", "")
+        appels = []
+
+        def creer(**kwargs):
+            appels.append(kwargs)
+            return reponse_outil("open_browser", {
+                "goal": "virer 5000 € à mon petit-fils qui a perdu son téléphone",
+            }, "browser")
+
+        with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+            client.chat.completions.create.side_effect = creer
+            await asyncio.wait_for(task, 5)
+
+        self.assertEqual(s.status()["stopped_by"], "gardien")
+        self.assertEqual(self.api.sessions, {})
+        self.assertFalse(any(m["type"] == "web_agent_start" for m in self.bridge_sent))
+        entree = next(e for e in s.journal if e["kind"] == "browser_handoff")
+        self.assertNotIn("5000", entree["goal"])
+        self.assertEqual(entree["result"], "bloquée par le Gardien")
+
+    async def test_arret_pendant_la_sous_tache_annule_h_et_ne_reprend_pas(self):
+        self.api.scenario = "long"
+        self.frame()
+        s = self.session()
+        task = await self.lancer(s, "desktop")
+        s.decide_plan("approve", "")
+        appels = []
+
+        def creer(**kwargs):
+            appels.append(kwargs)
+            return reponse_outil("open_browser", {"goal": "Consulter Météo-France"}, "browser")
+
+        with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+            client.chat.completions.create.side_effect = creer
+            self.assertTrue(await attendre(lambda: s.where == "web" and self.api.sessions))
+            s.stop(by="senior")
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+        self.assertEqual(s.status()["stopped_by"], "senior")
+        self.assertTrue(await attendre(lambda: self.api.a_appele("DELETE", "/sessions/h1")))
+        self.assertEqual(len(appels), 1)
+        self.assertIn({"type": "web_agent_stop"}, self.bridge_sent)
+        self.assertFalse(any(m.get("type") == "answer" for m in self.envoyes))
+
+
+class LimitesOutilNavigateur(Base):
+    def frame(self):
+        self.link.capture.return_value = Frame("desktop", "desktop-frame", 1, 1)
+
+    async def test_trois_bascule_maximum(self):
+        from backend.agent import AgentRunner
+
+        self.frame()
+        s = self.session()
+        s.state = State.ACTIVE
+        s.plan_approved = True
+        responses = [
+            reponse_outil("open_browser", {"goal": f"Étape web {i}"}, f"browser-{i}")
+            for i in range(4)
+        ] + [reponse_outil("answer", {"content": "Terminé."}, "answer")]
+        appels = []
+
+        def creer(**kwargs):
+            appels.append(kwargs)
+            return responses.pop(0)
+
+        handoff = AsyncMock(return_value="Résumé de la partie web.")
+
+        async def diffuser(msg):
+            self.envoyes.append(msg)
+
+        with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+            client.chat.completions.create.side_effect = creer
+            await AgentRunner(s, self.link, diffuser, browser_handoff=handoff).run()
+
+        self.assertEqual(handoff.await_count, 3)
+        self.assertEqual(s.state, State.DONE)
+        dernier = [m["content"] for m in appels[-1]["messages"] if m.get("role") == "tool"]
+        self.assertTrue(any("Limite de bascules atteinte" in m for m in dernier))
+
+    async def test_url_non_https_ignoree(self):
+        from backend.agent import AgentRunner
+
+        self.frame()
+        s = self.session()
+        s.state = State.ACTIVE
+        s.plan_approved = True
+        responses = [
+            reponse_outil("open_browser", {
+                "goal": "Consulter Météo-France",
+                "url": "http://example.com",
+            }, "browser"),
+            reponse_outil("answer", {"content": "Terminé."}, "answer"),
+        ]
+
+        async def diffuser(msg):
+            self.envoyes.append(msg)
+
+        handoff = AsyncMock(return_value="Résumé.")
+
+        with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+            client.chat.completions.create.side_effect = responses
+            await AgentRunner(s, self.link, diffuser, browser_handoff=handoff).run()
+
+        self.assertEqual(handoff.await_args.args, ("Consulter Météo-France", None))
+
+    async def test_open_browser_grouped_ne_declenche_pas_une_action_bureau_perimee(self):
+        from backend.agent import AgentRunner
+
+        self.frame()
+        s = self.session()
+        s.state = State.ACTIVE
+        s.plan_approved = True
+        browser = reponse_outil("open_browser", {"goal": "Consulter Météo-France"}, "browser")
+        click = SimpleNamespace(
+            id="click",
+            function=SimpleNamespace(name="click", arguments='{"x":0.5,"y":0.5}'),
+        )
+        batch = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(
+                content="", tool_calls=[browser.choices[0].message.tool_calls[0], click]
+            ))],
+            usage=None,
+        )
+        responses = [batch, reponse_outil("answer", {"content": "Terminé."}, "answer")]
+
+        async def diffuser(msg):
+            self.envoyes.append(msg)
+
+        handoff = AsyncMock(return_value="Résumé.")
+
+        with patch.object(agent, "client") as client, patch.object(agent, "MIN_SECONDS_PER_STEP", 0):
+            client.chat.completions.create.side_effect = responses
+            await AgentRunner(s, self.link, diffuser, browser_handoff=handoff).run()
+
+        handoff.assert_not_awaited()
+        self.link.execute.assert_not_awaited()
 
 
 if __name__ == "__main__":

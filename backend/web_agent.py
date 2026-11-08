@@ -62,9 +62,15 @@ def agent_spec(browser_session: str) -> dict:
     }
 
 
-def brief(session: Session, notes: list[str] | None = None) -> str:
+def brief(session: Session, notes: list[str] | None = None,
+          goal: str | None = None, url: str | None = None) -> str:
     """La demande, le plan validé et les consignes, en un seul message."""
-    lines = [f"Demande de la personne : « {session.task} »"]
+    if goal is None:
+        lines = [f"Demande de la personne : « {session.task} »"]
+    else:
+        lines = [f"Objectif de cette sous-tâche web : « {goal} »"]
+        if url:
+            lines.append(f"URL HTTPS de départ : {url}")
     for n in notes or []:
         if n:
             lines.append(f"Précision de son proche : {n}")
@@ -138,18 +144,22 @@ class WebAgentRunner:
     """
 
     def __init__(self, session: Session, browser_session: str, broadcast,
-                 notes: list[str] | None = None, client=None) -> None:
+                 notes: list[str] | None = None, client=None, goal: str | None = None,
+                 url: str | None = None, finish_session: bool = True) -> None:
         self.s = session
         self.browser_session = browser_session
         self.broadcast = broadcast
         self.notes = notes or []
         self.client = client
+        self.goal = goal
+        self.url = url
+        self.finish_session = finish_session
         self.handle = None
         self._h_paused = False
         self._answer = ""
         self._cancel_task: asyncio.Future | None = None
 
-    async def run(self) -> None:
+    async def run(self) -> str | None:
         watcher = None
         try:
             if not self.s.is_open:
@@ -165,7 +175,7 @@ class WebAgentRunner:
             await self.broadcast(self.s.status())
             creation = asyncio.create_task(self.client.start_session(
                 agent=agent_spec(self.browser_session),
-                messages=brief(self.s, self.notes),
+                messages=brief(self.s, self.notes, self.goal, self.url),
                 tools=[ask],
                 max_steps=MAX_STEPS,
                 max_time_s=MAX_TIME_S,
@@ -209,11 +219,14 @@ class WebAgentRunner:
             st = getattr(status, "status", "")
             if st in ("completed", "idle") or self._answer:
                 text = self._answer or DONE_DEFAULT
-                self.s.finish(text)
-                await self.broadcast({"type": "answer", "content": text})
+                if self.finish_session:
+                    self.s.finish(text)
+                    await self.broadcast({"type": "answer", "content": text})
+                return text
             else:
                 self.s.log("web_agent_ended", status=str(st), error=str(getattr(status, "error", "") or "")[:200])
                 self.s.stop(by="navigateur")
+                return None
         except Refused as e:
             self.s.log("refused", reason=str(e))
         except asyncio.CancelledError:

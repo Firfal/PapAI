@@ -10,9 +10,12 @@ import asyncio
 import json
 import re
 import time
+from collections.abc import Awaitable, Callable
+from urllib.parse import urlsplit
 
 from papai_tools import (
     MIN_SECONDS_PER_STEP,
+    OPEN_BROWSER_TOOL,
     PLAN_PROMPT,
     system_prompt,
     TEMPERATURE,
@@ -33,6 +36,7 @@ import os
 # des clics imprévus. 25 en usage normal.
 # CAREPILOT_MAX_STEPS : ancien nom, encore lu pour les déploiements existants.
 MAX_STEPS = int(os.environ.get("PAPAI_MAX_STEPS") or os.environ.get("CAREPILOT_MAX_STEPS") or "25")
+MAX_BROWSER_HANDOFFS = 3
 
 client = make_client()
 
@@ -108,17 +112,22 @@ def describe_doing(thought: str, name: str, args: dict) -> str:
         return "Holo pose une question à votre proche"
     if name == "answer":
         return "Holo termine"
+    if name == "open_browser":
+        return "Holo prépare une étape dans le navigateur"
     return "Holo regarde l'écran"
 
 
 class AgentRunner:
     """Pilote une session du premier screenshot jusqu'à `answer` ou l'arrêt."""
 
-    def __init__(self, session: Session, bridge, broadcast, notes: list[str] | None = None) -> None:
+    def __init__(self, session: Session, bridge, broadcast, notes: list[str] | None = None,
+                 browser_handoff: Callable[[str, str | None], Awaitable[str | None]] | None = None) -> None:
         self.s = session
         self.bridge = bridge
         self.broadcast = broadcast  # async (dict) -> None, vers le proche
         self.notes = notes or []
+        self.browser_handoff = browser_handoff
+        self.browser_handoffs = 0
 
     async def run(self) -> None:
         try:
@@ -147,8 +156,18 @@ class AgentRunner:
             brief += "\nÀ chaque action, indique dans plan_step le numéro de l'étape du plan que tu exécutes."
         for n in self.notes:
             brief += f"\nPrécision du proche : {n}"
+        system = system_prompt(self.bridge.os)
+        tools = TOOLS
+        if self.browser_handoff is not None:
+            system += (
+                "\nQuand les prochaines étapes se passent sur un site web, appelle "
+                "open_browser avec un objectif en une phrase et, si utile, une URL HTTPS. "
+                "Appelle-le seul, sans autre outil dans la même réponse. Quand tu reçois "
+                "son résumé, continue la tâche sur le bureau."
+            )
+            tools = [*TOOLS, OPEN_BROWSER_TOOL]
         messages = [
-            {"role": "system", "content": system_prompt(self.bridge.os)},
+            {"role": "system", "content": system},
             {"role": "user", "content": brief},
         ]
 
@@ -180,7 +199,7 @@ class AgentRunner:
                 client.chat.completions.create,
                 model=MODEL,
                 messages=messages,
-                tools=TOOLS,
+                tools=tools,
                 tool_choice="required",
                 temperature=TEMPERATURE,
             )
@@ -197,6 +216,17 @@ class AgentRunner:
                 self.s.log("no_action", step=step)
                 continue
 
+            if (len(msg.tool_calls) > 1
+                    and any(call.function.name == "open_browser" for call in msg.tool_calls)):
+                self.s.log("browser_handoff_batch_refused", step=step)
+                for call in msg.tool_calls:
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": "Après un appel à open_browser, observe l'écran avant toute autre action.",
+                    })
+                continue
+
             for call in msg.tool_calls:
                 name = call.function.name
                 args = json.loads(call.function.arguments or "{}")
@@ -204,7 +234,10 @@ class AgentRunner:
                 self.s.doing = describe_doing(msg.content or "", name, args)
                 # La capture est enregistrée avec l'action : c'est la matière
                 # première d'une fiche CareMemory.
-                self.s.log("tool_call", step=step, tool=name, args=args, frame=frame.frame_id)
+                if name == "open_browser":
+                    self.s.log("tool_call", step=step, tool=name, frame=frame.frame_id)
+                else:
+                    self.s.log("tool_call", step=step, tool=name, args=args, frame=frame.frame_id)
                 await self.broadcast(self.s.status())
 
                 if name == "answer":
@@ -214,6 +247,10 @@ class AgentRunner:
 
                 if name in ("ask_helper", "ask_senior"):
                     result = await self._escalate(args, to="senior" if name == "ask_senior" else "helper")
+                    if result is None:
+                        return
+                elif name == "open_browser":
+                    result = await self._open_browser(args)
                     if result is None:
                         return
                 else:
@@ -242,6 +279,33 @@ class AgentRunner:
 
         self.s.log("budget_exhausted")
         self.s.finish("Je n'ai pas réussi à terminer. Je passe la main.")
+
+    async def _open_browser(self, args: dict) -> str | None:
+        if self.browser_handoff is None:
+            return "outil indisponible"
+        if self.browser_handoffs >= MAX_BROWSER_HANDOFFS:
+            return "Limite de bascules atteinte : continue sur le bureau ou appelle ask_helper."
+        goal = args.get("goal")
+        if not isinstance(goal, str) or not goal.strip():
+            return "Objectif web manquant : continue sur le bureau ou appelle ask_helper."
+        self.browser_handoffs += 1
+
+        url = None
+        candidate = args.get("url")
+        if isinstance(candidate, str):
+            candidate = candidate.strip()
+            try:
+                parsed = urlsplit(candidate)
+                port = parsed.port
+                if (parsed.scheme.lower() == "https" and parsed.hostname
+                        and parsed.username is None and parsed.password is None
+                        and (port is None or 1 <= port <= 65535)
+                        and not any(char.isspace() for char in candidate)
+                        and len(candidate) <= 2048):
+                    url = candidate
+            except ValueError:
+                pass
+        return await self.browser_handoff(goal.strip()[:500], url)
 
     # ------------------------------------------------------------------ actions
 

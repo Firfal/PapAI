@@ -314,8 +314,16 @@ bureau reste le comportement par défaut.
 - Serveur → apps, `status.where` : `"web"`, `"desktop"` ou `null`. Avant la
   validation, c'est l'endroit proposé par Holo avec le plan ; après la
   validation, c'est le mode réellement utilisé (`"desktop"` si le Mac n'a pas
-  annoncé cette capacité ou si le démarrage du navigateur échoue). Les apps
-  l'ignorent si absent.
+  annoncé cette capacité ou si le démarrage du navigateur échoue). Pendant une
+  session de bureau, Holo peut appeler `open_browser` pour une sous-tâche :
+  `where` passe alors de `"desktop"` à `"web"`, puis revient à `"desktop"` quand
+  le résumé est rendu à Holo. Les apps l'ignorent si absent.
+- Si `hello.web_agent_available` est vrai, les outils de Holo en mode bureau
+  comprennent `open_browser` (`goal` obligatoire, `url` HTTPS facultative).
+  Le Gardien vérifie l'objectif avant de démarrer Chrome PapAI. L'agent web
+  reçoit cet objectif et le plan validé, puis rend un résumé à l'agent bureau ;
+  il ne termine pas la session. Sans navigateur disponible, cet outil n'est pas
+  proposé. Au plus trois bascules sont possibles par session.
 - Rien ne change avant `approve_plan` : gardien, capture pour le plan, plan à
   valider. La session H n'est créée qu'après la validation.
 - En mode web, le serveur n'envoie ni `capture` ni `execute` au Mac pendant
