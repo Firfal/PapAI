@@ -28,7 +28,7 @@ import websockets
 
 RACINE = Path(__file__).resolve().parent.parent
 CLE = "cle-de-test-appairage"
-INVALIDE = "Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de la personne aidée."
+INVALIDE = "Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de l’utilisateur."
 fails = 0
 
 
@@ -241,7 +241,7 @@ async def parcours(base: str) -> None:
         ta = asyncio.create_task(repondre(wa, False, []))
         st, r = await post(f"{base}/p/{ca}", {"name": "Intrus", "relation": ""})
         check("refusé sur l'ordinateur : pas de liaison", st == 403 and r.get("refused") is True and sans_secret(r)
-              and r.get("error") == "La personne aidée a refusé. Rien n'a été partagé.")
+              and r.get("error") == "L’utilisateur a refusé. Rien n'a été partagé.")
         ta.cancel()
         await asyncio.gather(ta, return_exceptions=True)
         st, r = await post(f"{base}/p/{ca}", {"name": "Intrus"})
