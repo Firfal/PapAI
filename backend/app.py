@@ -25,7 +25,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import automate_draft, automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
+from . import automate_draft, automations, guard, linkup, orgs as orgs_mod, space, tickets as tickets_mod, voice
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
@@ -432,7 +432,7 @@ async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
         await S().bridge.send(payload)
     dead = []
     for ws in S().helper_sockets:
-        scoped = payload.get("type") == "guard_advice" or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
+        scoped = payload.get("type") in ("guard_advice", "linkup_proposed", "linkup_result", "linkup_answer") or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
         if scoped and not helper_can_access_alert(ws, payload):
             continue
         if payload.get("type") in SUPPORT_ONLY and not _is_support(ws):
@@ -889,6 +889,14 @@ async def run_session(session, link: "BridgeLink") -> None:
             steps = await propose_plan(session, link, broadcast_helper, " ; ".join(notes))
             if not session.is_open:
                 return
+            if session.linkup_query:
+                session.plan = None
+                session.state = State.AWAITING_APPROVAL
+                session.owner = Owner.NONE
+                await broadcast_helper(session.status())
+                await broadcast_helper({"type": "linkup_proposed", "session": session.id,
+                                        "query": session.linkup_query}, to_bridge=False)
+                return
             for site in session.plan_sites:
                 alerte = guard.evaluer([], "", url=f"https://{site}")
                 if alerte:
@@ -909,6 +917,8 @@ async def run_session(session, link: "BridgeLink") -> None:
             if result is None or not session.is_open:
                 return
             kind, note = result
+            if kind == "linkup":
+                return
             if kind == "approve":
                 break
             if kind == "refuse":
@@ -954,6 +964,79 @@ async def run_session(session, link: "BridgeLink") -> None:
 # ------------------------------------------------------------------ proche
 
 
+async def replay_linkup(session, ws: WebSocket) -> None:
+    if session.linkup_query and session.is_open:
+        await ws.send_json({"type": "linkup_proposed", "session": session.id,
+                            "query": session.linkup_query})
+        if session.linkup_result is not None:
+            await ws.send_json(session.linkup_result)
+
+
+async def handle_linkup_search(session, msg: dict, ws: WebSocket) -> None:
+    session.require_open()
+    if msg.get("session") != session.id:
+        raise Refused("La demande a changé. Rouvrez-la avant de rechercher.")
+    if session.state not in (State.PLANNING, State.AWAITING_APPROVAL) or session.plan_approved:
+        raise Refused("La recherche est disponible avant la validation du plan.")
+    query = linkup.plain(msg.get("query", session.linkup_query or session.task), 1000)
+    if not query:
+        raise Refused("Écrivez la question à rechercher.")
+    if not linkup.enabled():
+        await ws.send_json({"type": "linkup_result", "session": session.id, "query": query,
+                            "error": "disabled"})
+        return
+    session.linkup_query = query
+    session.linkup_id = secrets.token_hex(12)
+    request_id = session.linkup_id
+    session.linkup_result = None
+    session.plan = None
+    session.state = State.AWAITING_APPROVAL
+    session.owner = Owner.NONE
+    session._resolve_plan(("linkup", ""))
+    await broadcast_helper(session.status())
+    await broadcast_helper({"type": "linkup_proposed", "session": session.id, "query": query}, to_bridge=False)
+    result = await linkup.search(query)
+    if not session.is_open or request_id != session.linkup_id:
+        return
+    session.linkup_result = {"type": "linkup_result", "session": session.id,
+                             "id": request_id, "query": query, **result}
+    await broadcast_helper(session.linkup_result, to_bridge=False)
+
+
+async def handle_linkup_approve(session, msg: dict, ws: WebSocket) -> None:
+    session.require_open()
+    if msg.get("session") != session.id or not session.linkup_query:
+        raise Refused("Aucune réponse n'attend votre validation.")
+    if session.state is not State.AWAITING_APPROVAL or session.plan_approved:
+        raise Refused("Aucune réponse n'attend votre validation.")
+    if msg.get("approved") is False:
+        session.stop(by="support")
+        await broadcast_helper(session.status())
+        return
+    result = session.linkup_result
+    if (msg.get("approved") is not True or not result or result.get("error")
+            or msg.get("id") != session.linkup_id):
+        raise Refused("Recherchez une réponse avant de la valider.")
+    text = linkup.plain(msg.get("text", result["summary"]), 8000)
+    if not text:
+        raise Refused("La réponse ne peut pas être vide.")
+    who = S().helper_who.get(ws, {}).get("name", "") or "Support"
+    answer = {"type": "linkup_answer", "session": session.id, "content": text,
+              "sources": result["sources"]}
+    ticket = S().tickets.get(session.ticket)
+    if ticket is not None:
+        S().tickets.update(ticket, linkup_answer={"content": text, "sources": result["sources"],
+                                                 "query": session.linkup_query, "by": who})
+        await _tickets_changed()
+    session.helper_name = who
+    session.log("linkup_approved", by=who)
+    session.finish(text)
+    if S().bridge is not None:
+        await S().bridge.send(answer)
+    await broadcast_helper(answer, to_bridge=False)
+    await broadcast_helper(session.status())
+
+
 def _session_by_token(token: str):
     """Le jeton d'une session désigne aussi son espace."""
     for sp in spaces.all():
@@ -989,6 +1072,7 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
     S().helper_sockets.add(ws)
     S().helper_alert_scopes[ws] = session.id
     await ws.send_json(session.status())
+    await replay_linkup(session, ws)
     await ws.send_json({"type": "senior", "name": S().family.senior or None})
     if S().pending_alert and helper_can_access_alert(ws, S().pending_alert["helper"]):
         await ws.send_json(S().pending_alert["helper"])
@@ -1037,7 +1121,13 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
         who = S().helper_who.get(ws, {}).get("name", "")
         if who and kind in ("approve_plan", "answer", "click"):
             session.helper_name = who
-        if kind in ("approve_plan", "refine_plan", "refuse_plan"):
+        if kind == "linkup_search":
+            await handle_linkup_search(session, msg, ws)
+
+        elif kind == "linkup_approve":
+            await handle_linkup_approve(session, msg, ws)
+
+        elif kind in ("approve_plan", "refine_plan", "refuse_plan"):
             session.decide_plan(kind.split("_")[0], str(msg.get("text", "")).strip())
             await broadcast_helper(session.status())
 
@@ -1565,6 +1655,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     s = current_session()
     if s is not None:
         await ws.send_json(s.status())
+        await replay_linkup(s, ws)
         if s.last_frame:
             await ws.send_json({"type": "frame", "frame_id": s.last_frame.frame_id,
                                 "png_b64": s.last_frame.png_b64})

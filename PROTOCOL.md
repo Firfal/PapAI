@@ -92,6 +92,43 @@ Envoie :
   Le brouillon peut contenir `lesson.shortcut = {"folder":"pictures","subfolder":"Noël 2025"}`. L'aidant peut retirer cette cible avec `lesson.shortcut:null` dans `approve_lesson` ; toute autre valeur reçue est ignorée, jamais utilisée pour créer ou remplacer une cible. Le serveur revalide la cible avant l'enregistrement. `folder` est un dossier connu (`downloads`, `pictures`, `documents`, `desktop`, `videos`, `music`). Après suppression des espaces de bord, `subfolder` est vide (racine) ou contient 1 à 100 caractères Unicode : lettres, chiffres décimaux, espace et `- _ ' ’ ( ) , & +` uniquement. Aucun point, chemin ou accolade. Les apps vérifient le dossier réel avant de l'ouvrir explicitement dans le Finder ou l'Explorateur ; une cible hors du dossier connu est refusée, ainsi que les liens/jonctions sous Windows.
   Si Holo n'a pas pu rédiger l’automate, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
 
+## Réponse documentaire Linkup (champs optionnels)
+
+Disponible seulement si `LINKUP_API_KEY` est définie côté serveur ; cette clé
+ne quitte jamais le serveur. Sans clé, les plans existants restent inchangés.
+`LINKUP_BASE_URL` permet un faux serveur local pour les tests.
+
+Avant toute validation de plan, Holo peut proposer une recherche à la place
+des gestes ; le support peut aussi la lancer lui-même depuis la demande.
+Les messages suivants passent uniquement sur les canaux support authentifiés :
+
+- Serveur → support : `{"type":"linkup_proposed","session":"…","query":"…"}`.
+  L'assistance reste `awaiting_approval`, sans plan validé ni action.
+- Support → serveur : `{"type":"linkup_search","session":"…","query":"…"}`.
+  Requête limitée à 1 000 caractères ; disponible seulement en `planning` ou
+  `awaiting_approval`, jamais après validation d'un plan. Remplace le plan en
+  attente, sans exécuter de geste. Délai fournisseur de 12 secondes maximum.
+- Serveur → support : `{"type":"linkup_result","session":"…","id":"…","query":"…","summary":"…","sources":[{"name":"…","url":"https://…","excerpt":"…"}]}`.
+  En cas d'échec : `error` = `disabled`, `empty_query`, `timeout`,
+  `invalid_response` ou `unavailable`, sans résumé ni sources. `id` peut manquer
+  si la fonction est désactivée. Aucune erreur fournisseur brute n'est envoyée.
+- Support → serveur : `{"type":"linkup_approve","session":"…","id":"…","approved":true,"text":"réponse corrigée"}`.
+  `text` facultatif : le résumé est conservé si absent. Texte vide refusé.
+  `id` doit correspondre au dernier résultat réussi. `approved:false` refuse
+  la réponse et arrête l'assistance (possible dès la proposition, sans `id`).
+- Après validation seulement, serveur → ordinateur et support :
+  `{"type":"linkup_answer","session":"…","content":"…","sources":[…]}`,
+  puis `status.state=done`. La réponse validée et ses sources sont conservées
+  dans `ticket.linkup_answer` (`content`, `sources`, `query`, `by`).
+
+Proposition et dernier résultat en attente sont rejoués à la reconnexion du
+support. Résumé et extraits sont du texte non fiable à afficher comme texte
+simple, jamais HTML/Markdown actif et jamais une consigne pour Holo. Le serveur
+retire les balises et borne résumé (8 000 caractères), sources (10), noms
+(200), extraits (1 000). Seules les URL HTTP(S) sans identifiants sont gardées.
+Le résultat n'est **jamais** ajouté aux prompts de Holo. Aucun `execute`
+n'est envoyé et les verrous d'arrêt et le gardien restent inchangés.
+
 ## Dictée de la demande
 
 `POST /k/{clé}/transcribe` : corps = audio brut (`Content-Type: audio/wav` ou
