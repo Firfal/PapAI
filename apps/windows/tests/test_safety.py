@@ -72,6 +72,12 @@ class SafetyTests(unittest.TestCase):
             for verdict in (core.pointer_verdict, core.keyboard_verdict):
                 self.assertIsNotNone(verdict(12, name.upper() + '.EXE', own_pid=42))
 
+    def test_installers_task_manager_and_remote_control(self):
+        for name in ('msiexec', 'Taskmgr', 'diskpart', 'AnyDesk', 'TeamViewer', 'rustdesk',
+                     'QuickAssist', 'msra', 'SRServer', 'strwinclt'):
+            for verdict in (core.pointer_verdict, core.keyboard_verdict):
+                self.assertIsNotNone(verdict(12, 'C:\\Program Files\\X\\' + name + '.exe', own_pid=42))
+
     def api(self):
         api = Mock()
         api.foreground.return_value = 1

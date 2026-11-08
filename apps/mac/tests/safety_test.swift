@@ -73,7 +73,14 @@ struct SafetyTest {
         verifier(focusedKeyboard(auth) != nil, "focus AX refusé par nom du processus")
         verifier(focusedKeyboard(.init(pid: ownPID, name: "", bundle: nil)) != nil, "focus AX PapAI refusé par PID")
         verifier(focusedKeyboard(safari) == nil, "focus AX autorisé dans une app normale")
-        verifier(focusedKeyboard(nil) == nil, "focus AX illisible : Finder reste autorisé")
+        verifier(focusedKeyboard(nil) == nil, "aucun élément actif : Finder reste autorisé")
+        verifier(Safety.keyboardReason(secureInput: false, front: finder, papaiActive: false, ownPID: ownPID,
+                                       ownBundle: ownBundle, focused: nil, focusUnreadable: true) != nil,
+                 "lecture AX en échec : frappe refusée")
+        for name in ["Programme d’installation", "Moniteur d’activité", "Utilitaire de disque",
+                     "AnyDesk", "TeamViewer", "RustDesk", "Splashtop Business"] {
+            verifier(reason(.init(pid: 8, name: name, bundle: nil)) != nil, "outil système ou de prise en main refusé : \(name)")
+        }
         verifier(focusedKeyboard(nil, auth) != nil, "focus AX illisible : premier plan sensible reste refusé")
         verifier(focusedKeyboard(finder, auth) != nil, "focus AX normal ne contourne pas le premier plan sensible")
         verifier(focusedKeyboard(nil, nil) != nil, "focus AX illisible et premier plan inconnu restent refusés")

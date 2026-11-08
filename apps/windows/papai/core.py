@@ -78,6 +78,9 @@ SENSITIVE_PROCESSES = frozenset({
     "keepass", "keepassxc", "enpass", "keeper", "nordpass", "roboform",
     "control", "rundll32", "mmc", "regedit",
     "cmd", "powershell", "pwsh", "windowsterminal", "openconsole", "conhost",
+    "msiexec", "taskmgr", "resmon", "regedt32", "diskpart",
+    "anydesk", "teamviewer", "teamviewer_service", "tv_w32", "tv_x64", "rustdesk", "quickassist",
+    "msra", "srserver", "srmanager", "strwinclt", "splashtop",
 })
 
 

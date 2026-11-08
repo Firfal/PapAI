@@ -53,7 +53,10 @@ enum Safety {
         "com.bitwarden.desktop", "com.dashlane.Dashlane", "com.lastpass.LastPass",
         "org.keepassxc.keepassxc", "in.sinew.Enpass-Desktop", "com.sinew.Enpass-Desktop",
         "com.apple.Terminal", "com.googlecode.iterm2", "com.apple.ScriptEditor2",
-        "com.apple.Automator", "com.apple.shortcuts"
+        "com.apple.Automator", "com.apple.shortcuts",
+        "com.apple.installer", "com.apple.ActivityMonitor", "com.apple.DiskUtility", "com.apple.ScreenSharing",
+        "com.philandro.anydesk", "com.teamviewer.TeamViewer", "com.teamviewer.TeamViewerHost",
+        "com.carriez.rustdesk", "com.splashtop.Splashtop-Business", "com.splashtop.Splashtop-Streamer"
     ]
     static let names: Set<String> = [
         "System Settings", "Réglages Système", "System Preferences", "Préférences Système",
@@ -61,7 +64,12 @@ enum Safety {
         "universalAccessAuthWarn", "Keychain Access", "Trousseaux d’accès", "Trousseaux d'accès",
         "Passwords", "Mots de passe", "1Password", "1Password 7", "Bitwarden", "Dashlane",
         "LastPass", "KeePassXC", "Enpass", "PapAI", "Terminal", "iTerm", "iTerm2",
-        "Script Editor", "Éditeur de script", "Éditeur de scripts", "Automator", "Shortcuts", "Raccourcis"
+        "Script Editor", "Éditeur de script", "Éditeur de scripts", "Automator", "Shortcuts", "Raccourcis",
+        "Installer", "Programme d’installation", "Programme d'installation",
+        "Activity Monitor", "Moniteur d’activité", "Moniteur d'activité",
+        "Disk Utility", "Utilitaire de disque", "Screen Sharing", "Partage d’écran", "Partage d'écran",
+        "AnyDesk", "TeamViewer", "TeamViewerHost", "TeamViewer QuickSupport", "RustDesk",
+        "Splashtop Business", "Splashtop Streamer"
     ]
     static func reason(_ target: Target, ownPID: Int32, ownBundle: String?) -> String? {
         if target.pid == ownPID || (ownBundle != nil && target.bundle == ownBundle) {
@@ -81,9 +89,11 @@ enum Safety {
         return nil
     }
     static func keyboardReason(secureInput: Bool, front: Target?, papaiActive: Bool,
-                               ownPID: Int32, ownBundle: String?, focused: Target? = nil) -> String? {
+                               ownPID: Int32, ownBundle: String?, focused: Target? = nil,
+                               focusUnreadable: Bool = false) -> String? {
         if secureInput { return "un champ protégé attend une saisie confidentielle" }
         if papaiActive { return "PapAI est encore au premier plan" }
+        if focusUnreadable { return "le champ actif ne peut pas être vérifié" }
         if let focused, let reason = reason(focused, ownPID: ownPID, ownBundle: ownBundle) { return reason }
         guard let front else { return "l’application au premier plan est inconnue" }
         return reason(front, ownPID: ownPID, ownBundle: ownBundle)
@@ -119,16 +129,20 @@ final class DesktopSafety {
     private func target(_ app: NSRunningApplication) -> Safety.Target {
         Safety.Target(pid: app.processIdentifier, name: app.localizedName ?? "", bundle: app.bundleIdentifier)
     }
-    private func focusedTarget() -> Safety.Target? {
+    /// Élément actif lu par l'Accessibilité. `unreadable` : la lecture a échoué
+    /// (autorisation absente, application qui ne répond pas) ; la frappe est alors
+    /// refusée. Seul « aucun élément actif » (`.noValue`) laisse décider l'app au premier plan.
+    private func focusedTarget() -> (target: Safety.Target?, unreadable: Bool) {
         let system = AXUIElementCreateSystemWide()
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &value) == .success,
-              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        let status = AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &value)
+        if status == .noValue { return (nil, false) }
+        guard status == .success, let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return (nil, true) }
         let element = value as! AXUIElement
         var pid: pid_t = 0
-        guard AXUIElementGetPid(element, &pid) == .success, pid > 0 else { return nil }
-        if let app = NSRunningApplication(processIdentifier: pid) { return target(app) }
-        return Safety.Target(pid: pid, name: "", bundle: nil)
+        guard AXUIElementGetPid(element, &pid) == .success, pid > 0 else { return (nil, true) }
+        if let app = NSRunningApplication(processIdentifier: pid) { return (target(app), false) }
+        return (Safety.Target(pid: pid, name: "", bundle: nil), false)
     }
     func checkPointer(_ point: CGPoint) throws {
         guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else {
@@ -160,10 +174,11 @@ final class DesktopSafety {
         try checkKeyboard()
     }
     func checkKeyboard() throws {
+        let focus = focusedTarget()
         if let reason = Safety.keyboardReason(secureInput: IsSecureEventInputEnabled(),
                                               front: NSWorkspace.shared.frontmostApplication.map(target),
                                               papaiActive: NSApp.isActive, ownPID: ownPID, ownBundle: ownBundle,
-                                              focused: focusedTarget()) {
+                                              focused: focus.target, focusUnreadable: focus.unreadable) {
             throw ActionError.sensitive(reason)
         }
     }

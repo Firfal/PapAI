@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 @main
-struct HomeShortcutsTest {
+struct DossierRaccourciTest {
     @MainActor static func main() throws {
         let fm = FileManager.default
         let racine = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
