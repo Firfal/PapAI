@@ -72,7 +72,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Protection en temps réel (8 nov., décision de Corentin) : le gardien reprend ses trois signaux textuels toutes les 8 s hors assistance, derrière l'interrupteur « Protection en temps réel » des Réglages Mac et Windows, activé par défaut et gardé ; coupé, rien ne part. L'état s'affiche sur la page du support. Profil Chrome PapAI effacé après chaque assistance, Holo demande à la personne de se connecter elle-même. Reste : Swift non compilé, pas essayé sur un vrai Mac ni un vrai Windows ; Android et iPhone n'affichent pas encore l'état.
 - [ ] Compiler et essayer sur un Mac (`Automations` dans `Core.swift`) : modèles Word, page Imprimantes, Google via Holo.
 - [ ] Essayer sur un vrai Windows : scan Defender (`MpCmdRun.exe`), modèles Word dans `%APPDATA%\Microsoft\Templates`, `ms-settings:printers`.
-- [ ] Pitch et soumission : passer au support niveau 1, garder les grands-parents comme exemple.
+- [x] Chantier 4, textes entreprise actualisés après #90 (8 nov., 10 h 22 UTC) : `README.md` et `docs/soumission.md` recentrés sur Christine et le support IT ; quinze chantiers vérifiés dans main `b905883`, mentions de PR en attente retirées. Fusion à deux parents (pas un squash) explicitée ; 781 commits dont 618 sous les identités Git de Devin, 68 PR fusionnées dont 60 de Devin ; 39 PR de Devin du 8 novembre listées avec auteur et état réel (25 fusionnées, 11 ouvertes, trois fermées sans fusion). Blocs à copier conservés.
+- [ ] Avant soumission : refaire le relevé si main ou les états GitHub évoluent ; compléter l'équipe et les liens, puis copier sur les plateformes. Pitch hors de ce chantier, non retouché.
 
 ## P1 — pitch et rendu (demain matin)
 
