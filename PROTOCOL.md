@@ -450,8 +450,9 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
 
 - `POST /orgs` `{"name"}` → `{"id","name","enroll_token","support_token","server","support_url","app_url"}`.
   3 créations par heure et par adresse IP (429). Les deux jetons ne sont donnés qu'ici.
-  - `enroll_token` (`ins-…`) : déposé sur les postes. Windows : `apps\windows\organisation.txt`
-    (ignoré par git) ou `PAPAI_ORG`. Mac : préférence `orgToken` (`defaults write`, profil MDM) ou `PAPAI_ORG`.
+  - `enroll_token` (`ins-…`) : déposé sur les postes. Windows : stratégie de groupe
+    `HKLM|HKCU\SOFTWARE\Policies\PapAI\OrgToken` (modèle `apps/windows/policies/PapAI.admx`), à défaut
+    `apps\windows\organisation.txt` (ignoré par git) ou `PAPAI_ORG`. Mac : préférence `orgToken` (`defaults write`, profil MDM) ou `PAPAI_ORG`.
   - `support_token` (`sup-…`) : donné aux supports (personnes ou support IA). `support_url` =
     `<server>/o/<jeton>` (page web), `app_url` = `papai://org?u=<server>&t=<jeton>` (Android, iPhone).
 - `POST /spaces` `{"org": "<enroll_token>", "name": "<utilisateur · poste>"}` : le poste s'inscrit
