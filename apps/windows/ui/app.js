@@ -39,12 +39,12 @@
     return `<div class="hdr">
       <img class="logotype" src="logotype-papai.svg" alt="papai">
       <div class="spacer"></div>
-      ${S.connected ? '' : `<div class="pillChip" style="gap:10px;padding:11px 18px">
-        <span class="dot" style="background:rgba(122,128,124,.5)"></span>
+      ${S.connected ? '' : `<div class="pillChip chip-gray" style="gap:10px;padding:11px 18px">
+        <span class="dot" style="background:#7A8296"></span>
         <span style="${f(16, 5)}">Pas de connexion pour le moment</span>
       </div>`}
       <button class="circle press" data-act="openSettings" aria-label="Réglages"
-        style="width:42px;height:42px;background:var(--card)">${icon('gear', 19)}</button>
+        style="width:44px;height:44px">${icon('gear', 20)}</button>
     </div>`;
   }
 
@@ -60,9 +60,9 @@
   function helpCard() {
     const mic = S.microPresent;
     const busy = ui.dictating || S.dictation.phase !== 'idle';
-    const wait = S.queued && !S.queued.show ? `<button class="pillChip press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
+    const wait = S.queued && !S.queued.show ? `<button class="pillChip chip-blue press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
         ${icon('personWave', 20)}<span>Demande n° ${esc(S.queued.number)} ${S.queued.rdv ? '· rendez-vous ' + esc(rdvText(S.queued.rdv)) : 'en attente'}</span></button>` : '';
-    const warn = (ui.warning ? `<div class="pillChip" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
+    const warn = (ui.warning ? `<div class="pillChip chip-orange" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
         ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '') + wait;
     return `<div class="mintCard homeCard" style="padding:32px;gap:16px">
       <div style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) : ''}</div>
@@ -70,10 +70,11 @@
       <div class="spacer"></div>
       ${mic ? micButton() : ''}
       ${ui.writing || !mic ? `<div class="requestRow">
+        <span class="fieldIcon">${icon('compose', 22)}</span>
         <textarea id="req" rows="1" placeholder="Écrivez votre demande" aria-label="Écrivez votre demande"
           style="${f(18, 5)};line-height:1.3">${esc(ui.request)}</textarea>
         <button class="pill filled" data-act="submit" ${busy || ui.submitting ? 'disabled' : ''} style="height:44px;padding:0 18px;${f(15, 6)}">Envoyer</button>
-      </div>` : S.dictation.phase === 'idle' ? `<button class="pillChip press writeButton" data-act="write" style="${f(15, 6)}">Écrire</button>` : ''}
+      </div>` : S.dictation.phase === 'idle' ? `<button class="pillChip softBtn press writeButton" data-act="write" style="${f(15, 6)}">Écrire</button>` : ''}
       ${warn}<div class="spacer"></div></div>`;
   }
 
@@ -81,7 +82,7 @@
     const ph = S.dictation.phase;
     const listening = ph === 'listening';
     const inner = ph === 'transcribing' ? '<div class="spinner"></div>'
-      : icon(listening ? 'stop' : 'mic', 48, listening ? '#fff' : 'var(--ink)');
+      : icon(listening ? 'stop' : 'mic', 48, listening ? '#fff' : 'var(--accent)');
     const label = listening ? 'Je vous écoute…' : ph === 'transcribing' || ph === 'starting' ? 'Je note…' : 'Parler à PapAI';
     return `<div class="col" style="align-items:center;gap:12px">
       <button class="press" data-act="mic" ${ph === 'transcribing' || ph === 'starting' ? 'disabled' : ''}
@@ -89,7 +90,7 @@
         style="flex:none">
       <span class="microFrame" style="position:relative;width:180px;height:180px;display:flex;align-items:center;justify-content:center">
         ${listening ? '<span class="micRing"></span>' : ''}
-        <span class="circle microDisc" style="position:relative;width:148px;height:148px;background:${listening ? 'var(--accent)' : '#fff'}">${inner}</span>
+        <span class="circle microDisc${listening ? ' on' : ''}" style="position:relative;width:148px;height:148px">${inner}</span>
       </span></button><span style="${f(20, 6)}">${label}</span>
       ${ui.request && !ui.writing ? `<span style="${f(18, 5)}">${esc(ui.request)}</span>` : ''}</div>`;
   }
@@ -112,8 +113,8 @@
     }).join('');
     const running = S.automationRunning ? `<div class="card row" style="padding:18px;gap:14px;align-items:center">
         <span class="grow" style="${f(18, 6)}">En cours : ${esc(S.automationRunning)}</span>
-        <button class="row press" data-act="stop" aria-label="Arrêter l'automate (Échap)"
-          style="gap:10px;height:52px;padding:0 20px;border-radius:999px;background:var(--ink);color:#fff">
+        <button class="row press stopBtn" data-act="stop" aria-label="Arrêter l'automate (Échap)"
+          style="gap:10px;height:52px;padding:0 20px;border-radius:999px">
           ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
     if (!S.lessons.length && !notice && !running) return '';
     return `<div class="col" style="gap:14px">${running}${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes automates</div>` : ''}${tiles}</div>`;
@@ -134,7 +135,7 @@
         : icon(a.symbol || (APP_STYLE[a.label] || ['app'])[0], 24, 'var(--accent)');
       return `<div class="col" style="position:relative"><button class="col press" data-act="homeShortcut" data-arg="${esc(a.id)}" aria-label="Ouvrir ${esc(a.label)}"
           style="gap:4px;align-items:center">
-        <span class="circle" style="width:54px;height:54px;background:var(--card)">${img}</span>
+        <span class="circle tileIcon" style="width:54px;height:54px">${img}</span>
         <span style="${f(15, 5)};min-height:24px;text-align:center">${esc(a.label)}</span></button>
         ${a.personal && ui.editingShortcuts ? `<button class="removeShortcut" data-act="removeShortcut" data-arg="${esc(a.id)}" aria-label="Retirer ${esc(a.label)}" style="${f(15, 6)}">Retirer</button>` : ''}</div>`;
     }).join('');
@@ -143,7 +144,7 @@
       ${(S.homeShortcuts || []).some(a => a.personal) ? `<button class="press" data-act="editShortcuts" aria-pressed="${ui.editingShortcuts}" style="min-height:44px;${f(15, 6)}">${ui.editingShortcuts ? 'Terminer' : 'Modifier'}</button>` : ''}
       </div><div class="grid3 homeGrid">${items}
       <button class="col press" data-act="addShortcut" style="gap:4px;align-items:center">
-        <span class="circle" style="width:54px;height:54px;background:var(--card)">${icon('plus', 24, 'var(--muted)')}</span>
+        <span class="circle tileIcon" style="width:54px;height:54px">${icon('plus', 24, 'var(--accent)')}</span>
         <span style="${f(15, 5)};min-height:24px">Ajouter</span></button></div></div>`;
   }
 
@@ -201,9 +202,9 @@
     }
     return st === 'done' ? 1 : 0;
   }
-  const bar = (st, h) => `<div style="height:${h}px;border-radius:999px;background:var(--card);overflow:hidden" role="progressbar"
+  const bar = (st, h) => `<div class="track" style="height:${h}px;border-radius:999px;overflow:hidden" role="progressbar"
       aria-label="Avancement" aria-valuenow="${Math.round(fraction(st) * 100)}" aria-valuemin="0" aria-valuemax="100">
-      <div style="height:100%;width:max(${h}px, ${fraction(st) * 100}%);border-radius:999px;background:var(--accent);transition:width .6s"></div></div>`;
+      <div class="fill" style="height:100%;width:max(${h}px, ${fraction(st) * 100}%);border-radius:999px;transition:width .6s"></div></div>`;
   function progress(st, phase) {
     const steps = ['Holo regarde votre écran et prépare la suite', `${S.HelperName} vérifie et donne son accord`,
       `${S.carer} s'en occupe, avec Holo`];
@@ -213,7 +214,7 @@
         <span style="color:${done || now ? 'var(--accent)' : 'var(--muted)'}">${icon(done ? 'checkCircle' : now ? 'circleDotted' : 'circle', 24)}</span>
         <span style="${f(21, now ? 6 : 4)};color:${done ? 'var(--muted)' : 'var(--ink)'}">${esc(text)}</span></div>`;
     }).join('');
-    return `<div class="col" style="gap:18px;padding:24px;border-radius:var(--r);background:rgba(255,255,255,.55)">${bar(st, 18)}${rows}</div>`;
+    return `<div class="col progressBox" style="gap:18px;padding:24px;border-radius:var(--r)">${bar(st, 18)}${rows}</div>`;
   }
 
   // Une question que Holo pose à la personne aidée, pour ce qu'elle seule sait.
@@ -225,8 +226,8 @@
       ? `<div class="row accent" style="gap:10px">${icon('checkCircle', 22)}<span style="${f(20, 6)}">Merci, c'est noté.</span></div>`
       : `${options ? `<div class="row" style="gap:10px;flex-wrap:wrap">${options}</div>` : ''}
         <div class="row" style="gap:12px">
-          <input id="seniorReply" class="grow" placeholder="Votre réponse" value="${esc(ui.seniorText || '')}"
-            style="${f(22, 5)};padding:16px 20px;border:0;border-radius:var(--r);background:var(--bg)">
+          <input id="seniorReply" class="grow field" placeholder="Votre réponse" value="${esc(ui.seniorText || '')}"
+            style="${f(22, 5)};padding:16px 20px;border:0;border-radius:var(--r);width:auto">
           ${pill('Répondre', 'seniorReply', { height: 56, disabled: !(ui.seniorText || '').trim() })}
         </div>
         <div class="muted" style="${f(15, 4)}">Ne donnez jamais de mot de passe ni de code : on ne vous les demandera pas.</div>`;
@@ -262,21 +263,21 @@
 
   const canPause = (st) => st === 'active' || st === 'awaiting_helper' || S.paused;
   function pauseButton(height, size) {
-    return `<button class="row press" data-act="pause" aria-label="${S.paused ? "Reprendre l'aide" : "Mettre l'aide en pause"}"
-        style="justify-content:center;gap:12px;height:${height}px;border-radius:999px;background:var(--card);color:var(--ink);flex:1">
+    return `<button class="row press softBtn" data-act="pause" aria-label="${S.paused ? "Reprendre l'aide" : "Mettre l'aide en pause"}"
+        style="justify-content:center;gap:12px;height:${height}px;border-radius:999px;flex:1">
         ${icon(S.paused ? 'play' : 'pause', size - 4)}<span style="${f(size, 6)}">${S.paused ? 'Reprendre' : 'Pause'}</span></button>`;
   }
   function stopButton(height, size) {
-    return `<button class="row press" data-act="stop" aria-label="Arrêter l'assistance (Échap)"
-        style="justify-content:center;gap:14px;height:${height}px;border-radius:999px;background:var(--ink);color:#fff;flex:1">
+    return `<button class="row press stopBtn" data-act="stop" aria-label="Arrêter l'assistance (Échap)"
+        style="justify-content:center;gap:14px;height:${height}px;border-radius:999px;flex:1">
         ${icon('stop', size - 4, '#fff')}<span style="${f(size, 6)}">Arrêter</span></button>`;
   }
 
   function session() {
     const st = S.state || 'planning';
     const sub = sessionSubtitle(st);
-    const banner = S.sessionOpen ? `<div class="pillChip" style="align-self:flex-start;gap:10px;padding:10px 18px;${f(16, 6)}">
-      <span class="dot" style="background:var(--accent)"></span>Écran partagé</div>` : '';
+    const banner = S.sessionOpen ? `<div class="pillChip chip-green" style="align-self:flex-start;gap:10px;padding:10px 18px;${f(16, 6)}">
+      <span class="dot" style="background:#1F8A4C"></span>Écran partagé</div>` : '';
     const footer = (S.task && st !== 'stopped' && st !== 'awaiting_approval' && !(st === 'awaiting_helper' && S.questionForMe))
       ? `<div class="muted" style="${f(16, 4)};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">Votre demande : ${esc(S.task)}</div>` : '';
     const bottom = S.sessionOpen
@@ -288,7 +289,7 @@
       <div class="scroll">${sessionContent(st)}</div>
       <div class="spacer"></div>${footer}`;
     const card = guardStopped(st)
-      ? `<div class="col" style="padding:34px;gap:18px;border-radius:var(--rBig);background:var(--card);flex:1;min-height:0">${inner}</div>`
+      ? `<div class="col guardCard" style="padding:40px 34px 34px;gap:18px;border-radius:var(--rBig);background:var(--card);flex:1;min-height:0">${inner}</div>`
       : mint(inner, 34, 18);
     return card + `<div class="row" style="margin-top:18px">${bottom}</div>`;
   }
@@ -304,11 +305,11 @@
       <div class="row" style="gap:10px">
         <span class="dot" style="background:${S.sessionOpen && !S.paused ? 'var(--accent)' : 'var(--muted)'}"></span>
         <span class="grow" style="${f(17, 6)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</span>
-        <button class="circle press" data-act="expand" aria-label="Ouvrir PapAI en grand"
-          style="width:30px;height:30px;background:var(--bg)">${icon('expand', 14)}</button>
+        <button class="circle press softBtn" data-act="expand" aria-label="Ouvrir PapAI en grand"
+          style="width:44px;height:44px;color:var(--accent)">${icon('expand', 16)}</button>
       </div>
       ${bar(st, 8)}
-      <div class="row" style="gap:8px">${canPause(st) ? pauseButton(40, 15) : ''}${stopButton(40, 15)}</div>
+      <div class="row" style="gap:8px">${canPause(st) ? pauseButton(44, 16) : ''}${stopButton(44, 16)}</div>
     </div>`;
   }
 
@@ -344,7 +345,7 @@
   function onboarding() {
     const step = S.onboardingStep;
     const dots = `<div class="row dots" style="gap:8px" aria-label="Étape ${step + 1} sur ${ONB}">` +
-      Array.from({ length: ONB }, (_, i) => `<span class="d" style="width:${i === step ? 34 : 12}px;background:${i <= step ? 'var(--accent)' : 'var(--card)'}"></span>`).join('') + '</div>';
+      Array.from({ length: ONB }, (_, i) => `<span class="d" style="width:${i === step ? 34 : 12}px;background:${i <= step ? 'var(--accent)' : '#DCE3F3'}"></span>`).join('') + '</div>';
     const content = [onbWelcome, onbName, onbPermissions, () => helpersPanel(true)][step]();
     const label = step === 0 ? 'Commencer' : step === ONB - 1 ? (S.helpers.length ? 'Terminer' : 'Plus tard') : 'Continuer';
     return mint(`${dots}<div class="col" style="gap:22px;flex:1;min-height:0">${content}</div>`, 40, 22) +
@@ -401,11 +402,11 @@
   // ------------------------------------------------------------ HelpersPanel
   function helpersPanel(onb) {
     const rows = S.helpers.map((h) => `<div class="card row" style="gap:14px;padding:14px">
-        <span class="circle" style="width:46px;height:46px;background:var(--accent);color:#fff;${f(20, 6)}">${esc((h.name[0] || '').toUpperCase())}</span>
+        <span class="circle" style="width:46px;height:46px;background:var(--blue);color:#fff;${f(20, 6)}">${esc((h.name[0] || '').toUpperCase())}</span>
         <div class="col grow" style="gap:2px"><div style="${f(21, 6)}">${esc(h.name)}</div>
           ${h.relation ? `<div class="muted" style="${f(16, 4)}">${esc(cap(h.relation))}</div>` : ''}</div>
         ${onb ? '' : `<button class="circle press" data-act="removeHelper" data-arg="${esc(h.id)}" aria-label="Retirer ${esc(h.name)}"
-          style="width:36px;height:36px;background:var(--bg)">${icon('xmark', 16)}</button>`}
+          style="width:44px;height:44px;background:var(--card);box-shadow:inset 0 0 0 1px var(--line)">${icon('xmark', 16)}</button>`}
       </div>`).join('');
     const add = S.pairCode ? '' :
       `<div>${pill(S.helpers.length ? 'Ajouter un autre support' : 'Ajouter un support', 'pair', { filled: !S.helpers.length, height: 60, disabled: !S.connected })}</div>
@@ -478,10 +479,10 @@
     const field = (label, id, val, ph) => `<div class="col" style="gap:8px">
       <div class="muted" style="${f(15, 6)}">${label}</div>
       <input id="${id}" value="${esc(val)}" placeholder="${esc(ph)}" autocomplete="off"
-        style="background:var(--card);border-radius:18px;padding:16px;${f(18, 5)}"></div>`;
+        style="background:var(--field);border-radius:14px;padding:16px;${f(18, 5)}"></div>`;
     const seg = S.textScales.map(([label, v]) =>
       `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
-    return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--bg)">
+    return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--card)">
       <div style="${f(30, 6)}">Réglages</div>
       ${S.orgName ? `<div class="muted" style="${f(15, 5)}">Poste géré par ${esc(S.orgName)}</div>` : ''}
       ${field('Prénom', 'setName', ui.settings.name, 'Jeanne')}
@@ -503,7 +504,7 @@
       </div></div>`;
   }
   function helpersSheet() {
-    return `<div class="sheet col" style="width:820px;min-height:460px;padding:36px;gap:18px;background:var(--mint)">
+    return `<div class="sheet col" style="width:820px;min-height:460px;padding:36px;gap:18px;background:var(--card)">
       ${helpersPanel(false)}<div class="spacer"></div>
       <div class="row"><div class="spacer"></div>${pill('Fermer', 'closeHelpers', { height: 54 })}</div></div>`;
   }
@@ -512,7 +513,7 @@
   function alertSheet() {
     const a = S.alert, danger = a.level === 'danger';
     const tint = danger ? '#C8442F' : 'var(--accent)';
-    return `<div class="sheet col" style="width:620px;padding:36px;gap:18px;background:var(--card)">
+    return `<div class="sheet col ${danger ? 'alertDanger' : 'alertInfo'}" style="width:620px;padding:46px 36px 36px;gap:18px;background:var(--card)">
       <div class="row" style="gap:14px;color:${tint}">${icon('exclam', 30, tint)}
         <span style="${f(17, 6)}">${danger ? 'Attention' : 'Pour information'}</span></div>
       <div style="${f(30, 6)}">${esc(a.title)}</div>

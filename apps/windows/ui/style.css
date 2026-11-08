@@ -1,35 +1,49 @@
-/* Design « Soin » : recopie de apps/mac/Sources/Theme.swift.
+/* Design PapAI : fond clair bleuté, en-tête en dégradé bleu, cartes blanches
+   à ombre douce, pastilles pâles, bouton principal en pilule bleue.
    Les tailles sont celles de SwiftUI, en points = px CSS à 100 %.
-   Police : Nunito (OFL), l'arrondie la plus proche de SF Rounded. */
+   Contrastes vérifiés AA : --accent sur blanc 6,3:1, blanc sur le bleu du
+   bouton (#2F6CF6 au plus clair) 4,5:1, --muted sur blanc 6:1. */
 @font-face {
   font-family: "Nunito";
   src: url("fonts/Nunito.ttf") format("truetype");
   font-weight: 200 1000;
 }
 :root {
-  --bg: #EEF0EE; --card: #FFFFFF; --ink: #111312; --muted: #7A807C;
-  --accent: #2E9E5B; --mint: #E2F2E7;
-  --r: 28px; --rBig: 36px;
+  --bg: #F1F3FB; --card: #FFFFFF; --ink: #141A2E; --muted: #5B6478;
+  --accent: #1D55D6; --mint: #EAF0FF; --field: #F2F4F9; --line: rgba(20,40,110,.08);
+  --blue: linear-gradient(135deg, #1C4FDB 0%, #2F6CF6 100%);
+  --blueShadow: 0 6px 16px rgba(33,92,240,.28), 0 1px 2px rgba(33,92,240,.2);
+  --soft: 0 1px 2px rgba(20,40,110,.05), 0 8px 24px rgba(30,60,150,.08);
+  --danger: #C8442F;
+  --r: 18px; --rBig: 22px;
   --ts: 1;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  background: var(--bg); color: var(--ink);
-  font-family: "Nunito", "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg) linear-gradient(160deg, #E6F3FB 0%, #EEEDFD 55%, #E3F4FA 100%) fixed;
+  color: var(--ink);
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-weight: 500; line-height: 1.2; -webkit-font-smoothing: antialiased; overflow: hidden;
   user-select: none;
 }
 button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
 button:disabled { opacity: .45; cursor: default; }
-button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(46,158,91,.45); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(29,85,214,.45); outline-offset: 2px; }
 input, textarea { font: inherit; color: var(--ink); border: 0; outline: none; background: none; user-select: text; }
-input::placeholder, textarea::placeholder { color: rgba(17,19,18,.32); }
+input::placeholder, textarea::placeholder { color: #737B8F; }
 svg { display: block; flex: none; }
 
-#root { height: 100vh; display: flex; flex-direction: column; gap: 22px; padding: 0 28px 28px; }
-.hdr { display: flex; align-items: center; gap: 14px; padding-top: 56px; flex: none; }
+/* En-tête : bande bleue en dégradé, logotype en blanc */
+#root { height: 100vh; display: flex; flex-direction: column; gap: 22px; padding: 0 0 28px; }
+.hdr { display: flex; align-items: center; gap: 14px; padding: 28px 28px 22px; flex: none;
+  background: linear-gradient(180deg, #4C8DFF 0%, #2B6BFF 100%); color: #fff; border-radius: 0 0 var(--rBig) var(--rBig);
+  box-shadow: 0 10px 30px rgba(33,92,240,.18); }
+.hdr .logotype { filter: brightness(0) invert(1); }
+.hdr .circle { background: rgba(255,255,255,.18) !important; color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); }
 .logotype { width: 84px; height: 36px; object-fit: contain; }
+.main { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; margin: 0 28px; }
+
 .mintCard.homeCard { overflow-y: auto; }
 .homeCard > .spacer { flex-basis: auto; }
 @media (max-width: 960px), (max-height: 680px) {
@@ -37,15 +51,18 @@ svg { display: block; flex: none; }
   .homeCard > .spacer { display: none; }
   .homeCard .microFrame { width: 148px !important; height: 148px !important; }
   .homeCard .microDisc { width: 128px !important; height: 128px !important; }
+  .hdr { padding-top: 18px; padding-bottom: 14px; }
 }
-.requestRow { display: flex; align-items: center; gap: 10px; padding: 18px; border-radius: 22px; background: var(--card); }
+/* Champ de demande : gris très clair, arrondi, avec icône */
+.requestRow { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 18px; border-radius: 999px;
+  background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.requestRow > .fieldIcon { color: var(--muted); }
 .requestRow textarea { flex: 1; min-width: 0; width: 100%; resize: none; }
 .writeButton { align-self: center; min-height: 44px; padding: 10px 22px; }
 .homeGrid { row-gap: 8px; }
 .removeShortcut { align-self: center; min-height: 44px; color: var(--muted); }
 .spacer { flex: 1 1 0; min-width: 0; min-height: 0; }
 body.compact #root { padding: 0; gap: 0; }
-.main { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 
 .muted { color: var(--muted); }
 .accent { color: var(--accent); }
@@ -53,36 +70,55 @@ body.compact #root { padding: 0; gap: 0; }
 
 .col { display: flex; flex-direction: column; }
 .row { display: flex; align-items: center; }
-.card { background: var(--card); border-radius: var(--r); }
-.mintCard { background: var(--mint); border-radius: var(--rBig); flex: 1 1 0; min-height: 0;
-  display: flex; flex-direction: column; overflow: hidden; }
+.card { background: var(--card); border-radius: var(--r); box-shadow: var(--soft); }
+/* Grande carte de chaque écran : blanche, ombre diffuse */
+.mintCard { background: var(--card); border-radius: var(--rBig); flex: 1 1 0; min-height: 0;
+  display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--soft); }
 .mintCard > * { flex-shrink: 0; }
 .mintCard > .scroll, .mintCard > .spacer { flex-shrink: 1; }
-.pillChip { background: var(--card); border-radius: 999px; display: inline-flex; align-items: center; }
+/* Cartes posées dans une carte blanche : ton gris bleuté et filet fin */
+.mintCard .card, .sheet .card { background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.progressBox { background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.track { background: #DDE4F4; }
+.fill { background: var(--blue); }
+
+/* Pastilles d'état pâles */
+.pillChip { background: var(--card); border-radius: 999px; display: inline-flex; align-items: center;
+  box-shadow: inset 0 0 0 1px var(--line); }
+.chip-blue { background: #E6EEFF; color: #1A47B8; box-shadow: none; }
+.chip-green { background: #E3F5EA; color: #13663A; box-shadow: none; }
+.chip-orange { background: #FFF0E0; color: #8F4300; box-shadow: none; }
+.chip-gray { background: #ECEEF3; color: #474F63; box-shadow: none; }
+.chip-violet { background: #EFEAFF; color: #5B3CC4; box-shadow: none; }
 .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .circle { border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .scroll { overflow-y: auto; min-height: 0; scrollbar-width: none; }
 .scroll::-webkit-scrollbar { display: none; }
 
-/* PillStyle et PressStyle */
+/* Pilules : principale en dégradé bleu, secondaire blanche et discrète */
 .pill { border-radius: 999px; padding: 0 30px; font-weight: 600; display: inline-flex;
   align-items: center; justify-content: center; white-space: nowrap; flex: none;
-  transition: transform .25s cubic-bezier(.2,.8,.2,1); }
-.pill.filled { background: var(--ink); color: #fff; }
-.pill.plain { background: var(--card); color: var(--ink); }
-.press { transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+  transition: transform .16s cubic-bezier(.23,1,.32,1), box-shadow .16s; }
+.pill.filled { background: var(--blue); color: #fff; box-shadow: var(--blueShadow); }
+.pill.plain, .softBtn { background: var(--card); color: var(--ink);
+  box-shadow: inset 0 0 0 1px rgba(20,40,110,.12), 0 1px 2px rgba(20,40,110,.06); }
+.stopBtn { background: var(--ink); color: #fff; box-shadow: 0 6px 16px rgba(20,26,46,.25); }
+.press { transition: transform .16s cubic-bezier(.23,1,.32,1); }
 .pill:active:not(:disabled), .press:active:not(:disabled) { transform: scale(.97); }
 .grow { flex: 1 1 0; min-width: 0; }
 
-.field { background: var(--card); border-radius: var(--r); width: 100%; resize: none; display: block; }
+.field { background: var(--field); border-radius: var(--r); width: 100%; resize: none; display: block;
+  box-shadow: inset 0 0 0 1px var(--line); }
 
-/* Micro : pulsation pendant l'écoute */
-.micRing { position: absolute; inset: 0; border-radius: 50%; background: rgba(46,158,91,.25);
+/* Micro : disque bleu pâle au repos, bleu plein pendant l'écoute */
+.microDisc { background: var(--mint); box-shadow: inset 0 0 0 1px rgba(29,85,214,.14), 0 10px 28px rgba(30,60,150,.12); }
+.microDisc.on { background: var(--blue); box-shadow: var(--blueShadow); }
+.micRing { position: absolute; inset: 0; border-radius: 50%; background: rgba(47,108,246,.22);
   animation: pulse .9s ease-in-out infinite alternate; }
 @keyframes pulse { from { transform: scale(.9); } to { transform: scale(1.12); } }
 @media (prefers-reduced-motion: reduce) { .micRing { animation: none; } }
-.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(17,19,18,.15);
-  border-top-color: var(--muted); animation: spin .8s linear infinite; }
+.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(20,26,46,.15);
+  border-top-color: var(--accent); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .fade { animation: fade .25s ease-in-out; }
@@ -91,17 +127,26 @@ body.compact #root { padding: 0; gap: 0; }
 .dots .d { height: 12px; border-radius: 999px; transition: width .3s cubic-bezier(.2,.8,.2,1), background .3s; }
 
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 8px; row-gap: 14px; }
+.tileIcon { background: var(--card); box-shadow: var(--soft); }
 .appIcon { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center;
   justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 .appIcon img { width: 52px; height: 52px; }
 
-/* Feuilles (réglages, proches), comme .sheet sur macOS */
+/* Arrêt par le gardien : la carte garde un bandeau rouge */
+.guardCard { box-shadow: inset 0 6px 0 var(--danger), var(--soft); }
+
+/* Feuilles (réglages, support, alerte) */
 #sheet:empty { display: none; }
-#sheet { position: fixed; inset: 0; background: rgba(17,19,18,.22); display: flex;
+#sheet { position: fixed; inset: 0; background: rgba(20,26,46,.28); display: flex;
   align-items: flex-start; justify-content: center; padding-top: 28px; animation: fade .2s; }
-.sheet { border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.25), 0 0 0 .5px rgba(0,0,0,.12);
+.sheet { border-radius: var(--rBig); box-shadow: 0 24px 60px rgba(20,30,80,.25), 0 0 0 .5px rgba(20,40,110,.12);
   max-height: calc(100vh - 56px); overflow: auto; }
-.seg { display: flex; background: rgba(17,19,18,.07); border-radius: 8px; padding: 2px; }
-.seg button { flex: 1; min-height: 30px; border-radius: 6px; font-size: 15px; font-weight: 500;
-  font-family: "Segoe UI", system-ui, sans-serif; }
-.seg button.on { background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+.sheet input { box-shadow: inset 0 0 0 1px var(--line); }
+/* Alerte du gardien : bandeau rouge épais, impossible à manquer */
+.alertDanger { box-shadow: inset 0 10px 0 var(--danger), 0 0 0 3px var(--danger), 0 24px 60px rgba(120,20,10,.3); }
+.alertInfo { box-shadow: inset 0 10px 0 var(--accent), 0 24px 60px rgba(20,30,80,.25); }
+.seg { display: flex; background: #E8ECF5; border-radius: 12px; padding: 3px; }
+.seg button { flex: 1; min-height: 44px; border-radius: 10px; font-size: 15px; font-weight: 600; color: var(--muted); }
+.seg button.on { background: #fff; color: var(--accent); box-shadow: 0 1px 3px rgba(20,40,110,.18); }
+.alertDanger .pill.filled { background: var(--danger); box-shadow: 0 6px 16px rgba(200,68,47,.3); }
+@media (prefers-reduced-motion: reduce) { .fade, #sheet { animation: none; } }
