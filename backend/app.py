@@ -1077,7 +1077,7 @@ async def org_import_automation(token: str, request: Request):
         lesson = automations.save(pack, by=request.query_params.get("by", "") or o.name, folder=o.lessons_dir)
     except automations.Invalid as e:
         return JSONResponse({"error": str(e)}, status_code=422)
-    print(f"[organisations] automatisme {lesson['id']} pour {o.id}")
+    print(f"[organisations] automate {lesson['id']} pour {o.id}")
     for sp in spaces.members(o.id):
         o.copy_automations(sp.lessons_dir, only=lesson["id"])
         if sp.bridge is not None:
