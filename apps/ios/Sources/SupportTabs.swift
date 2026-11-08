@@ -110,7 +110,7 @@ struct TicketsTab: View {
                     Label(e, systemImage: "exclamationmark.triangle").font(.footnote).foregroundStyle(T.danger)
                 }
                 if model.people.isEmpty {
-                    empty("Aucun utilisateur relié. Les ordinateurs de l’organisation apparaîtront ici dès que votre service informatique les aura inscrits.")
+                    empty("Aucun poste pour l’instant. Les postes de l’organisation apparaîtront ici dès que votre service informatique les aura inscrits.")
                 } else if shown.isEmpty && !board.loading {
                     empty(filter == 0 ? "Rien à traiter. Les nouvelles demandes de vos utilisateurs arriveront ici."
                                       : "Aucun ticket pour l’instant.")
