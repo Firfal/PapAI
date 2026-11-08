@@ -1,9 +1,9 @@
-# Pitch PapAI : script (3 min, 8 slides)
+# Pitch PapAI : script (3 min, 9 slides)
 
-Pour le dimanche 8 novembre, 14 h. Deck : `docs/pitch/deck-local.html`, à ouvrir dans Chrome.
+Pour le dimanche 8 novembre, 14 h. Deck (9 slides) : `docs/pitch/deck-local.html`, à ouvrir dans Chrome.
 - `F` passe en plein écran.
 - `→`, espace ou un clic font avancer ; un clic sur le tiers gauche fait reculer.
-- `1` à `8` ouvrent directement une slide.
+- `1` à `9` ouvrent directement une slide.
 
 Le deck marche hors ligne, sauf les polices (sans réseau, il prend celles du système).
 
@@ -19,7 +19,8 @@ Le deck marche hors ligne, sauf les polices (sans réseau, il prend celles du sy
 5. Une fois, partout.
 6. Sous contrôle.
 7. Rien à installer.
-8. La phrase de fin.
+8. Entreprise et famille.
+9. La phrase de fin.
 
 Environ 380 mots, soit 130 mots par minute : un débit calme, avec de la place pour les silences.
 
@@ -52,11 +53,15 @@ Environ 380 mots, soit 130 mots par minute : un débit calme, avec de la place p
 - Geste : les trois lignes arrivent une à une.
 - À dire : « Trois règles. Rien sans plan validé. Arrêter, à tout moment. Et Holo ne touche jamais une fenêtre de sécurité : une règle née d'une vraie répétition. En plus, un gardien repère les arnaques à la prise en main. »
 
-**2:30-2:45 · Slide 7, rien à installer**
+**2:30-2:40 · Slide 7, rien à installer**
 - Geste : le code s'affiche.
-- À dire : « Côté entreprise, l'IT déploie PapAI avec ses outils habituels : stratégie de groupe sur Windows, MDM sur Mac. Christine ouvre l'app : son nom est déjà là, son support aussi. »
+- À dire : « L'IT déploie PapAI avec ses outils habituels : stratégie de groupe, MDM. Christine ouvre l'app : son nom est là, son support aussi. »
 
-**2:45-3:00 · Slide 8, fin**
+**2:40-2:52 · Slide 8, entreprise et famille**
+- Geste : les deux panneaux arrivent, bleu à gauche, vert à droite.
+- À dire : « PapAI est né pour Jeanne, 81 ans, qui veut revoir ses photos pendant que son petit-fils est dans le métro. Même boucle, même Holo : en entreprise, c'est le support IT qui valide ; en famille, c'est un proche. »
+
+**2:52-3:05 · Slide 9, fin**
 - Geste : le logotype.
 - À dire : « On l'a construit avec Holo, Gladia pour la voix, et Devin dans l'équipe. PapAI : le support valide, Holo exécute. Merci. »
 
@@ -94,6 +99,7 @@ Si l'on est en retard à 2:10, on dit la slide 6 en une phrase : « Rien ne boug
   - s'il n'est pas fusionné à 14 h, on dit « c'est prévu pour se déployer par GPO et MDM » ;
   - on ne montre jamais un vrai jeton.
 - **Pas de « le rejeu n'appelle jamais Holo ».** Certains automates ouvrent un dossier en local, d'autres demandent à Holo de refaire un plan déjà validé.
+- **La version famille (slide 8)** est gardée sur la branche `archive/particuliers`, hors de l'app montrée aujourd'hui. On ne dit pas qu'elle est disponible. Si le jury demande : « Elle existe et a tourné ; aujourd'hui on montre l'entreprise. »
 - **Windows :**
   - l'app existe et suit les mêmes écrans ;
   - la démo d'aujourd'hui se fait sur Mac ;

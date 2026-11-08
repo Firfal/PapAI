@@ -215,7 +215,25 @@ h2 { font-size: 112px; }
 .code .sep { display: block; height: 22px; }
 
 /* =========================================================
-   8 · FIN
+   8 · DEUX PUBLICS : à gauche l'entreprise (bleu PapAI), à droite la famille (vert de l'ancien design « Soin »)
+   ========================================================= */
+.s-two .pair { position: absolute; left: 160px; right: 160px; top: 210px; bottom: 110px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.s-two .side { position: relative; border-radius: 40px; padding: 64px 64px 60px; display: flex; flex-direction: column; color: #fff; overflow: hidden; }
+.s-two .ent { background: linear-gradient(150deg, #1F5FF0, #3D7FFF); box-shadow: 0 40px 80px -36px rgba(47,110,247,.7); }
+.s-two .fam { background: linear-gradient(150deg, #17633A, #2E8B57); box-shadow: 0 40px 80px -36px rgba(28,114,64,.7); }
+.s-two .eyebrow { font-family: var(--mono); font-size: 22px; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+.s-two .big { font-family: var(--display); font-weight: 700; font-size: 92px; letter-spacing: -.04em; line-height: 1; margin-top: auto; text-wrap: balance; }
+.s-two .who2 { margin-top: 30px; font-size: 30px; line-height: 1.35; opacity: .92; max-width: 640px; }
+.s-two .tag { display: inline-flex; align-self: flex-start; align-items: center; gap: 12px; height: 46px; padding: 0 20px; border-radius: 23px;
+  background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); font-weight: 600; font-size: 22px; margin-top: 36px; }
+.s-two .mid2 { position: absolute; left: 50%; top: 210px; transform: translate(-50%, -50%); z-index: 3; height: 64px; padding: 0 30px; border-radius: 32px;
+  background: var(--card); color: var(--ink); display: flex; align-items: center; font-family: var(--display); font-weight: 700; font-size: 28px; letter-spacing: -.01em;
+  box-shadow: 0 0 0 1px var(--line), 0 20px 40px -16px rgba(20,26,51,.45); white-space: nowrap; }
+.s-two.active .mid2 { animation: rise2 .8s var(--spring) .9s both; }
+@keyframes rise2 { from { opacity: 0; transform: translate(-50%, -30%) scale(.9); } to { opacity: 1; transform: translate(-50%, -50%); } }
+
+/* =========================================================
+   9 · FIN
    ========================================================= */
 .s-end .mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .s-end .logo { height: 220px; color: var(--ink); }
@@ -365,7 +383,26 @@ h2 { font-size: 112px; }
     </div>
   </section>
 
-  <!-- 8 · Fin -->
+  <!-- 8 · Deux publics -->
+  <section class="slide s-two" data-state="Résolue" aria-label="Entreprise et famille">
+    <div class="pair hero">
+      <div class="side ent r" style="--d:0">
+        <div class="eyebrow">PapAI Entreprise</div>
+        <div class="big">Le support IT valide.</div>
+        <div class="who2">Christine, comptable chez Acme. Déployé sur tout le parc.</div>
+        <div class="tag">Aujourd'hui sur scène</div>
+      </div>
+      <div class="side fam r" style="--d:250">
+        <div class="eyebrow">PapAI Famille</div>
+        <div class="big">Un proche valide.</div>
+        <div class="who2">Jeanne, 81 ans, veut revoir ses photos. Son petit-fils l'aide depuis le métro.</div>
+        <div class="tag">Là où tout a commencé</div>
+      </div>
+    </div>
+    <div class="mid2">Même boucle, même Holo</div>
+  </section>
+
+  <!-- 9 · Fin -->
   <section class="slide s-end" data-state="Résolue" aria-label="PapAI">
     <div class="mid">
       <div class="logo hero r"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="5 15 235 101">
@@ -389,7 +426,7 @@ h2 { font-size: 112px; }
 </div>
 </div>
 <div class="hit l" id="hitL" aria-hidden="true"></div><div class="hit rr" id="hitR" aria-hidden="true"></div>
-<div class="chrome" id="count">1 / 8</div>
+<div class="chrome" id="count">1 / 9</div>
 
 <script>
 (() => {
@@ -458,7 +495,7 @@ h2 { font-size: 112px; }
     else if (e.key === 'Home') go(0);
     else if (e.key === 'End') go(slides.length - 1);
     else if (e.key === 'f' || e.key === 'F') { const d = document.documentElement; (document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen?.())?.catch?.(() => {}); }
-    else if (/^[1-8]$/.test(e.key)) go(+e.key - 1);
+    else if (/^[1-9]$/.test(e.key)) go(+e.key - 1);
   });
   document.getElementById('hitL').addEventListener('click', () => go(i - 1));
   document.getElementById('hitR').addEventListener('click', () => go(i + 1));
