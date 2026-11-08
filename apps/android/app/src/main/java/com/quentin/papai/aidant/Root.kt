@@ -111,6 +111,9 @@ fun Root() {
             AppSheet.Settings -> Sheet { SettingsSheet() }
             null -> {}
         }
+        AutomateLibrary.applying?.let { e ->
+            Sheet(onClose = { AutomateLibrary.applying = null }) { ApplyAutomateSheet(e) { AutomateLibrary.applying = null } }
+        }
         if (m.guardAlertId != null) Sheet(dismissable = false) { GuardScreen() }
     }
 }

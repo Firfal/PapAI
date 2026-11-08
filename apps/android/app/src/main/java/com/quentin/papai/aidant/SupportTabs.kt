@@ -202,7 +202,6 @@ fun AutomatesTab() {
     val lib = AutomateLibrary
     val ctx = LocalContext.current
     var error by remember { mutableStateOf<String?>(null) }
-    var applying by remember { mutableStateOf<AutomateEntry?>(null) }
     var toDelete by remember { mutableStateOf<AutomateEntry?>(null) }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -226,9 +225,8 @@ fun AutomatesTab() {
             }
         }
         if (lib.entries.isEmpty()) Empty("Aucun automate. Importez un fichier .papai.")
-        lib.entries.forEach { e -> AutomateRow(e, { applying = e }, { toDelete = e }) }
+        lib.entries.forEach { e -> AutomateRow(e, { lib.applying = e }, { toDelete = e }) }
     }
-    applying?.let { e -> Sheet(onClose = { applying = null }) { ApplyAutomateSheet(e) { applying = null } } }
     toDelete?.let { e ->
         AlertDialog(
             onDismissRequest = { toDelete = null },

@@ -189,6 +189,8 @@ data class AutomateEntry(val id: String, val pack: String, val applied: List<Str
  */
 object AutomateLibrary {
     val entries = mutableStateListOf<AutomateEntry>()
+    /** Automate dont la feuille « Appliquer… » est ouverte (affichée par `Root`, au-dessus de tout). */
+    var applying by mutableStateOf<AutomateEntry?>(null)
     private var file: File? = null
 
     fun init(ctx: Context) {
