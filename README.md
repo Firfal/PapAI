@@ -3,7 +3,7 @@
 # PapAI
 
 Le support informatique de premier niveau, automatisé. Un service IT, ou un proche,
-fournit et valide des automatismes ; chacun les lance seul, en un clic, sur son ordinateur.
+fournit et valide des automates ; chacun les lance seul, en un clic, sur son ordinateur.
 Exemple de cas d'usage : un grand-parent aidé par ses enfants. Autre exemple : les employés
 d'une entreprise (scan antivirus, imprimante, modèles Word, moteur de recherche).
 
@@ -58,7 +58,7 @@ apps/mac/       app SwiftUI de la personne aidée (capture, clics, Arrêter, aut
 apps/ios/       app SwiftUI du support (validation, capture en direct, prise de main)
 brand/          logo et icônes (SVG)
 PROTOCOL.md     messages échangés entre le serveur et les apps
-automations/    exemples d'automatismes importables (.papai)
+automations/    exemples d'automates importables (.papai)
 ```
 
 ## Lancer

@@ -258,7 +258,7 @@
     <div id="lessons" class="stack"><p class="muted" style="font-size:15px">Aucun automate pour l'instant.</p></div>
     <div class="card stack" id="importCard" hidden>
       <h3 class="section-title">Importer un automate</h3>
-      <p>Un fichier <code>.papai</code> fourni par un support informatique ou préparé par vous. En l'important, vous le validez : la personne aidée pourra le lancer seul, en un clic.</p>
+      <p>Un fichier <code>.papai</code> fourni par un support informatique ou préparé par vous. En l'important, vous le validez : la personne aidée pourra le lancer seule, en un clic.</p>
       <input type="file" id="importFile" accept=".papai,application/json" aria-label="Fichier d'automate">
       <p class="muted" id="importMsg" role="status" style="font-size:15px"></p>
     </div>
@@ -545,7 +545,7 @@ function tickSince() {
 }
 setInterval(tickSince, 20000);
 
-/* ----------------------------------------------------- les automatismes */
+/* ----------------------------------------------------- les automates */
 
 async function loadLessons() {
   if (!permanent) return;
@@ -556,7 +556,7 @@ async function loadLessons() {
     const list = await r.json();
     const items = Array.isArray(list) ? list : (list.lessons || []);
     $('lessons').innerHTML = items.length ? '' :
-      '<p class="muted" style="font-size:15px">Aucun automatisme pour l\'instant.</p>';
+      '<p class="muted" style="font-size:15px">Aucun automate pour l\'instant.</p>';
     items.slice(0, 8).forEach(l => {
       const d = document.createElement('div');
       d.className = 'card lesson';
@@ -702,7 +702,7 @@ function onMessage(ev) {
       $('thumb').hidden = true;
       if (armed) setArmed(false);
     }
-    // Un automatisme importé commence directement en `active` : plan déjà validé.
+    // Un automate importé commence directement en `active` : plan déjà validé.
     const debut = ['waiting_consent', 'planning'].includes(state) || (nouvelle && state === 'active');
     if (debut && prev !== state) {
       home = false;
@@ -953,7 +953,7 @@ $('confirm').onclick = () => {
   tickFreshness();
 };
 
-// L'automatisme se rédige une fois la session terminée, jamais pendant.
+// L'automate se rédige une fois la session terminée, jamais pendant.
 $('makeLesson').onclick = () => { if (send({ type: 'draft_lesson' })) { lessonBusy = true; render(); } };
 $('approve').onclick = () => {
   const steps = [...$('steps').querySelectorAll('textarea')].map(t => ({ instruction: t.value.trim() }));

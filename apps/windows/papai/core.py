@@ -298,7 +298,7 @@ def window_rect(hwnd: int) -> tuple | None:
     return (r.left - 4, r.top - 4, r.right + 4, r.bottom + 4)
 
 
-# ------------------------------------------------------------ automatismes
+# ------------------------------------------------------------ automates
 
 KNOWN_FOLDERS = {
     "pictures": "{33E28130-4E1E-4676-835A-98395C3BC3BB}",
@@ -339,7 +339,7 @@ def known_folder(name: str) -> Path | None:
 
 
 def open_shortcut(shortcut: dict | None) -> tuple[bool, str]:
-    """Ouvre le dossier d'un automatisme. Le modèle ne fournit jamais de chemin :
+    """Ouvre le dossier d'un automate. Le modèle ne fournit jamais de chemin :
     un dossier connu du système et au plus un nom de sous-dossier. Si le dossier
     n'existe plus, on n'invente rien."""
     sc = shortcut or {}
@@ -391,9 +391,9 @@ def guard_signals() -> dict | None:
     return {"type": "guard", "processes": names, "window": buf.value, "url": ""}
 
 
-# ------------------------------------------------- automatismes importés
+# ------------------------------------------------- automates importés
 #
-# Un automatisme fourni par un support (service IT, proche) ne contient que
+# Un automate fourni par un support (service IT, proche) ne contient que
 # des actions de premier niveau, connues ici. Jamais de commande, de script
 # ni de chemin libre : le serveur les a vérifiées à l'import, on revérifie.
 
@@ -521,7 +521,7 @@ def antivirus_scan(gate: "StopGate | None" = None) -> tuple[bool, str]:
 
 
 def play_actions(lesson: dict, fetch: Callable[[str], bytes], gate: "StopGate") -> tuple[bool, str]:
-    """Joue, dans l'ordre, les actions locales d'un automatisme importé.
+    """Joue, dans l'ordre, les actions locales d'un automate importé.
     L'action `holo` (s'il y en a une) est confiée ensuite au serveur."""
     detail = ""
     for a in lesson.get("actions") or []:

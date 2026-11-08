@@ -721,7 +721,7 @@ final class AppModel {
         }
     }
 
-    // MARK: Automatismes
+    // MARK: Automates
 
     func runShortcut(_ l: Lesson) {
         if !(l.actions ?? []).isEmpty { runAutomation(l); return }
@@ -735,12 +735,12 @@ final class AppModel {
         }
     }
 
-    /// Un automatisme importé par un support, lancé en un clic. Pas de
+    /// Un automate importé par un support, lancé en un clic. Pas de
     /// validation à chaque fois : le support l'a validé à l'import.
     func runAutomation(_ l: Lesson) {
         let acts = l.actions ?? []
         if let p = l.platforms, !p.contains("mac") {
-            showNotice("Cet automatisme est prévu pour un autre ordinateur.")
+            showNotice("Cet automate est prévu pour un autre ordinateur.")
             return
         }
         let holo = acts.first { $0.kind == "holo" }
