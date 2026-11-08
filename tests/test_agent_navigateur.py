@@ -110,7 +110,7 @@ class Base(unittest.IsolatedAsyncioTestCase):
         return task
 
     def h(self):
-        return next(iter(self.api.sessions.values()), None)
+        return next(reversed(self.api.sessions.values()), None)
 
 
 class ChoixDuMode(Base):
@@ -1145,15 +1145,24 @@ class SitesValides(Base):
     async def test_texte_libre_refuse_et_relance(self):
         s, runner = await self.demarrer()
         await self.question_site(s, "https://autre.fr/?jeton=SECRET")
-        await self.repondre(s, runner, "Revenir à la météo")
+        question = s.question["question"]
+        options = list(s.question["options"])
+        s.answer_from_helper("Revenir à la météo")
+        self.assertTrue(await attendre(
+            lambda: len([m for m in self.envoyes if m.get("type") == "question"]) == 2
+        ))
         self.assertEqual(s.web_hosts, [])
-        self.assertEqual(self.h().status, "running")
+        self.assertEqual(self.h().status, "paused")
+        self.assertEqual(s.question["question"], question)
+        self.assertEqual(s.question["options"], options)
         message = json.dumps(self.h().messages, ensure_ascii=False)
-        self.assertIn("Consigne du support : Revenir à la météo", message)
-        self.assertIn("Reviens sur un site validé (meteofrance.com) sans rien faire sur ce site.", message)
+        self.assertNotIn("Revenir à la météo", message)
+        self.assertNotIn("Consigne du support", message)
         self.assertNotIn("SECRET", message)
-        await self.question_site(s, "https://autre.fr")
         await self.repondre(s, runner, "Arrêter l'assistance")
+        self.assertEqual(s.state, State.STOPPED)
+        self.assertEqual(s.stopped_by, "support")
+        self.assertEqual(self.h().status, "interrupted")
 
     async def test_sites_valides_et_redirection_finale(self):
         s, runner = await self.demarrer()
@@ -1166,10 +1175,18 @@ class SitesValides(Base):
 
     async def test_ip_et_sosie_punycode_non_autorisables_ou_non_valides(self):
         s, runner = await self.demarrer()
-        for url in ("https://2130706433/?secret=SECRET", "https://xn--meli-43d.fr"):
-            await self.question_site(s, url)
-            await self.repondre(s, runner, "Autoriser ce site une fois")
+        await self.question_site(s, "https://2130706433/?secret=SECRET")
+        s.answer_from_helper("Autoriser ce site une fois")
+        self.assertTrue(await attendre(
+            lambda: len([m for m in self.envoyes if m.get("type") == "question"]) == 2
+        ))
         self.assertNotIn("2130706433", s.web_hosts)
+        self.assertEqual(self.h().status, "paused")
+        await self.repondre(s, runner, "Arrêter l'assistance")
+
+        s, runner = await self.demarrer()
+        await self.question_site(s, "https://xn--meli-43d.fr")
+        await self.repondre(s, runner, "Autoriser ce site une fois")
         self.assertIn("xn--meli-43d.fr", s.web_hosts)
         self.assertNotIn("SECRET", json.dumps(s.journal))
 
@@ -1204,16 +1221,21 @@ class SitesValides(Base):
         s.paused = False
         self.assertTrue(await attendre(lambda: self.h().status == "running"))
 
-    async def test_texte_libre_differe_pendant_pause_utilisateur(self):
+    async def test_texte_libre_ne_reprend_pas_holo_pendant_pause_utilisateur(self):
         s, runner = await self.demarrer()
         await self.question_site(s, "https://autre.fr")
         s.paused = True
-        await self.repondre(s, runner, "Retour")
+        s.answer_from_helper("Retour")
+        self.assertTrue(await attendre(
+            lambda: len([m for m in self.envoyes if m.get("type") == "question"]) == 2
+        ))
         self.assertEqual(self.h().messages, [])
         self.assertEqual(self.h().status, "paused")
         s.paused = False
-        self.assertTrue(await attendre(lambda: bool(self.h().messages)))
+        self.assertEqual(self.h().messages, [])
+        await self.repondre(s, runner, "Autoriser ce site une fois")
         self.assertEqual(self.h().status, "running")
+        self.assertEqual(self.h().messages, [])
 
     async def test_pause_support_attend_la_decision_hors_site(self):
         s, runner = await self.demarrer()

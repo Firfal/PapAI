@@ -36,7 +36,7 @@ class Abonnement(unittest.TestCase):
                                           "STRIPE_WEBHOOK_SECRET": "whsec_local", "STRIPE_API_BASE": self.fake.url})
         self.env.start()
         app = FastAPI()
-        billing.install(app, self.registry.by_support, lambda o: self.seats, "https://papai.test",
+        billing.install(app, self.registry.by_org_token, lambda o: self.seats, "https://papai.test",
                         self.registry.get, lambda: self.registry._by_id.values())
         self.sock = socket.socket()
         self.sock.bind(("127.0.0.1", 0))
@@ -162,6 +162,44 @@ console.log('OK : detail affiché pour billing, checkout et portail');})().catch
         self.assertEqual(self.request(self.path + "/billing")[1]["postes"], 0)
         self.request(self.path + "/billing/checkout", b"")
         self.assertEqual(self.fake.requests[-1][1]["line_items[0][quantity]"], ["1"])
+
+    def test_jeton_personnel_refuse_la_facturation(self):
+        _, support_token = self.org.add_support("Support test")
+        support_path = "/o/" + support_token
+        for suffix, data in (
+            ("/billing", None),
+            ("/abonnement", None),
+            ("/billing/checkout", b""),
+            ("/billing/portal", b""),
+        ):
+            with self.subTest(suffix=suffix):
+                self.assertEqual(self.request(support_path + suffix, data)[0], 404)
+        self.assertEqual(self.fake.requests, [])
+
+        self.assertEqual(self.request(self.path + "/billing")[0], 200)
+        self.assertEqual(self.request(self.path + "/abonnement")[0], 200)
+        self.assertEqual(self.request(self.path + "/billing/checkout", b"")[0], 200)
+        billing.write(self.org, {"customer": "cus_test"})
+        self.assertEqual(self.request(self.path + "/billing/portal", b"")[0], 200)
+
+    def test_lien_abonnement_cache_sans_acces_billing(self):
+        source = (Path(billing.__file__).parent / "static" / "org.html").read_text()
+        script = source.split("<script>", 1)[1].split("</script>", 1)[0]
+        result = subprocess.run(["node", "-e", r'''
+const vm=require('node:vm'), assert=require('node:assert/strict');
+async function scenario(ok) {
+  const link={hidden:true}, anchor={href:''};
+  const context={document:{getElementById:id=>id==='abonnementLink'?link:anchor},
+    location:{pathname:'/o/token'}, fetch:async()=>({ok})};
+  vm.runInNewContext(process.argv[1],context);
+  await new Promise(setImmediate);
+  assert.equal(link.hidden,!ok);
+  assert.equal(anchor.href,'/o/token/abonnement');
+}
+(async()=>{await scenario(false);await scenario(true);console.log('OK : lien Abonnement réservé au jeton organisation');})()
+  .catch(e=>{console.error(e);process.exit(1)});
+''', script], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_portail_sans_prix(self):
         billing.write(self.org, {"customer": "cus_test", "subscription": "sub_test",

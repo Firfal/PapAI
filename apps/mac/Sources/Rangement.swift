@@ -282,32 +282,54 @@ enum Tidy {
     /// avec « (2) » si la place a été reprise), puis retire les dossiers créés
     /// s'ils sont vides. Rien n'est supprimé.
     static func undo(home: URL, journal: TidyJournal) throws -> TidyUndoResult {
-        guard let record = journal.last else { throw TidyError.nothingToUndo }
+        guard var record = journal.last else { throw TidyError.nothingToUndo }
         let root = try root(record.folder, home: home)
         let fm = FileManager.default
         var result = TidyUndoResult()
+        var remainingMoves: [TidyMove] = []
         for move in record.moves.reversed() {
             let parts = move.to.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
             guard parts.count == 2, safeCategory(parts[0]), safeName(parts[1]), safeName(move.from) else {
-                result.missing += 1; continue
+                result.missing += 1
+                remainingMoves.append(move)
+                continue
             }
             let src = root.appendingPathComponent(parts[0]).appendingPathComponent(parts[1])
             guard type(root.appendingPathComponent(parts[0])) == .typeDirectory, type(src) == .typeRegular else {
-                result.missing += 1; continue
+                result.missing += 1
+                remainingMoves.append(move)
+                continue
             }
             let name = freeName(move.from, in: root)
             do {
                 try fm.moveItem(at: src, to: root.appendingPathComponent(name))
                 result.restored += 1
                 if name != move.from { result.renamed += 1 }
-            } catch { result.missing += 1 }
+            } catch {
+                result.missing += 1
+                remainingMoves.append(move)
+            }
         }
+        var remainingCreated: [String] = []
         // rmdir échoue sur un dossier non vide : rien d'autre ne peut disparaître.
-        for d in record.created where safeCategory(d) {
+        for d in record.created {
+            guard safeCategory(d) else {
+                remainingCreated.append(d)
+                continue
+            }
             let dir = root.appendingPathComponent(d)
-            if type(dir) == .typeDirectory { rmdir(dir.path) }
+            if type(dir) == .typeDirectory {
+                rmdir(dir.path)
+                if type(dir) == .typeDirectory { remainingCreated.append(d) }
+            }
         }
-        journal.remove(record.id)
+        if remainingMoves.isEmpty && remainingCreated.isEmpty {
+            journal.remove(record.id)
+        } else {
+            record.moves = Array(remainingMoves.reversed())
+            record.created = remainingCreated
+            journal.save(record)
+        }
         return result
     }
 }

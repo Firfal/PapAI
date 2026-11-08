@@ -108,6 +108,26 @@ struct RangementTest {
         do { _ = try Tidy.undo(home: home, journal: journal); verifier(false, "rien à annuler") }
         catch { verifier(error as? TidyError == .nothingToUndo, "rien à annuler") }
 
+        let retryFile = docs.appendingPathComponent("retry.pdf")
+        try write(retryFile, "à restaurer")
+        let retryScan = try Tidy.scan(.documents, home: home)
+        let retryMove = TidyMove(from: "retry.pdf", to: "Images/retry.pdf")
+        _ = try Tidy.execute(.documents, moves: [TidyMove(from: "retry.pdf", to: "Images")],
+                             allowed: Set(retryScan.files), home: home, journal: journal)
+        let movedElsewhere = outside.appendingPathComponent("retry.pdf")
+        let sortedFile = docs.appendingPathComponent("Images/retry.pdf")
+        try fm.moveItem(at: sortedFile, to: movedElsewhere)
+        let partialUndo = try Tidy.undo(home: home, journal: journal)
+        verifier(partialUndo.missing == 1 && journal.last?.moves == [retryMove],
+                 "journal conservé pour le fichier non restauré")
+        verifier(journal.last?.created.isEmpty == true, "dossier vidé retiré du journal")
+        try fm.createDirectory(at: sortedFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fm.moveItem(at: movedElsewhere, to: sortedFile)
+        let retryUndo = try Tidy.undo(home: home, journal: journal)
+        verifier(retryUndo.restored == 1 && retryUndo.missing == 0
+                 && read(retryFile) == "à restaurer" && journal.last == nil,
+                 "second essai restaure le fichier et vide le journal")
+
         // Dossier non vide à l'annulation : jamais retiré
         let scan2 = try Tidy.scan(.documents, home: home)
         _ = try Tidy.execute(.documents, moves: [TidyMove(from: "IMG_2041.HEIC", to: "Images")], allowed: Set(scan2.files), home: home, journal: journal)

@@ -34,6 +34,8 @@ class Document:
         return SimpleNamespace(exists=value is not None, to_dict=lambda: value)
 
     def set(self, value):
+        if self.collection.fail_set:
+            raise RuntimeError(self.collection.fail_set)
         self.collection.values[self.ident] = copy.deepcopy(value)
         self.collection.writes += 1
 
@@ -59,6 +61,7 @@ class Collection(Requete):
     def __init__(self, ident):
         super().__init__(self)
         self.id, self.values, self.writes = ident, {}, 0
+        self.fail_set = None
 
     def document(self, ident):
         assert "/" not in ident
@@ -84,12 +87,15 @@ class Blob:
         return self.bucket.values[self.name]
 
     def delete(self):
+        if self.bucket.fail_delete:
+            raise RuntimeError("suppression refusée")
         self.bucket.values.pop(self.name, None)
 
 
 class Bucket:
     def __init__(self):
         self.values = {}
+        self.fail_delete = False
 
     def blob(self, name):
         return Blob(self, name)
@@ -170,6 +176,28 @@ class Firestore(Contrat, unittest.TestCase):
         self.store.delete_prefix("defaut/lessons/a/")
         self.assertFalse(self.bucket.values)
         self.assertIsNone(self.store.read(key))
+
+    def test_echec_set_supprime_le_nouveau_blob_et_preserve_lancien(self):
+        key = "spaces/a/lessons/b/step.png"
+        self.store.write(key, b"ancienne image")
+        old_blob = self.store._doc(key).get().to_dict()["gcs"]
+        self.store.collection.fail_set = "écriture refusée"
+        with self.assertRaisesRegex(RuntimeError, "écriture refusée"):
+            self.store.write(key, b"nouvelle image")
+        self.assertEqual(self.bucket.values, {old_blob: b"ancienne image"})
+        self.assertEqual(self.store.read(key), b"ancienne image")
+
+    def test_echec_suppression_blob_ne_masque_pas_echec_set(self):
+        key = "spaces/a/lessons/b/step.png"
+        self.store.write(key, b"ancienne image")
+        old_blob = self.store._doc(key).get().to_dict()["gcs"]
+        self.store.collection.fail_set = "écriture refusée"
+        self.bucket.fail_delete = True
+        with self.assertRaisesRegex(RuntimeError, "écriture refusée"):
+            self.store.write(key, b"nouvelle image")
+        self.assertEqual(self.store.read(key), b"ancienne image")
+        self.assertIn(old_blob, self.bucket.values)
+        self.assertEqual(len(self.bucket.values), 2)
 
     def test_limite_sans_bucket(self):
         store = distant()

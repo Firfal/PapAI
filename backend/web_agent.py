@@ -389,27 +389,23 @@ class WebAgentRunner:
         self.s.log("web_off_site", host=host)
         try:
             await self._pause()
-            reply = await self._escalate(
-                f"Holo a quitté les sites validés : {host or "site inconnu"}. Autoriser ce site pour cette assistance, ou arrêter ?",
-                ["Autoriser ce site une fois", "Arrêter l'assistance"],
-            )
-            if reply is None or not self.s.is_open:
-                return
-            if reply.strip() == "Arrêter l'assistance":
-                self.s.stop(by="support")
-                await self._cancel_remote()
-                return
-            if reply.strip() == "Autoriser ce site une fois" and site_check.host_of(url):
-                if host not in self.s.web_hosts:
-                    self.s.web_hosts.append(host)
-                await self.send_sites({"type": "web_sites", "sites": list(self.s.plan_sites),
-                                       "hosts": list(self.s.web_hosts)})
-                self.s.log("web_site_allowed", host=host, by=self.s.helper_name)
-            else:
-                sites = ", ".join(self.s.plan_sites + self.s.web_hosts)
-                self._pending_messages.append(
-                    f"Consigne du support : {reply} Reviens sur un site validé ({sites}) sans rien faire sur ce site."
-                )
+            question = f"Holo a quitté les sites validés : {host or "site inconnu"}. Autoriser ce site pour cette assistance, ou arrêter ?"
+            options = ["Autoriser ce site une fois", "Arrêter l'assistance"]
+            while self.s.is_open:
+                reply = await self._escalate(question, options)
+                if reply is None or not self.s.is_open:
+                    return
+                if reply.strip() == "Arrêter l'assistance":
+                    self.s.stop(by="support")
+                    await self._cancel_remote()
+                    return
+                if reply.strip() == "Autoriser ce site une fois" and site_check.host_of(url):
+                    if host not in self.s.web_hosts:
+                        self.s.web_hosts.append(host)
+                    await self.send_sites({"type": "web_sites", "sites": list(self.s.plan_sites),
+                                           "hosts": list(self.s.web_hosts)})
+                    self.s.log("web_site_allowed", host=host, by=self.s.helper_name)
+                    return
         except asyncio.CancelledError:
             raise
         except Exception:
