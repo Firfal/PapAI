@@ -175,10 +175,9 @@ final class Dictation {
         transcript = DictationText()
         phase = .listening
         liveAudio = continuation
-        guard !AppLangue.anglais else { return }
         let client = GladiaLive()
         liveClient = client
-        client.start(transcribe: URL(string: httpBase + "/transcribe"), audio: audio, onText: { [weak self] text in
+        client.start(transcribe: URL(string: httpBase + "/transcribe" + (AppLangue.anglais ? "?lang=en" : "")), audio: audio, onText: { [weak self] text in
             guard let self, phase != .idle else { return }
             transcript.updateGladia(text)
             publishLive()
@@ -286,8 +285,7 @@ final class Dictation {
     }
 
     private func viaServeur(_ url: URL) async -> String? {
-        // Gladia est réglé en français : en anglais, le texte d'Apple fait foi.
-        guard !AppLangue.anglais, let endpoint = URL(string: base + "/transcribe"),
+        guard let endpoint = URL(string: base + "/transcribe" + (AppLangue.anglais ? "?lang=en" : "")),
               let audio = try? Data(contentsOf: url), audio.count > 2000 else { return nil }
         var req = URLRequest(url: endpoint, timeoutInterval: 25)
         req.httpMethod = "POST"

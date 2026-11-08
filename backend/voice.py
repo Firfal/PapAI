@@ -21,6 +21,12 @@ from starlette.websockets import WebSocket, WebSocketDisconnect
 UPLOAD = "https://api.gladia.io/v2/upload"
 TRANSCRIBE = "https://api.gladia.io/v2/pre-recorded"
 LANGUE = "fr"
+LANGUES = ("fr", "en")
+
+
+def langue(code: str | None) -> str:
+    """La langue de la dictée, choisie par l'app (fr par défaut)."""
+    return code if code in LANGUES else LANGUE
 LIVE = "https://api.gladia.io/v2/live"
 LIVE_SECONDS = 45
 LIVE_DRAIN_SECONDS = 5
@@ -36,7 +42,7 @@ def _live_url_ok(url: str) -> bool:
                  or (parsed.hostname or "").endswith(".gladia.io")))
 
 
-async def relay_live(client: WebSocket) -> None:
+async def relay_live(client: WebSocket, lang: str = LANGUE) -> None:
     """Relais borné : aucun jeton Gladia, audio ou diagnostic fournisseur renvoyé."""
     global _live_connections
     await client.accept()
@@ -51,7 +57,7 @@ async def relay_live(client: WebSocket) -> None:
             config = {
                 "encoding": "wav/pcm", "sample_rate": 16000, "bit_depth": 16,
                 "channels": 1,
-                "language_config": {"languages": [LANGUE], "code_switching": False},
+                "language_config": {"languages": [langue(lang)], "code_switching": False},
                 "messages_config": {"receive_partial_transcripts": True,
                                     "receive_final_transcripts": True},
             }
@@ -149,7 +155,7 @@ def _get(url: str, key: str, timeout: int = 15) -> dict:
 
 
 def transcribe(audio: bytes, filename: str = "demande.wav",
-               content_type: str = "audio/wav") -> tuple[bool, str]:
+               content_type: str = "audio/wav", lang: str = LANGUE) -> tuple[bool, str]:
     """Rend (ok, texte) ou (False, message lisible par l’utilisateur). Bloquant."""
     key = os.environ.get("GLADIA_API_KEY", "").strip()
     if not key:
@@ -174,7 +180,7 @@ def transcribe(audio: bytes, filename: str = "demande.wav",
             return False, "Le service de transcription n'a pas accepté l'enregistrement."
         lance = _post(
             TRANSCRIBE,
-            json.dumps({"audio_url": url_audio, "language": LANGUE}).encode(),
+            json.dumps({"audio_url": url_audio, "language": langue(lang)}).encode(),
             {"x-gladia-key": key, "Content-Type": "application/json"},
         )
         suivi = lance.get("result_url")

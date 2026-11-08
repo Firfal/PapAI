@@ -2353,7 +2353,7 @@ async def transcribe_live_keyed(ws: WebSocket, fam: str) -> None:
         return
     _track_support(ws)
     try:
-        await voice.relay_live(ws)
+        await voice.relay_live(ws, voice.langue(ws.query_params.get("lang")))
     finally:
         _untrack_support(ws)
 
@@ -2475,7 +2475,8 @@ async def transcribe_keyed(fam: str, request: Request):
         return JSONResponse({"error": "trop_long"}, status_code=413)
     ctype = request.headers.get("content-type", "audio/wav").split(";")[0].strip()
     ext = "m4a" if "m4a" in ctype or "mp4" in ctype else "wav"
-    ok, text = await asyncio.to_thread(voice.transcribe, audio, f"demande.{ext}", ctype)
+    ok, text = await asyncio.to_thread(voice.transcribe, audio, f"demande.{ext}", ctype,
+                                       voice.langue(request.query_params.get("lang")))
     if not ok:
         return JSONResponse({"error": text}, status_code=502)
     return {"text": text}
