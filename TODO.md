@@ -19,6 +19,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 ## P0 — pour que la démo marche (ce soir)
 
+- [x] Couper les images et les états d'une autre assistance sur les liens de session terminée (fin normale, Arrêter, refus du plan, alerte, déconnexion), sans fermer le socket nécessaire à la rédaction de l'automate ; reconnexion sans image. Test de non-régression : 20 contrôles réussis.
+
 - [ ] **Réinstaller les apps Mac et iPhone depuis `main`** : celles des appareils datent d'avant les PR #1 à #4. Compilées sur macOS depuis, mais pas encore lancées.
 - [ ] **Répétition réelle sur le Mac** : demande → plan → précision → validation → Holo ouvre `Images/Noël 2025` → Arrêter. Trois fois de suite sans accroc.
   - [ ] Bloqué : Quentin doit cliquer « Autoriser » dans la fenêtre macOS « contourner le sélecteur de fenêtre privée » (enregistrement de l'écran de PapAI).
