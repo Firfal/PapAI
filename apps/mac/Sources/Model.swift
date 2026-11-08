@@ -63,11 +63,11 @@ final class AppModel {
     var screen: AppScreen = .home
     var state: SessionState?
     var sessionWhere: String?
-    /// L'aide est en pause à la demande de l’utilisateur : Holo n'agit plus et
-    /// elle retrouve sa souris et son clavier.
+    /// L'aide est en pause à la demande de l’utilisateur : Holo n'agit plus.
     var paused = false
-    /// Dernier message du serveur : sans nouvelles, le verrou des entrées se lève.
+    /// Dernier message du serveur : sans nouvelles, l'agent navigateur local s'arrête.
     @ObservationIgnored private var lastHeard = Date()
+    @ObservationIgnored private var holoActing = false
     var task = ""
     var plan: [String] = []
     /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
@@ -294,15 +294,13 @@ final class AppModel {
         webHost.onOffSite = { [weak self] url in
             self?.client.send(["type": "web_off_site", "url": url])
         }
-        InputLock.shared.allowedRect = { [weak self] in self?.protectedRect() }
-        InputLock.shared.onEscape = { [weak self] in self?.stop() }
         Task { [weak self] in
             while true {
                 try? await Task.sleep(for: .seconds(5))
                 guard let self else { return }
-                if InputLock.shared.isOn, Date().timeIntervalSince(self.lastHeard) > 45 {
+                if self.holoActing, Date().timeIntervalSince(self.lastHeard) > 45 {
                     self.webHost.stopLocal()
-                    InputLock.shared.set(false)
+                    self.holoActing = false
                 }
             }
         }
@@ -319,7 +317,6 @@ final class AppModel {
             if !ok {
                 self.narration.context(assistance: self.sessionOpen, speakingAllowed: false)
                 self.webHost.stopLocal()
-                InputLock.shared.set(false)
             }
             if ok {
                 // Démo (PAPAI_DEMO=alert) : l'alerte locale reste affichée.
@@ -554,10 +551,7 @@ final class AppModel {
         } else if wantCompact, !MiniPanel.shared.isVisible {
             MiniPanel.shared.show(model: self)
         }
-        // Souris et clavier réservés à Holo et à l'aidant pendant qu'il agit.
-        // Une question posée à la personne (se connecter à un site…) lui rend la main.
-        let holoActs = (state == .active || (state == .awaiting_helper && !questionForMe)) && !paused && !gate.isStopped
-        InputLock.shared.set(holoActs)
+        holoActing = (state == .active || (state == .awaiting_helper && !questionForMe)) && !paused && !gate.isStopped
     }
 
     /// Bouton « agrandir » de l'encart : la grande fenêtre revient.
@@ -827,7 +821,6 @@ final class AppModel {
             if (m["blocked"] as? Bool) ?? true {
                 webHost.stopLocal()
                 gate.raise()
-                InputLock.shared.set(false)
             }
             guardAlert = GuardAlert(level: m["level"] as? String ?? "attention",
                                     title: m["title"] as? String ?? "",

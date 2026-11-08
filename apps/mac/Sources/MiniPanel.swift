@@ -6,8 +6,7 @@ import SwiftUI
 /// - Pendant qu'Holo agit, la grande fenêtre PapAI s'efface pour qu'on voie ce
 ///   qu'il fait : seul cet encart reste, avec l'avancement, Pause et Arrêter.
 /// - Quand on réduit PapAI à la main, il reste aussi, pour revenir en un clic.
-/// Il appartient à l'app PapAI : il est donc exclu des captures envoyées à Holo,
-/// et ses clics restent possibles pendant le verrou des entrées (`InputLock`).
+/// Il appartient à l'app PapAI : il est donc exclu des captures envoyées à Holo.
 @MainActor
 final class MiniPanel {
     static let shared = MiniPanel()
@@ -102,7 +101,7 @@ private struct MiniView: View {
                             .background(Capsule().fill(T.ink))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Arrêter l'assistance (Échap)")
+                    .accessibilityLabel("Arrêter l'assistance")
                 }
             } else {
                 Button {

@@ -228,7 +228,7 @@ struct SessionView: View {
         switch state {
         case .planning: return "Un instant, je prépare ce qu'il faut faire."
         case .awaiting_approval: return "Rien ne se passera sur votre écran avant son accord."
-        case .active: return "La souris et le clavier sont réservés à Holo. Pause ou Arrêter, quand vous voulez."
+        case .active: return "Pendant l'assistance, laissez la souris et le clavier à Holo. Pause ou Arrêter, quand vous voulez."
         case .awaiting_helper: return model.questionForMe
             ? "J'ai besoin d'une information que vous seul connaissez."
             : "\(model.HelperName) répond à une question de Holo. Restez là, ne touchez à rien."
