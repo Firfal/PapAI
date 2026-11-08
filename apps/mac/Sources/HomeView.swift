@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Accueil : à gauche une barre pour demander (avec un petit micro) ; à droite
-/// les automates puis les applications récentes.
+/// Accueil : à gauche (60 %) une barre pour demander, avec un petit micro, puis
+/// les automates ; à droite (40 %) les applications récentes.
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var request = ""
@@ -15,15 +15,25 @@ struct HomeView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let largeur = geo.size.width
-            let gauche = Self.gaucheMin * CGFloat(TextScale.current)
-            // La colonne de droite garde 400 pt ; elle se réduit, puis passe dessous, si la fenêtre est étroite.
-            let droite = min(Self.droiteLarge, largeur - Self.ecart - gauche)
+            let place = geo.size.width - Self.ecart
+            // 60 / 40, sans jamais couper le texte de la barre ; trop étroit, la droite passe dessous.
+            let gauche = max(place * 0.6, Self.gaucheMin * CGFloat(TextScale.current))
+            let droite = place - gauche
             if droite >= Self.droiteMin {
                 HStack(alignment: .top, spacing: Self.ecart) {
-                    colonneGauche.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    VStack(alignment: .leading, spacing: 28) {
+                        colonneGauche
+                        ScrollView(showsIndicators: false) {
+                            automates.padding(.bottom, 8)
+                        }
+                    }
+                    .frame(width: gauche, alignment: .topLeading)
+                    .frame(maxHeight: .infinity, alignment: .topLeading)
                     ScrollView(showsIndicators: false) {
-                        colonneDroite.padding(.bottom, 8)
+                        applications
+                            .frame(maxWidth: 440)
+                            .frame(width: droite, alignment: .center)
+                            .frame(minHeight: geo.size.height, alignment: .center)
                     }
                     .frame(width: droite)
                 }
@@ -31,7 +41,8 @@ struct HomeView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 28) {
                         colonneGauche
-                        colonneDroite
+                        automates
+                        applications.frame(maxWidth: 440, alignment: .leading)
                     }
                     .padding(.bottom, 8)
                 }
@@ -43,7 +54,6 @@ struct HomeView: View {
         .onChange(of: dictation.message) { _, m in if let m { warning = m; dictation.message = nil } }
     }
 
-    private static let droiteLarge: CGFloat = 400
     private static let droiteMin: CGFloat = 280
     private static let gaucheMin: CGFloat = 540
     private static let ecart: CGFloat = 24
@@ -74,13 +84,6 @@ struct HomeView: View {
                     .background(Capsule().fill(T.card))
                 }
             }
-        }
-    }
-
-    private var colonneDroite: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            automates
-            applications
         }
     }
 
