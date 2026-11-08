@@ -6,21 +6,16 @@ struct ConsentView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            VStack(alignment: .leading, spacing: 24) {
-                Text("Votre demande").font(rounded(18, .semibold)).foregroundStyle(T.leaf)
-                Text("« \(model.pendingTask) »").font(rounded(30, .semibold))
+            Panneau {
+                Text("PapAI va regarder votre écran").font(rounded(38, .bold)).tracking(-0.6)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("PapAI va regarder votre écran").font(rounded(44, .bold)).tracking(-0.6)
-                    .fixedSize(horizontal: false, vertical: true)
-                promise("eye.fill", "Holo voit votre écran pour comprendre le problème.")
-                promise("hand.raised.fill", "Rien ne bouge avant l'accord de \(model.helperName).")
-                promise("stop.circle.fill", "Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.")
-                promise("checkmark.seal.fill", "On ne vous le redemandera pas. Vous pouvez retirer cet accord dans Réglages.")
-                Spacer(minLength: 0)
+            } corps: {
+                // Trop haut (petite fenêtre, très grand texte) : le contenu défile, les boutons restent visibles.
+                ViewThatFits(in: .vertical) {
+                    details
+                    ScrollView(showsIndicators: false) { details }
+                }
             }
-            .foregroundStyle(T.ink).padding(40)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
 
             HStack(spacing: 14) {
                 Button { model.cancelConsent() } label: { Text("Annuler").frame(maxWidth: .infinity) }
@@ -29,18 +24,45 @@ struct ConsentView: View {
                 Button { model.giveConsent() } label: {
                     Text("D'accord, je partage mon écran").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PillStyle(height: 78))
+                .buttonStyle(PillStyle(height: 78, icone: "checkmark.circle", plein: true))
                 .keyboardShortcut(.defaultAction)
                 .disabled(!model.connected)
             }
         }
     }
 
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Pastille(texte: "Votre demande", icone: "text.bubble.fill", ton: .bleu, taille: 17)
+            Text("« \(model.pendingTask) »").font(rounded(28, .semibold))
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 0) {
+                promise("eye.fill", "Holo voit votre écran pour comprendre le problème.")
+                separateur
+                promise("hand.raised.fill", "Rien ne bouge avant l'accord de \(model.helperName).")
+                separateur
+                promise("stop.circle.fill", "Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.")
+                separateur
+                promise("checkmark.seal.fill", "On ne vous le redemandera pas. Vous pouvez retirer cet accord dans Réglages.")
+            }
+            .padding(.horizontal, 18).padding(.vertical, 4)
+            .champ(T.r)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func promise(_ symbol: String, _ text: String) -> some View {
         HStack(spacing: 16) {
-            Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(T.leaf).frame(width: 34)
-            Text(text).font(rounded(21, .medium)).fixedSize(horizontal: false, vertical: true)
+            Image(systemName: symbol).font(.system(size: 18)).foregroundStyle(T.accent)
+                .frame(width: 36, height: 36).background(Circle().fill(T.mint))
+            Text(text).font(rounded(20, .medium)).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
+        .padding(.vertical, 7)
+    }
+
+    private var separateur: some View {
+        Rectangle().fill(T.line).frame(height: 1).padding(.leading, 52)
     }
 }
 
@@ -59,13 +81,10 @@ struct SessionView: View {
                     carte(mascotte: Mascotte.Taille.sessionReduite)
                 }
                 carte(mascotte: nil)
-                carte(mascotte: nil, defile: true)
+                carte(mascotte: nil, compact: true)
+                carte(mascotte: nil, compact: true, defile: true)
             }
-            .foregroundStyle(T.ink)
-            .padding(34)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous)
-                .fill(guardStopped ? T.card : state == .done ? T.peach : T.mint))
 
             if model.sessionOpen {
                 HStack(spacing: 14) {
@@ -76,7 +95,9 @@ struct SessionView: View {
                                 Text(model.paused ? "Reprendre" : "Pause").font(rounded(26, .semibold))
                             }
                             .foregroundStyle(T.ink).frame(maxWidth: .infinity).frame(height: 70)
-                            .background(Capsule().fill(T.card))
+                            .background(Capsule().fill(T.card)
+                                .overlay(Capsule().strokeBorder(T.line, lineWidth: 1.5))
+                                .shadow(color: T.ombre.opacity(0.06), radius: 8, y: 3))
                         }
                         .buttonStyle(PressStyle())
                         .accessibilityLabel(model.paused ? "Reprendre l'aide" : "Mettre l'aide en pause")
@@ -97,56 +118,57 @@ struct SessionView: View {
                 Button { model.backHome() } label: {
                     Text("Retour à l'accueil").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PillStyle(height: 70))
+                .buttonStyle(PillStyle(height: 70, icone: "house", plein: true))
                 .keyboardShortcut(.defaultAction)
             }
         }
     }
 
-    private func carte(mascotte taille: CGFloat?, defile: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
+    /// En-tête bleu (rouge si le gardien a arrêté) avec l'état, puis le suivi dans le corps blanc.
+    /// `compact` : en-tête et marges resserrés avant de faire défiler le contenu.
+    private func carte(mascotte taille: CGFloat?, compact: Bool = false, defile: Bool = false) -> some View {
+        Panneau(alerte: guardStopped, padding: compact ? 24 : 34) {
             HStack(alignment: .center, spacing: 20) {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 14) {
                     if model.sessionOpen { sharedBanner }
-                    Text(title).font(rounded(guardStopped ? 34 : 40, .bold)).tracking(-0.6)
+                    Text(title).font(rounded(guardStopped || compact ? 32 : 38, .bold)).tracking(-0.6)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 // Pas de mascotte sur une alerte du gardien : le message doit rester grave.
                 if let taille {
                     Mascotte(humeur: humeur).frame(width: taille, height: taille)
+                        .padding(8).background(Circle().fill(.white.opacity(0.92)))
                 }
             }
-            if let sub = subtitle {
-                Text(sub).font(rounded(24, .medium)).foregroundStyle(state == .active ? T.ink : T.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .animation(.easeInOut(duration: 0.25), value: sub)
-            }
-            if model.sessionWhere == "web" && (state == .active || state == .awaiting_helper) {
-                Text("Holo travaille dans une fenêtre Chrome à part, sans vos comptes ni vos onglets. Vous pouvez tout arrêter ici à tout moment.")
-                    .font(rounded(24, .medium)).foregroundStyle(T.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if defile {
-                ScrollView(showsIndicators: false) { content }
-            } else {
-                content
-            }
-            Spacer(minLength: 0)
-            if !model.task.isEmpty && state != .stopped && state != .awaiting_approval {
-                Text("Votre demande : \(model.task)")
-                    .font(rounded(16)).foregroundStyle(T.muted).lineLimit(2)
+        } corps: {
+            VStack(alignment: .leading, spacing: 18) {
+                if let sub = subtitle {
+                    Text(sub).font(rounded(24, .medium)).foregroundStyle(state == .active ? T.ink : T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .animation(.easeInOut(duration: 0.25), value: sub)
+                }
+                if model.sessionWhere == "web" && (state == .active || state == .awaiting_helper) {
+                    Text("Holo travaille dans une fenêtre Chrome à part, sans vos comptes ni vos onglets. Vous pouvez tout arrêter ici à tout moment.")
+                        .font(rounded(24, .medium)).foregroundStyle(T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if defile {
+                    ScrollView(showsIndicators: false) { content }
+                } else {
+                    content
+                }
+                Spacer(minLength: 0)
+                if !model.task.isEmpty && state != .stopped && state != .awaiting_approval {
+                    Label("Votre demande : \(model.task)", systemImage: "text.bubble")
+                        .font(rounded(16)).foregroundStyle(T.muted).lineLimit(2)
+                }
             }
         }
     }
 
     private var sharedBanner: some View {
-        HStack(spacing: 10) {
-            Circle().fill(T.accent).frame(width: 10, height: 10)
-            Text("Écran partagé").font(rounded(16, .semibold))
-        }
-        .padding(.horizontal, 18).padding(.vertical, 10)
-        .background(Capsule().fill(T.card))
+        Pastille(texte: "Écran partagé", icone: "circle.fill", ton: .bleu, taille: 16)
     }
 
     private var humeur: Mascotte.Humeur {
@@ -204,7 +226,7 @@ struct SessionView: View {
                 Text(model.answer ?? "Voilà, c'est fait.")
                     .font(rounded(26, .medium)).padding(28)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                    .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.peach))
                 endNote("lock.fill", "Votre écran n'est plus partagé.")
                 if model.sessionWhere == "web" {
                     endNote("globe", "Holo a fermé sa fenêtre Chrome.")
@@ -225,7 +247,10 @@ struct SessionView: View {
             }
             .font(rounded(23, .medium))
             .fixedSize(horizontal: false, vertical: true)
+            .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(Color(hex: 0xFDECEA)))
+            .overlay(RoundedRectangle(cornerRadius: T.r, style: .continuous).strokeBorder(T.danger.opacity(0.35), lineWidth: 1.5))
         case .stopped:
             if model.sessionWhere == "web" {
                 endNote("globe", "Holo a fermé sa fenêtre Chrome.")
@@ -259,7 +284,8 @@ struct SessionView: View {
 
     private func endNote(_ symbol: String, _ text: String) -> some View {
         HStack(spacing: 14) {
-            Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(T.accent).frame(width: 28)
+            Image(systemName: symbol).font(.system(size: 17)).foregroundStyle(T.accent)
+                .frame(width: 36, height: 36).background(Circle().fill(T.mint))
             Text(text).font(rounded(19)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -276,8 +302,8 @@ private struct Progress: View {
         VStack(alignment: .leading, spacing: 14) {
             GeometryReader { g in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(T.card)
-                    Capsule().fill(T.accent).frame(width: max(18, g.size.width * fraction))
+                    Capsule().fill(T.line)
+                    Capsule().fill(T.primary).frame(width: max(18, g.size.width * fraction))
                         .animation(.easeInOut(duration: 0.6), value: fraction)
                 }
             }
@@ -291,7 +317,7 @@ private struct Progress: View {
             step(2, "\(carer) s'en occupe, avec Holo")
         }
         .padding(22)
-        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card.opacity(0.7)))
+        .champ(T.r)
     }
 
     private func step(_ i: Int, _ text: String) -> some View {
@@ -334,10 +360,10 @@ private struct SeniorQuestion: View {
                     TextField("Votre réponse", text: $text)
                         .textFieldStyle(.plain).font(rounded(22, .medium))
                         .padding(.horizontal, 20).padding(.vertical, 16)
-                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.bg))
+                        .champ(T.r)
                         .onSubmit { reply(text) }
                     Button("Répondre") { reply(text) }
-                        .buttonStyle(PillStyle(height: 56))
+                        .buttonStyle(PillStyle(height: 56, icone: "arrow.up.circle"))
                         .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 Text("Ne donnez jamais de mot de passe ni de code : on ne vous les demandera pas.")
@@ -345,7 +371,8 @@ private struct SeniorQuestion: View {
             }
         }
         .padding(24).frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card)
+            .overlay(RoundedRectangle(cornerRadius: T.r, style: .continuous).strokeBorder(T.line, lineWidth: 1.5)))
     }
 
     private func reply(_ t: String) {

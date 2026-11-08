@@ -19,34 +19,35 @@ struct HomeView: View {
             // 60 / 40, sans jamais couper le texte de la barre ; trop étroit, la droite passe dessous.
             let gauche = max(place * 0.6, Self.gaucheMin * CGFloat(TextScale.current))
             let droite = place - gauche
-            if droite >= Self.droiteMin {
-                HStack(alignment: .top, spacing: Self.ecart) {
-                    VStack(alignment: .leading, spacing: 28) {
-                        colonneGauche
+            let deux = droite >= Self.droiteMin
+            VStack(alignment: .leading, spacing: 24) {
+                // En-tête bleu sur toute la largeur ; la barre de demande garde la largeur de la colonne gauche.
+                enTete(barre: deux ? gauche - Self.marge : nil)
+                if deux {
+                    // Les deux colonnes partent de la même ligne : titres de section alignés, contenu en haut.
+                    HStack(alignment: .top, spacing: Self.ecart) {
                         ScrollView(showsIndicators: false) {
-                            automates.padding(.bottom, 8)
+                            automates.padding(.bottom, 24)
                         }
+                        .frame(width: gauche)
+                        ScrollView(showsIndicators: false) {
+                            applications.padding(.bottom, 24)
+                        }
+                        .frame(width: droite)
                     }
-                    .frame(width: gauche, alignment: .topLeading)
-                    .frame(maxHeight: .infinity, alignment: .topLeading)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                } else {
                     ScrollView(showsIndicators: false) {
-                        applications
-                            .frame(maxWidth: 440)
-                            .frame(width: droite, alignment: .center)
-                            .frame(minHeight: geo.size.height, alignment: .center)
+                        VStack(alignment: .leading, spacing: 28) {
+                            automates
+                            applications
+                        }
+                        .padding(.bottom, 24)
                     }
-                    .frame(width: droite)
-                }
-            } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 28) {
-                        colonneGauche
-                        automates
-                        applications.frame(maxWidth: 440, alignment: .leading)
-                    }
-                    .padding(.bottom, 8)
                 }
             }
+            // Laisse respirer les ombres des cartes sans décaler les colonnes.
+            .scrollClipDisabled()
         }
         .foregroundStyle(T.ink)
         .onAppear { ouvrirDemande() }
@@ -55,36 +56,61 @@ struct HomeView: View {
     }
 
     private static let droiteMin: CGFloat = 280
-    private static let gaucheMin: CGFloat = 540
+    /// 540 pt de barre + la marge de l'en-tête bleu, pour ne pas couper son texte.
+    private static let gaucheMin: CGFloat = 540 + marge + 22
     private static let ecart: CGFloat = 24
+    /// Marge intérieure de l'en-tête bleu.
+    private static let marge: CGFloat = 28
 
-    private var colonneGauche: some View {
-        VStack(alignment: .leading, spacing: 22) {
+    /// L'en-tête de l'accueil, comme « My ticket » : dégradé bleu, salutation en
+    /// blanc et barre de demande intégrée.
+    private func enTete(barre largeur: CGFloat?) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
             accueil
             VStack(alignment: .leading, spacing: 10) {
-                barre
+                barre.frame(maxWidth: largeur ?? .infinity)
                 if let etat = etatDictee {
-                    Text(etat).font(rounded(17, .semibold)).foregroundStyle(T.leaf)
+                    Text(etat).font(rounded(17, .semibold)).foregroundStyle(.white)
                         .padding(.leading, 18)
                 }
                 if let warning {
                     Label(warning, systemImage: "exclamationmark.circle")
-                        .font(rounded(17, .semibold))
+                        .font(rounded(17, .semibold)).foregroundStyle(T.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 18).padding(.vertical, 12)
-                        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(T.card))
+                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 }
                 if let q = model.queued, !model.queuedShown {
                     Button { model.queuedShown = true } label: {
                         Label(q.rdv.map { "Demande n° \(q.number) · rendez-vous \(rdvText($0))" } ?? "Demande n° \(q.number) en attente",
                               systemImage: "person.wave.2.fill")
-                            .font(rounded(17, .semibold))
+                            .font(rounded(17, .semibold)).foregroundStyle(Pastille.Ton.orange.texte)
+                            .padding(.horizontal, 18).frame(minHeight: 44)
+                            .background(Capsule().fill(Pastille.Ton.orange.fond))
+                            .contentShape(Capsule())
                     }
-                    .buttonStyle(.plain).padding(.horizontal, 18).padding(.vertical, 12)
-                    .background(Capsule().fill(T.card))
+                    .buttonStyle(PressStyle())
                 }
             }
         }
+        .padding(Self.marge)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.header)
+                .shadow(color: T.accent.opacity(0.28), radius: 20, y: 10)
+        }
+    }
+
+    /// Titre de section, identique dans les deux colonnes pour qu'ils tombent sur la même ligne.
+    private func titreSection(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: symbol).font(rounded(20, .semibold)).foregroundStyle(T.accent)
+                .frame(width: 26)
+                .accessibilityHidden(true)
+            Text(text).font(rounded(22, .bold))
+        }
+        .frame(minHeight: 32)
+        .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: Demande
@@ -95,6 +121,8 @@ struct HomeView: View {
                 Mascotte(humeur: humeur).frame(width: Mascotte.Taille.accueil, height: Mascotte.Taille.accueil)
                 Mascotte(humeur: humeur).frame(width: Mascotte.Taille.accueilReduite, height: Mascotte.Taille.accueilReduite)
             }
+            .padding(6)
+            .background(Circle().fill(.white.opacity(0.92)))
             VStack(alignment: .leading, spacing: 2) {
                 TimelineView(.everyMinute) { ctx in
                     let hello = Greeting.word(at: ctx.date)
@@ -102,8 +130,9 @@ struct HomeView: View {
                         .font(rounded(34, .bold)).tracking(-0.6)
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
-                Text("Que voulez-vous faire ?").font(rounded(19, .medium)).foregroundStyle(T.muted)
+                Text("Que voulez-vous faire ?").font(rounded(19, .medium)).foregroundStyle(.white.opacity(0.92))
             }
+            .foregroundStyle(.white)
         }
     }
 
@@ -121,8 +150,8 @@ struct HomeView: View {
             Button(action: submit) {
                 Text("Envoyer").font(rounded(16, .semibold)).foregroundStyle(.white)
                     .lineLimit(1).fixedSize()
-                    .padding(.horizontal, 16).frame(minHeight: 44)
-                    .background(Capsule().fill(T.ink))
+                    .padding(.horizontal, 18).frame(minHeight: 44)
+                    .background(Capsule().fill(T.primary).shadow(color: T.accent.opacity(0.3), radius: 8, y: 4))
                     .contentShape(Capsule())
             }
             .buttonStyle(PressStyle())
@@ -134,8 +163,9 @@ struct HomeView: View {
             // Bord dessiné par deux capsules pleines : un trait de Capsule laisse des traces sur les côtés.
             let actif = focused || dictation.phase == .listening
             ZStack {
-                Capsule().fill(actif ? T.papaya : T.ink.opacity(0.14))
-                Capsule().fill(T.card).padding(actif ? 2.5 : 1.5)
+                Capsule().fill(actif ? Color(hex: 0xBFD5FF) : .white.opacity(0.0))
+                Capsule().fill(T.card).padding(actif ? 3 : 0)
+                    .shadow(color: T.ombre.opacity(0.18), radius: 10, y: 4)
             }
         }
         .contentShape(Rectangle())
@@ -227,32 +257,36 @@ struct HomeView: View {
     /// Les automates enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
     private var automates: some View {
         VStack(alignment: .leading, spacing: 14) {
+            titreSection("sparkles", "Mes automates")
             if let n = model.notice {
-                Text(n).font(rounded(17, .medium))
+                Label(n, systemImage: "info.circle.fill").font(rounded(17, .medium))
+                    .foregroundStyle(T.leaf)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(18).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
             }
-            HStack(spacing: 10) {
-                Image(systemName: "sparkles").font(rounded(20, .semibold)).foregroundStyle(T.papaya)
-                    .accessibilityHidden(true)
-                Text("Mes automates").font(rounded(22, .bold))
-            }
-            if model.lessons.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Aucun automate pour l'instant.").font(rounded(18, .semibold))
-                    Text("Un automate est une tâche toute prête. Quand \(model.helperName) en enregistre un pour vous, il apparaît ici et se lance d'un clic.")
-                        .font(rounded(17)).foregroundStyle(T.muted)
-                        .fixedSize(horizontal: false, vertical: true)
+            Group {
+                if model.lessons.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Aucun automate pour l'instant.").font(rounded(18, .semibold))
+                        Text("Un automate est une tâche toute prête. Quand \(model.helperName) en enregistre un pour vous, il apparaît ici et se lance d'un clic.")
+                            .font(rounded(17)).foregroundStyle(T.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(20).frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(model.lessons) { l in
+                            tuile(l)
+                            if l.id != model.lessons.last?.id {
+                                Rectangle().fill(T.line).frame(height: 1).padding(.leading, 64)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 6)
                 }
-                .padding(20).frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: T.r, style: .continuous)
-                    .strokeBorder(T.muted.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5])))
-            } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 12) {
-                    ForEach(model.lessons) { l in tuile(l) }
-                }
             }
+            .carte(T.rBig)
         }
     }
 
@@ -289,9 +323,8 @@ struct HomeView: View {
                 .buttonStyle(PressStyle())
             }
         }
-        .padding(12)
+        .padding(.horizontal, 14).padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
     }
 }
 
@@ -301,17 +334,14 @@ extension HomeView {
     /// Les 6 applications passées le plus récemment au premier plan, ouvertes d'un clic.
     fileprivate var applications: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                Image(systemName: "clock.arrow.circlepath").font(rounded(20, .semibold)).foregroundStyle(T.papaya)
-                    .accessibilityHidden(true)
-                Text("Applications récentes").font(rounded(22, .bold))
-            }
+            titreSection("clock.arrow.circlepath", "Applications récentes")
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 14) {
                 ForEach(usage.recent) { app in
                     let name = app.name, bundle = app.bundle
                     Button { openApp(bundle) } label: {
                         VStack(spacing: 8) {
-                            Circle().fill(T.card).frame(width: 80, height: 80)
+                            RoundedRectangle(cornerRadius: 20, style: .continuous).fill(T.field)
+                                .frame(width: 72, height: 72)
                                 .overlay(Image(nsImage: icon(bundle)).resizable().frame(width: 48, height: 48))
                             Text(name).font(rounded(16, .medium))
                                 .lineLimit(2).multilineTextAlignment(.center)
@@ -324,6 +354,8 @@ extension HomeView {
                     .accessibilityLabel("Ouvrir \(name)")
                 }
             }
+            .padding(.horizontal, 12).padding(.vertical, 18)
+            .carte(T.rBig)
         }
     }
 

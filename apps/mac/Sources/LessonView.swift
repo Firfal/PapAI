@@ -12,48 +12,54 @@ struct LessonView: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            // La capture prend toute la place : c'est elle qui montre où cliquer.
-            // Le texte tient dans une colonne à droite.
-            HStack(alignment: .top, spacing: 28) {
-                if let image {
-                    Button { zoomed = true } label: {
-                        Image(nsImage: image).resizable().scaledToFit()
-                            .clipShape(RoundedRectangle(cornerRadius: T.r, style: .continuous))
-                            .overlay(alignment: .bottomTrailing) {
-                                Label("Agrandir", systemImage: "arrow.up.left.and.arrow.down.right")
-                                    .font(rounded(14, .semibold)).foregroundStyle(T.ink)
-                                    .padding(.horizontal, 12).padding(.vertical, 8)
-                                    .background(Capsule().fill(T.card)).padding(12)
-                            }
+            Panneau(padding: 28) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if !steps.isEmpty {
+                        Pastille(texte: "Étape \(min(i, steps.count - 1) + 1) sur \(steps.count)", ton: .bleu, taille: 16)
                     }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .accessibilityLabel("Agrandir la capture")
+                    Text(lesson.title).font(rounded(30, .bold)).tracking(-0.4)
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                 }
-                VStack(alignment: .leading, spacing: 18) {
-                    Text(lesson.title).font(rounded(18, .semibold)).foregroundStyle(T.muted)
-                    if steps.isEmpty {
-                        Text("Cet automate n'a pas encore d'étapes.").font(rounded(30, .semibold))
-                    } else {
-                        let step = steps[min(i, steps.count - 1)]
-                        Text("Étape \(i + 1) sur \(steps.count)").font(rounded(18, .semibold)).foregroundStyle(T.accent)
-                        Text(step.instruction ?? "").font(rounded(image == nil ? 36 : 28, .semibold)).tracking(-0.4)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if let c = step.checkpoint, !c.isEmpty {
-                            Text("Vous devriez voir : \(c)").font(rounded(18))
-                                .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                                .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+            } corps: {
+                // La capture prend toute la place : c'est elle qui montre où cliquer.
+                // Le texte tient dans une colonne à droite.
+                HStack(alignment: .top, spacing: 28) {
+                    if let image {
+                        Button { zoomed = true } label: {
+                            Image(nsImage: image).resizable().scaledToFit()
+                                .clipShape(RoundedRectangle(cornerRadius: T.r, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: T.r, style: .continuous).strokeBorder(T.line))
+                                .overlay(alignment: .bottomTrailing) {
+                                    Label("Agrandir", systemImage: "arrow.up.left.and.arrow.down.right")
+                                        .font(rounded(14, .semibold)).foregroundStyle(T.ink)
+                                        .padding(.horizontal, 12).padding(.vertical, 8)
+                                        .background(Capsule().fill(T.card).shadow(color: T.ombre.opacity(0.15), radius: 8, y: 3)).padding(12)
+                                }
                         }
+                        .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .accessibilityLabel("Agrandir la capture")
                     }
-                    Spacer(minLength: 0)
+                    VStack(alignment: .leading, spacing: 18) {
+                        if steps.isEmpty {
+                            Text("Cet automate n'a pas encore d'étapes.").font(rounded(30, .semibold))
+                        } else {
+                            let step = steps[min(i, steps.count - 1)]
+                            Text(step.instruction ?? "").font(rounded(image == nil ? 36 : 28, .semibold)).tracking(-0.4)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let c = step.checkpoint, !c.isEmpty {
+                                Label("Vous devriez voir : \(c)", systemImage: "eye")
+                                    .font(rounded(18))
+                                    .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                                    .champ(T.r)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .frame(width: image == nil ? nil : 300, alignment: .topLeading)
+                    .frame(maxWidth: image == nil ? .infinity : 300, alignment: .topLeading)
                 }
-                .frame(width: image == nil ? nil : 300, alignment: .topLeading)
-                .frame(maxWidth: image == nil ? .infinity : 300, alignment: .topLeading)
             }
-            .foregroundStyle(T.ink)
-            .padding(28)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
             .overlay {
                 if zoomed, let image {
                     ZStack(alignment: .topTrailing) {
@@ -77,7 +83,8 @@ struct LessonView: View {
                 } label: {
                     Text(i >= steps.count - 1 ? "Terminé" : "Suivant").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PillStyle(height: 72)).keyboardShortcut(.defaultAction)
+                .buttonStyle(PillStyle(height: 72, icone: i >= steps.count - 1 ? "checkmark.circle" : "arrow.right.circle", plein: true))
+                .keyboardShortcut(.defaultAction)
             }
         }
         .task(id: i) { zoomed = false; await loadImage() }
