@@ -261,6 +261,7 @@
     <div class="mint idle-hero" id="allWell">
       <h1>Tout va bien</h1>
       <p id="idleSub">Vous serez prévenu dès que la personne aidée demande de l'aide.</p>
+      <p id="protectionState" hidden></p>
     </div>
     <div class="card remote" id="remote">
       <h3 class="section-title">Proposer une assistance</h3>
@@ -595,6 +596,14 @@ function connect() {
     setTimeout(connect, reconnectIn);
     reconnectIn = Math.min(reconnectIn * 2, 8000);
   };
+}
+
+// Protection en temps réel de l'ordinateur (null : inconnue, app ancienne ou hors ligne).
+function showProtection(on) {
+  const el = $('protectionState');
+  el.hidden = typeof on !== 'boolean';
+  el.textContent = on ? 'Protection en temps réel : activée sur l\'ordinateur.'
+    : 'Protection en temps réel : coupée sur l\'ordinateur. Les arnaques ne sont plus repérées en dehors des assistances.';
 }
 
 function dropSession() {
@@ -946,6 +955,7 @@ function onMessage(ev) {
     rememberHere();
     if (!m.bridge) $('idleSub').textContent = "L'ordinateur de la personne aidée n'est pas connecté pour le moment.";
     else $('idleSub').textContent = "Vous serez prévenu dès que la personne aidée demande de l'aide.";
+    showProtection(m.bridge ? m.protection : null);
     loadLessons();
     loadTickets();
     if (m.tickets_waiting) toast(`${m.tickets_waiting} demande${m.tickets_waiting > 1 ? 's' : ''} en attente d'un support.`);
@@ -995,6 +1005,8 @@ function onMessage(ev) {
   }
 
   else if (m.type === 'senior') { seniorName = m.name || ''; rememberHere(); render(); }
+
+  else if (m.type === 'protection') showProtection(m.on);
 
   else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. La personne aidée doit l’accepter sur son ordinateur.');
   else if (m.type === 'remote_refused') toast('La personne aidée a refusé l’assistance pour le moment.');

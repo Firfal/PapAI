@@ -188,6 +188,38 @@ def unit() -> None:
 
     check(core.guard_signals() is None or core.guard_signals()["type"] == "guard", "guard_signals hors Windows")
 
+    # Protection en temps réel : activée par défaut, rien ne part quand elle est coupée.
+    check(settings.protection_on({}) and not settings.protection_on({"realtimeProtection": False}),
+          "protection en temps réel activée par défaut")
+    signals = []
+
+    class GuardWS:
+        async def send(self, raw): signals.append(json.loads(raw))
+
+    b = Bridge("", core.StopGate(), FakeScreen, lambda m: None, lambda ok: None, lambda s: None,
+               guard=lambda: {"type": "guard", "processes": ["AnyDesk"], "window": "", "url": ""})
+    b.protection = lambda: False
+    asyncio.run(b._send_guard(GuardWS()))
+    check(signals == [], "protection coupée : aucun signal du gardien n'est envoyé")
+    b.protection = lambda: True
+    asyncio.run(b._send_guard(GuardWS()))
+    check(len(signals) == 1 and signals[0]["processes"] == ["AnyDesk"], "protection activée : signal envoyé")
+
+    sent_p = []
+
+    class ProfileBridge:
+        def send(self, payload): sent_p.append(payload)
+
+    pm = Model(demo="")
+    pm.bridge = ProfileBridge()
+    check(pm.snapshot()["realtimeProtection"] is True, "Réglages : protection affichée activée")
+    pm.set_realtime_protection(False)
+    check(settings.load().get("realtimeProtection") is False and not pm.snapshot()["realtimeProtection"],
+          "protection coupée gardée sur le disque")
+    check(sent_p and sent_p[-1] == {"type": "profile", "protection": False}, "le serveur apprend que la protection est coupée")
+    check(Model(demo="").realtime_protection is False, "l'état survit au redémarrage de l'app")
+    pm.set_realtime_protection(True)
+
     m = Model(demo="home")
     m.start()
     m._handle({"type": "alert", "level": "danger", "title": "Arnaque", "detail": "N'appelez pas."})

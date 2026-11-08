@@ -26,6 +26,11 @@ final class WebAgentHost {
     }
     static var profile: URL { support.appendingPathComponent("Chrome", isDirectory: true) }
     static var holoBinary: URL { support.appendingPathComponent("agent-navigateur/venv/bin/holo") }
+    /// La personne se connecte elle-même à ses sites : rien n'est retenu d'une assistance à l'autre.
+    static func wipeProfile() {
+        try? FileManager.default.removeItem(at: profile)
+    }
+
     static var isInstalled: Bool { FileManager.default.isExecutableFile(atPath: holoBinary.path) }
 
     static func browserExecutable() -> URL? {
@@ -59,6 +64,8 @@ final class WebAgentHost {
             chromePID = pid
             chromeProcess = nil
         } else {
+            // Profil neuf à chaque assistance : aucun compte, identifiant ni cookie n'est gardé.
+            Self.wipeProfile()
             try? FileManager.default.createDirectory(at: Self.profile, withIntermediateDirectories: true)
             let p = Process()
             p.executableURL = exe
@@ -145,6 +152,7 @@ final class WebAgentHost {
                 } else if Self.ourChromePID() == chrome {
                     kill(chrome, SIGKILL)
                 }
+                if Self.ourChromePID() == nil { Self.wipeProfile() }
             }
         }
         if Self.isInstalled {
