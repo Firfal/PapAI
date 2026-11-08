@@ -66,9 +66,9 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Réglages").font(rounded(30, .bold))
+                Text("Réglages").font(rounded(26, .bold))
                 if !model.orgName.isEmpty {
-                    Text("Poste géré par \(model.orgName)").font(rounded(15, .medium)).foregroundStyle(.white.opacity(0.92))
+                    Text("Poste géré par \(model.orgName)").font(rounded(13, .medium)).foregroundStyle(.white.opacity(0.92))
                 }
             }
             .foregroundStyle(.white)
@@ -80,44 +80,27 @@ struct SettingsView: View {
                     field("Prénom", text: $name, prompt: "Votre prénom")
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle(isOn: Binding(get: { model.realtimeProtection }, set: { model.setRealtimeProtection($0) })) {
-                            Text("Protection en temps réel").font(rounded(22, .semibold))
+                            Text("Protection en temps réel").font(rounded(19, .semibold))
                         }
                         .toggleStyle(.switch).tint(T.accent)
                         Text(model.realtimeProtection
                              ? "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe."
                              : "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées.")
-                            .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                            .font(rounded(14)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                     }
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Mon support").font(rounded(22, .semibold))
-                        if model.helpers.isEmpty {
-                            Text("Reliez le téléphone de votre support à cet ordinateur : QR code, code à 6 chiffres ou lien à envoyer.")
-                                .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                            // Le bouton n'existe que tant qu'aucun support n'est relié : un seul à la fois.
-                            Button("Ajouter un support") {
-                                dismiss()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.openSupportPairing() }
-                            }.buttonStyle(PillStyle(height: 54, icone: "plus.circle"))
-                        } else {
-                            // Le support se gère depuis son téléphone : ici on l'affiche seulement.
-                            ForEach(model.helpers) { h in
-                                HStack(spacing: 14) {
-                                    Image(systemName: "person.fill.checkmark")
-                                        .font(.system(size: 19, weight: .semibold)).foregroundStyle(.white)
-                                        .frame(width: 46, height: 46).background(Circle().fill(T.accent))
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Support IT").font(rounded(20, .semibold))
-                                        Text(h.online ? "En ligne, relié à cet ordinateur" : "Relié à cet ordinateur")
-                                            .font(rounded(15)).foregroundStyle(h.online ? T.leaf : T.muted)
-                                    }
-                                    Spacer(minLength: 0)
-                                }
-                                .padding(14)
-                                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(T.card)
-                                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(T.line)))
-                                .accessibilityElement(children: .combine)
-                            }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Mon support").font(rounded(19, .semibold))
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 19, weight: .semibold)).foregroundStyle(T.leaf)
+                            Text("Support IT").font(rounded(17, .semibold))
+                            Spacer(minLength: 0)
                         }
+                        .padding(14)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(T.card)
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(T.line)))
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Support IT, validé")
                     }
                 }
                 .padding(24)
@@ -142,8 +125,8 @@ struct SettingsView: View {
 
     private func field(_ label: String, text: Binding<String>, prompt: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(label).font(rounded(15, .semibold)).foregroundStyle(T.muted)
-            TextField(prompt, text: text).textFieldStyle(.plain).font(rounded(18))
+            Text(label).font(rounded(13, .semibold)).foregroundStyle(T.muted)
+            TextField(prompt, text: text).textFieldStyle(.plain).font(rounded(15))
                 .padding(16).background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(T.card)
                     .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(T.line)))
         }
