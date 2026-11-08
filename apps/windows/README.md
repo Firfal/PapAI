@@ -161,7 +161,7 @@ Deux branches ont porté l'app Windows le même jour ; celle-ci les réunit.
 
 - `devin/windows-soin` : interface (tous les écrans de l'app Mac actuelle),
   `model.py`, `bridge.py` (refus sans plan validé), `settings.py`, `dictation.py`,
-  accueil en 5 écrans, proches et QR, `remote_request`, `lessons_changed`,
+  structure initiale de l'accueil, `remote_request`, `lessons_changed`,
   `plan_step`, saisie accentuée par SendInput, aperçu Linux et tests.
 - `devin/1794070934-windows-vers-main` (app de cyp-cor, branche `windows`) :
   gardien (`guard`, `alert`), écran principal choisi par `is_primary`, masque de
