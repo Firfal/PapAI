@@ -107,6 +107,9 @@ final class AppModel {
     var guardAlert: GuardAlert?
     var stoppedBy: String?
     var guardAcknowledged = false
+    /// Dernier rangement guidé, annulable d'un clic (journal local, `Rangement.swift`).
+    var lastTidy: TidyRecord? = TidyJournal.standard.last
+    @ObservationIgnored private var tidyScan: TidyScan?
 
     @ObservationIgnored let gate = StopGate()
     @ObservationIgnored private var planApproved = false
@@ -678,6 +681,17 @@ final class AppModel {
 
     func askHelp(task: String, requestedBy: String? = nil, ticket: String? = nil) {
         guard guardAlert == nil else { return }
+        // « Range mes documents » : seuls les noms des fichiers partent, avec la demande.
+        tidyScan = nil
+        if Tidy.isRequest(task) {
+            guard let folder = Tidy.folder(in: task) ?? chooseTidyFolder() else { return }
+            do {
+                tidyScan = try Tidy.scan(folder, home: FileManager.default.homeDirectoryForCurrentUser)
+            } catch {
+                showNotice(error.localizedDescription)
+                return
+            }
+        }
         queuedShown = false
         if let ticket, queued?.ticket == ticket { queued = nil }
         gate.reset()
@@ -699,7 +713,18 @@ final class AppModel {
         var msg: [String: Any] = ["type": "help_request", "task": task]
         if let requestedBy { msg["requested_by"] = requestedBy }
         if let ticket { msg["ticket"] = ticket }
+        if let tidyScan { msg["tidy"] = tidyScan.payload }
         client.send(msg)
+    }
+
+    private func chooseTidyFolder() -> TidyFolder? {
+        let alert = NSAlert()
+        alert.messageText = "Quel dossier ranger ?"
+        alert.informativeText = "Holo ne lit que les noms des fichiers, jamais leur contenu. \(helperName) validera le rangement, et vous pourrez l'annuler."
+        for f in TidyFolder.allCases { alert.addButton(withTitle: f.label) }
+        alert.addButton(withTitle: "Annuler")
+        let i = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
+        return TidyFolder.allCases.indices.contains(i) ? TidyFolder.allCases[i] : nil
     }
 
     /// Le verrou local passe d'abord, puis le serveur est prévenu.
@@ -733,6 +758,9 @@ final class AppModel {
         case "execute":
             guard let req = m["req"] as? String, let action = m["action"] as? [String: Any] else { return }
             Task { await doExecute(req, action) }
+        case "tidy_execute":
+            guard let req = m["req"] as? String else { return }
+            doTidy(req, m)
         case "status":
             applyStatus(m)
         case "web_agent_start":
@@ -928,6 +956,53 @@ final class AppModel {
         } catch {
             reply("échec : \(error.localizedDescription)", refused: true)
         }
+    }
+
+    /// Plan de rangement validé par le support : les garde-fous de `Tidy` revérifient tout.
+    private func doTidy(_ req: String, _ m: [String: Any]) {
+        func reply(_ text: String, refused: Bool, _ r: TidyResult = TidyResult()) {
+            client.send(["type": "result", "req": req, "result": text, "refused": refused,
+                         "moved": r.moved, "renamed": r.renamed, "skipped": r.skipped])
+        }
+        if gate.isStopped || guardAlert != nil { reply("Assistance arrêtée ou alerte du gardien en attente.", refused: true); return }
+        guard planApproved && executionState == "active" else {
+            reply("Rangement refusé : aucun plan validé par le support.", refused: true)
+            return
+        }
+        guard let scan = tidyScan, (m["folder"] as? String) == scan.folder.rawValue else {
+            reply("Rangement refusé : ce dossier n'a pas été demandé sur cet ordinateur.", refused: true)
+            return
+        }
+        let moves = ((m["moves"] as? [[String: Any]]) ?? []).compactMap { d -> TidyMove? in
+            guard let from = d["from"] as? String, let to = d["to"] as? String else { return nil }
+            return TidyMove(from: from, to: to)
+        }
+        currentAction = "Holo range vos fichiers dans \(scan.folder.label)"
+        actions.append(currentAction ?? "")
+        let stop = gate.pin()
+        do {
+            let r = try Tidy.execute(scan.folder, moves: moves, allowed: Set(scan.files),
+                                     home: FileManager.default.homeDirectoryForCurrentUser,
+                                     journal: .standard, shouldStop: { stop.isStopped })
+            lastTidy = TidyJournal.standard.last
+            tidyScan = nil
+            reply(r.text, refused: r.stopped, r)
+        } catch {
+            reply(error.localizedDescription, refused: true)
+        }
+    }
+
+    func undoTidy() {
+        do {
+            let r = try Tidy.undo(home: FileManager.default.homeDirectoryForCurrentUser, journal: .standard)
+            var text = "Rangement annulé : \(r.restored) fichier\(r.restored > 1 ? "s" : "") remis à leur place."
+            if r.renamed > 0 { text += " \(r.renamed) renommé\(r.renamed > 1 ? "s" : "") avec « (2) », la place étant prise." }
+            if r.missing > 0 { text += " \(r.missing) introuvable\(r.missing > 1 ? "s" : "") (déplacé\(r.missing > 1 ? "s" : "") depuis)." }
+            showNotice(text)
+        } catch {
+            showNotice(error.localizedDescription)
+        }
+        lastTidy = TidyJournal.standard.last
     }
 
     // MARK: Automates
