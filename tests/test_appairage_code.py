@@ -25,6 +25,7 @@ import websockets
 
 RACINE = Path(__file__).resolve().parent.parent
 CLE = "cle-de-test-appairage"
+INVALIDE = "Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de la personne aidée."
 fails = 0
 
 
@@ -40,9 +41,9 @@ def port_libre() -> int:
         return s.getsockname()[1]
 
 
-def http(url: str, body: dict | None = None) -> tuple[int, dict | str]:
+def http(url: str, body: dict | None = None, headers: dict | None = None) -> tuple[int, dict | str]:
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json", **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             raw, st = r.read().decode(), r.status
@@ -71,8 +72,48 @@ async def repondre(ws, accept: bool, vus: list) -> None:
             await ws.send(json.dumps({"type": "pair_decision", "req": m["req"], "accept": accept}))
 
 
-async def post(url: str, body: dict):
-    return await asyncio.to_thread(http, url, body)
+async def post(url: str, body: dict, headers: dict | None = None):
+    return await asyncio.to_thread(http, url, body, headers)
+
+
+async def recevoir(ws, kind: str) -> dict:
+    while True:
+        m = json.loads(await asyncio.wait_for(ws.recv(), 5))
+        if m.get("type") == kind:
+            return m
+
+
+def sans_secret(r: dict) -> bool:
+    return not any(k in r for k in ("server", "key", "aidant_url"))
+
+
+def politique() -> None:
+    sys.path.insert(0, str(RACINE))
+    from backend.family import Family, PairingError, clean_label
+
+    with tempfile.TemporaryDirectory() as folder:
+        family = Family(Path(folder) / "family.json")
+        c = family.new_code()
+        family._expires = time.time() - 1
+        try:
+            family.check_code(c)
+            check("code expiré : message uniforme", False)
+        except PairingError as e:
+            check("code expiré : message uniforme", str(e) == INVALIDE)
+        c = family.new_code()
+        family.consume_code(c)
+        family._expires = time.time() - 1
+        h = family.add_helper("Marc", "Fils")
+        check("expiration pendant l'accord n'empêche pas l'ajout après consommation", h in family.helpers)
+        c = family.new_code()
+        for _ in range(100):
+            try:
+                family.check_code("faux")
+            except PairingError:
+                pass
+        check("plafond global de 100 erreurs conservé", not family.code_valid(c))
+        check("libellés limités, accents et ponctuation conservés", clean_label("Éléonore - O'Neil." + "a" * 50, 40) == ("Éléonore - O'Neil." + "a" * 50)[:40]
+              and len(clean_label("Fils" * 20, 60)) == 60)
 
 
 async def parcours(base: str) -> None:
@@ -95,26 +136,55 @@ async def parcours(base: str) -> None:
         check("page de saisie du code ouverte sans clé", st == 200 and "<html" in str(page).lower())
 
         cb = await code(wb)
-        vus_b: list = []
-        tb = asyncio.create_task(repondre(wb, True, vus_b))
-        st, r = await post(f"{base}/p/{cb}", {"name": "Claire", "relation": "Service informatique"})
-        check("le code seul retrouve le bon espace, accepté sur l'ordinateur",
-              st == 200 and r.get("ok") and r.get("key") == b["key"] and r.get("server") == base)
-        check("l'ordinateur a vu qui demandait à devenir son support",
-              len(vus_b) == 1 and vus_b[0]["name"] == "Claire")
+        async with websockets.connect(f"{wsb}/k/{b['key']}/ws/aidant/{b['key']}") as connu:
+            pending = asyncio.create_task(post(f"{base}/p/{cb}", {"name": "Cl<a>ire\n", "relation": 'Service &"informatique"'}))
+            demande = await recevoir(wb, "pair_confirm")
+            check("prénom et lien nettoyés avant confirmation", demande["name"] == "Claire" and demande["relation"] == "Service informatique")
+            await wb.send(json.dumps({"type": "pair_decision", "req": demande["req"], "accept": True}))
+            st, r = await pending
+            check("le code seul retrouve le bon espace, accepté sur l'ordinateur",
+                  st == 200 and r.get("ok") and r.get("key") == b["key"] and r.get("server") == base)
+            notice = await recevoir(connu, "helper_added")
+            check("support déjà connecté averti de l'ajout", notice["name"] == "Claire")
+            helpers = await recevoir(wb, "helpers")
+            check("support ajouté et helpers+added envoyé au pont", helpers.get("added") == "Claire" and any(h["id"] == r["id"] for h in helpers["helpers"]))
         st, r = await post(f"{base}/p/{cb}", {"name": "Intrus", "relation": "?"})
-        check("un code ne sert qu'une fois", st == 400)
-        tb.cancel()
+        uniforme = r
+        check("un code ne sert qu'une fois, sans secret", st == 400 and r.get("error") == INVALIDE and sans_secret(r))
 
         ca = await code(wa)
         ta = asyncio.create_task(repondre(wa, False, []))
         st, r = await post(f"{base}/p/{ca}", {"name": "Intrus", "relation": ""})
-        check("refusé sur l'ordinateur : pas de liaison", st == 403 and not r.get("ok"))
+        check("refusé sur l'ordinateur : pas de liaison", st == 403 and r.get("refused") is True and sans_secret(r)
+              and r.get("error") == "La personne aidée a refusé. Rien n'a été partagé.")
         ta.cancel()
+        await asyncio.gather(ta, return_exceptions=True)
+        st, r = await post(f"{base}/p/{ca}", {"name": "Intrus"})
+        check("refus : code consommé, message uniforme", st == 400 and r == uniforme)
 
         c0 = await code(w0)
-        st, r = http(f"{base}/k/{CLE}/p/{c0}", {"name": "Paul", "relation": ""})
-        check("lien avec clé (QR, SMS) : sans confirmation", st == 200 and r.get("key") == CLE)
+        t0 = asyncio.create_task(repondre(w0, True, []))
+        st, r = await post(f"{base}/k/{CLE}/p/{c0}", {"name": "Paul", "relation": ""})
+        check("lien avec clé (QR, SMS) : confirmé sur l'ordinateur", st == 200 and r.get("key") == CLE)
+        t0.cancel()
+        await asyncio.gather(t0, return_exceptions=True)
+
+        ct = await code(wa)
+        pending = asyncio.create_task(post(f"{base}/k/{a['key']}/p/{ct}", {"name": "Attente"}))
+        demande = await recevoir(wa, "pair_confirm")
+        neuf = await code(wa)
+        st, r = await post(f"{base}/p/{neuf}", {"name": "Deuxième"})
+        check("une seule demande en attente par ordinateur", st == 400 and r == uniforme)
+        st, r = await pending
+        ferme = await recevoir(wa, "pair_confirm_closed")
+        check("délai : 408 sans secret et fermeture corrélée", st == 408 and sans_secret(r) and ferme["req"] == demande["req"])
+        st, r = await post(f"{base}/p/{ct}", {"name": "Attente"})
+        check("délai : code consommé", st == 400 and r == uniforme)
+        ta = asyncio.create_task(repondre(wa, True, []))
+        st, r = await post(f"{base}/p/{neuf}", {"name": "Après délai"})
+        check("demande nettoyée après délai", st == 200)
+        ta.cancel()
+        await asyncio.gather(ta, return_exceptions=True)
 
         st, r = http(f"{base}/k/{a['key']}/lessons")
         st0, r0 = http(f"{base}/k/{b['key']}/lessons")
@@ -142,10 +212,53 @@ async def parcours(base: str) -> None:
         except Exception:  # noqa: BLE001
             check("la clé d'un espace n'ouvre pas un autre espace", True)
 
-        codes = []
-        for _ in range(12):
-            codes.append(http(f"{base}/p/000001", {"name": "X", "relation": ""})[0])
-        check("trop de codes faux : bloqué (pas de force brute)", codes[0] == 400 and codes[-1] == 429)
+        bon = await code(wb)
+        faux = "111111" if bon != "111111" else "222222"
+        for route, ip in ((f"{base}/p/{faux}", "203.0.113.1"), (f"{base}/k/{b['key']}/p/{faux}", "203.0.113.2")):
+            codes = [http(route, {"name": "X"}, {"X-Forwarded-For": f"1.2.3.{i}, {ip}"})[0] for i in range(11)]
+            check("10 erreurs par IP, tête XFF ignorée : " + route.split(base)[1], codes == [400] * 10 + [429])
+        tb = asyncio.create_task(repondre(wb, True, []))
+        st, r = await post(f"{base}/p/{bon}", {"name": "Autre IP"}, {"X-Forwarded-For": "203.0.113.3"})
+        check("10 erreurs n'invalident pas le bon code pour une autre IP", st == 200)
+        tb.cancel()
+        await asyncio.gather(tb, return_exceptions=True)
+
+        headers = {"X-Forwarded-For": "203.0.113.4"}
+        vides = [http(f"{base}/p/{faux}", {"name": '<>\n"&'}, headers) for _ in range(11)]
+        st, r = http(f"{base}/p/{faux}", {"name": "X"}, headers)
+        check("prénom vide nettoyé : 400 sans compter d'essai", all(s == 400 and r.get("error") == "Indiquez votre prénom." for s, r in vides) and st == 400)
+        check("code faux et consommé : même message", r == uniforme)
+
+    async with websockets.connect(a["bridge_url"]) as wa:
+        absent = await code(wa)
+    await asyncio.sleep(0.05)
+    st, r = await post(f"{base}/p/{absent}", {"name": "Hors ligne"})
+    check("ordinateur absent : 409 sans secret", st == 409 and sans_secret(r) and "n'est pas connecté" in r.get("error", ""))
+    async with websockets.connect(a["bridge_url"]) as wa:
+        ta = asyncio.create_task(repondre(wa, True, []))
+        st, r = await post(f"{base}/p/{absent}", {"name": "De retour"})
+        check("ordinateur absent : code conservé pour la reconnexion", st == 200)
+        ta.cancel()
+        await asyncio.gather(ta, return_exceptions=True)
+        for remplace in (False, True):
+            c = await code(wa)
+            pending = asyncio.create_task(post(f"{base}/p/{c}", {"name": "Interrompu"}))
+            await recevoir(wa, "pair_confirm")
+            if remplace:
+                nouveau = await websockets.connect(a["bridge_url"])
+            else:
+                await wa.close()
+            st, r = await pending
+            check("pont remplacé" if remplace else "pont déconnecté", st == 409 and sans_secret(r))
+            if remplace:
+                await nouveau.close()
+            else:
+                wa = await websockets.connect(a["bridge_url"])
+
+    async with websockets.connect(a["bridge_url"]) as wa:
+        await wa.send(json.dumps({"type": "hello"}))
+        helpers = await recevoir(wa, "helpers")
+        check("aucun support ajouté lors des échecs", not {"Intrus", "Attente", "Deuxième", "Hors ligne", "Interrompu"}.intersection(h["name"] for h in helpers["helpers"]))
 
     async with websockets.connect(f"{wsb}/k/cle-revenue-apres-redeploiement/ws/bridge") as w:
         await w.send(json.dumps({"type": "pair_start"}))
@@ -154,6 +267,7 @@ async def parcours(base: str) -> None:
 
 
 def main() -> None:
+    politique()
     tmp = Path(tempfile.mkdtemp(prefix="papai-code-"))
     shutil.copytree(RACINE / "backend", tmp / "backend", ignore=shutil.ignore_patterns("__pycache__", "family.json"))
     for module in RACINE.glob("*.py"):
@@ -162,7 +276,7 @@ def main() -> None:
     base = f"http://127.0.0.1:{port}"
     env = {**os.environ, "HAI_API_KEY": "faux", "PAPAI_PUBLIC": "1", "PAPAI_AIDANT_KEY": CLE,
            "PAPAI_DATA_DIR": str(tmp / "data"),
-           "PORT": str(port), "PAPAI_PUBLIC_URL": base}
+           "PORT": str(port), "PAPAI_PUBLIC_URL": base, "PAPAI_PAIR_CONFIRM_S": "1.5"}
     env.pop("GLADIA_API_KEY", None)
     log = open(tmp / "serveur.log", "w")
     serveur = subprocess.Popen([sys.executable, "-m", "backend.app"], cwd=tmp, env=env,

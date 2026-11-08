@@ -28,7 +28,7 @@ from starlette.requests import HTTPConnection
 from . import automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
 from .agent import AgentRunner, propose_plan
 from .web_agent import WebAgentRunner, valid_browser_session
-from .family import CODE_TTL, INVITE_TTL, Family, PairingError
+from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
 from .caremamory import lessons_dir, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
 
@@ -158,6 +158,7 @@ class BridgeLink:
     def __init__(self, ws: WebSocket) -> None:
         self.ws = ws
         self._pending: dict[str, asyncio.Future] = {}
+        self.connected = True
         self.os = "windows"  # annoncé par le pont dans son message hello
         self.web_agent_available = False
         # Identifiant du navigateur servi par `holo local browser` sur la machine
@@ -173,14 +174,23 @@ class BridgeLink:
         except Exception:  # noqa: BLE001 — déjà fermé
             pass
 
-    async def _request(self, payload: dict, timeout: float = 20.0):
-        req = secrets.token_hex(6)
+    def disconnect(self) -> None:
+        self.connected = False
+        for fut in self._pending.values():
+            if not fut.done():
+                fut.set_result(None)
+
+    async def _request(self, payload: dict, timeout: float = 20.0, *, req: str | None = None):
+        req = req or secrets.token_hex(6)
         fut = asyncio.get_running_loop().create_future()
         self._pending[req] = fut
         try:
             await self.ws.send_json({**payload, "req": req})
             return await asyncio.wait_for(fut, timeout)
-        except (asyncio.TimeoutError, WebSocketDisconnect, RuntimeError):
+        except asyncio.TimeoutError:
+            return None
+        except (WebSocketDisconnect, RuntimeError, OSError):
+            self.disconnect()
             return None
         finally:
             self._pending.pop(req, None)
@@ -481,6 +491,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
     link = BridgeLink(ws)
     old, S().bridge = S().bridge, link
     if old is not None:
+        old.disconnect()
         # Un seul pont. Le nouveau a passé le même contrôle que l'ancien :
         # c'est en général le même Mac qui se reconnecte après une coupure.
         # La session de l'ancien lien ne peut plus agir : on l'arrête.
@@ -697,6 +708,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
     except (WebSocketDisconnect, RuntimeError, ValueError):
         print("[pont] déconnecté")
     finally:
+        link.disconnect()
         # Un nouveau pont a pu prendre la place entre-temps : on ne le
         # débranche pas, et ses sessions continuent.
         if S().bridge is link:
@@ -1041,30 +1053,59 @@ async def _pair_page(code: str):
     return FileResponse(STATIC / "pair.html")
 
 
-async def _pair_submit(code: str, request: Request, confirm: bool = False):
+async def _pair_submit(code: str, request: Request, confirm: bool = False, *, find_space: bool = False):
     try:
         body = await request.json()
     except ValueError:
         body = {}
     if not isinstance(body, dict):
         body = {}
-    if confirm:
-        # Code tapé sans clé : avec plusieurs espaces, 6 chiffres se devinent.
-        # La personne aidée accepte donc ce support sur son écran.
-        name = str(body.get("name", "")).strip()[:40]
-        if not name:
-            return JSONResponse({"ok": False, "error": "Indiquez votre prénom."}, status_code=400)
-        if S().bridge is None:
-            return JSONResponse({"ok": False, "error": "L'ordinateur n'est pas connecté."}, status_code=400)
-        answer = await S().bridge._request({"type": "pair_confirm", "name": name,
-                                            "relation": str(body.get("relation", ""))[:60]}, timeout=PAIR_CONFIRM_S)
-        if not (isinstance(answer, dict) and answer.get("accept") is True):
-            return JSONResponse({"ok": False, "error": "La personne aidée n'a pas accepté."}, status_code=403)
+    name = clean_label(str(body.get("name") or ""), 40)
+    relation = clean_label(str(body.get("relation") or ""), 60)
+    if not name:
+        return JSONResponse({"ok": False, "error": "Indiquez votre prénom."}, status_code=400)
+    ip = _client_ip(request)
+    if not _rate_ok(_wrong_codes, ip, WRONG_CODES_MAX, 600, record=False):
+        return JSONResponse({"ok": False, "error": "Trop d'essais. Réessayez dans quelques minutes."}, status_code=429)
+    sp = next((x for x in spaces.all() if x.family.code_valid(code)), None) if find_space else S()
     try:
-        helper = S().family.pair(code, str(body.get("name", "")), str(body.get("relation", "")))
-    except PairingError as e:
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
-    print("[proches] un proche ajouté")
+        if sp is None or sp.key in _pair_waiting:
+            raise PairingError(INVALID_CODE)
+        sp.family.check_code(code)
+    except PairingError:
+        _rate_ok(_wrong_codes, ip, WRONG_CODES_MAX, 600)
+        return JSONResponse({"ok": False, "error": INVALID_CODE}, status_code=400)
+    space.use(sp)
+    link = sp.bridge
+    if confirm and (link is None or not link.connected):
+        return JSONResponse({"ok": False, "error": PAIR_OFFLINE}, status_code=409)
+    try:
+        sp.family.consume_code(code)
+    except PairingError:
+        _rate_ok(_wrong_codes, ip, WRONG_CODES_MAX, 600)
+        return JSONResponse({"ok": False, "error": INVALID_CODE}, status_code=400)
+    # En local, pas d'accord : parcours de développement uniquement.
+    if confirm:
+        _pair_waiting.add(sp.key)
+        req = secrets.token_hex(6)
+        decided = False
+        try:
+            answer = await link._request({"type": "pair_confirm", "name": name, "relation": relation},
+                                         timeout=PAIR_CONFIRM_S, req=req)
+            if sp.bridge is not link or not link.connected:
+                return JSONResponse({"ok": False, "error": PAIR_OFFLINE}, status_code=409)
+            if answer is None:
+                return JSONResponse({"ok": False, "error": "Pas de réponse sur l'ordinateur. Demandez un nouveau code sur l'ordinateur de la personne aidée."}, status_code=408)
+            decided = True
+            if not (isinstance(answer, dict) and answer.get("accept") is True):
+                return JSONResponse({"ok": False, "refused": True, "error": "La personne aidée a refusé. Rien n'a été partagé."}, status_code=403)
+        finally:
+            _pair_waiting.discard(sp.key)
+            if not decided:
+                await link.send({"type": "pair_confirm_closed", "req": req})
+    await broadcast_helper({"type": "helper_added", "name": name}, to_bridge=False)
+    helper = sp.family.add_helper(name, relation)
+    print("[supports] un support ajouté")
     if S().bridge is not None:
         await S().bridge.send({"type": "helpers", "helpers": S().family.public(_online_ids()), "added": helper["name"]})
     return {"ok": True, "name": helper["name"], "id": helper["id"], "senior": S().family.senior or None,
@@ -1072,10 +1113,9 @@ async def _pair_submit(code: str, request: Request, confirm: bool = False):
             "server": PUBLIC_URL, "key": S().key}
 
 
-# Sans clé, même en ligne : le support tape seulement le code à 6 chiffres.
-# Le code est le secret (10 min ou 24 h, une seule fois, invalidé après
-# MAX_TRIES essais faux) et la réponse lui donne l'adresse et la clé.
-PAIR_CONFIRM_S = 120
+PAIR_CONFIRM_S = float(os.environ.get("PAPAI_PAIR_CONFIRM_S", "120"))
+PAIR_OFFLINE = "L'ordinateur de la personne aidée n'est pas connecté. Allumez-le, ouvrez PapAI, puis réessayez."
+_pair_waiting: set[str] = set()
 WRONG_CODES_MAX = 10
 SPACES_PER_HOUR = 5
 _wrong_codes: dict[str, list[float]] = {}
@@ -1089,16 +1129,18 @@ def _client_ip(request: HTTPConnection) -> str:
     if PUBLIC_MODE:  # derrière le proxy de Cloud Run
         fwd = request.headers.get("x-forwarded-for", "")
         if fwd:
-            return fwd.split(",")[0].strip()
+            return fwd.split(",")[-1].strip()
     return request.client.host if request.client else ""
 
 
-def _rate_ok(book: dict[str, list[float]], who: str, limit: int, window: float) -> bool:
+def _rate_ok(book: dict[str, list[float]], who: str, limit: int, window: float, *, record: bool = True) -> bool:
     now = time.time()
     hits = [t for t in book.get(who, []) if now - t < window]
     ok = len(hits) < limit
-    if ok:
+    if ok and record:
         hits.append(now)
+    if who not in book and len(book) >= 10_000:
+        book.pop(next(iter(book)))
     book[who] = hits
     return ok
 
@@ -1122,13 +1164,7 @@ async def pair_page(code: str):
 
 @app.post("/p/{code}")
 async def pair_submit(code: str, request: Request):
-    sp = next((x for x in spaces.all() if x.family.code_valid(code)), None)
-    if sp is None:
-        if not _rate_ok(_wrong_codes, _client_ip(request), WRONG_CODES_MAX, 600):
-            return JSONResponse({"ok": False, "error": "Trop d'essais. Réessayez dans 10 minutes."}, status_code=429)
-        return JSONResponse({"ok": False, "error": "Code incorrect ou expiré."}, status_code=400)
-    space.use(sp)
-    return await _pair_submit(code, request, confirm=PUBLIC_MODE)
+    return await _pair_submit(code, request, confirm=PUBLIC_MODE, find_space=True)
 
 
 # Création d'un espace : au premier lancement, l'ordinateur aidé reçoit sa clé.
@@ -1288,7 +1324,7 @@ async def pair_page_keyed(fam: str, code: str):
 async def pair_submit_keyed(fam: str, code: str, request: Request):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    return await _pair_submit(code, request)
+    return await _pair_submit(code, request, confirm=PUBLIC_MODE)
 
 
 async def handle_remote_request(msg: dict, ws: WebSocket) -> None:

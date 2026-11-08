@@ -280,7 +280,8 @@ Lancement, côté app :
 
 La personne aidée affiche un code à 6 chiffres et son QR (`pair_code`). Le proche ouvre
 `/p/{code}` (ou `/p` pour taper le code), donne son prénom et son lien, et reçoit le lien
-de l'espace aidant. Le code sert une fois, expire en 10 minutes et tombe après 5 essais ratés.
+de l'espace aidant. Le code sert une fois, expire en 10 minutes ; plafond global de sécurité :
+100 erreurs de code par espace (la limite par IP protège les tentatives de liaison).
 En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gardés dans `family.json`.
 
 `POST …/p/{code}` avec `{"name","relation"}` répond `{"ok":true,"name","aidant_url","server","key"}`
@@ -312,14 +313,35 @@ personnes aidées en gardant une clé par espace.
 - **Clé inconnue mais bien formée** (12 à 64 caractères `A-Za-z0-9_-`) sur `/k/<clé>/ws/bridge` :
   l'ordinateur revient après un redéploiement qui a effacé le disque, un espace est recréé à sa
   clé (même limite). Les supports sont restaurés par `known_helpers`.
-- **Code tapé sans clé** (`POST /p/<code>`) : le serveur cherche l'espace dont le code est valide.
-  Code inconnu → 400 ; plus de 10 codes faux en 10 min depuis une même adresse → 429.
-  En ligne (`PAPAI_PUBLIC=1`), avec plusieurs espaces 6 chiffres se devinent : l'ordinateur aidé
-  doit accepter le support.
+- **Liaison** (`POST /p/<code>` ou `POST /k/<clé>/p/<code>`, y compris QR code/SMS) :
+  sans clé, le serveur cherche l'espace dont le code est valide. Prénom nettoyé (40 caractères)
+  et lien nettoyé (60) : lettres accentuées, chiffres, espace et `-'.` conservés, contrôles et
+  caractères HTML retirés. Prénom vide → 400 « Indiquez votre prénom. », sans compter d'essai.
+  En ligne (`PAPAI_PUBLIC=1`), l'ordinateur doit accepter le support sur les deux routes :
+  même une URL contenant la clé peut être photographiée.
   - serveur → pont : `{"type":"pair_confirm","req":N,"name","relation"}` ;
   - pont → serveur : `{"type":"pair_decision","req":N,"accept":true|false}`.
-  Sans réponse en 120 s, ou refus : 403 `{"ok":false,"error"}`. Les liens avec clé (QR, SMS :
-  `/k/<clé>/p/<code>`) ne demandent pas cette confirmation.
+  Le code est consommé immédiatement avant l'envoi, une seule demande en attente par espace/ordinateur.
+  Un code qui expire pendant l'attente n'empêche pas l'ajout après accord. Délai : 120 s,
+  surchargeable par `PAPAI_PAIR_CONFIRM_S`. Sur délai/annulation, serveur → pont :
+  `{"type":"pair_confirm_closed","req":N}` ferme la demande sans réponse ; identifiant inconnu ignoré.
+  - 200 après accord seulement : `{"ok":true,"name","id","senior","aidant_url","server","key"}`.
+    Les supports déjà reliés reçoivent `{"type":"helper_added","name":…}` avant l'ajout du nouveau support,
+    sans inclure celui-ci. Le pont reçoit `helpers` avec `added` comme auparavant.
+  - 400 pour code faux, expiré, consommé ou demande déjà en attente :
+    « Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de la personne aidée. »
+  - 403 : `{"ok":false,"refused":true,"error":"La personne aidée a refusé. Rien n'a été partagé."}`.
+  - 408 : « Pas de réponse sur l'ordinateur. Demandez un nouveau code sur l'ordinateur de la personne aidée. »
+  - 409 si pont absent, déconnecté ou remplacé : « L'ordinateur de la personne aidée n'est pas connecté.
+    Allumez-le, ouvrez PapAI, puis réessayez. » Si absent dès le départ, code non consommé.
+  - 429 au 11e essai faux en 10 min glissantes par IP : « Trop d'essais. Réessayez dans quelques minutes. »
+    Une IP bloquée doit attendre même pour un code juste. Dix erreurs ne font pas tomber le code ; une autre IP
+    peut encore l'utiliser. Les historiques d'IP sont bornés à 10 000 entrées.
+  Tout échec retourne `ok:false` et `error`, sans `server`, `key` ni `aidant_url` et sans ajout.
+  IP : adresse cliente directe en local ; en ligne, **dernière** entrée de `X-Forwarded-For` si présent
+  (les préfixes fournis par le client ne font pas foi). Même règle pour créations d'espaces et d'organisations.
+  **Mode local** (sans `PAPAI_PUBLIC`) : pas d'accord sur l'ordinateur, pour le développement seulement ;
+  nettoyage des libellés, usage unique et limite des essais faux restent appliqués.
 - Le jeton d'une session (`/h/<jeton>`, `/ws/helper/<jeton>`) désigne aussi son espace.
 - Test : `python tests/test_appairage_code.py` (deux espaces, confirmation, force brute).
 

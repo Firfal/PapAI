@@ -58,6 +58,7 @@
     <option value="">Autre</option>
   </select>
   <div class="err" id="err"></div>
+  <p id="waiting" role="status" hidden>En attente de l'accord sur l'ordinateur…</p>
   <button id="go" type="submit">Valider</button>
 </form>
 
@@ -90,6 +91,7 @@
     const name = $("name").value.trim();
     if (!name) { $("err").textContent = "Indiquez votre prénom."; return; }
     $("go").disabled = true;
+    $("waiting").hidden = false;
     try {
       const r = await fetch(`${base}/p/${c}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -106,6 +108,7 @@
       $("err").textContent = err.message;
     } finally {
       $("go").disabled = false;
+      $("waiting").hidden = true;
     }
   });
 </script>
