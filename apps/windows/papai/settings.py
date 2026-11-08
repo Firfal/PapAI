@@ -27,7 +27,8 @@ def load() -> dict:
 
 def save(values: dict) -> dict:
     data = load()
-    for k in ("firstName", "server", "textScale", "onboarded", "screenConsent", "orgJoined", "orgName"):
+    for k in ("firstName", "server", "textScale", "onboarded", "screenConsent", "orgJoined", "orgName",
+              "realtimeProtection"):
         if k in values:
             data[k] = values[k]
     p = _path()
@@ -36,6 +37,11 @@ def save(values: dict) -> dict:
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(p)
     return data
+
+
+def protection_on(data: dict | None = None) -> bool:
+    """Protection en temps réel : activée par défaut, comme un antivirus."""
+    return (data if data is not None else load()).get("realtimeProtection") is not False
 
 
 def needs_space(data: dict | None = None) -> bool:

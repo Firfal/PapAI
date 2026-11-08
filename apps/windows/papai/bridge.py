@@ -20,10 +20,11 @@ import uuid
 from typing import Callable
 
 from .core import (ProtectedZone, SensitiveTarget, StopGate, Stopped, UnknownKey,
-                   describe_action, run_action)
+                   describe_action, guard_signals, run_action)
 
 RECONNECT_S = 3
 MAX_SIZE = 16 * 1024 * 1024
+GUARD_S = 8  # protection en temps réel : un signal toutes les 8 s (PROTOCOL.md)
 STOPPED_TEXT = "Arrêt demandé par la personne aidée."
 
 
@@ -33,7 +34,8 @@ class Bridge:
                  on_action: Callable[[str], None], protected: Callable[[], tuple | None] = lambda: None,
                  capture_mask: Callable[[], tuple | None] = lambda: None,
                  runner: Callable = run_action,
-                 alert_visible: Callable[[], bool] | None = None) -> None:
+                 alert_visible: Callable[[], bool] | None = None,
+                 guard: Callable[[], dict | None] = guard_signals) -> None:
         self.url = url
         self.gate = gate
         self._screen_factory = screen_factory
@@ -46,6 +48,9 @@ class Bridge:
         self.runner = runner
         self._alert: dict | None = None
         self.alert_visible = alert_visible or (lambda: self._alert is not None)
+        self.guard = guard
+        # Réglé par le modèle : la protection en temps réel est-elle activée ?
+        self.protection: Callable[[], bool] = lambda: True
         self.connected = False
         self.last_status: dict = {}
         self._ws = None
@@ -90,15 +95,20 @@ class Bridge:
             try:
                 async with websockets.connect(self.url, max_size=MAX_SIZE, open_timeout=8) as ws:
                     self._ws = ws
-                    await ws.send(json.dumps({"type": "hello", "os": "windows"}))
+                    await ws.send(json.dumps({"type": "hello", "os": "windows",
+                                              "protection": bool(self.protection())}))
                     self._set_connected(True)
-                    async for raw in ws:
-                        try:
-                            m = json.loads(raw)
-                        except ValueError:
-                            continue
-                        if isinstance(m, dict):
-                            await self._handle(ws, m)
+                    watch = asyncio.create_task(self._guard_loop(ws))
+                    try:
+                        async for raw in ws:
+                            try:
+                                m = json.loads(raw)
+                            except ValueError:
+                                continue
+                            if isinstance(m, dict):
+                                await self._handle(ws, m)
+                    finally:
+                        watch.cancel()
             except asyncio.CancelledError:
                 self._ws = None
                 self._set_connected(False)
@@ -108,6 +118,22 @@ class Bridge:
             self._ws = None
             self._set_connected(False)
             await asyncio.sleep(RECONNECT_S)
+
+    async def _guard_loop(self, ws) -> None:
+        while True:
+            await asyncio.sleep(GUARD_S)
+            await self._send_guard(ws)
+
+    async def _send_guard(self, ws) -> None:
+        """Gardien anti-arnaque : trois signaux textuels, jamais l'écran. Rien si la protection est coupée."""
+        try:
+            if not self.protection():
+                return
+            sig = await asyncio.to_thread(self.guard)
+            if sig and self.protection():
+                await ws.send(json.dumps(sig))
+        except Exception:  # noqa: BLE001 — la veille ne casse jamais la session
+            pass
 
     def send(self, payload: dict) -> None:
         """Appelable depuis n'importe quel fil. Sans connexion, le message est perdu

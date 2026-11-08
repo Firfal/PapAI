@@ -160,6 +160,8 @@ class BridgeLink:
         self._pending: dict[str, asyncio.Future] = {}
         self.os = "windows"  # annoncé par le pont dans son message hello
         self.web_agent_available = False
+        # Protection en temps réel, annoncée par l'app (None : app qui ne la connaît pas).
+        self.protection: bool | None = None
         # Identifiant du navigateur servi par `holo local browser` sur la machine
         # de la personne aidée, s'il tourne (PROTOCOL.md, agent navigateur).
         self.web_agent: str | None = None
@@ -509,6 +511,10 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     link.web_agent_available = msg.get("web_agent_available") is True
                     link.web_agent = None
                     print(f"[pont] système : {link.os}, navigateur : {'disponible' if link.web_agent_available else 'non'}")
+                if isinstance(msg.get("protection"), bool) and msg["protection"] != link.protection:
+                    link.protection = msg["protection"]
+                    print(f"[pont] protection en temps réel : {'activée' if link.protection else 'coupée'}")
+                    await broadcast_helper({"type": "protection", "on": link.protection})
                 # Le prénom saisi sur l'ordinateur, transmis aux aidants.
                 if S().family.set_senior(str(msg.get("name", ""))):
                     await broadcast_helper({"type": "senior", "name": S().family.senior})
@@ -642,6 +648,9 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "guard":
+                if link.protection is False:
+                    # Protection coupée sur l'ordinateur : rien ne doit être évalué.
+                    continue
                 # Le gardien du Mac a vu passer un signal. Il n'envoie que du
                 # texte — processus, titre de fenêtre, adresse — jamais l'écran.
                 # À part : pendant une session, la confirmation attend une
@@ -704,6 +713,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
         if S().bridge is link:
             S().bridge = None
             await _stop_open_sessions("pont déconnecté")
+            if link.protection is not None:
+                await broadcast_helper({"type": "protection", "on": None})
 
 
 def _os_family(name: str) -> str:
@@ -1359,6 +1370,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     S().helper_alert_scopes[ws] = None
     await ws.send_json({"type": "hello", "bridge": S().bridge is not None,
                         "os": S().bridge.os if S().bridge else None, "senior": S().family.senior or None,
+                        "protection": getattr(S().bridge, "protection", None),
                         "tickets_waiting": len(S().tickets.waiting()) + len(S().tickets.due())})
     s = current_session()
     if s is not None:

@@ -75,6 +75,7 @@ final class AppModel {
     /// toute la fenêtre (`.id(textScale)`), l'accueil doit garder son étape.
     var onboardingStep = 0
     var textScale = TextScale.current
+    var realtimeProtection = GuardSignals.enabled
     var helpers: [Helper] = []
     var pairCode: String?
     var pairURL: String?
@@ -186,7 +187,7 @@ final class AppModel {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
         // Les proches connus voyagent avec le profil : le serveur les retrouve après un redémarrage.
         let known = helpers.isEmpty ? Self.cachedHelpers() : helpers.map { ["id": $0.id, "name": $0.name, "relation": $0.relation] }
-        var msg: [String: Any] = ["type": "profile", "known_helpers": known]
+        var msg: [String: Any] = ["type": "profile", "known_helpers": known, "protection": realtimeProtection]
         if !n.isEmpty { msg["name"] = n }
         client.send(msg)
     }
@@ -201,6 +202,12 @@ final class AppModel {
     func setTextScale(_ v: Double) {
         TextScale.current = v
         textScale = v
+    }
+
+    func setRealtimeProtection(_ on: Bool) {
+        GuardSignals.enabled = on
+        realtimeProtection = on
+        sendProfile()
     }
 
     func finishOnboarding() {
@@ -335,6 +342,15 @@ final class AppModel {
         }
         reconnect()
         Task { await refreshLessons() }
+        if ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil {
+            // Protection en temps réel : trois signaux textuels toutes les 8 s, jamais l'écran.
+            Task {
+                while true {
+                    try? await Task.sleep(nanoseconds: GuardSignals.period)
+                    if connected, realtimeProtection { client.send(GuardSignals.collect(withURL: !sessionOpen)) }
+                }
+            }
+        }
         Task {
             while true {
                 screenOK = Permissions.screenOK
@@ -506,7 +522,8 @@ final class AppModel {
             MiniPanel.shared.show(model: self)
         }
         // Souris et clavier réservés à Holo et à l'aidant pendant qu'il agit.
-        let holoActs = (state == .active || state == .awaiting_helper) && !paused && !gate.isStopped
+        // Une question posée à la personne (se connecter à un site…) lui rend la main.
+        let holoActs = (state == .active || (state == .awaiting_helper && !questionForMe)) && !paused && !gate.isStopped
         InputLock.shared.set(holoActs)
     }
 

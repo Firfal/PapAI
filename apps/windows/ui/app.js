@@ -487,6 +487,11 @@
       ${field('Prénom', 'setName', ui.settings.name, 'Jeanne')}
       ${field('Serveur', 'setServer', ui.settings.server, 'serveur PapAI officiel')}
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Taille du texte</div><div class="seg">${seg}</div></div>
+      <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Protection en temps réel</div>
+        <div class="seg"><button class="${S.realtimeProtection ? 'on' : ''}" data-act="protection" data-arg="1">Activée</button><button class="${S.realtimeProtection ? '' : 'on'}" data-act="protection" data-arg="0">Coupée</button></div>
+        <div class="muted" style="${f(15, 4)}">${S.realtimeProtection
+          ? "PapAI repère les arnaques à partir des applications ouvertes et du titre de la fenêtre. Jamais l'écran, jamais vos mots de passe."
+          : "Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées."}</div></div>
       <div class="row" style="gap:12px">
         ${pill(`Mon support (${S.helpers.length})`, 'openHelpers', { filled: false, height: 50 })}
         ${pill("Revoir l'accueil", 'replayOnboarding', { filled: false, height: 50 })}
@@ -611,6 +616,7 @@
     replayOnboarding: () => { ui.sheet = null; ui.name = null; call('reset_onboarding'); render(); },
     saveSettings: () => { call('save_settings', ui.settings.name, ui.settings.server); ui.sheet = null; render(); },
     scale: (v) => { S.textScale = parseFloat(v); render(); call('set_text_scale', parseFloat(v)); },
+    protection: (v) => { S.realtimeProtection = v === '1'; render(); call('set_realtime_protection', S.realtimeProtection); },
     shortcut: (id) => call('run_shortcut', id),
     lesson: (id) => call('open_lesson', id),
     cancelConsent: () => call('cancel_consent'),
@@ -735,6 +741,7 @@
     back_home: () => { S.screen = 'home'; S.state = null; ui.submitting = false; render(); },
     stop: () => { S.state = 'stopped'; S.sessionOpen = false; S.compact = false; render(); },
     toggle_pause: () => { S.paused = !S.paused; render(); },
+    set_realtime_protection: () => {},
     expand_window: () => { S.compact = false; render(); },
     answer_senior: () => {},
     finish_onboarding: () => { S.onboarded = true; render(); },
