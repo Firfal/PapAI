@@ -96,6 +96,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
   - [x] Entendre ce que fait Holo : narration locale française Mac (AVSpeechSynthesizer) et Windows (voix locale WebView), réglage « Lire à voix haute » activé par défaut, file sans doublons par assistance et coupure pendant dictée/pause/arrêt/alerte/déconnexion. PR #82 : logique Swift/Windows et compilation Mac réussies.
     - [ ] Vérifier à l'écran et à l'écoute sur un Mac et sur Windows natif/WebView2 avec une voix française installée, ainsi que la coupure pendant une vraie dictée au micro.
 - [ ] Rangement guidé des dossiers : plan de rangement validé par l'aidant, rien supprimé, tout annulable.
+- [x] Rangement guidé des dossiers (Mac) : plan des déplacements validé par le support, noms de fichiers seulement, rien supprimé ni écrasé, « Annuler le rangement ».
+- [ ] Rangement guidé des dossiers sur Windows.
 - [ ] Notification push quand l'app iPhone est fermée (APNs).
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).
 - [x] App Windows au niveau du Mac pendant l'aide : Pause/Reprendre, question de Holo à la personne, avancement en 3 étapes, encart en bas à droite pendant que Holo agit, fin du gardien adaptée à l'aidé, dictée transmise à l'aidant. Reste : l'essayer sur un vrai Windows ; verrou souris/clavier pendant que Holo agit écarté pour l'instant (décision de Corentin, voir `AGENTS.md`).
