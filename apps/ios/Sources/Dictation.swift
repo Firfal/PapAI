@@ -5,8 +5,7 @@ import SwiftUI
 /// Dictée de l'aidant, comme sur le Mac (`apps/mac/Sources/Dictation.swift`).
 ///
 /// Un seul flux micro (AVAudioEngine) sert à deux choses :
-/// - la transcription en direct sur l'iPhone (SFSpeechRecognizer) : les mots
-///   s'écrivent dans le champ pendant qu'on parle ;
+/// - le direct Gladia via PapAI (Apple reste prêt pour le silence et le repli) ;
 /// - un wav 16 kHz mono, transcrit par Gladia via le serveur
 ///   (`POST /k/<clé>/transcribe`) pour le texte final.
 /// Si Gladia ne répond pas, on garde le texte en direct de l'iPhone.
@@ -47,6 +46,9 @@ final class Dictation {
     /// Change à chaque appui et à chaque annulation : un départ dépassé ne démarre pas l'écoute.
     private var startID = 0
     private var finishing: Task<Void, Never>?
+    private var liveClient: GladiaLive?
+    private var liveAudio: GladiaLive.Audio.Continuation?
+    private var transcript = DictationText()
 
     var listening: Bool { phase == .listening }
 
@@ -144,7 +146,7 @@ final class Dictation {
             return
         }
 
-        // Transcription en direct, sur l'iPhone.
+        // Reconnaissance locale conservée pour la fin de parole et le repli.
         var request: SFSpeechAudioBufferRecognitionRequest?
         if speechOK, let rec = SFSpeechRecognizer(locale: Locale(identifier: "fr-FR")), rec.isAvailable {
             let r = SFSpeechAudioBufferRecognitionRequest()
@@ -154,11 +156,15 @@ final class Dictation {
             recognition = rec.recognitionTask(with: r) { [weak self] result, err in
                 let text = result?.bestTranscription.formattedString
                 let final = (result?.isFinal ?? false) || err != nil
-                Task { @MainActor in self?.updateLive(text, final: final) }
+                Task { @MainActor in
+                    guard let self, self.startID == id else { return }
+                    self.updateApple(text, final: final)
+                }
             }
         }
 
         let liveRequest = request
+        let (audio, continuation) = GladiaLive.Audio.makeStream(bufferingPolicy: .bufferingOldest(128))
         // Tourne sur le fil audio : ne touche qu'à des objets sûrs.
         let ratio = outFormat.sampleRate / inFormat.sampleRate
         let process: @Sendable (AVAudioPCMBuffer) -> Void = { [weak self] buffer in
@@ -172,7 +178,16 @@ final class Dictation {
                     if fed { status.pointee = .noDataNow; return nil }
                     fed = true; status.pointee = .haveData; return buffer
                 }
-                if err == nil, out.frameLength > 0 { try? file.write(from: out) }
+                if err == nil, out.frameLength > 0 {
+                    try? file.write(from: out)
+                    let bytes = out.audioBufferList.pointee.mBuffers
+                    if let data = bytes.mData {
+                        let chunk = Data(bytes: data, count: Int(bytes.mDataByteSize))
+                        if case .dropped = continuation.yield(chunk) {
+                            continuation.finish(throwing: GladiaLive.Failure.overflow)
+                        }
+                    }
+                }
             }
             Task { @MainActor in self?.heard(db) }
         }
@@ -184,6 +199,7 @@ final class Dictation {
                 try engine.start()
             } catch {
                 engine.inputNode.removeTap(onBus: 0)
+                continuation.finish()
                 recognition?.cancel(); recognition = nil
                 message = "Je n’arrive pas à utiliser le micro."
                 KeepAwake.shared.restart()
@@ -195,7 +211,21 @@ final class Dictation {
         self.fileURL = url; self.endpoint = endpoint
         self.onLive = onLive; self.onText = onText
         startedAt = Date(); liveChangedAt = nil; voiceAt = nil; live = ""; liveFinal = request == nil
+        transcript = DictationText()
         phase = .listening
+        liveAudio = continuation
+        let client = GladiaLive()
+        liveClient = client
+        client.start(transcribe: endpoint, audio: audio, onText: { [weak self] text in
+            guard let self, !discarding, phase != .idle else { return }
+            transcript.updateGladia(text)
+            publishLive()
+        }, onFallback: { [weak self] in
+            guard let self, !discarding, phase != .idle else { return }
+            continuation.finish()
+            transcript.fallback()
+            publishLive()
+        })
 
         if let source {
             // Lecture du fichier au rythme réel, par tranches de 100 ms.
@@ -218,12 +248,19 @@ final class Dictation {
     }
 
     /// Les derniers mots arrivent parfois après l'arrêt du micro : on les garde.
-    private func updateLive(_ text: String?, final: Bool) {
+    private func updateApple(_ text: String?, final: Bool) {
         guard phase != .idle else { return }
         if final { liveFinal = true }
-        guard let text, text != live else { return }
+        guard let text else { return }
+        if text != transcript.apple { liveChangedAt = Date() }
+        transcript.updateApple(text)
+        publishLive()
+    }
+
+    private func publishLive() {
+        let text = transcript.displayed
+        guard phase == .listening, text != live else { return }
         live = text
-        liveChangedAt = Date()
         onLive?(text)
     }
 
@@ -237,8 +274,8 @@ final class Dictation {
     /// ou rien entendu depuis 8 s, ou 30 s en tout.
     private func checkEnd() {
         let now = Date()
-        if !live.isEmpty, let t = liveChangedAt, now.timeIntervalSince(t) >= wordsStill { stop(); return }
-        if live.isEmpty, request == nil, let v = voiceAt, now.timeIntervalSince(v) >= quietAfterSpeech { stop(); return }
+        if !transcript.apple.isEmpty, let t = liveChangedAt, now.timeIntervalSince(t) >= wordsStill { stop(); return }
+        if let v = voiceAt, now.timeIntervalSince(v) >= quietAfterSpeech { stop(); return }
         if live.isEmpty, now.timeIntervalSince(voiceAt ?? startedAt) >= nothingHeard { stop(); return }
         if now.timeIntervalSince(startedAt) >= maxDuration { stop(); return }
     }
@@ -250,6 +287,7 @@ final class Dictation {
         let hadEngine = engine != nil
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop(); engine = nil
+        liveAudio?.finish(); liveAudio = nil
         request?.endAudio()
         file = nil  // ferme le wav
         level = 0
@@ -263,10 +301,12 @@ final class Dictation {
                 try? FileManager.default.removeItem(at: url)
             }
             if !discarding, text?.isEmpty ?? true {
+                await liveClient?.waitForCompletion()
                 // Sans Gladia : le texte de l'iPhone, une fois ses derniers mots arrivés.
                 for _ in 0..<20 where !liveFinal { try? await Task.sleep(for: .milliseconds(100)) }
-                text = live.isEmpty ? nil : live
+                text = transcript.displayed
             }
+            liveClient?.cancel(); liveClient = nil
             recognition?.cancel(); recognition = nil; request = nil
             phase = .idle
             live = ""
@@ -284,6 +324,8 @@ final class Dictation {
         startID += 1
         if phase == .starting { phase = .idle }
         finishing?.cancel()  // un envoi déjà parti est interrompu
+        liveClient?.cancel(); liveClient = nil
+        liveAudio?.finish(); liveAudio = nil
         stop()
     }
 
