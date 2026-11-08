@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+                           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                           revision="1.0" schemaVersion="1.0"
+                           xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>PapAI</displayName>
+  <description>Configuration de l'app PapAI de l'employé (organisation, serveur, nom affiché).</description>
+  <resources>
+    <stringTable>
+      <string id="PapAI">PapAI</string>
+      <string id="OrgToken">Jeton d'inscription de l'organisation</string>
+      <string id="OrgToken_Help">Jeton « ins-… » reçu à la création de l'organisation (POST /orgs, champ enroll_token).
+
+Au premier lancement, le poste s'inscrit seul dans l'organisation : son support IT le voit et peut l'aider. Aucune liaison n'est à faire sur le poste.
+
+Valeur écrite : SOFTWARE\Policies\PapAI\OrgToken (REG_SZ). La stratégie ordinateur l'emporte sur la stratégie utilisateur.</string>
+      <string id="Server">Serveur PapAI</string>
+      <string id="Server_Help">Adresse du serveur PapAI de l'organisation, par exemple https://papai.exemple.fr. Sans cette stratégie, le poste utilise le serveur PapAI officiel.
+
+Si le poste avait déjà un espace sur un autre serveur, il en crée un nouveau sur celui-ci.
+
+Valeur écrite : SOFTWARE\Policies\PapAI\Server (REG_SZ).</string>
+      <string id="DisplayName">Nom affiché de l'employé</string>
+      <string id="DisplayName_Help">Nom complet de l'employé, par exemple « Jeanne Martin ». L'app dit « Bonjour Jeanne » et le support voit le nom complet.
+
+Sans cette stratégie, l'app prend le nom complet du compte Windows (annuaire), sinon l'identifiant de connexion. À poser plutôt en stratégie utilisateur.
+
+Valeur écrite : SOFTWARE\Policies\PapAI\DisplayName (REG_SZ).</string>
+      <string id="Role">Service ou fonction de l'employé</string>
+      <string id="Role_Help">Service ou fonction, par exemple « Comptabilité ». Montré au support à côté du nom, au moment de l'inscription du poste.
+
+Valeur écrite : SOFTWARE\Policies\PapAI\Role (REG_SZ).</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="OrgToken">
+        <textBox refId="OrgToken"><label>Jeton (ins-…) :</label></textBox>
+      </presentation>
+      <presentation id="Server">
+        <textBox refId="Server"><label>Adresse du serveur :</label></textBox>
+      </presentation>
+      <presentation id="DisplayName">
+        <textBox refId="DisplayName"><label>Nom complet :</label></textBox>
+      </presentation>
+      <presentation id="Role">
+        <textBox refId="Role"><label>Service ou fonction :</label></textBox>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

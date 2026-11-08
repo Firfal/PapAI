@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Libellés de la configuration gérée (res/xml/app_restrictions.xml), affichés dans la console EMM. -->
+<resources>
+    <string name="restriction_token_title">Jeton support de l’organisation</string>
+    <string name="restriction_token_description">Jeton sup-… fourni par PapAI : le support voit tous les postes de l’organisation.</string>
+    <string name="restriction_server_title">Serveur PapAI</string>
+    <string name="restriction_server_description">Adresse https du serveur. Vide : serveur PapAI officiel.</string>
+    <string name="restriction_name_title">Nom affiché du support</string>
+    <string name="restriction_name_description">Nom vu par les employés dans Mon support. Vide : Support IT et le nom de l’organisation.</string>
+</resources>

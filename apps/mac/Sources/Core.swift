@@ -322,7 +322,7 @@ enum Actuator {
 }
 
 
-/// Automates importés par un support (service IT, proche). Le serveur a
+/// Automates importés par un support (service informatique). Le serveur a
 /// vérifié chaque action à l'import ; on revérifie ici avant de la jouer.
 enum Automations {
     static let templateExt = [".dotx", ".potx", ".xltx"]
@@ -391,31 +391,33 @@ enum Automations {
 
     /// Joue les actions locales, dans l'ordre. L'action `holo` est confiée ensuite au serveur.
     @MainActor
-    static func play(_ l: Lesson, base: String, gate: StopGate) async -> (ok: Bool, detail: String) {
+    /// `step` : numéro (à partir de 1) de l'action qui a échoué, gardé sur le ticket.
+    static func play(_ l: Lesson, base: String, gate: StopGate) async -> (ok: Bool, detail: String, step: Int) {
         var detail = ""
-        for a in l.actions ?? [] {
-            if gate.isStopped { return (false, "Arrêté.") }
+        for (i, a) in (l.actions ?? []).enumerated() {
+            let step = i + 1
+            if gate.isStopped { return (false, "Arrêté.", step) }
             switch a.kind {
             case "open_folder":
                 let r = await Shortcuts.open(Lesson.Shortcut(folder: a.folder, subfolder: a.subfolder))
-                if !r.ok { return r }
+                if !r.ok { return (false, r.detail, step) }
             case "open_settings":
                 guard let u = settingsURL(a.page ?? ""), NSWorkspace.shared.open(u)
-                else { return (false, "Cette page de Réglages n'existe pas sur ce Mac.") }
+                else { return (false, "Cette page de Réglages n'existe pas sur ce Mac.", step) }
             case "open_url":
                 guard let u = URL(string: a.url ?? ""), u.scheme == "https", u.host != nil,
                       u.user == nil, u.password == nil, NSWorkspace.shared.open(u)
-                else { return (false, "Lien refusé : seulement https://.") }
+                else { return (false, "Lien refusé : seulement https://.", step) }
             case "install_templates":
                 let r = await installTemplates(lessonID: l.id, files: a.files ?? [], base: base)
-                if !r.ok { return r }
+                if !r.ok { return (false, r.detail, step) }
                 detail = r.detail
             case "holo":
                 continue
             default:
-                return (false, "Cette action n'existe pas sur Mac : \(a.kind)")
+                return (false, "Cette action n'existe pas sur Mac : \(a.kind)", step)
             }
         }
-        return (true, detail)
+        return (true, detail, 0)
     }
 }

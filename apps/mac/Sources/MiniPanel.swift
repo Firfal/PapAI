@@ -65,7 +65,9 @@ private struct MiniView: View {
             HStack(spacing: 10) {
                 Mascotte(humeur: model.paused || !model.sessionOpen ? .calme : .joyeuse, anime: false)
                     .frame(width: Mascotte.Taille.encart, height: Mascotte.Taille.encart)
-                Text(title).font(rounded(17, .semibold)).foregroundStyle(T.ink).lineLimit(1)
+                Text(model.state == .active && !model.paused ? model.currentAction ?? title : title)
+                    .font(rounded(17, .semibold)).foregroundStyle(T.ink).lineLimit(1)
+                    .help(model.currentAction ?? title)
                 Spacer(minLength: 0)
                 Button { model.expandWindow() } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
@@ -129,6 +131,9 @@ private struct MiniView: View {
             return "Holo travaille dans Chrome PapAI"
         }
         if model.paused && model.sessionOpen { return "L'aide est en pause" }
+        if let a = model.automationRun, !a.local, !a.asked, model.state == .active || model.state == .awaiting_helper {
+            return model.state == .active ? "Holo s'occupe de l'automate" : "Holo a une question"
+        }
         switch model.state {
         case .planning: return "Holo prépare la suite…"
         case .awaiting_approval: return "\(model.HelperName) vérifie"

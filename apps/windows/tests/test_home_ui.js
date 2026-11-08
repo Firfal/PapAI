@@ -6,95 +6,143 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 async function home(microPresent = true) {
-  let state = { connected: true, onboarded: true, screen: 'home', state: null,
-    firstName: '', storedFirstName: '', helperName: 'Claire', textScale: 1,
-    lessons: [], notice: null, homeShortcuts: [], microPresent,
+  let state = { connected: true, screen: 'home', state: null,
+    firstName: '', helperName: 'Claire', textScale: 1, textScales: [['Grande', 1], ['Très grande', 1.18]],
+    orgName: '', orgConfigured: false, realtimeProtection: true, screenConsent: false,
+    lessons: [], notice: null, homeShortcuts: [], queued: null, microPresent,
     dictation: { phase: 'idle', message: null } };
-  const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [], actions = [], calls = [];
+  const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [], actions = [], calls = [], automationCalls = [];
   const root = { innerHTML: '' }, sheet = { innerHTML: '' };
   const dialog = { focus() { document.activeElement = dialog; } };
   const document = { activeElement: null, documentElement: { style: { setProperty() {} } },
-    getElementById: id => ({ root, sheet, pairDialog: sheet.innerHTML.includes('pairDialog') ? dialog : null }[id] || null),
+    getElementById: id => ({ root, sheet }[id] || null),
     addEventListener: (name, fn) => { listeners[name] = fn; } };
   const window = { pywebview: { api: {
     ready: async () => state,
+    open_requests: () => { calls.push(['open_requests']); },
+    close_requests: () => { calls.push(['close_requests']); },
+    relaunch_request: id => { assert.equal(sheet.innerHTML, ''); calls.push(['relaunch_request', id]); },
     request_consent: task => { sent.push(task); },
     dictation_toggle: () => {},
     open_home_shortcut: id => { shortcuts.push(id); },
     remove_home_shortcut: id => { removed.push(id); },
+    run_suggested_automation: (id, ticket) => { automationCalls.push([id, ticket]); },
     dismiss_alert: () => { actions.push('dismiss_alert'); },
     stop: () => { actions.push('stop'); },
     toggle_pause: () => { calls.push(['toggle_pause']); },
     answer_senior: t => { calls.push(['answer_senior', t]); },
     expand_window: () => { calls.push(['expand_window']); },
-    answer_pair: (accept, id) => { calls.push(['answer_pair', accept, id]); },
   } }, addEventListener: (name, fn) => { windowEvents[name] = fn; } };
   const context = vm.createContext({ window, document, icon: () => '<svg></svg>',
     URLSearchParams, location: { search: '' }, setTimeout });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../ui/app.js'), 'utf8'), context);
   await new Promise(resolve => setImmediate(resolve));
   const update = changes => { state = { ...state, ...changes }; window.PapAI.update(state); };
-  const click = (act, arg) => listeners.click({ target: { closest: () => ({ dataset: { act, arg } }) } });
+  const click = (act, arg, ticket) => listeners.click({ target: { closest: () => ({ dataset: { act, arg, ticket } }) } });
   const type = text => listeners.input({ target: { id: 'req', value: text,
     style: {}, scrollHeight: 30 } });
   context.getComputedStyle = () => ({ lineHeight: '22' });
   const enter = () => listeners.keydown({ key: 'Enter', target: { id: 'req' }, preventDefault() {} });
   return { state, root, sheet, dialog, document, update, click, type, enter, sent, shortcuts, removed, calls, window, listeners,
-    actions, key: event => listeners.keydown(event) };
+    automationCalls, actions, key: event => listeners.keydown(event) };
 }
 
-test('demande de liaison au-dessus des feuilles, texte échappé et Entrée sans accord', async () => {
+test('réponse documentaire et sources restent du texte brut', async () => {
   const h = await home();
-  h.update({ helpers: [] });
-  h.click('openHelpers');
-  h.update({ pairRequest: { req: 'a', name: '<img src=x>', relation: '<b>IT</b>' } });
-  assert.match(h.sheet.innerHTML, /role="dialog" aria-modal="true"/);
-  assert.match(h.sheet.innerHTML, /&lt;img src=x&gt;/);
-  assert.match(h.sheet.innerHTML, /&lt;b&gt;IT&lt;\/b&gt;/);
-  assert.match(h.sheet.innerHTML, /class="muted"[^>]*>&lt;b&gt;IT&lt;\/b&gt;/);
-  assert.match(h.sheet.innerHTML, /Acceptez seulement si vous connaissez cette personne\./);
-  assert.match(h.sheet.innerHTML, /Si quelqu&#39;un vous a appelé ou écrit pour vous demander ce code, refusez\./);
-  assert.doesNotMatch(h.sheet.innerHTML, /et que vous lui avez donné ce code/);
-  assert.doesNotMatch(h.sheet.innerHTML, /<img src=x>|<b>IT<\/b>/);
-  assert.equal(h.document.activeElement, h.dialog);
-  assert.equal(h.root.inert, true);
-  for (const target of [{ id: 'req' }, { tagName: 'BUTTON', dataset: { act: 'acceptPair' } }]) {
-    let prevented = false;
-    h.listeners.keydown({ key: 'Enter', target, preventDefault() { prevented = true; } });
-    assert.equal(prevented, true);
+  h.update(session({ state: 'done', answer: '<script>réponse</script>',
+    answerSources: [{ name: '<b>Documentation</b>', url: 'https://example.org' }] }));
+  assert.match(html(h), /&lt;script&gt;réponse&lt;\/script&gt;/);
+  assert.match(html(h), /&lt;b&gt;Documentation&lt;\/b&gt;/);
+  assert.match(html(h), /https:\/\/example.org/);
+  assert.doesNotMatch(html(h), /<script>réponse/);
+  h.update({ answerSources: [] });
+  assert.doesNotMatch(html(h), /https:\/\/example.org/);
+});
+
+test('Mes demandes : feuille lecture seule, états et relance seulement si automate présent', async () => {
+  const h = await home();
+  assert.match(h.root.innerHTML, /data-act="openRequests"[\s\S]*Mes demandes/);
+  h.click('openRequests');
+  assert.deepEqual(h.calls.at(-1), ['open_requests']);
+  assert.match(htmlSheet(h), /Aucune demande pour l'instant\./);
+  h.update({ requestsLoading: true });
+  assert.match(htmlSheet(h), /Chargement…/);
+  h.update({ requestsLoading: false, requestsError: true });
+  assert.match(htmlSheet(h), /Liste indisponible pour l'instant\./);
+  const requests = [
+    { id: 'r1', created: 1794132000, task: '<img src=x>', status: 'resolu', relaunch: 'a',
+      solution: { kind: 'automate', title: '<Titre>', lesson: 'a' } },
+    { id: 'r2', status: 'en_cours', solution: { kind: 'plan', steps: ['<Étape>'] } },
+    { id: 'r3', status: 'rdv', solution: { kind: 'answer', text: '<Réponse>', sources: [{ title: '<Source>', url: 'https://example.org' }] } },
+    ...['nouveau', 'en_attente', 'a_reprendre'].map((status, i) => ({ id: 'w' + i, status })),
+  ];
+  h.update({ requestsLoading: false, requestsError: false, requests, lessons: [] });
+  assert.doesNotMatch(h.sheet.innerHTML, /data-act="relaunchRequest"|<img|<a |<input|<textarea/);
+  h.click('relaunchRequest', 'r1');
+  assert.deepEqual(h.calls.at(-1), ['open_requests']);
+  for (const text of ['Réglée', 'En cours', 'Rendez-vous prévu', 'En attente', 'Interrompue',
+    'novembre 2026', "Réglée par l'automate", 'Plan exécuté', 'Réponse validée par le support', 'https://example.org']) {
+    assert.ok(htmlSheet(h).includes(text), text);
   }
-  h.click('submit');
-  assert.deepEqual(h.calls, []);
-  assert.deepEqual(h.sent, []);
-  h.click('acceptPair', 'a');
-  assert.deepEqual(h.calls.at(-1), ['answer_pair', true, 'a']);
-  h.click('refusePair', 'a');
-  assert.deepEqual(h.calls.at(-1), ['answer_pair', false, 'a']);
-  h.update({ pairRequest: null });
-  assert.equal(h.root.inert, false);
-  assert.doesNotMatch(h.sheet.innerHTML, /pairDialog/);
+  assert.match(h.sheet.innerHTML, /&lt;Étape&gt;|&lt;Réponse&gt;/);
+  h.update({ lessons: [{ id: 'a' }] });
+  assert.match(h.sheet.innerHTML, /data-act="relaunchRequest"[\s\S]*data-arg="r1"/);
+  h.click('relaunchRequest', 'r1');
+  assert.deepEqual(h.calls.slice(-2), [['close_requests'], ['relaunch_request', 'r1']]);
+  assert.equal(h.sheet.innerHTML, '');
+  h.click('openRequests');
+  h.key({ key: 'Escape', target: {}, preventDefault() {} });
+  assert.equal(h.sheet.innerHTML, '');
+  assert.deepEqual(h.calls.at(-1), ['close_requests']);
 });
 
-test('invitation sans code : affichage, partage et annulation ; relation vide masquée', async () => {
+const htmlSheet = h => h.sheet.innerHTML.replace(/&#39;/g, "'");
+
+test("accueil direct : « Bonjour <nom Windows> », sans étapes d'accueil ni liaison", async () => {
   const h = await home();
-  h.update({ helpers: [], pairCode: null, pairURL: 'https://h/i/jeton', pairLong: true, pairQR: 'data:image/svg+xml,qr', pairAdded: '<Claire>' });
-  h.click('openHelpers');
-  assert.match(h.sheet.innerHTML, /Lien d'invitation/);
-  assert.match(h.sheet.innerHTML, /Valable 24 heures/);
-  assert.match(h.sheet.innerHTML, /https:\/\/h\/i\/jeton/);
-  assert.match(h.sheet.innerHTML, /data-act="shareInvite"/);
-  assert.match(h.sheet.innerHTML, /&lt;Claire&gt; est maintenant support\./);
-  assert.doesNotMatch(h.sheet.innerHTML, /ou le code|data-act="pair"/);
-  h.update({ pairURL: null, pairQR: null });
-  assert.match(h.sheet.innerHTML, /data-act="pair"/);
-  h.update({ pairRequest: { req: 'vide', name: 'Marc', relation: '' } });
-  assert.doesNotMatch(h.sheet.innerHTML, /Service informatique|padding:24px;font-size:26/);
-  const css = fs.readFileSync(path.join(__dirname, '../ui/style.css'), 'utf8');
-  assert.match(css, /#pairDialog:focus\s*\{\s*outline:\s*none;/);
-  assert.match(css, /button:focus-visible[^}]+outline:\s*3px/);
+  h.update({ firstName: '<Jeanne>' });
+  assert.match(h.root.innerHTML, /(Bonjour|Bonsoir) &lt;Jeanne&gt;/);
+  assert.doesNotMatch(h.root.innerHTML, /Bienvenue sur PapAI|Comment vous appelez-vous|Qui va vous aider/);
+  h.update({ firstName: '' });
+  assert.match(h.root.innerHTML, /(Bonjour|Bonsoir)<\/div>/);
+  const js = fs.readFileSync(path.join(__dirname, '../ui/app.js'), 'utf8');
+  assert.doesNotMatch(js, /pairDialog|start_pairing|copy_invitation|answer_pair|onboarding|WhatsApp|SMS|Ajouter un support/);
 });
 
+test("attente d'un support : automates proposés et lancement rattaché au ticket", async () => {
+  const h = await home();
+  const queued = { ticket: 'ticket-1', number: 7, task: 'Imprimer une facture', show: true,
+    suggestions: [{ id: 'auto-1', title: 'Imprimer le document' }], suggestion_lancee: null };
+  h.update({ queued });
+  assert.match(h.root.innerHTML, /En attendant, vous pouvez essayer :/);
+  assert.match(h.root.innerHTML, /Imprimer le document/);
+  assert.match(h.root.innerHTML, /data-act="runSuggested" data-arg="auto-1"[\s\S]*data-ticket="ticket-1"/);
+  h.click('runSuggested', 'auto-1', 'ticket-1');
+  assert.deepEqual(h.automationCalls, [['auto-1', 'ticket-1']]);
+  h.update({ queued: { ...queued, suggestion_lancee: 'auto-1' } });
+  assert.match(h.root.innerHTML, />\s*Lancé<\/button>/);
+  assert.match(h.root.innerHTML, /data-act="runSuggested"[^>]*disabled/);
+});
 
+test("Réglages : « Mon support » en lecture seule, organisation en ligne ou non", async () => {
+  const h = await home();
+  h.update({ orgName: '<Acme>', orgConfigured: true });
+  h.click('openSettings');
+  assert.match(h.sheet.innerHTML, /Mon support/);
+  assert.match(h.sheet.innerHTML, /Support IT · &lt;Acme&gt;/);
+  assert.match(h.sheet.innerHTML, /En ligne/);
+  const withoutReadAloud = h.sheet.innerHTML.replace(/<input[^>]*data-act="readAloud"[^>]*>/g, '');
+  assert.doesNotMatch(withoutReadAloud, /<input|Prénom|Serveur|Enregistrer|data-act="(pair|openHelpers|replayOnboarding)"/);
+  h.update({ connected: false });
+  assert.match(h.sheet.innerHTML, /Hors ligne pour le moment/);
+  h.update({ orgName: '', orgConfigured: false, connected: true });
+  assert.match(h.sheet.innerHTML, /Aucune organisation configurée : contactez votre service informatique\./);
+  assert.doesNotMatch(h.sheet.innerHTML, /Support IT ·/);
+  h.update({ orgConfigured: true });
+  assert.match(h.sheet.innerHTML, /Rattachement en cours/);
+  h.key({ key: 'Escape', target: {}, preventDefault() {} });
+  assert.equal(h.sheet.innerHTML, '');
+});
 
 test('Entrée et Échap ne ferment aucune alerte ni ne déclenchent une action derrière', async () => {
   const h = await home();
@@ -114,8 +162,8 @@ test('Entrée et Échap ne ferment aucune alerte ni ne déclenchent une action d
 test('textes Mac #30, avertissement vide identique et titres renforcés', async () => {
   const h = await home(false);
   h.update({ helperName: 'Théo', lessons: [{ id: 'l', title: 'Mes photos', steps: [] }] });
-  assert.match(h.root.innerHTML, /Un souci sur l'ordinateur \? Écrivez ce dont vous avez besoin, un message part tout de suite à Théo\./);
-  assert.match(h.root.innerHTML, /placeholder="Écrivez votre demande"/);
+  assert.match(h.root.innerHTML, /Que voulez-vous faire \?/);
+  assert.match(h.root.innerHTML, /placeholder="Écrivez ce que vous voulez faire"/);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>(Bonjour|Bonsoir)</);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes automates</);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes raccourcis</);
@@ -124,7 +172,7 @@ test('textes Mac #30, avertissement vide identique et titres renforcés', async 
   assert.match(h.root.innerHTML, /Dites en quelques mots ce qui ne va pas\./);
   assert.deepEqual(h.sent, []);
   h.update({ microPresent: true });
-  assert.match(h.root.innerHTML, /Un souci sur l'ordinateur \? Dites-le simplement, un message part tout de suite à Théo\./);
+  assert.match(h.root.innerHTML, /placeholder="Écrivez ou dites ce que vous voulez faire"/);
   h.click('submit');
   assert.match(h.root.innerHTML, /Dites en quelques mots ce qui ne va pas\./);
 });
@@ -167,22 +215,21 @@ test('retirer le dernier personnel quitte le mode édition avant le prochain ajo
 test('bascule micro/texte à chaud, sans perdre le brouillon', async () => {
   const h = await home();
   assert.match(h.root.innerHTML, /Dicter ma demande/);
-  assert.match(h.root.innerHTML, />Écrire</);
-  assert.doesNotMatch(h.root.innerHTML, /id="req"/);
-  h.click('write');
+  assert.match(h.root.innerHTML, /id="req"/);
   h.type('Mes photos');
   h.update({ microPresent: false });
   assert.doesNotMatch(h.root.innerHTML, /Dicter ma demande/);
-  assert.match(h.root.innerHTML, /Écrivez ce dont vous avez besoin/);
+  assert.match(h.root.innerHTML, /placeholder="Écrivez ce que vous voulez faire"/);
   assert.match(h.root.innerHTML, /Mes photos<\/textarea>/);
   h.update({ microPresent: true });
   assert.match(h.root.innerHTML, /Dicter ma demande/);
   assert.match(h.root.innerHTML, /Mes photos<\/textarea>/);
 });
 
-test('aucun automate vide, date ni ancien bouton', async () => {
+test('sans automate : explication du Mac, ni date ni ancien bouton', async () => {
   const h = await home(false);
-  assert.doesNotMatch(h.root.innerHTML, /Mes automates|J'ai besoin d'aide|Demander une assistance|Mes applications/);
+  assert.match(h.root.innerHTML, /Aucun automate pour l'instant\./);
+  assert.doesNotMatch(h.root.innerHTML, /J'ai besoin d'aide|Demander une assistance|Mes applications/);
   assert.match(h.root.innerHTML, /Mes raccourcis/);
   assert.match(h.root.innerHTML, /logotype-papai.svg/);
 });

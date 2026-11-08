@@ -3,7 +3,7 @@
     python -m papai.preview [port]
     puis http://127.0.0.1:8765/?demo=home   (ou consent, planning,
     awaiting_approval, active, awaiting_helper, done, stopped, lesson, remote,
-    pair_request, onboarding0 … onboarding4)
+    home_no_org, requests ; `&sheet=settings` pour les Réglages)
 
 Les états viennent de `Model` en mode démonstration (les mêmes que PAPAI_DEMO).
 Sert aux captures de la PR et à travailler le dessin depuis n'importe quel OS.
@@ -31,7 +31,7 @@ class Handler(SimpleHTTPRequestHandler):
             query = parse_qs(u.query)
             demo = (query.get("demo") or ["home"])[0]
             m = Model(demo=demo)
-            m.prefs = {} if demo.startswith("home") else {"firstName": "Jeanne"}
+            m.prefs = {}
             m.start()
             snap = m.snapshot()
             if demo in ('home_empty', 'home_shortcuts'):

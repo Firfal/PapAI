@@ -65,23 +65,19 @@ class Api:
         self._ready.set()
         return self.snapshot()
 
-    def set_first_name(self, name): self._model.set_first_name(name)
     def set_text_scale(self, v): self._model.set_text_scale(v)
     def set_realtime_protection(self, on): self._model.set_realtime_protection(on)
-    def set_onboarding_step(self, step): self._model.set_onboarding_step(step)
-    def finish_onboarding(self): self._model.finish_onboarding()
-    def reset_onboarding(self): self._model.reset_onboarding()
-    def save_settings(self, name, server): self._model.save_settings(name, server)
-    def start_pairing(self): self._model.start_pairing()
-    def stop_pairing(self): self._model.stop_pairing()
-    def copy_invitation(self): return self._model.copy_invitation()
-    def remove_helper(self, helper_id): self._model.remove_helper(helper_id)
     def accept_remote(self): self._model.accept_remote()
-    def answer_pair(self, accept, request_id=None): self._model.answer_pair(accept, request_id)
     def refuse_remote(self): self._model.refuse_remote()
     def schedule_ticket(self, slot): self._model.schedule_ticket(slot)
     def close_queued(self): self._model.close_queued()
     def open_queued(self): self._model.close_queued(show=True)
+    def close_existing(self): self._model.close_existing()
+    def retry_existing(self): self._model.retry_existing()
+    def new_request(self): self._model.new_request()
+    def open_requests(self): self._model.open_requests()
+    def close_requests(self): self._model.close_requests()
+    def relaunch_request(self, request_id): self._model.relaunch_request(request_id)
     def dismiss_alert(self): self._model.dismiss_alert()
     def request_consent(self, task): self._model.request_consent(task)
     def cancel_consent(self): self._model.cancel_consent()
@@ -91,9 +87,12 @@ class Api:
     def stop(self): self._model.stop()
     def back_home(self): self._model.back_home()
     def toggle_pause(self): self._model.toggle_pause()
+    def ask_automation_support(self): self._model.ask_automation_support()
     def answer_senior(self, text): self._model.answer_senior(text)
     def expand_window(self): self._model.expand_window()
     def run_shortcut(self, lesson_id): self._model.run_shortcut(lesson_id)
+    def run_suggested_automation(self, lesson_id, ticket_id):
+        self._model.run_suggested_automation(lesson_id, ticket_id)
     def open_lesson(self, lesson_id): self._model.open_lesson(lesson_id)
     def close_lesson(self): self._model.close_lesson()
     def open_home_shortcut(self, shortcut_id):
@@ -117,7 +116,7 @@ class Api:
 
     def dictation_toggle(self):
         snap = self._model.snapshot()
-        if self._micro.refresh() and snap['screen'] == 'home' and not snap['remoteRequest'] and not snap['pairRequest'] and not snap['alert']:
+        if self._micro.refresh() and snap['screen'] == 'home' and not snap['remoteRequest'] and not snap['alert']:
             self._dictation.toggle(self._model.http_base)
 
 
@@ -130,7 +129,7 @@ def main() -> None:
         w, api = state["window"], state["api"]
         if w is None or api is None or not api._ready.is_set():
             return
-        if snap['screen'] != 'home' or snap['remoteRequest'] or snap['pairRequest'] or snap['alert']:
+        if snap['screen'] != 'home' or snap['remoteRequest'] or snap['alert']:
             if api._dictation.phase != 'idle':
                 api._dictation.cancel()
         snap = api.snapshot(snap)

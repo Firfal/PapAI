@@ -3,11 +3,13 @@
 Indépendant de la fenêtre : l'interface HTML reçoit `snapshot()` à chaque
 changement et appelle les méthodes publiques (voir `app.py`). Testable sans
 Windows ni WebView.
+
+App de l'employé : pas d'accueil ni de liaison. Le nom vient du compte Windows,
+l'organisation et son support des stratégies de groupe (`settings.policy()`).
 """
 
 from __future__ import annotations
 
-import base64
 import datetime
 import json
 import os
@@ -15,11 +17,11 @@ import re
 import threading
 import time
 import urllib.request
-from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from typing import Callable
 
 from . import apps as start_apps
 from . import settings
+from . import offline_lessons
 from .bridge import Bridge
 from .core import StopGate, open_shortcut, play_actions
 
@@ -28,21 +30,6 @@ STATES = OPEN_STATES + ("done", "stopped")
 TEXT_SCALES = [("Grande", 1.0), ("Très grande", 1.18)]
 NOTICE_S = 7
 HOME_AFTER_DONE_S = 90
-
-
-def qr_data_url(text: str) -> str | None:
-    """QR code en SVG (data URL), comme CIQRCodeGenerator sur le Mac."""
-    if not text:
-        return None
-    try:
-        import qrcode
-        import qrcode.image.svg
-    except ImportError:
-        return None
-    img = qrcode.make(text, image_factory=qrcode.image.svg.SvgPathImage, border=0,
-                      error_correction=qrcode.constants.ERROR_CORRECT_M)
-    raw = img.to_string()
-    return "data:image/svg+xml;base64," + base64.b64encode(raw).decode()
 
 
 class Model:
@@ -78,32 +65,34 @@ class Model:
         self.user_expanded = False
         self._last_state: str | None = None
         self.answer: str | None = None
+        self.answer_sources: list[dict] = []
         self.current_action: str | None = None
         self.actions: list[str] = []
         self.lessons: list[dict] = []
+        self.requests: list[dict] = []
+        self.requests_open = False
+        self.requests_loading = False
+        self.requests_error = False
         self.lesson: dict | None = None
         self.notice: str | None = None
         self.alert: dict | None = None
         self.helpers: list[dict] = []
-        self.pair_code: str | None = None
-        self.pair_url: str | None = None
-        # Lien `papai://` du QR : ouvre l'app du support au lieu du navigateur.
-        self.pair_app_url: str | None = None
-        # Invitation à envoyer (SMS, WhatsApp…), valable 24 h, comme sur le Mac.
-        self.pair_long = False
-        self.pair_expires = 600
-        self.pair_added: str | None = None
         self.remote_request: dict | None = None
         # Demande partie en ticket sans support disponible : {ticket, number, task, rdv, show}.
         self.queued: dict | None = None
-        self.pair_request: dict | None = None
+        # Demande qui a déjà son ticket : {kind: open|solved, ticket, number, task, status, rdv, solution}.
+        self.existing: dict | None = None
         self.pending_task = ""
         self.pending_automation: str | None = None
+        self.pending_automation_ticket: str | None = None
         self.automation_running: str | None = None
+        # L'automate en cours ou arrêté : {id, title, ticket, number, step, reason, local, asked}.
+        # Il se joue seul ; le support n'est prévenu que sur « Demander une assistance ».
+        self.automation_run: dict | None = None
         self.apps: list[dict] = []
         self.dictation = {"phase": "idle", "message": None}
-        self.onboarded = bool(self.prefs.get("onboarded"))
-        self.onboarding_step = 0
+        # Nom du compte Windows (ou stratégie DisplayName) : rien à saisir.
+        self._first_name = "" if self.demo else settings.display_name()
         self.auto_sent = False
         self._org_name = ""
 
@@ -125,8 +114,7 @@ class Model:
 
     @property
     def first_name(self) -> str:
-        n = str(self.prefs.get("firstName") or "").strip()
-        return n or "Jeanne"
+        return self._first_name
 
     @property
     def text_scale(self) -> float:
@@ -168,29 +156,31 @@ class Model:
             hn = self.helper_name
             return {
                 "os": "windows", "demo": self.demo,
-                "connected": self.connected, "onboarded": self.onboarded,
-                "onboardingStep": self.onboarding_step,
-                "firstName": self.first_name, "storedFirstName": str(self.prefs.get("firstName") or ""),
+                "connected": self.connected,
+                "firstName": self.first_name,
                 "helperName": hn, "HelperName": hn[:1].upper() + hn[1:],
                 "textScale": self.text_scale, "textScales": TEXT_SCALES,
                 "server": self.server_url, "httpBase": self.http_base,
                 "orgName": str(self.prefs.get("orgName") or ""),
+                "orgConfigured": self.org_configured,
                 "realtimeProtection": self.realtime_protection,
                 "screen": self.screen, "state": self.state, "sessionOpen": self.session_open,
                 "stoppedBy": self.stopped_by,
                 "task": self.task, "pendingTask": self.pending_task, "screenConsent": self.screen_consent,
                 "plan": list(self.plan), "planStep": self.plan_step,
-                "question": self.question, "answer": self.answer,
+                "question": self.question, "answer": self.answer, "answerSources": list(self.answer_sources),
                 "questionForMe": self.question_for_me, "questionOptions": list(self.question_options),
                 "paused": self.paused, "guardAcknowledged": self.guard_acknowledged,
                 "carer": self.carer, "compact": self.compact,
                 "currentAction": self.current_action, "actions": list(self.actions),
-                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "notice": self.notice, "alert": self.alert,
-                "helpers": list(self.helpers), "pairCode": self.pair_code,
-                "pairURL": self.pair_url, "pairQR": qr_data_url(self.pair_app_url or self.pair_url or ""),
-                "pairLong": self.pair_long, "pairExpires": self.pair_expires,
-                "pairAdded": self.pair_added, "remoteRequest": self.remote_request, "queued": self.queued,
-                "pairRequest": self.pair_request,
+                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running,
+                "automationRun": dict(self.automation_run) if self.automation_run else None,
+                "canAskAutomationSupport": self.can_ask_automation_support, "notice": self.notice, "alert": self.alert,
+                "requests": [{**r, "relaunch": r.get("relaunch") if self._find_lesson(r.get("relaunch")) else None}
+                             for r in self.requests],
+                "requestsLoading": self.requests_loading, "requestsError": self.requests_error,
+                "helpers": list(self.helpers), "remoteRequest": self.remote_request, "queued": self.queued,
+                "existing": self.existing,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
 
@@ -203,7 +193,6 @@ class Model:
                 self._last_state = self.state
                 self.user_expanded = False
             want = (self.session_open and not self.user_expanded and
-                    not self.pair_request and
                     (self.state == "active" or (self.state == "awaiting_helper" and not self.question_for_me)))
             changed = want != self.compact
             self.compact = want
@@ -328,21 +317,29 @@ class Model:
         if self.bridge is not None:
             self.bridge.send(payload)
 
+    @property
+    def org_configured(self) -> bool:
+        """L'IT a déposé un jeton d'organisation (stratégie de groupe ou repli d'essai)."""
+        return bool(self.prefs.get("orgName")) or bool(settings.org_token())
+
     def _send_profile(self) -> None:
-        """Le prénom réellement saisi, pour que l'aidant lise le bon nom."""
-        n = str(self.prefs.get("firstName") or "").strip()
+        """Le nom du compte Windows, pour que le support lise le bon nom."""
         msg = {"type": "profile", "protection": self.realtime_protection}
-        if n:
-            msg["name"] = n
+        if self.first_name:
+            msg["name"] = self.first_name
         self._send(msg)
 
     def _connection(self, ok: bool) -> None:
         if ok:
             self._send_profile()
+            r = self.automation_run
+            if r and r.get("unsent") and not r.get("ticket"):
+                r["unsent"] = False
+                self._send({"type": "automation_failed", "id": r.get("id") or "", "step": r.get("step"),
+                            "title": r.get("title") or "", "detail": r.get("reason") or ""})
+            threading.Thread(target=self.refresh_lessons, daemon=True).start()
         with self._lock:
             self.connected = ok
-            if not ok:
-                self.pair_request = None
             t = os.environ.get("PAPAI_AUTOTASK", "").strip()
             auto = ok and not self.auto_sent and bool(t)
             if auto:
@@ -366,28 +363,66 @@ class Model:
             with urllib.request.urlopen(self.http_base + "/lessons", timeout=5) as r:  # noqa: S310
                 data = json.loads(r.read().decode())
         except Exception:  # noqa: BLE001
-            return
-        if isinstance(data, list):
+            data = None
+        if not isinstance(data, list):
+            # Pas de réseau : ceux qui n'ont pas besoin de Holo restent là.
             with self._lock:
-                self.lessons = [x for x in data if isinstance(x, dict) and x.get("id")]
+                if self.lessons:
+                    return
+                self.lessons = offline_lessons.load(self.http_base)
             self.push()
+            return
+        lessons = [x for x in data if isinstance(x, dict) and x.get("id")]
+        with self._lock:
+            self.lessons = lessons
+        offline_lessons.save(lessons, self.http_base)
+        self.push()
 
     def reconnect(self) -> None:
         if self.bridge is not None and not self.demo:
             self.bridge.reconnect(self.server_url)
 
-    # ------------------------------------------------------ accueil, proches
+    def open_requests(self) -> None:
+        self.requests_open = True
+        if not self.demo:
+            self.requests_loading = True
+            self.requests_error = False
+            self.push()
+            threading.Thread(target=self.refresh_requests, daemon=True).start()
+
+    def close_requests(self) -> None:
+        self.requests_open = False
+
+    def refresh_requests(self) -> None:
+        if self.demo:
+            return
+        try:
+            with urllib.request.urlopen(self.http_base + "/requests", timeout=5) as response:
+                data = json.loads(response.read().decode())
+            if not isinstance(data, dict) or not isinstance(data.get("requests"), list):
+                raise ValueError("Invalid requests")
+            rows = [r for r in data["requests"] if isinstance(r, dict) and isinstance(r.get("id"), str)]
+        except Exception:
+            with self._lock:
+                self.requests, self.requests_error, self.requests_loading = [], True, False
+        else:
+            with self._lock:
+                self.requests, self.requests_error, self.requests_loading = rows, False, False
+        self.push()
+
+    def relaunch_request(self, request_id: str) -> None:
+        request = next((r for r in self.requests if r.get("id") == request_id), None)
+        lesson_id = request.get("relaunch") if request else None
+        if isinstance(lesson_id, str) and lesson_id and self._find_lesson(lesson_id):
+            self.run_automation(lesson_id)
+
+    # ------------------------------------------------------------ réglages
 
     def save_prefs(self, **values) -> None:
         if not self.demo:
             self.prefs = settings.save(values)
         else:
             self.prefs.update(values)
-
-    def set_first_name(self, name: str) -> None:
-        self.save_prefs(firstName=str(name or "").strip())
-        self._send_profile()
-        self.push()
 
     def set_text_scale(self, v: float) -> None:
         self.save_prefs(textScale=float(v))
@@ -398,92 +433,8 @@ class Model:
         self._send_profile()
         self.push()
 
-    def set_onboarding_step(self, step: int) -> None:
-        self.onboarding_step = max(0, min(3, int(step)))
-        self.push()
-
-    def finish_onboarding(self) -> None:
-        self.save_prefs(onboarded=True)
-        with self._lock:
-            self.onboarded = True
-            self.onboarding_step = 0
-            self._clear_pair()
-        self.push()
-
-    def reset_onboarding(self) -> None:
-        self.save_prefs(onboarded=False)
-        with self._lock:
-            self.onboarded = False
-            self.onboarding_step = 0
-        self.push()
-
-    def save_settings(self, name: str, server: str) -> None:
-        self.save_prefs(firstName=str(name or "").strip(), server=str(server or "").strip())
-        self.reconnect()
-        threading.Thread(target=self.refresh_lessons, daemon=True).start()
-        self.push()
-
-    def start_pairing(self) -> None:
-        self.pair_added = None
-        self._send({"type": "pair_start", "long": True})
-        self.push()
-
-    def stop_pairing(self) -> None:
-        self._clear_pair()
-        self.push()
-
-    def _clear_pair(self) -> None:
-        self.pair_code = self.pair_url = self.pair_app_url = None
-        self.pair_long = False
-
-    @staticmethod
-    def pairing_url_without_key(url: str) -> str:
-        parts = urlsplit(url)
-        if parts.scheme.lower() == "papai":
-            query = [(k, Model.pairing_url_without_key(v) if k == "u" and urlsplit(v).scheme.lower() in ("http", "https") else v)
-                     for k, v in parse_qsl(parts.query, keep_blank_values=True)]
-            return urlunsplit(parts._replace(query=urlencode(query)))
-        return urlunsplit(parts._replace(path=re.sub(r"/k/[^/]+/p/", "/p/", parts.path)))
-
-    @staticmethod
-    def app_pairing_url(url: str) -> str:
-        """`papai://pair?u=<url encodée>` : l'appareil photo du téléphone ouvre l'app, pas le navigateur."""
-        return "papai://pair?u=" + quote(Model.pairing_url_without_key(url), safe="-._~")
-
-    @property
-    def invitation_text(self) -> str:
-        n = str(self.prefs.get("firstName") or "").strip()
-        who = n or "Une personne de votre entourage"
-        return (f"{who} aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre "
-                f"téléphone pour vous relier (valable {'24 heures' if self.pair_long else '10 minutes'}) :")
-
-    def copy_invitation(self) -> bool:
-        """« Envoyer par SMS, WhatsApp… » : Windows n'a pas de ShareLink, l'invitation part dans le presse-papiers."""
-        if not self.pair_url:
-            return False
-        try:
-            import pyperclip
-            pyperclip.copy(f"{self.invitation_text}\n{self.pair_url}")
-        except Exception:  # noqa: BLE001 — pas de presse-papiers (aperçu, session distante)
-            return False
-        return True
-
-    def answer_pair(self, accept: bool, request_id=None) -> None:
-        """Quelqu'un a tapé le code à 6 chiffres : il ne devient support qu'avec ce clic."""
-        with self._lock:
-            r = self.pair_request
-            if not r or type(accept) is not bool or (request_id is not None and str(request_id) != str(r["req"])):
-                return
-            self.pair_request = None
-            self._send({"type": "pair_decision", "req": r["req"], "accept": accept})
-        self._level()
-        self.push()
-
-    def remove_helper(self, helper_id: str) -> None:
-        self._send({"type": "remove_helper", "id": helper_id})
-
     def accept_remote(self) -> None:
-        """Le proche propose une session : rien ne démarre sans ce clic."""
+        """Le support propose une assistance : rien ne démarre sans ce clic."""
         r = self.remote_request
         if not r:
             return
@@ -526,6 +477,24 @@ class Model:
             self.queued["show"] = show
         self.push()
 
+    # ------------------------------------------------------ demande déjà connue
+
+    def close_existing(self) -> None:
+        self.existing = None
+        self.push()
+
+    def retry_existing(self) -> None:
+        """Déjà réglée mais le problème est revenu : le même ticket est rouvert."""
+        e, self.existing = self.existing, None
+        if e and e["kind"] == "solved":
+            self.ask_help(e["asked"] or e["task"], reopen=e["ticket"])
+
+    def new_request(self) -> None:
+        """Ce n'est pas la même demande : elle part avec son propre ticket."""
+        e, self.existing = self.existing, None
+        if e:
+            self.ask_help(e["asked"] or e["task"], new=True)
+
     # ------------------------------------------------------ demande d'aide
 
     @property
@@ -546,9 +515,10 @@ class Model:
         self.save_prefs(screenConsent=True)
         if self.pending_automation:
             lesson_id, self.pending_automation = self.pending_automation, None
+            ticket_id, self.pending_automation_ticket = self.pending_automation_ticket, None
             self.pending_task = ""
             self.screen = "home"
-            self.run_automation(lesson_id)
+            self.run_automation(lesson_id, ticket_id=ticket_id)
             return
         self.ask_help(self.pending_task)
 
@@ -559,16 +529,20 @@ class Model:
     def cancel_consent(self) -> None:
         self.pending_task = ""
         self.pending_automation = None
+        self.pending_automation_ticket = None
         self.screen = "home"
         self.push()
 
-    def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None) -> None:
+    def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None,
+                 reopen: str | None = None, new: bool = False) -> None:
+        self.existing = None
         if self.queued:
             self.queued["show"] = False
             if ticket and self.queued["ticket"] == ticket:
                 self.queued = None
         self.gate.reset()
         self.stopped_by = None
+        self.automation_run = None
         self._cancel(self._home_timer)
         with self._lock:
             self.task = str(task or "")
@@ -577,11 +551,14 @@ class Model:
             self.question_for_me, self.question_options, self.paused = False, [], False
             self.session_helper = None
             self.answer, self.current_action, self.actions = None, None, []
+            self.answer_sources = []
             self.state = "planning"
             self.screen = "session"
         self._level()
         if self.bridge is not None:
-            if ticket:
+            if reopen or new:
+                self.bridge.ask_help(self.task, requested_by, ticket, reopen=reopen, new=new)
+            elif ticket:
                 self.bridge.ask_help(self.task, requested_by, ticket)
             else:
                 self.bridge.ask_help(self.task, requested_by)
@@ -601,6 +578,7 @@ class Model:
     def back_home(self) -> None:
         self._cancel(self._home_timer)
         with self._lock:
+            self.automation_run = None
             self.screen = "home"
             self.state = None
         self._level()
@@ -618,16 +596,28 @@ class Model:
         kind = m.get("type")
         if kind == "status":
             self._apply_status(m)
+        elif kind == "session":
+            if m.get("automation") and self.automation_run is not None:
+                self.automation_run.update(ticket=m.get("ticket"), number=m.get("number"))
+        elif kind == "automation_ticket":
+            if self.automation_run is not None:
+                self.automation_run.update(ticket=m.get("ticket"), number=m.get("number"))
+        elif kind == "support_requested":
+            if self.automation_run is not None:
+                self.automation_run["asked"] = True
+            self.show_notice(f"C’est envoyé à {self.helper_name}, avec l’étape où l’automate s’est arrêté.")
+        elif kind == "linkup_answer":
+            self.answer = m.get("content")
+            self.answer_sources = [s for s in (m.get("sources") or []) if isinstance(s, dict)
+                                   and str(s.get("url", "")).startswith(("http://", "https://"))]
         elif kind == "answer":
             self.answer = m.get("content")
+            self.answer_sources = []
         elif kind == "helpers":
             lst = m.get("helpers") or []
             self.helpers = [{"id": str(d["id"]), "name": str(d["name"]),
                              "relation": str(d.get("relation") or "")}
                             for d in lst if isinstance(d, dict) and d.get("id") and d.get("name")]
-            if m.get("added"):
-                self.pair_added = str(m["added"])
-                self._clear_pair()
         elif kind == "alert":
             self.guard_acknowledged = bool(m.get("acknowledged") or m.get("acknowledged_by"))
             if m.get("level") == "danger" or m.get("blocked"):
@@ -644,44 +634,45 @@ class Model:
         elif kind == "alert_cleared":
             if self.alert and m.get("alert_id") and m["alert_id"] == self.alert.get("id"):
                 self.alert = None
+        elif kind == "tickets_changed":
+            if self.requests_open:
+                threading.Thread(target=self.refresh_requests, daemon=True).start()
         elif kind == "lessons_changed":
             def go() -> None:
                 self.refresh_lessons()
                 if m.get("title"):
                     self.show_notice(f"Nouvel automate : « {m['title']} »")
             threading.Thread(target=go, daemon=True).start()
-        elif kind == "pair_code":
-            self.pair_code = m.get("code")
-            self.pair_url = self.pairing_url_without_key(m["url"]) if m.get("url") else None
-            self.pair_app_url = self.pairing_url_without_key(m["app_url"]) if m.get("app_url") else (self.app_pairing_url(self.pair_url) if self.pair_url else None)
-            self.pair_long = bool(m.get("long"))
-            try:
-                self.pair_expires = int(m.get("expires_in") or 600)
-            except (TypeError, ValueError):
-                self.pair_expires = 600
         elif kind == "pair_confirm":
-            if m.get("req") is None:
-                return
-            with self._lock:
-                if self.pair_request and self.pair_request["req"] == m["req"]:
-                    return
-                if self.pair_request:
-                    self._send({"type": "pair_decision", "req": self.pair_request["req"], "accept": False})
-                self.pair_request = {"req": m["req"], "name": str(m.get("name") or "Quelqu'un")[:40],
-                                     "relation": str(m.get("relation") or "")[:60]}
-            self._level()
-            self._on_remote()
-        elif kind == "pair_confirm_closed":
-            with self._lock:
-                if not self.pair_request or self.pair_request["req"] != m.get("req"):
-                    return
-                self.pair_request = None
-            self._level()
+            # Poste d'entreprise : le support vient de l'organisation, jamais d'un code
+            # tapé sur un téléphone. Toute demande de liaison est refusée sans rien afficher.
+            if m.get("req") is not None:
+                self._send({"type": "pair_decision", "req": m["req"], "accept": False})
+            return
         elif kind == "ticket_queued":
             # Aucun support disponible : la demande attend, on revient à l'accueil.
+            suggestions = m.get("suggestions")
+            suggestions = [
+                {"id": str(x["id"]), "title": str(x["title"])}
+                for x in suggestions if isinstance(x, dict) and x.get("id") and x.get("title")
+            ] if isinstance(suggestions, list) else []
             with self._lock:
                 self.queued = {"ticket": str(m.get("ticket") or ""), "number": m.get("number"),
-                               "task": str(m.get("task") or self.task), "rdv": None, "show": True}
+                               "task": str(m.get("task") or self.task), "rdv": None, "show": True,
+                               "suggestions": suggestions, "suggestion_lancee": None}
+                self.state, self.screen = None, "home"
+            self._level()
+        elif kind in ("ticket_exists", "ticket_solved"):
+            # La demande a déjà son ticket : rien de nouveau n'est ouvert.
+            sol = m.get("solution") if isinstance(m.get("solution"), dict) else {}
+            with self._lock:
+                self.existing = {
+                    "kind": "open" if kind == "ticket_exists" else "solved",
+                    "ticket": str(m.get("ticket") or ""), "number": m.get("number"),
+                    "task": str(m.get("task") or self.task), "asked": self.task,
+                    "status": str(m.get("status") or ""), "rdv": m.get("rdv"),
+                    "note": str(sol.get("note") or ""), "by": str(sol.get("by") or ""),
+                    "at": sol.get("at"), "steps": [str(x) for x in sol.get("steps") or []]}
                 self.state, self.screen = None, "home"
             self._level()
         elif kind == "ticket_scheduled":
@@ -700,6 +691,11 @@ class Model:
     def _apply_status(self, m: dict) -> None:
         with self._lock:
             self.stopped_by = m.get("stopped_by")
+            b = m.get("blocked")
+            if isinstance(b, dict) and self.automation_run is not None:
+                self.automation_run.update(step=b.get("step"), reason=b.get("reason"))
+            if m.get("support_requested") is True and self.automation_run is not None:
+                self.automation_run["asked"] = True
             if isinstance(m.get("guard_acknowledged"), bool):
                 self.guard_acknowledged = m["guard_acknowledged"]
             if self.screen != "session":
@@ -761,31 +757,69 @@ class Model:
         if ok:
             self.show_notice("C'est ouvert.")
         else:
-            hn = self.helper_name
-            self.show_notice(f"Je ne retrouve pas ce dossier. {hn[:1].upper() + hn[1:]} "
-                             "a reçu un message pour s'en occuper.")
-            self._send({"type": "automation_failed", "title": lesson.get("title") or "",
-                        "detail": detail})
+            self._automation_stopped(lesson, 1, detail)
 
-    def run_automation(self, lesson_id: str) -> None:
+    def _automation_stopped(self, lesson: dict, step: int, detail: str) -> None:
+        """Une action locale a échoué : on s'arrête là, sans appeler personne.
+        Le serveur ouvre un ticket qui garde l'étape."""
+        title = str(lesson.get("title") or "")
+        self.automation_run = {"id": lesson.get("id"), "title": title, "ticket": None, "number": None,
+                               "step": step, "reason": detail, "local": True, "asked": False,
+                               "unsent": not self.connected}
+        self.show_notice(f"« {title or 'Cet automate'} » s'est arrêté à l'étape {step}"
+                         + (f" : {detail}" if detail else "."))
+        self._send({"type": "automation_failed", "id": lesson.get("id") or "", "step": step,
+                    "title": title, "detail": detail})
+
+    @property
+    def can_ask_automation_support(self) -> bool:
+        r = self.automation_run
+        return bool(r and r.get("ticket") and not r.get("asked") and not self.alert)
+
+    def ask_automation_support(self) -> None:
+        """Bouton discret, en haut à droite : seule façon de faire venir le support sur un automate."""
+        if self.can_ask_automation_support:
+            self._send({"type": "support_request", "ticket": self.automation_run["ticket"]})
+
+    def run_suggested_automation(self, lesson_id: str, ticket_id: str) -> None:
+        q = self.queued
+        if not q or q.get("ticket") != ticket_id or not any(
+            x.get("id") == lesson_id for x in q.get("suggestions", []) if isinstance(x, dict)
+        ):
+            return
+        q["show"] = False
+        self.run_automation(lesson_id, ticket_id=ticket_id)
+
+    def run_automation(self, lesson_id: str, ticket_id: str | None = None) -> None:
         """Un automate importé par un support, lancé en un clic. Pas de
         validation à chaque fois : le support l'a validé à l'import."""
+        lesson_id = str(lesson_id or "")
         lesson = self._find_lesson(lesson_id)
         if lesson is None or not lesson.get("actions"):
             return
+        if ticket_id and (not self.queued or self.queued.get("ticket") != ticket_id
+                          or not any(x.get("id") == lesson_id for x in self.queued.get("suggestions", [])
+                                     if isinstance(x, dict))):
+            ticket_id = None
         if "windows" not in (lesson.get("platforms") or ["windows"]):
             self.show_notice("Cet automate est prévu pour un autre ordinateur.")
             return
         holo = any(a.get("do") == "holo" for a in lesson["actions"])
         if holo and not self.screen_consent:
             self.pending_automation = lesson_id
+            self.pending_automation_ticket = ticket_id
             self.pending_task = str(lesson.get("title") or "")
             self.screen = "consent"
             self.push()
             return
         if self.automation_running:
             return
+        if ticket_id:
+            self._send({"type": "ticket_automate_launched", "ticket": ticket_id, "lesson": lesson_id})
+            if self.queued and self.queued.get("ticket") == ticket_id:
+                self.queued["suggestion_lancee"] = lesson_id
         self.gate.reset()
+        self.automation_run = None
         self.automation_running = str(lesson.get("title") or "Automate")
         self.show_notice(f"C'est parti : {lesson.get('title') or 'automate'}…")
         threading.Thread(target=self._play_automation, args=(lesson, holo), daemon=True).start()
@@ -799,18 +833,14 @@ class Model:
     def _play_automation(self, lesson: dict, holo: bool) -> None:
         gate = self.gate
         try:
-            ok, detail = play_actions(lesson, lambda n: self._fetch_lesson_file(lesson["id"], n), gate)
+            ok, detail, step = play_actions(lesson, lambda n: self._fetch_lesson_file(lesson["id"], n), gate)
         finally:
             self.automation_running = None
         if gate.is_stopped:
             self.show_notice("Arrêté. Rien d'autre ne sera fait.")
             return
         if not ok:
-            hn = self.helper_name
-            self.show_notice(f"« {lesson.get('title') or 'Cet automate'} » n'a pas pu aller au bout. "
-                             f"{hn[:1].upper() + hn[1:]} a reçu un message pour s'en occuper.")
-            self._send({"type": "automation_failed", "title": lesson.get("title") or "",
-                        "detail": detail})
+            self._automation_stopped(lesson, step, detail)
             return
         if not holo:
             self.show_notice(detail or "C'est fait.")
@@ -818,9 +848,12 @@ class Model:
         goal = next(a.get("goal") for a in lesson["actions"] if a.get("do") == "holo")
         self._cancel(self._home_timer)
         with self._lock:
+            self.automation_run = {"id": lesson["id"], "title": str(lesson.get("title") or ""), "ticket": None,
+                                   "number": None, "step": None, "reason": None, "local": False, "asked": False}
             self.task = str(goal or lesson.get("title") or "")
             self.plan, self.plan_step, self.question = [], None, None
             self.answer, self.current_action, self.actions = None, None, []
+            self.answer_sources = []
             self.state = "planning"
             self.screen = "session"
         self._level()
@@ -871,46 +904,46 @@ class Model:
     # --------------------------------------------------------------- démo
 
     def _apply_demo(self, demo: str) -> None:
-        """PAPAI_DEMO=home|consent|planning|awaiting_approval|active|awaiting_helper|
-        done|stopped|remote|onboarding0..4 : mêmes écrans de démonstration que le Mac,
-        sans serveur. Sert aux captures."""
+        """PAPAI_DEMO=home|home_no_org|consent|planning|awaiting_approval|active|
+        awaiting_helper|done|stopped|remote|… : mêmes écrans de démonstration que le
+        Mac, sans serveur. Sert aux captures. Poste de Jeanne, rattaché à « Acme »
+        (sauf `home_no_org`, poste sans stratégie de groupe)."""
         self.connected = True
-        if demo.startswith("onboarding"):
-            self.onboarded = False
-            try:
-                self.onboarding_step = max(0, min(3, int(demo[len("onboarding"):] or 0)))
-            except ValueError:
-                self.onboarding_step = 0
-            if self.onboarding_step == 1:
-                self.prefs["firstName"] = "Jeanne"
-            if self.onboarding_step == 3:
-                self.helpers = [{"id": "1", "name": "Claire", "relation": "sa fille"}]
-                self.pair_code = "482913"
-                self.pair_url = "http://192.168.1.20:8000/p/482913"
-                self.pair_app_url = self.app_pairing_url(self.pair_url)
-                self.pair_long = True
-            return
-        self.onboarded = True
-        self.helpers = [{"id": "1", "name": "Claire", "relation": "sa fille"}]
+        self._first_name = "Jeanne"
+        if demo != "home_no_org":
+            self.prefs["orgName"] = "Acme"
+        self.helpers = [{"id": "1", "name": "Marc", "relation": "Service informatique"}]
         self.apps = [{"label": n, "path": "", "icon": None}
                      for n in ("Mail", "Photos", "Internet", "Visio", "Explorateur", "Calendrier")]
-        if demo == "pair_request":
-            self.pair_request = {"req": "demo", "name": "Marc", "relation": "Service informatique"}
-            return
         if demo == "remote":
-            self.remote_request = {"from": "Claire", "task": "Mettre à jour votre ordinateur"}
+            self.remote_request = {"from": "Marc", "task": "Mettre à jour votre ordinateur"}
             return
         self.lessons = [
             {"id": "a", "title": "Mes photos de Noël", "shortcut": {"folder": "pictures"},
              "steps": [{"instruction": "Ouvrez l'Explorateur de fichiers"}]},
             {"id": "b", "title": "Mes documents", "shortcut": {"folder": "documents"}},
         ]
+        if demo == "requests":
+            self.lessons.append({"id": "print", "title": "Configurer mon imprimante", "platforms": ["windows"],
+                                 "actions": [{"do": "open_settings", "page": "printers"}]})
+            self.requests = [
+                {"id": "r1", "created": 1794132000, "task": "Je voudrais imprimer un document", "status": "resolu",
+                 "solution": {"kind": "automate", "title": "Configurer mon imprimante", "lesson": "print"}, "relaunch": "print"},
+                {"id": "r2", "created": 1794045600, "task": "Retrouver mes documents", "status": "resolu",
+                 "solution": {"kind": "plan", "steps": ["Ouvrir l'Explorateur de fichiers", "Ouvrir le dossier Documents"]}, "relaunch": None},
+                {"id": "r3", "created": 1793959200, "task": "Comment changer la taille du texte ?", "status": "resolu",
+                 "solution": {"kind": "answer", "text": "Ouvrez les Réglages, puis choisissez Très grande.",
+                              "sources": [{"title": "Aide PapAI", "url": "https://example.org/aide"}]}, "relaunch": None},
+                {"id": "r4", "created": 1793872800, "task": "Mon casque ne fonctionne plus", "status": "en_attente",
+                 "solution": None, "relaunch": None},
+            ]
+            return
         if demo == "alert":
             self.alert = {"level": "danger", "title": "Attention : ce message est sans doute une arnaque",
                           "detail": "Un faux message d'alerte demande d'appeler un numéro. N'appelez pas. "
-                                    "Claire est prévenue."}
+                                    "Votre support est prévenu."}
             return
-        if demo == "home":
+        if demo in ("home", "home_no_org"):
             return
         if demo == "lesson":
             self.lesson = {"id": "a", "title": "Mes photos de Noël", "steps": [

@@ -1,6 +1,7 @@
 # Backend seul : tourne sur un serveur Linux sans ecran.
 # Surtout pas pyautogui ni mss — ils exigent un affichage.
 openai>=1.40
+httpx==0.28.1
 python-dotenv>=1.0
 fastapi>=0.115
 uvicorn[standard]>=0.30
@@ -9,3 +10,5 @@ websockets>=13.0
 hai-agents==1.4.3
 # Tests seulement (tests/test_protocole.py, tests/faux_mac.py) : images de test.
 Pillow>=10.0
+google-cloud-firestore==2.34.1
+google-cloud-storage==3.17.1

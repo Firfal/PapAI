@@ -90,8 +90,13 @@ class Session:
     plan: list[str] | None = None
     plan_mode: str | None = None
     plan_sites: list[str] = field(default_factory=list)
+    web_hosts: list[str] = field(default_factory=list)
+    off_site: dict | None = None
     web_steps: list[int] = field(default_factory=list)
     plan_approved: bool = False
+    linkup_query: str = ""
+    linkup_result: dict | None = None
+    linkup_id: str = ""
     # Numéro (à partir de 1) de l'étape du plan validé en cours d'exécution.
     plan_step: int | None = None
 
@@ -99,6 +104,14 @@ class Session:
     lesson: dict | None = None
     # Le ticket de cette demande (suivi par le support IT).
     ticket: str = ""
+    # Automate importé (id `imp-…`) : il se joue seul, sans support, sauf si
+    # l’utilisateur le demande (`support_request`).
+    automation: str = ""
+    support_requested: bool = False
+    # Où l'automate s'est arrêté faute de pouvoir continuer seul : {step, label, reason}.
+    blocked: dict | None = None
+    # La même demande a déjà été réglée : ce qui avait été fait, pour Holo.
+    reprise: str = ""
     journal: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)
@@ -109,6 +122,8 @@ class Session:
     # Le prénom de l'aidant qui a validé le plan : l’utilisateur lit
     # « Quentin s'en occupe » plutôt que le nom de l'agent.
     helper_name: str = ""
+    # Qui a validé le plan, pour le journal : {"name", "via", "support"?}.
+    approved_by: dict = field(default_factory=dict)
     # Une seule phrase pour l'aidant : ce que Holo est en train de faire.
     doing: str = ""
 
@@ -174,6 +189,17 @@ class Session:
         self.log("stop", by=by)
         self._resolve_reply(None)
         self._resolve_plan(None)
+
+    def block(self, reason: str) -> None:
+        """Automate sans support : Holo ne peut pas continuer seul. On note
+        l'étape (pour le ticket) et on s'arrête, sans rien tenter de plus."""
+        if self.state in TERMINAL_STATES:
+            return
+        n = self.plan_step if self.plan_step and self.plan else (1 if self.plan else None)
+        self.blocked = {"step": n, "label": self.plan[n - 1] if n else "",
+                        "reason": str(reason or "")[:300]}
+        self.log("automation_blocked", **self.blocked)
+        self.stop(by="blocage")
 
     def finish(self, message: str) -> None:
         self.require_open()
@@ -280,17 +306,18 @@ class Session:
         self.owner = Owner.AGENT
         self.log("plan_preapproved", by=by, steps=steps)
 
-    def decide_plan(self, decision: str, note: str = "") -> None:
+    def decide_plan(self, decision: str, note: str = "", by: dict | None = None) -> None:
         """approve, refine (avec une précision) ou refuse. Revalidé côté serveur."""
         self.require_open()
-        if self.state is not State.AWAITING_APPROVAL:
+        if self.state is not State.AWAITING_APPROVAL or self.linkup_query:
             raise Refused("Aucun plan n'attend votre validation.")
         if decision not in ("approve", "refine", "refuse"):
             raise Refused("Décision inconnue.")
         if decision == "refine" and not note:
             raise Refused("Écrivez la précision à donner à Holo.")
-        self.log("plan_decision", decision=decision, note=note)
+        self.log("plan_decision", decision=decision, note=note, **({"by": by} if by else {}))
         if decision == "approve":
+            self.approved_by = dict(by or {})
             self.plan_approved = True
             self.plan_step = 1 if self.plan else None
             self.state = State.ACTIVE
@@ -354,10 +381,14 @@ class Session:
             "helper_name": self.helper_name or None,
             "doing": self.doing or None,
             "where": self.where,
+            "off_site": self.off_site,
             "plan_step": self.plan_step
             if self.plan_approved and self.state in (State.ACTIVE, State.AWAITING_HELPER)
             else None,
             "usage": self.usage,
+            "automation": self.automation or None,
+            "support_requested": self.support_requested,
+            "blocked": self.blocked,
         }
 
 

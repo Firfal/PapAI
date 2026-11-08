@@ -7,11 +7,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,33 +37,28 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import java.util.Calendar
 
 @Composable
 fun Root() {
     val m = Helper
-    LaunchedEffect(m.isConfigured, m.sheet) {
-        if (!m.isConfigured && m.sheet == null) m.sheet = AppSheet.Settings
-    }
     Box(Modifier.fillMaxSize().soinScreen()) {
         Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
-            Header(m.helperName ?: "Support") { m.sheet = AppSheet.Settings }
+            Header(m.helperName ?: m.orgTitle) { m.sheet = AppSheet.Settings }
             if (m.isConfigured) PeopleRow()
             if (m.isConfigured && !m.connected) {
                 LostBanner(Modifier.padding(horizontal = 20.dp).padding(bottom = 10.dp))
@@ -81,7 +74,9 @@ fun Root() {
                 }
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (m.isConfigured) when (m.screen) {
+                if (!m.orgConfigured) NoOrgScreen()
+                else if (!m.isConfigured) NoPosteScreen()
+                else when (m.screen) {
                     Screen.IDLE -> IdleScreen()
                     Screen.WAITING -> WaitingScreen("En attente de l'autorisation de ${m.senior}")
                     Screen.PLANNING -> WaitingScreen("Holo regarde l'écran…")
@@ -101,12 +96,10 @@ fun Root() {
                 Modifier.clip(RoundedCornerShape(50)).background(Soin.ink).padding(horizontal = 18.dp, vertical = 12.dp),
                 TextAlign.Center)
         }
-        when (val s = m.sheet) {
-            AppSheet.Settings -> Sheet(dismissable = m.isConfigured) { SettingsSheet() }
-            is AppSheet.Pair -> Sheet(dismissable = !m.pairBusy) { PairSheet(s.link) }
+        when (m.sheet) {
+            AppSheet.Settings -> Sheet { SettingsSheet() }
             null -> {}
         }
-        if (m.pairingRefused) PairingRefusal()
     }
 }
 
@@ -167,9 +160,9 @@ fun LostBanner(modifier: Modifier = Modifier) {
             T(connectionLine(now), 14.sp, FontWeight.SemiBold, Color.White)
         }
         if (m.linkError != null) {
-            T("Vérifier les réglages", 14.sp, FontWeight.SemiBold, Color.White,
+            T("Réessayer maintenant", 14.sp, FontWeight.SemiBold, Color.White,
                 Modifier.clip(CircleShape).background(Color.White.copy(alpha = 0.18f))
-                    .clickable { m.sheet = AppSheet.Settings }.padding(horizontal = 14.dp, vertical = 7.dp))
+                    .clickable { m.reconnect() }.padding(horizontal = 14.dp, vertical = 7.dp))
         }
     }
 }
@@ -185,9 +178,17 @@ fun IdleScreen() {
     ) {
         homeCards(m.lastAlert != null, m.liveDictation != null).forEach { card ->
             when (card) {
-                HomeCard.WELLBEING -> Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    T("Rien à signaler pour ${m.senior}", 28.sp, FontWeight.Bold)
-                    T("Vous serez prévenu dès qu'une demande d'aide arrive.", 16.sp, color = Soin.secondary)
+                // Hors connexion, on ne sait rien : pas de « Rien à signaler ».
+                HomeCard.WELLBEING -> if (m.connected) {
+                    Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        T("Rien à signaler pour ${m.senior}", 28.sp, FontWeight.Bold)
+                        T("Vous serez prévenu dès qu'une demande d'aide arrive.", 16.sp, color = Soin.secondary)
+                    }
+                } else {
+                    Column(Modifier.fillMaxWidth().soinCard(radius = 28.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        T("Connexion interrompue", 28.sp, FontWeight.Bold)
+                        T("Impossible de recevoir les demandes d'aide de ${m.senior} pour le moment.", 17.sp, FontWeight.Medium)
+                    }
                 }
                 HomeCard.DICTATION -> m.liveDictation?.let { live ->
                     Column(Modifier.fillMaxWidth().soinCard(radius = 24.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -286,26 +287,94 @@ fun RequestCard(onThumb: (() -> Unit)? = null) {
     }
 }
 
-/** Mes utilisateurs : qui suivre en détail, qui demande une assistance, ajouter ou retirer. */
-@OptIn(ExperimentalFoundationApi::class)
+/** Sans jeton d'organisation : rien à saisir, l'administrateur configure le téléphone. */
+@Composable
+fun NoOrgScreen() {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Column(Modifier.fillMaxWidth().soinCard(radius = 24.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            T("Aucune organisation configurée", 26.sp, FontWeight.Bold)
+            T("Contactez votre administrateur : il installe la configuration du support de votre organisation sur ce téléphone.",
+                17.sp, color = Soin.secondary)
+        }
+    }
+}
+
+/** Organisation configurée, mais aucun poste à suivre (pas encore lu, vide, ou serveur injoignable). */
+@Composable
+fun NoPosteScreen() {
+    val m = Helper
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
+        Column(Modifier.fillMaxWidth().soinCard(radius = 24.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (!m.orgLoaded && m.orgError == null) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CircularProgressIndicator(Modifier.size(20.dp), color = Soin.accent, strokeWidth = 2.dp)
+                    T("Chargement des postes…", 17.sp, FontWeight.SemiBold)
+                }
+            } else {
+                T(if (m.orgError == null) "Aucun poste inscrit pour l'instant" else "Postes indisponibles", 26.sp, FontWeight.Bold)
+                T(m.orgError ?: "Les postes de l'organisation apparaissent ici dès que PapAI y est installé.",
+                    17.sp, color = Soin.secondary)
+                TextLink("Réessayer maintenant", Soin.accent) { m.refreshOrg() }
+            }
+        }
+    }
+}
+
+/** Réglages en lecture seule : tout vient de la configuration de l'organisation. */
+@Composable
+fun SettingsSheet() {
+    val m = Helper
+    val now = rememberNow()
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        SheetTitle("Réglages")
+        Column(Modifier.fillMaxWidth().soinCard().padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            T("Organisation", 15.sp, FontWeight.SemiBold, Soin.secondary)
+            T(if (m.orgConfigured) m.orgTitle else "Aucune organisation configurée", 20.sp, FontWeight.SemiBold)
+            m.orgHost?.let { host ->
+                T(host, 15.sp, color = Soin.secondary)
+                val n = m.people.size
+                T("$n poste${if (n > 1) "s" else ""}", 15.sp, color = Soin.secondary)
+            }
+            m.orgError?.let { T(it, 15.sp, FontWeight.SemiBold, Soin.danger) }
+        }
+        T(if (m.orgConfigured) "Configuré par votre administrateur. Rien à régler sur ce téléphone."
+            else "Contactez votre administrateur : il installe la configuration du support sur ce téléphone.",
+            15.sp, color = Soin.secondary)
+        if (m.isConfigured) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).clip(CircleShape).background(
+                    if (m.connected) Soin.online else if (m.linkError == null) Soin.secondary else Soin.danger))
+                T(connectionLine(now), 14.sp, color = Soin.secondary)
+            }
+            CapsuleButton("Réessayer maintenant", fill = Soin.card, text = Soin.ink) { m.reconnect(); m.refreshOrg() }
+        }
+        CapsuleButton("Fermer", Modifier.padding(top = 8.dp)) { m.sheet = null }
+    }
+}
+
+/** Les postes de l'organisation : lequel suivre en détail, lequel demande une assistance. */
 @Composable
 fun PeopleRow() {
     val m = Helper
-    var forget by remember { mutableStateOf<Person?>(null) }
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-            .padding(start = 20.dp, end = 20.dp, bottom = 12.dp),
+            .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
+            .semantics { contentDescription = "Postes" },
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         m.people.forEach { p ->
             val here = m.isCurrent(p)
             val asking = !here && m.othersAsking[p.key] == true
-            val name = p.name.ifEmpty { "Utilisateur" }
+            val name = People.title(p)
+            val detail = People.detail(p)
+            val label = listOfNotNull(name, detail, if (asking) "demande une assistance" else null).joinToString(", ")
             Row(
                 Modifier.clip(CircleShape).background(if (here) Soin.accent else Soin.card)
                     .then(if (asking) Modifier.border(2.dp, Soin.danger, CircleShape) else Modifier)
-                    .combinedClickable(onClick = { m.switchTo(p) }, onLongClick = { forget = p })
+                    .clickable(role = Role.Button) { m.switchTo(p) }
+                    .clearAndSetSemantics { contentDescription = label }
                     .padding(start = 6.dp, end = 14.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -313,26 +382,15 @@ fun PeopleRow() {
                 Box(Modifier.size(32.dp).clip(CircleShape).background(if (here) Color.White else Soin.accentSoft), contentAlignment = Alignment.Center) {
                     T(name.take(1).uppercase(), 15.sp, FontWeight.Bold, Soin.accent)
                 }
-                T(name, 15.sp, FontWeight.SemiBold, if (here) Color.White else Soin.ink, maxLines = 1)
+                Column {
+                    T(name, 15.sp, FontWeight.SemiBold, if (here) Color.White else Soin.ink, maxLines = 1)
+                    detail?.let { T(it, 12.sp, color = if (here) Color.White.copy(alpha = 0.85f) else Soin.secondary, maxLines = 1) }
+                }
                 if (!here) {
                     Box(Modifier.size(8.dp).clip(CircleShape)
                         .background(if (m.othersOnline[p.key] == true) Soin.online else Soin.secondary))
                     if (asking) T("demande une assistance", 12.sp, color = Soin.danger, maxLines = 1)
                 }
-            }
-        }
-        T("+ Ajouter une personne", 15.sp, FontWeight.SemiBold, Soin.accent,
-            Modifier.clip(CircleShape).background(Soin.card).clickable { m.sheet = AppSheet.Settings }
-                .padding(horizontal = 16.dp, vertical = 12.dp), maxLines = 1)
-    }
-    forget?.let { p ->
-        val who = p.name.ifEmpty { "cette personne" }
-        Dialog(onDismissRequest = { forget = null }) {
-            Column(Modifier.fillMaxWidth().soinCard().padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                T("Retirer $who ?", 24.sp, FontWeight.Bold)
-                T("Ses demandes n'arriveront plus sur ce téléphone. Vous pourrez la rajouter avec un nouveau code.", 17.sp)
-                CapsuleButton("Retirer", fill = Soin.danger) { m.forget(p); forget = null }
-                TextLink("Annuler") { forget = null }
             }
         }
     }
