@@ -138,19 +138,19 @@ class Model:
         """Qui aide : toujours au singulier pour accorder le verbe qui suit."""
         h = self.helpers
         if not h:
-            return "votre proche"
+            return "votre support"
         if len(h) == 1:
             return h[0]["name"]
         if len(h) == 2:
             return f"{h[0]['name']} ou {h[1]['name']}"
-        return "l'un de vos proches"
+        return "votre support"
 
     @property
     def carer(self) -> str:
         """Qui s'occupe de la session en cours (comme `carer` sur le Mac)."""
         if self.session_helper:
             return self.session_helper
-        return self.helpers[0]["name"] if len(self.helpers) == 1 else "Votre proche"
+        return self.helpers[0]["name"] if len(self.helpers) == 1 else "Votre support"
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -364,7 +364,7 @@ class Model:
     @property
     def invitation_text(self) -> str:
         n = str(self.prefs.get("firstName") or "").strip()
-        who = n or "Votre proche"
+        who = n or "Votre support"
         return (f"{who} aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre "
                 f"téléphone pour vous relier (valable {'24 heures' if self.pair_long else '10 minutes'}) :")
 
@@ -531,7 +531,7 @@ class Model:
         elif kind == "remote_request":
             if self.session_open:
                 return
-            self.remote_request = {"from": m.get("from") or "Votre proche", "task": m.get("task") or ""}
+            self.remote_request = {"from": m.get("from") or "Votre support", "task": m.get("task") or ""}
             self._on_remote()
         else:
             return

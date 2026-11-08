@@ -199,7 +199,7 @@ class Bridge:
             await reply(STOPPED_TEXT, True)
             return
         if not self.plan_allows_action():
-            await reply("Action refusée : aucun plan validé par l'aidant.", True)
+            await reply("Action refusée : aucun plan validé par le support.", True)
             return
         self.on_action(describe_action(name, args))
         gate = self.gate.pin()

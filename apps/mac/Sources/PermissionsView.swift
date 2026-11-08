@@ -74,7 +74,7 @@ struct SettingsView: View {
                 .pickerStyle(.segmented).labelsHidden()
             }
             HStack(spacing: 12) {
-                Button("Mes proches (\(model.helpers.count))") {
+                Button("Mon support (\(model.helpers.count))") {
                     dismiss()
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.showHelpers = true }
                 }.buttonStyle(PillStyle(filled: false, height: 50))

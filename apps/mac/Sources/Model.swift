@@ -113,10 +113,10 @@ final class AppModel {
     /// Qui aide : toujours au singulier pour accorder le verbe qui suit.
     var helperName: String {
         switch helpers.count {
-        case 0: "votre proche"
+        case 0: "votre support"
         case 1: helpers[0].name
         case 2: "\(helpers[0].name) ou \(helpers[1].name)"
-        default: "l'un de vos proches"
+        default: "votre support"
         }
     }
     var HelperName: String {
@@ -129,7 +129,7 @@ final class AppModel {
     /// Qui s'occupe de la demande, au singulier : « Quentin s'en occupe ».
     var carer: String {
         if let n = sessionHelper, !n.isEmpty { return n }
-        return helpers.count == 1 ? helpers[0].name : "Votre proche"
+        return helpers.count == 1 ? helpers[0].name : "Votre support"
     }
 
     // MARK: Accueil et proches
@@ -180,7 +180,7 @@ final class AppModel {
     /// Le texte de l'invitation envoyée au proche, avec le lien d'appairage.
     var invitationText: String {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
-        let who = n.isEmpty ? "Votre proche" : n
+        let who = n.isEmpty ? "Votre support" : n
         return "\(who) aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre téléphone pour vous relier (valable 24 heures) :"
     }
 
@@ -556,7 +556,7 @@ final class AppModel {
             if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
         case "remote_request":
             guard !sessionOpen else { return }
-            remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre proche",
+            remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre support",
                                           task: m["task"] as? String ?? "")
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
