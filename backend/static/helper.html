@@ -229,6 +229,12 @@
   .options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
   .question .pill { background: var(--card); box-shadow: inset 0 0 0 1.5px rgba(31,90,232,.22); }
   .reply { display: flex; gap: 8px; margin-top: 14px; }
+  .websearch { padding: 18px; }
+  .websearch small { display: block; color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .websearch .reply input { padding-left: 16px; }
+  .websearch p { white-space: pre-line; font-size: 16px; line-height: 1.45; margin: 10px 0 6px; }
+  .websearch ul { margin: 0; padding-left: 18px; font-size: 14px; }
+  .websearch a { color: var(--accent); word-break: break-word; }
   .reply input { border-radius: 999px; height: 50px; padding: 0 16px 0 46px; font-size: 16px; background-color: var(--card); }
   .reply .send { width: 50px; height: 50px; border-radius: 50%; background: var(--grad); color: #fff;
                  flex: none; display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-blue); }
@@ -396,6 +402,19 @@
     <div class="card working" id="working">
       <div class="spinner"></div>
       <div><strong id="workingTitle">Holo travaille sur l'ordinateur de l’utilisateur</strong><small id="workingTask"></small></div>
+    </div>
+    <div class="card websearch" id="webSearch" hidden>
+      <h3 class="section-title">Question complexe ? Cherchez sur le web</h3>
+      <small>Linkup cherche la réponse. N'écrivez ni nom, ni adresse, ni numéro de l’utilisateur.</small>
+      <div class="reply">
+        <input type="text" id="wsQuestion" placeholder="Ex. : comment réinitialiser Chrome ?" autocomplete="off" aria-label="Question à chercher sur le web">
+        <button class="send" id="wsGo" type="button" aria-label="Chercher"><svg class="i"><use href="#i-up"/></svg></button>
+      </div>
+      <div id="wsResult" hidden aria-live="polite">
+        <small id="wsWho"></small>
+        <p id="wsAnswer"></p>
+        <ul id="wsSources"></ul>
+      </div>
     </div>
     <div class="hand" id="hand" hidden>
       <button class="capsule" id="arm" type="button">Prendre la main</button>
@@ -1030,6 +1049,12 @@ function onMessage(ev) {
 
   else if (m.type === 'question') { showQuestion(m); render(); }
 
+  else if (m.type === 'web_search_pending') { showWebSearch({ question: m.question, pending: true }); }
+  else if (m.type === 'web_search') {
+    showWebSearch(m);
+    if (m.by === 'holo') toast('Holo a cherché la réponse sur le web.');
+  }
+
   else if (m.type === 'helper_added') { toast(`${m.name} est maintenant support.`); }
   else if (m.type === 'tickets_changed') { loadTickets(); }
 
@@ -1045,6 +1070,7 @@ function onMessage(ev) {
     if (!m.bridge) $('idleSub').textContent = "L'ordinateur de l’utilisateur n'est pas connecté pour le moment.";
     else $('idleSub').textContent = "Vous serez prévenu dès que l’utilisateur demande de l'aide.";
     showProtection(m.bridge ? m.protection : null);
+    $('webSearch').hidden = !m.web_search;
     loadLessons();
     loadTickets();
     if (m.tickets_waiting) toast(`${m.tickets_waiting} demande${m.tickets_waiting > 1 ? 's' : ''} en attente d'un support.`);
@@ -1170,6 +1196,32 @@ function onMessage(ev) {
     render();
   }
 }
+
+function showWebSearch(r) {
+  $('webSearch').hidden = false;
+  $('wsResult').hidden = false;
+  $('wsWho').textContent = r.pending ? `Recherche en cours : « ${r.question || ''} »`
+    : `${r.by === 'holo' ? 'Holo a cherché' : 'Vous avez cherché'} : « ${r.question || ''} »`;
+  $('wsAnswer').textContent = r.pending ? 'Linkup cherche…' : (r.ok ? r.answer : r.error || 'La recherche a échoué.');
+  $('wsSources').innerHTML = '';
+  (r.sources || []).forEach(src => {
+    if (!/^https:\/\//.test(src.url || '')) return;
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = src.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.textContent = src.name || src.url;
+    li.appendChild(a);
+    $('wsSources').appendChild(li);
+  });
+}
+
+function askWeb() {
+  const q = $('wsQuestion').value.trim();
+  if (q.length < 3) { toast('Écrivez votre question.'); return; }
+  if (send({ type: 'web_search', question: q })) $('wsQuestion').value = '';
+}
+$('wsGo').onclick = askWeb;
+$('wsQuestion').addEventListener('keydown', e => { if (e.key === 'Enter') askWeb(); });
 
 function showQuestion(q) {
   $('qtext').textContent = q.question || '';

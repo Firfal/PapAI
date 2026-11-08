@@ -314,9 +314,29 @@ OPEN_BROWSER_TOOL = {
     },
 }
 
+SEARCH_WEB_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "search_web",
+        "description": (
+            "Chercher sur le web (Linkup) quand la question dépasse ce que tu vois à "
+            "l'écran : une procédure, la documentation d'un logiciel, un message d'erreur. "
+            "La question est générale : jamais de nom, d'adresse, de numéro ni de donnée "
+            "de la personne. Le support voit la question et la réponse. Ne pilote rien."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {"type": "string", "description": "Question générale, en une phrase"},
+            },
+            "required": ["question"],
+        },
+    },
+}
+
 # Holo annonce l'étape du plan validé qu'il exécute : le serveur la retire des
 # arguments avant l'envoi à l'app et la publie dans `status.plan_step`.
-for _tool in [*TOOLS, OPEN_BROWSER_TOOL]:
+for _tool in [*TOOLS, OPEN_BROWSER_TOOL, SEARCH_WEB_TOOL]:
     if _tool["function"]["name"] != "answer":
         _tool["function"]["parameters"].setdefault("properties", {})["plan_step"] = {
             "type": "integer",

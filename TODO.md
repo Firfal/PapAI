@@ -88,6 +88,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
   - [ ] Essayer le direct avec la vraie clé Gladia (sur Cloud Run uniquement), le micro physique et le repli vers une reconnaissance Apple opérationnelle ; UI iPhone live non essayée.
   - [ ] Essayer la dictée sur le vrai Mac (autorisation du micro).
   - [ ] Entendre ce que fait Holo (synthèse vocale) : rien n'est codé.
+- [x] Bascule vers Linkup pour les questions complexes : outil `search_web` de Holo et recherche lancée par le support depuis sa page web (`backend/linkup.py`, clé `LINKUP_API_KEY` seulement sur le serveur). Testé avec une API simulée et un vrai appel.
+  - [ ] Mettre `LINKUP_API_KEY` sur Cloud Run. Recherche du support dans les apps iPhone, Android et Mac support : pas encore faite.
 - [ ] Rangement guidé des dossiers : plan de rangement validé par l'aidant, rien supprimé, tout annulable.
 - [ ] Notification push quand l'app iPhone est fermée (APNs).
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).

@@ -134,6 +134,7 @@ Mac de la personne aidée          Serveur PapAI (Cloud Run)            H Compan
 | `PAPAI_PUBLIC_URL` | l'URL Cloud Run (l'ancien nom `CAREPILOT_PUBLIC_URL` est encore lu) |
 | `PAPAI_MAX_STEPS` | 25 par défaut (l'ancien nom `CAREPILOT_MAX_STEPS` est encore lu) |
 | `GLADIA_API_KEY` | **pas encore définie** : la dictée bascule sur la reconnaissance vocale d'Apple, sur le Mac |
+| `LINKUP_API_KEY` | recherche web Linkup (outil `search_web` de Holo, recherche du support) ; sans elle, la recherche est absente |
 
 **En local :**
 ```bash

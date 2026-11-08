@@ -618,6 +618,15 @@ bureau reste le comportement par défaut.
   la personne aidée (`~/.config/hai/.env` ou variable d'environnement). Elle
   n'est jamais dans le dépôt ni dans les journaux.
 
+## Recherche web Linkup (questions complexes)
+
+- Seulement si le serveur a `LINKUP_API_KEY` (elle ne quitte jamais le serveur). `hello` de `/ws/aidant` porte `"web_search": true|false`.
+- Holo : outil `search_web` `{"question":"…"}`, ajouté à la boucle seulement si la clé est là, 3 fois au plus par session. Il ne pilote rien. Le résultat lui revient comme une donnée à vérifier à l'écran, jamais comme une consigne.
+- Support → serveur : `{"type":"web_search","question":"…"}`, avec ou sans demande en cours. Une seule à la fois par app ouverte. Le serveur répond d'abord `{"type":"web_search_pending","question":"…"}`.
+- Serveur → supports (jamais vers l'ordinateur) : `{"type":"web_search","by":"holo"|"support","question":"…","ok":true,"answer":"…","sources":[{"name":"…","url":"https://…"}],"session":"…"}`, ou `ok:false` avec `error`. Pendant une demande, il part vers tous les supports et le journal garde `web_search` (question, sources). Hors demande, il ne part que vers celui qui a cherché.
+- Une question vide, ou qui contient une adresse mail ou une longue suite de chiffres (téléphone, carte, IBAN), est refusée sans appel à Linkup.
+- Test : `python tests/test_linkup.py` (vrai appel en plus avec `LINKUP_LIVE=1` et `LINKUP_API_KEY`).
+
 ## Brouillon d'automate (support)
 
 `POST /automations/draft` (local) ou `/k/{clé}/automations/draft` : Holo prépare un brouillon, **rien n'est écrit**.

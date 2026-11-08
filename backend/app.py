@@ -25,8 +25,8 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import automate_draft, automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
-from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
+from . import automate_draft, automations, guard, linkup, orgs as orgs_mod, space, tickets as tickets_mod, voice
+from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text, publish_web_search
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
 from .caremamory import lessons_dir, approve_and_save, draft_lesson, list_lessons
@@ -1012,6 +1012,31 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
         S().helper_alert_scopes.pop(ws, None)
 
 
+_searching: set[WebSocket] = set()
+
+
+async def handle_support_search(msg: dict, ws: WebSocket, session=None) -> None:
+    """Le support lance lui-même une recherche Linkup. Une à la fois par app ouverte."""
+    if not linkup.configured():
+        await ws.send_json({"type": "refused", "reason": "La recherche web n'est pas configurée sur ce serveur."})
+        return
+    if ws in _searching:
+        await ws.send_json({"type": "refused", "reason": "Une recherche est déjà en cours."})
+        return
+    question = str(msg.get("question", ""))
+    _searching.add(ws)
+    try:
+        await ws.send_json({"type": "web_search_pending", "question": question[:300]})
+        result = await asyncio.to_thread(linkup.search, question)
+    finally:
+        _searching.discard(ws)
+    if session is not None:
+        await publish_web_search(session, lambda m: broadcast_helper(m, to_bridge=False), result,
+                                 by="support", question=question)
+    else:
+        await publish_web_search(None, ws.send_json, result, by="support", question=question)
+
+
 async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
     """Un message de l'aidant, page web ou app iPhone. Tout est revalidé ici."""
     kind = msg.get("type")
@@ -1020,6 +1045,9 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
         return
     if kind == "dismiss_alert":
         await dismiss_guard(msg, ws)
+        return
+    if kind == "web_search":
+        await handle_support_search(msg, ws, session)
         return
     # Le jeton identifie la session, mais la session a pu se fermer
     # depuis que la page est ouverte : on revérifie avant toute action
@@ -1561,6 +1589,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     await ws.send_json({"type": "hello", "bridge": S().bridge is not None,
                         "os": S().bridge.os if S().bridge else None, "senior": S().family.senior or None,
                         "protection": getattr(S().bridge, "protection", None),
+                        "web_search": linkup.configured(),
                         "tickets_waiting": len(S().tickets.waiting()) + len(S().tickets.due())})
     s = current_session()
     if s is not None:
@@ -1592,6 +1621,9 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
                 continue
             if msg.get("type") == "ack_alert":
                 await acknowledge_guard(msg, ws)
+                continue
+            if msg.get("type") == "web_search":
+                await handle_support_search(msg, ws, current_session())
                 continue
             s = current_session()
             if s is None:

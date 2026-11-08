@@ -17,6 +17,7 @@ from papai_tools import (
     MIN_SECONDS_PER_STEP,
     OPEN_BROWSER_TOOL,
     PLAN_PROMPT,
+    SEARCH_WEB_TOOL,
     system_prompt,
     TEMPERATURE,
     TOOLS,
@@ -29,7 +30,7 @@ from papai_tools import (
 )
 
 from .sessions import Owner, Refused, Session, State
-from . import space
+from . import linkup, space
 
 import os
 
@@ -38,6 +39,7 @@ import os
 # CAREPILOT_MAX_STEPS : ancien nom, encore lu pour les déploiements existants.
 MAX_STEPS = int(os.environ.get("PAPAI_MAX_STEPS") or os.environ.get("CAREPILOT_MAX_STEPS") or "25")
 MAX_BROWSER_HANDOFFS = 3
+MAX_WEB_SEARCHES = 3
 
 client = make_client()
 
@@ -179,7 +181,26 @@ def describe_doing(thought: str, name: str, args: dict) -> str:
         return "Holo termine"
     if name == "open_browser":
         return "Holo prépare une étape dans le navigateur"
+    if name == "search_web":
+        return "Holo cherche la réponse sur le web"
     return "Holo regarde l'écran"
+
+
+async def publish_web_search(session: Session | None, broadcast, result: dict, *, by: str,
+                             question: str) -> dict:
+    """Journalise une recherche Linkup et la montre aux supports."""
+    msg = {"type": "web_search", "by": by, "question": result.get("question") or question[:300],
+           "ok": bool(result.get("ok"))}
+    if result.get("ok"):
+        msg.update(answer=result["answer"], sources=result["sources"])
+    else:
+        msg["error"] = result.get("error", "")
+    if session is not None:
+        msg["session"] = session.id
+        session.log("web_search", by=by, question=msg["question"], ok=msg["ok"],
+                    sources=[s["url"] for s in msg.get("sources", [])])
+    await broadcast(msg)
+    return msg
 
 
 class AgentRunner:
@@ -193,6 +214,7 @@ class AgentRunner:
         self.notes = notes or []
         self.browser_handoff = browser_handoff
         self.browser_handoffs = 0
+        self.web_searches = 0
         self._sensitive_blocked: SensitiveBlocked | None = None
 
     async def run(self) -> None:
@@ -233,6 +255,14 @@ class AgentRunner:
                 "son résumé, continue la tâche sur le bureau."
             )
             tools = [*TOOLS, OPEN_BROWSER_TOOL]
+        if linkup.configured():
+            system += (
+                "\nSi la tâche demande une information que l'écran ne donne pas (une procédure, "
+                "la documentation d'un logiciel, un message d'erreur inconnu), appelle search_web "
+                "avec une question générale, sans aucune donnée de la personne, puis vérifie à "
+                "l'écran avant d'agir."
+            )
+            tools = [*tools, SEARCH_WEB_TOOL]
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": brief},
@@ -321,6 +351,8 @@ class AgentRunner:
                     result = await self._open_browser(args, plan_step)
                     if result is None:
                         return
+                elif name == "search_web":
+                    result = await self._search_web(args)
                 else:
                     result = await self._act(name, args)
                     if result is None:
@@ -377,6 +409,17 @@ class AgentRunner:
             except ValueError:
                 pass
         return await self.browser_handoff(goal.strip()[:500], url)
+
+    async def _search_web(self, args: dict) -> str:
+        if not linkup.configured():
+            return "outil indisponible"
+        if self.web_searches >= MAX_WEB_SEARCHES:
+            return "Limite de recherches web atteinte : continue avec ce que tu sais ou appelle ask_helper."
+        self.web_searches += 1
+        result = await asyncio.to_thread(linkup.search, str(args.get("question", "")))
+        await publish_web_search(self.s, self.broadcast, result, by="holo",
+                                 question=str(args.get("question", "")))
+        return linkup.for_holo(result)
 
     # ------------------------------------------------------------------ actions
 
