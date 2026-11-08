@@ -34,13 +34,15 @@ async function load() {
     const d=await r.json();
     if(!r.ok) throw new Error(d.detail||'Impossible de charger l’abonnement.');
     document.getElementById('availability').textContent=d.disponible?'Votre abonnement':'Abonnement bientôt disponible';
-    if(!d.disponible) return;
-    const money=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:d.prix.currency}).format(n/100);
-    document.getElementById('price').textContent=money(d.prix.unit_amount)+' par poste et par mois';
+    if(!d.disponible&&!d.gerable) return;
+    if(d.disponible) {
+      const money=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:d.prix.currency}).format(n/100);
+      document.getElementById('price').textContent=money(d.prix.unit_amount)+' par poste et par mois';
+      document.getElementById('total').textContent='Total estimé : '+money(d.prix.unit_amount*Math.max(1,d.postes))+' par mois';
+    }
     document.getElementById('seats').textContent=d.postes+' postes inscrits';
-    document.getElementById('total').textContent='Total estimé : '+money(d.prix.unit_amount*Math.max(1,d.postes))+' par mois';
     document.getElementById('state').textContent=d.abonne?'Abonné':'Non abonné';
-    subscribed=d.abonne;
+    subscribed=d.gerable||d.abonne;
     action.textContent=subscribed?'Gérer l’abonnement':"S'abonner";
     document.getElementById('details').hidden=false;
   } catch(e) { document.getElementById('error').textContent=e.message; }

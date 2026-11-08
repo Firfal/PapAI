@@ -114,18 +114,26 @@ async function scenario(kind) {
     fetch:async()=>{
       calls++;
       return calls===1 && kind!=='load'
-        ? {ok:true,json:async()=>({disponible:true,abonne:kind==='portal',postes:2,prix:{currency:'eur',unit_amount:1200}})}
+        ? {ok:true,json:async()=>kind==='portal_without_price'
+          ? {disponible:false,gerable:true,abonne:false,postes:2}
+          : {disponible:true,abonne:kind==='portal',postes:2,prix:{currency:'eur',unit_amount:1200}}}
         : {ok:false,json:async()=>({detail:message})};
     }};
   vm.runInNewContext(process.argv[1],context);
   await new Promise(setImmediate);
+  if(kind==='portal_without_price') {
+    assert.equal(node('details').hidden,false);
+    assert.equal(node('action').textContent,'Gérer l’abonnement');
+    assert.equal(node('price').textContent,'');
+    assert.equal(node('total').textContent,'');
+  }
   if(kind!=='load') {
     await node('action').onclick();
     assert.equal(node('action').disabled,false);
   }
   assert.equal(node('error').textContent,message);
 }
-(async()=>{for(const kind of ['load','checkout','portal']) await scenario(kind);
+(async()=>{for(const kind of ['load','checkout','portal','portal_without_price']) await scenario(kind);
 console.log('OK : detail affiché pour billing, checkout et portail');})().catch(e=>{console.error(e);process.exit(1)});
 ''', script], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -149,6 +157,22 @@ console.log('OK : detail affiché pour billing, checkout et portail');})().catch
         self.assertEqual(self.request(self.path + "/billing")[1]["postes"], 0)
         self.request(self.path + "/billing/checkout", b"")
         self.assertEqual(self.fake.requests[-1][1]["line_items[0][quantity]"], ["1"])
+
+    def test_portail_sans_prix(self):
+        billing.write(self.org, {"customer": "cus_test", "subscription": "sub_test",
+                                 "statut": "past_due", "abonne": False})
+        self.fake.fail = True
+        status, state = self.request(self.path + "/billing")
+        self.assertEqual(status, 200)
+        self.assertFalse(state["disponible"])
+        self.assertTrue(state["gerable"])
+        self.assertNotIn("customer", state)
+        self.assertNotIn("cus_test", json.dumps(state))
+        self.fake.fail = False
+        self.assertEqual(self.request(self.path + "/billing/portal", b"")[1],
+                         {"url": "https://billing.stripe.test/portal"})
+        os.environ["STRIPE_SECRET_KEY"] = ""
+        self.assertFalse(self.request(self.path + "/billing")[1]["gerable"])
 
     def test_webhook_et_portail_persistants(self):
         self.assertEqual(self.request(self.path + "/billing/portal", b"")[0], 409)

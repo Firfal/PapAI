@@ -97,7 +97,8 @@ def install(app, find_org, members, public_url, org_by_id, all_orgs):
         org = get_org(token)
         state = read(org)
         key, price = config()
-        result = {"disponible": False, "postes": len(members(org)),
+        result = {"disponible": False, "gerable": bool(key and price and state.get("customer")),
+                  "postes": len(members(org)),
                   "abonne": bool(state.get("abonne")), "statut": state.get("statut", "inactif")}
         if key and price:
             cache_key = (key, price, os.environ.get("STRIPE_API_BASE", ""))
