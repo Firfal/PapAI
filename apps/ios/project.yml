@@ -19,6 +19,9 @@ targets:
       - Resources
     dependencies:
       - target: PapAIWidget
+    configFiles:
+      Debug: Config/Support.xcconfig
+      Release: Config/Support.xcconfig
     info:
       path: Sources/Info.plist
       properties:
@@ -37,7 +40,9 @@ targets:
         NSLocalNetworkUsageDescription: PapAI se connecte au serveur de démonstration sur votre réseau local.
         NSMicrophoneUsageDescription: PapAI utilise le micro pour que vous dictiez vos consignes et vos réponses à Holo. L’enregistrement est transcrit par le serveur PapAI (Gladia), puis effacé de l’iPhone.
         NSSpeechRecognitionUsageDescription: PapAI affiche vos mots pendant que vous parlez, pour préciser le plan, modifier une étape ou répondre à Holo.
-        NSCameraUsageDescription: PapAI utilise l’appareil photo pour scanner le QR code affiché sur l’ordinateur de l’utilisateur.
+        # Démo sans MDM : jeton support injecté depuis Config/Support.local.xcconfig (non suivi).
+        PapAISupportToken: $(PAPAI_SUPPORT_TOKEN)
+        PapAIServer: $(PAPAI_SERVER)
         CFBundleURLTypes:
           - CFBundleURLName: com.quentin.papai.aidant
             CFBundleURLSchemes: [papai]

@@ -98,6 +98,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Apps du support : liste « Mes personnes aidées » (page web, Android, iPhone : une liaison par ordinateur, demandes des autres signalées).
 - [x] Organisation IT : jeton d'inscription des postes (Windows `organisation.txt`, Mac `orgToken`), jeton support qui liste tous les postes (page `/o/<jeton>`, Android, iPhone), automatismes partagés. Tests : `tests/test_organisation.py`.
 - [ ] Essayer l'inscription d'un vrai poste Windows et d'un vrai Mac avec un jeton d'organisation.
+- [x] Support connecté d'office à l'organisation, liaison archivée : Mac (`supportToken`), iPhone (MDM, xcconfig local), Android (restrictions gérées), web (`/o/<jeton>`). Tests : `apps/mac/tests/support_org_test.swift`, `tests/test_helper_postes.js`.
+- [ ] Essayer le support sur un vrai iPhone avec une configuration MDM (ou le xcconfig local) et sur un vrai Android avec restrictions gérées.
 - [ ] Essayer « Mes personnes aidées » sur un vrai Android et un vrai iPhone (Swift non compilé ici).
 - [ ] Plusieurs aidants : plusieurs proches s'ajoutent déjà et reçoivent tous la demande. Reste à éprouver « le premier disponible valide » avec deux aidants connectés.
 - [x] Renommer `carepilot_tools.py` en `papai_tools.py` (fusionné le 7 novembre au soir).
