@@ -160,16 +160,10 @@ fun SheetTitle(s: String, size: TextUnit = 28.sp) {
     }
 }
 
-enum class Tone { BLUE, GREEN, GRAY }
-
-/** Pastille d'état pâle et arrondie (contraste AA du texte sur chaque fond). */
+/** Pastille d'état pâle et arrondie (même rendu que `Pastille` sur Mac et `StatusPill` sur iPhone). */
 @Composable
 fun StatusPill(text: String, tone: Tone = Tone.BLUE, leading: (@Composable () -> Unit)? = null) {
-    val (fill, ink) = when (tone) {
-        Tone.BLUE -> Soin.accentSoft to Soin.accent
-        Tone.GREEN -> Soin.onlineSoft to Soin.online
-        Tone.GRAY -> Soin.neutralSoft to Soin.secondary
-    }
+    val (fill, ink) = Soin.tone(tone)
     Row(Modifier.clip(CircleShape).background(fill).padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         leading?.invoke()

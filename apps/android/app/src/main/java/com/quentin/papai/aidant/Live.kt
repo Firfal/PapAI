@@ -67,8 +67,8 @@ fun ActiveScreen() {
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             CaptureView()
             Column(Modifier.fillMaxWidth().soinCard().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatusPill(caption, if (m.seniorPaused) Tone.GRAY else Tone.BLUE) {
-                    if (m.seniorPaused) Icon(Icons.Default.Pause, null, Modifier.size(16.dp), tint = Soin.secondary)
+                StatusPill(caption, if (m.seniorPaused) Tone.ORANGE else Tone.BLUE) {
+                    if (m.seniorPaused) Icon(Icons.Default.Pause, null, Modifier.size(16.dp), tint = Soin.tone(Tone.ORANGE).second)
                     else CircularProgressIndicator(Modifier.size(14.dp), color = Soin.accent, strokeWidth = 2.dp)
                 }
                 T(if (m.webLive) "Holo travaille dans ${m.webBrowserTitle}"
@@ -76,9 +76,12 @@ fun ActiveScreen() {
                   else m.doing ?: "Holo regarde l'écran de ${m.senior}…", 19.sp, FontWeight.SemiBold, maxLines = 3)
             }
         }
-        CapsuleButton(if (m.pausing) "Pause demandée…" else "Mettre en pause",
-            Modifier.padding(horizontal = 20.dp, vertical = 8.dp), fill = Soin.card, text = Soin.ink,
-            enabled = !m.pausing) { m.pause() }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Soin.line))
+        Box(Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.92f))) {
+            CapsuleButton(if (m.pausing) "Pause demandée…" else "Mettre en pause",
+                Modifier.padding(horizontal = 20.dp, vertical = 10.dp), fill = Soin.card, text = Soin.ink,
+                enabled = !m.pausing) { m.pause() }
+        }
     }
 }
 
