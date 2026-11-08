@@ -62,7 +62,6 @@ struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
-    @State private var confirmRole = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -79,11 +78,6 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     field("Prénom", text: $name, prompt: "Votre prénom")
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Taille du texte").font(rounded(15, .semibold)).foregroundStyle(T.muted)
-                        Onglets(options: TextScale.options,
-                                selection: Binding(get: { model.textScale }, set: { model.setTextScale($0) }))
-                    }
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle(isOn: Binding(get: { model.realtimeProtection }, set: { model.setRealtimeProtection($0) })) {
                             Text("Protection en temps réel").font(rounded(22, .semibold))
@@ -131,15 +125,6 @@ struct SettingsView: View {
             }
             Rectangle().fill(T.line).frame(height: 1)
             HStack {
-                // Discret : réservé à l'installation (« J'aide quelqu'un » sur ce Mac).
-                Button("Changer de rôle") { confirmRole = true }
-                    .buttonStyle(.plain).font(rounded(15, .medium)).foregroundStyle(T.muted)
-                    .confirmationDialog("Changer de rôle ?", isPresented: $confirmRole) {
-                        Button("Changer et relancer PapAI") { AppRole.forgetAndRelaunch() }
-                        Button("Annuler", role: .cancel) {}
-                    } message: {
-                        Text("PapAI se relance et vous demande si vous vous faites aider ou si vous aidez quelqu'un.")
-                    }
                 Spacer()
                 Button("Annuler") { dismiss() }.buttonStyle(PillStyle(filled: false, height: 50))
                 Button("Enregistrer") {
@@ -164,3 +149,4 @@ struct SettingsView: View {
         }
     }
 }
+
