@@ -615,6 +615,30 @@ aucune capture). Numéro `number` par espace, ou unique dans l’organisation (`
 Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus deux) et
 `suggestion_lancee` (`id` ou `null`).
 
+### Mes demandes (utilisateur)
+
+`GET /k/{fam}/requests` est en lecture seule et exige la clé réelle du poste
+(`_key_ok(fam, support=False)`) : clé inconnue ou clé dérivée d'un support
+d'organisation → HTTP 404 `{"error":"Lien invalide."}`. Aucun ticket d'un autre espace.
+Réponse : `{"requests":[{"id":"…","number":1,"created":0,"updated":0,"task":"…",
+"status":"resolu","solution":null,"relaunch":null}]}` (100 plus récentes par `created`,
+d'abord les plus récentes ; liste vide si aucune). Statut brut conservé.
+
+`solution`, par priorité :
+- `{"kind":"automate","lesson":"…","title":"…"}` si `automate` (posé au lancement
+  `run_automation`) ou `suggestion_lancee` est renseigné. Titre du catalogue courant du poste
+  (automates locaux et organisation), sinon titre de la suggestion, sinon chaîne vide.
+- `{"kind":"answer","text":"…","sources":[{"title":"…","url":"…"}]}` pour une
+  `linkup_answer` validée par le support (jamais la requête ni l'auteur internes).
+- `{"kind":"plan","steps":["…"]}` seulement si `end == "done"` et plan texte non vide.
+- Sinon `null`. L'automate prime donc sur la réponse, qui prime sur le plan exécuté.
+
+`relaunch` est l'id de l'automate seulement si le statut est `resolu`, la solution un
+automate et cet id existe encore dans le catalogue courant ; sinon `null`.
+Liste blanche stricte à chaque niveau : texte seulement, aucun objet d'étape/capture,
+image, note interne, token, assignation, catégorie ni suggestion complète.
+Relancer = `run_automation` existant (ou lancement local existant), pas de nouveau chemin.
+
 **Ordinateur aidé (`/ws/bridge`)**
 - `help_request` peut porter `"ticket"` (reprise d'un ticket proposé par `remote_request`).
 - Sans `requested_by` ni `ticket`, si l'espace a un support connu (appairé ou organisation) mais
