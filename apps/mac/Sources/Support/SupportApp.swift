@@ -63,7 +63,7 @@ struct SupportRoot: View {
             SupportHeader(model: model)
             if model.isConfigured {
                 HStack(alignment: .top, spacing: 22) {
-                    PeopleSidebar(model: model).frame(width: 260)
+                    PeopleSidebar(model: model).frame(width: 236)
                     VStack(alignment: .leading, spacing: 12) {
                         if !model.connected { LostBar(model: model) }
                         if let reason = model.sensitiveRefusal { refusal(reason) }
@@ -198,7 +198,7 @@ struct PeopleSidebar: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: "person.2").font(rounded(18, .semibold)).foregroundStyle(T.accent)
-                Text("Mes personnes aidées").font(rounded(19, .bold))
+                Text("Mes personnes aidées").font(rounded(18, .bold)).lineLimit(1).minimumScaleFactor(0.8)
             }
             .accessibilityAddTraits(.isHeader)
             ScrollView(showsIndicators: false) {

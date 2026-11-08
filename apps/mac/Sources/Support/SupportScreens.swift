@@ -116,7 +116,8 @@ struct SupportApproval: View {
 
     var body: some View {
         Panneau { RequestHead(model: model) } corps: {
-            HStack(alignment: .top, spacing: 28) {
+            VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .top, spacing: 24) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Écran de \(model.senior)").font(rounded(15, .semibold)).foregroundStyle(T.muted)
                     Button { zoom = true } label: { SupportCapture(model: model) }
@@ -126,7 +127,7 @@ struct SupportApproval: View {
                         Text("Cliquez sur la capture pour l’agrandir.").font(rounded(13)).foregroundStyle(T.muted)
                     }
                 }
-                .frame(width: 300)
+                .frame(width: 250)
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         Text("Plan proposé par Holo").font(rounded(21, .bold))
@@ -153,6 +154,8 @@ struct SupportApproval: View {
                         }
                     }
                     .frame(maxHeight: .infinity)
+                }
+            }
                     HStack(spacing: 12) {
                         Button { model.approvePlan() } label: {
                             HStack(spacing: 10) {
@@ -168,9 +171,8 @@ struct SupportApproval: View {
                         Button("Refuser") { confirmRefuse = true }
                             .buttonStyle(supportSecondary(56, icone: "xmark")).disabled(model.planBusy)
                         Spacer(minLength: 0)
+                        Text("Rien ne se fait sans votre accord.").font(rounded(14)).foregroundStyle(T.muted)
                     }
-                    Text("Rien ne se fait sans votre accord.").font(rounded(14)).foregroundStyle(T.muted)
-                }
             }
         }
         .sheet(isPresented: $refine) { SupportRefineSheet(model: model) }
