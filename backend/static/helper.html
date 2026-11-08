@@ -609,7 +609,7 @@ function watchPeople() {
           }
         }
         else if (m.type === 'alert_cleared') { w.asking = false; }
-        else if (m.type === 'ticket_due') { w.asking = true; toast(`${p.name || 'Un poste'} : rendez-vous`); }
+        else if (m.type === 'ticket_due') { w.asking = true; toast(`${p.name || 'Un poste'} : ${m.reason === 'support_request' ? 'automate bloqué, assistance demandée' : 'rendez-vous'}`); }
         else if (m.type === 'alert') { w.asking = true; toast(`${p.name || 'Un poste'} : ${m.title || 'alerte'}`); }
         renderPeople();
       };
@@ -1086,7 +1086,7 @@ function onMessage(ev) {
   else if (m.type === 'tickets_changed') { loadTickets(); }
 
   else if (m.type === 'ticket_due') {
-    toast(`Rendez-vous : demande T-${String(m.number).padStart(4, '0')} « ${m.task} »`);
+    toast(`${m.reason === 'support_request' ? 'Assistance demandée' : 'Rendez-vous'} : demande T-${String(m.number).padStart(4, '0')} « ${m.task} »`);
     if (navigator.vibrate) navigator.vibrate(200);
     loadTickets();
   }
