@@ -214,7 +214,9 @@ def evaluer_demande(texte: str) -> Alerte | None:
     gros_montant |= bool(re.search(r"\b(mille|milliers?|million|dix mille|cent mille)\b", t))
     etranger = bool(re.search(r"\b(etranger|international|afrique|senegal|cote d'ivoire|benin|nigeria|maroc|ghana|cameroun|togo|mali|chine|hong kong|turquie|russie|dubai|thailande|etats.unis)\b", t))
     compte_vers_pays = bool(re.search(
-        r"\b(?:compte|banque)\s+(?:au|en|aux)\s+"
+        r"\b(?:compte|banque)"
+        r"(?:\s+(?:en\s+(?:ligne|banque|commun)|bancaire|courant|joint|epargne))?"
+        r"\s+(?:au|en|aux)\s+"
         r"(?!(?:banque|ligne|commun|cours|attente|france|euros?|direct|question|joint)\b)[a-z]+\b|"
         r"\ba\s+l'etranger\b", t
     ))

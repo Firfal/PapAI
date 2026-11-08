@@ -180,6 +180,7 @@ SUSPECTES = [
     "Payer mes impôts de 4 900 euros sur http://192.168.1.4/paiement",
     "Payer mes impôts de 4 900 euros sur www.impots-paiement.fr",
     "Payer mes impôts de 4 900 euros sur un compte au Portugal",
+    "Payer mon loyer de 4 900 euros sur un compte en ligne au Portugal",
     "Payer mes impôts de 4 900 euros par Western Union",
     "Payer mon loyer de 4 900 euros au nouveau propriétaire",
     "Payer mon loyer de 4 900 euros et payer mes impôts de 4 900 euros",
