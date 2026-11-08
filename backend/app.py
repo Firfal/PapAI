@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import mimetypes
 import os
 import re
 import secrets
@@ -22,10 +23,10 @@ from urllib.parse import quote, urlsplit
 
 import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.requests import HTTPConnection
 
-from . import automate_draft, automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
+from . import automate_draft, automations, guard, orgs as orgs_mod, space, storage, tickets as tickets_mod, voice
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
@@ -1941,11 +1942,20 @@ async def lesson_file(lesson_id: str, filename: str, request: Request):
 
 def _serve_lesson_file(lesson_id: str, filename: str):
     """Sert une capture de fiche. Chemins cloisonnés : pas de remontée possible."""
-    safe = Path(filename).name
-    path = (lessons_dir() / Path(lesson_id).name / safe).resolve()
-    if not str(path).startswith(str(lessons_dir().resolve())) or not path.is_file():
+    try:
+        storage.validate(lesson_id)
+        storage.validate(filename)
+        if "/" in lesson_id or "/" in filename:
+            raise ValueError("Chemin invalide")
+        path = lessons_dir() / lesson_id / filename
+        if not path.resolve().is_relative_to(lessons_dir().resolve()):
+            raise ValueError("Chemin hors des automates")
+        data = storage.read(path)
+    except ValueError:
+        data = None
+    if data is None:
         return JSONResponse({"error": "introuvable"}, status_code=404)
-    return FileResponse(path)
+    return Response(data, media_type=mimetypes.guess_type(filename)[0] or "application/octet-stream")
 
 
 def _sessions_journal():
