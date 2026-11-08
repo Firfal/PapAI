@@ -109,7 +109,7 @@
       </div>`;
     }).join('');
     if (!S.lessons.length && !notice) return '';
-    return `<div class="col" style="gap:14px">${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes tutoriels</div>` : ''}${tiles}</div>`;
+    return `<div class="col" style="gap:14px">${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes automates</div>` : ''}${tiles}</div>`;
   }
 
   const APP_STYLE = {
@@ -223,7 +223,7 @@
       return `<div class="col" style="gap:16px">
         <div class="card" style="padding:28px;${f(26, 5)}">${esc(S.answer || 'Voilà, c\'est fait.')}</div>
         ${endNote('lock', "Votre écran n'est plus partagé.")}
-        ${endNote('book', `${S.HelperName} peut en faire un tutoriel. Vous le retrouverez dans « Mes tutoriels » pour le refaire sans aide.`)}
+        ${endNote('book', `${S.HelperName} peut en faire un automate. Vous le retrouverez dans « Mes automates » pour le refaire sans aide.`)}
       </div>`;
     }
     return '';
@@ -257,7 +257,7 @@
     const i = Math.min(ui.lessonIndex, Math.max(0, steps.length - 1));
     let body;
     if (!steps.length) {
-      body = `<div style="${f(30, 6)}">Pas de pas à pas pour ce raccourci.</div>`;
+      body = `<div style="${f(30, 6)}">Cet automate n'a pas encore d'étapes.</div>`;
     } else {
       const s = steps[i];
       const img = s.image ? `<img alt="" src="${esc(S.httpBase)}/lessons/${encodeURIComponent(l.id)}/${encodeURIComponent(s.image)}"

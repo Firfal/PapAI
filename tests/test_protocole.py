@@ -183,7 +183,7 @@ async def main() -> None:
             check("après Arrêter, plus aucune action", len(actions) == avant,
                   f"{len(actions) - avant} action(s) de trop")
 
-            # --- « Garder comme automatisme » : jamais de silence, même si
+            # --- « Garder comme automate » : jamais de silence, même si
             # Holo renvoie des étapes en simples chaînes (faux_holo.py).
             await aidant.send(json.dumps({"type": "draft_lesson"}))
             fiche = None

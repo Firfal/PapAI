@@ -134,7 +134,7 @@ cd apps/windows && python -m papai.preview      # http://127.0.0.1:8765/?demo=ho
 ce sont des écrans de démonstration, aucune capture réelle.
 
 Accueil avec micro : `/?demo=home&mic=1` ; sans micro : `/?demo=home&mic=0` ;
-sans tutoriel : `/?demo=home_empty` ; avec ajouts personnels : `/?demo=home_shortcuts`.
+sans automate : `/?demo=home_empty` ; avec ajouts personnels : `/?demo=home_shortcuts`.
 L'aperçu simule la présence audio : il n'ouvre pas le micro du navigateur.
 
 ```bash

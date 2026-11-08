@@ -134,9 +134,9 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Connexion").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
-                Text("Le plus simple : scannez le QR affiché sur l’ordinateur de \(model.senior) (Mon support › Ajouter un support).")
+                Text("Le plus simple : scannez le QR code affiché sur l’ordinateur de \(model.senior) (Mon support › Ajouter un support).")
                     .font(.system(size: 15)).foregroundStyle(Soin.secondary)
-                Button("Scanner le QR de l’ordinateur") { model.sheet = .scanner }
+                Button("Scanner le QR code de l’ordinateur") { model.sheet = .scanner }
                     .buttonStyle(CapsuleButtonStyle(fill: Soin.accent))
                 if let l = model.manualPairLink() {
                     Button("Entrer le code à 6 chiffres") { model.openPair(l) }
@@ -225,9 +225,9 @@ struct IdleView: View {
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(18).soinCard()
                 }
 
-                Text("Derniers automatismes").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
+                Text("Derniers automates").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
                 if model.lessons.isEmpty {
-                    Text("Aucun automatisme pour l’instant.").font(.system(size: 15)).foregroundStyle(Soin.secondary)
+                    Text("Aucun automate pour l’instant.").font(.system(size: 15)).foregroundStyle(Soin.secondary)
                 } else {
                     ForEach(model.lessons.prefix(5)) { l in
                         HStack(spacing: 12) {
