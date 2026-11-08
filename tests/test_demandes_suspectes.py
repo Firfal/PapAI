@@ -69,6 +69,9 @@ LEGITIMES = [
     "Payer les impôts de 5 000 euros sur impots.gouv",
     "Payer mon loyer de 4 500 euros",
     "Payer mon loyer de 5 000 euros",
+    "Offrir une carte cadeau Decathlon de 150 euros à mon fils",
+    "Acheter une carte cadeau Fnac de 100 euros pour Noël",
+    "Offrir deux cartes cadeaux de 20 euros à mes petits-enfants",
 ]
 SUSPECTES = [
     "Je veux envoyer 10 000 euros sur un compte en Afrique",
@@ -157,6 +160,21 @@ SUSPECTES = [
     "Acheter une carte Google Play de 120,50 euros",
     "Acheter 2 c a r t e s c a d e a u de 20 €",
     "Acheter deux cartes-cadeaux Fnac de 20 €",
+    "Payer mes impôts de 4 900 euros, le monsieur des impôts m'a appelé",
+    "Payer mes impôts de 4 900 euros à l'agent qui m'a téléphoné",
+    "Payer mes impôts de 4 900 euros sur ce lien reçu par SMS",
+    "Payer mes impôts de 4 900 euros sur le site impots-gouv-paiement.com",
+    "Payer mes impôts de 4 900 euros sur impots.gouv.fr.paiement-securise.com",
+    "Payer mes impôts de 4 900 euros sur un compte au Portugal",
+    "Payer mes impôts de 4 900 euros par Western Union",
+    "Payer mon loyer de 4 900 euros au nouveau propriétaire",
+    "Payer mon loyer de 4 900 euros et payer mes impôts de 4 900 euros",
+    "Acheter une carte Play Store de 300 euros",
+    "Acheter un bon d'achat Amazon de 500 euros",
+    "Acheter une carte cadeau Fnac de 500 euros",
+    "Acheter une carte cadeau Fnac de 100 euros pour payer le technicien",
+    "Acheter trois cartes cadeaux de 50 euros",
+    "Offrir une carte Google Play de 150 euros à mon petit-fils",
 ]
 
 
