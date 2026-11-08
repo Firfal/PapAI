@@ -467,6 +467,73 @@ async def _sync_ticket(st: dict) -> None:
             _later(_offer_next(space.current()))
 
 
+def _action_label(a: dict) -> str:
+    do = str(a.get("do") or "")
+    if do == "open_folder":
+        where = " › ".join(str(x) for x in (a.get("folder"), a.get("subfolder")) if x)
+        return f"Ouvrir le dossier {where}".strip()
+    if do == "open_settings":
+        return f"Ouvrir les Réglages ({a.get('page') or '?'})"
+    if do == "open_url":
+        return f"Ouvrir {urlsplit(str(a.get('url') or '')).hostname or 'le lien'}"
+    if do == "install_templates":
+        return "Installer les modèles Word"
+    if do == "antivirus_scan":
+        return "Analyse antivirus"
+    if do == "holo":
+        return str(a.get("goal") or "Holo")[:200]
+    return do[:80]
+
+
+async def _automation_failed(msg: dict) -> dict:
+    title = str(msg.get("title") or "Un automate")[:MAX_TASK]
+    lesson = automations.load(str(msg.get("id") or "")) if msg.get("id") else None
+    acts = [a for a in (lesson or {}).get("actions") or [] if isinstance(a, dict)]
+    try:
+        n = int(msg.get("step") or 1)
+    except (TypeError, ValueError):
+        n = 1
+    n = min(max(n, 1), max(len(acts), 1))
+    blocked = {"step": n, "label": _action_label(acts[n - 1]) if acts else title,
+               "reason": str(msg.get("detail") or "")[:300]}
+    t = _open_ticket(title, "automatisme", status="a_reprendre", by=S().family.senior)
+    S().tickets.update(t, blocked=blocked, end="stopped", stopped_by="blocage")
+    await _tickets_changed()
+    print(f"[tickets] automate arrêté, demande n° {t['number']}")
+    return t
+
+
+async def _support_request(tid: str) -> dict | None:
+    """L’utilisateur demande lui-même l'aide du support pour un automate :
+    le ticket (et l'étape où ça bloque) part au support."""
+    s = current_session()
+    t = S().tickets.get(tid or (s.ticket if s is not None else ""))
+    if t is None or t.get("source") != "automatisme" or t["status"] == "resolu":
+        return None
+    who = S().family.senior or "L’utilisateur"
+    live = s is not None and s.is_open and s.ticket == t["id"]
+    if live:
+        s.support_requested = True
+        s.log("support_requested")
+        n = s.plan_step
+        b = {"step": n, "label": s.plan[n - 1] if n and s.plan else ""}
+    else:
+        if t["status"] != "en_attente":
+            S().tickets.update(t, status="en_attente", offered=0)
+        b = t.get("blocked") or {}
+    where = f" à l'étape {b['step']} ({b.get('label') or '?'})" if b.get("step") else ""
+    S().tickets.note(t, who, f"Demande une assistance{where}.")
+    if live:
+        await broadcast_helper(s.status())
+    await broadcast_helper({"type": "ticket_due", "ticket": t["id"], "number": t["number"],
+                            "task": t["task"], "reason": "support_request"}, to_bridge=False)
+    await _tickets_changed()
+    if not live:
+        _later(_offer_next(space.current()))
+    print(f"[tickets] demande n° {t['number']} : assistance demandée")
+    return t
+
+
 async def _offer_waiting(who: str = "") -> bool:
     """Un support est là (ou c'est l'heure du rendez-vous) : on repropose la
     demande en attente à l’utilisateur, qui accepte ou non."""
@@ -828,6 +895,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 session = S().registry.create(goal[:MAX_TASK])
                 session.grant_consent()
                 session.preapprove_plan(steps, by=lesson.get("approved_by", ""))
+                session.automation = lesson["id"]
                 session.log("automation", id=lesson["id"], title=lesson.get("title", ""))
                 ticket = _open_ticket(lesson.get("title") or goal[:MAX_TASK], "automatisme",
                                           status="en_cours", by=S().family.senior)
@@ -836,7 +904,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 await _tickets_changed()
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
                 await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
-                                    "automation": lesson["id"]})
+                                    "automation": lesson["id"], "ticket": ticket["id"],
+                                    "number": ticket["number"]})
                 print(f"[session {session.id}] automate importé {lesson['id']}")
                 await broadcast_helper(session.status())
                 if S().agent_task and not S().agent_task.done():
@@ -845,13 +914,22 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "automation_failed":
-                # Un automate n'a pas pu se rejouer : l'écran ou le dossier a
-                # changé. On ne tente rien à l'aveugle, on prévient l'aidant.
-                await broadcast_helper({
-                    "type": "alert",
-                    "title": str(msg.get("title", "Un automate"))[:200],
-                    "detail": str(msg.get("detail", ""))[:1000],
-                }, to_bridge=False)
+                # Un automate n'a pas pu se rejouer (dossier absent, page
+                # introuvable). Personne n'est appelé : l'étape est notée sur
+                # un ticket, l’utilisateur demande une assistance s'il le veut.
+                ticket = await _automation_failed(msg)
+                await ws.send_json({"type": "automation_ticket", "ticket": ticket["id"],
+                                    "number": ticket["number"], "blocked": ticket["blocked"]})
+                continue
+
+            if kind == "support_request":
+                # Bouton discret « Demander une assistance » pendant ou après un automate.
+                t = await _support_request(str(msg.get("ticket") or ""))
+                if t is None:
+                    await ws.send_json({"type": "ticket_refused", "ticket": str(msg.get("ticket") or "")[:40],
+                                        "reason": "Aucun automate à signaler."})
+                else:
+                    await ws.send_json({"type": "support_requested", "ticket": t["id"], "number": t["number"]})
                 continue
 
             if kind == "guard":
