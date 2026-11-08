@@ -361,6 +361,27 @@ Lancement, côté app :
    Automate inconnu, sans `holo` ou d'une autre plateforme :
    `{"type":"automation_refused","id":"…","reason":"…"}`.
 
+## Rangement guidé des dossiers (Mac)
+
+« Range mes documents » : l'app lit sur l'ordinateur la racine du dossier choisi
+(Documents, Téléchargements ou Bureau) et n'envoie que des noms, jamais le contenu ni
+d'image de l'écran. Le plan liste chaque déplacement et passe par Valider, Préciser,
+Refuser comme tout plan.
+
+- Mac → serveur : `help_request` porte `"tidy":{"folder":"documents"|"downloads"|"desktop","files":["facture.pdf",…],"folders":["Factures",…]}`.
+  `files` : fichiers ordinaires visibles de la racine, 200 au plus, sans chemin ; `folders` : sous-dossiers déjà présents.
+  Le serveur refuse tout autre dossier, un nom avec `/`, `\`, `..` ou caractère de contrôle, et plus de 200 noms (session terminée avec un `answer`).
+- Holo reçoit la demande, ces noms et la précision du support, sans capture. Sans réponse utilisable, le serveur classe d'après les extensions.
+- Plan : une étape par fichier, `Déplacer « facture.pdf » dans Documents/Factures`. Aucune `capture` ni `execute` pendant un rangement.
+- Après Valider, serveur → Mac : `{"type":"tidy_execute","req":R,"folder":"documents","moves":[{"from":"facture.pdf","to":"Factures"}]}`.
+- Mac → serveur : `{"type":"result","req":R,"refused":false,"result":"texte","moved":4,"renamed":1,"skipped":0}`.
+  `refused:true` sans plan validé (état `active`), après Arrêter, avec une alerte du gardien, ou si le dossier n'est pas celui lu sur l'ordinateur.
+- Garde-fous de l'app, revérifiés à l'exécution : seuls les noms lus sont déplacés, dans un sous-dossier direct du dossier choisi ;
+  jamais de dossier système, d'app (`.app`), de `~/Library` ni de lien symbolique qui sort du dossier ; aucune suppression ;
+  un fichier existant n'est jamais écrasé (« facture (2).pdf »).
+- Journal local `~/Library/Application Support/PapAI/rangements.json` : « Annuler le rangement » sur l'accueil remet les fichiers
+  à leur place (« (2) » si la place est prise) et retire les dossiers créés restés vides. Rien ne part au serveur.
+
 ## Proches
 
 La personne aidée affiche un code à 6 chiffres et son QR code (`pair_code`). Le support ouvre

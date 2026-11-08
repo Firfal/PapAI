@@ -89,7 +89,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
   - [ ] Essayer le direct avec la vraie clé Gladia (sur Cloud Run uniquement), le micro physique et le repli vers une reconnaissance Apple opérationnelle ; UI iPhone live non essayée.
   - [ ] Essayer la dictée sur le vrai Mac (autorisation du micro).
   - [ ] Entendre ce que fait Holo (synthèse vocale) : rien n'est codé.
-- [ ] Rangement guidé des dossiers : plan de rangement validé par l'aidant, rien supprimé, tout annulable.
+- [x] Rangement guidé des dossiers (Mac) : plan des déplacements validé par le support, noms de fichiers seulement, rien supprimé ni écrasé, « Annuler le rangement ».
+- [ ] Rangement guidé des dossiers sur Windows.
 - [ ] Notification push quand l'app iPhone est fermée (APNs).
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).
 - [x] App Windows au niveau du Mac pendant l'aide : Pause/Reprendre, question de Holo à la personne, avancement en 3 étapes, encart en bas à droite pendant que Holo agit, fin du gardien adaptée à l'aidé, dictée transmise à l'aidant. Reste : l'essayer sur un vrai Windows ; verrou souris/clavier pendant que Holo agit (`InputLock` du Mac) pas porté.
