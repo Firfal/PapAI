@@ -32,6 +32,7 @@ Un seul mot par notion, dans toutes les apps. Les identifiants internes (`senior
 
 - **Surveillance continue du gardien** : elle est conservée, comme option à activer ou non, à la manière de la protection en temps réel d'un antivirus. Hors assistance, seuls partent des noms d'apps, le titre de la fenêtre et le nom du site, jamais d'image de l'écran.
 - **Pas de création d'automate « à partir de rien »** : ni enregistrement d'écran du support, ni import de document, ni saisie à la main. Un automate naît d'un ticket réglé, et l'interface du support propose d'en créer un quand une demande revient plusieurs fois.
+- **Suggestion d'automate** : seulement à partir de tickets réglés (`resolu`, assistance terminée par `done`), regroupés par sujet précis dans chaque catégorie (mots du texte d'abord, Holo en cas de doute), sur toute l'organisation ; brouillon tiré du plan qui a marché, jamais d'un modèle fixe. Pas de suggestion pour un sujet déjà couvert par un automate ou refusé par le support. Linkup ne sert pas à regrouper ; il peut compléter le brouillon, sans le texte brut du ticket.
 - **Aucun compte ni identifiant retenu par l'app** : pas d'import de cookies ni de mot de passe, même pour une liste de sites. Quand un site demande une connexion, la personne aidée reprend la main et se connecte elle-même, puis Holo continue.
 
 ## Branches gelées
