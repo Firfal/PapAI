@@ -62,7 +62,10 @@ class Client(unittest.IsolatedAsyncioTestCase):
                       "3 cours Victor Hugo", "5 cours Jean-Jaurès", "3 cours De Gaulle",
                       "carte 4111.1111.1111.1111", "carte 4111-1111-1111-1111",
                       "carte 4111 1111 1111 1111", "numéro 123.456.789", "numéro 123456789",
-                      "IBAN GB82 1234 5678 9012 3456 78", "version 123.456.789"]:
+                      "IBAN GB82 1234 5678 9012 3456 78", "version 123.456.789",
+                      "10 cours de la République", "10 cours de la république", "3 cours du marché",
+                      "4 cours des lilas", "5 cours de l'église", "5 cours de l’église",
+                      "3 cours d’anglais", "7 cours d'honneur"]:
                 with self.subTest(q=q):
                     self.assertEqual(await linkup.search(q), {"error": "personal_data"})
             client.assert_not_called()
@@ -73,7 +76,7 @@ class Client(unittest.IsolatedAsyncioTestCase):
                   "Erreur 0x80070005 Windows Update", "Windows 10.0.19045", "macOS 14.5", "version 17.2.1",
                   "Logiciel 1.2.345678", "version 190450", "Firefox 123456",
                   "3 cours de Python", "3 cours gratuits", "3 cours de programmation",
-                  "3 Cours de Python", "3 cours d’anglais"]:
+                  "3 Cours de Python"]:
             with self.subTest(q=q):
                 self.assertFalse(linkup.personal(q))
 
