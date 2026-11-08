@@ -231,6 +231,12 @@ struct SessionView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.peach))
                 endNote("lock.fill", "Votre écran n'est plus partagé.")
+                ForEach(Array(model.answerSources.enumerated()), id: \.offset) { _, source in
+                    if let url = URL(string: source["url"] ?? ""), ["http", "https"].contains(url.scheme ?? "") {
+                        Link(destination: url) { Text(verbatim: source["name"] ?? source["url"] ?? "Source") }
+                            .font(rounded(14)).foregroundStyle(T.muted)
+                    }
+                }
                 if model.sessionWhere == "web" {
                     endNote("globe", "Holo a fermé sa fenêtre Chrome.")
                 }

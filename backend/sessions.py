@@ -92,6 +92,9 @@ class Session:
     plan_sites: list[str] = field(default_factory=list)
     web_steps: list[int] = field(default_factory=list)
     plan_approved: bool = False
+    linkup_query: str = ""
+    linkup_result: dict | None = None
+    linkup_id: str = ""
     # Numéro (à partir de 1) de l'étape du plan validé en cours d'exécution.
     plan_step: int | None = None
 
@@ -283,7 +286,7 @@ class Session:
     def decide_plan(self, decision: str, note: str = "") -> None:
         """approve, refine (avec une précision) ou refuse. Revalidé côté serveur."""
         self.require_open()
-        if self.state is not State.AWAITING_APPROVAL:
+        if self.state is not State.AWAITING_APPROVAL or self.linkup_query:
             raise Refused("Aucun plan n'attend votre validation.")
         if decision not in ("approve", "refine", "refuse"):
             raise Refused("Décision inconnue.")

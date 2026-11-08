@@ -368,6 +368,19 @@
       </button>
     </div>
     <div class="waiting" id="waiting"><div class="spinner"></div><span id="waitingText">Holo regarde l'écran…</span></div>
+    <button id="linkupOpen" type="button" hidden>Rechercher une réponse</button>
+    <div class="card stack" id="linkupCard" hidden>
+      <h3>Réponse proposée</h3>
+      <label>Question à rechercher <textarea id="linkupQuery" maxlength="1000"></textarea></label>
+      <button id="linkupSearch" type="button">Rechercher</button>
+      <p id="linkupMessage" role="status"></p>
+      <div id="linkupReview" hidden>
+        <label>Réponse proposée, modifiable <textarea id="linkupText" rows="8" maxlength="8000"></textarea></label>
+        <ul id="linkupSources"></ul>
+        <button class="capsule" id="linkupApprove" type="button">Valider</button>
+      </div>
+      <button id="linkupRefuse" type="button">Refuser</button>
+    </div>
     <div id="plan" hidden>
       <div class="planhead"><h3 class="section-title">Plan proposé par Holo</h3><span class="count" id="planCount"></span></div>
       <ol class="steps" id="planSteps"></ol>
@@ -539,6 +552,25 @@ try {
 } catch (e) {}
 let people = [];
 const watchers = {};
+let linkupVisible = false, linkupPending = false, linkupBusy = false, linkupId = '';
+
+function renderLinkup() {
+  const approval = state === 'awaiting_approval';
+  $('linkupOpen').hidden = !approval || linkupVisible;
+  $('linkupCard').hidden = !approval || !linkupVisible;
+  $('plan').hidden = !approval || linkupVisible;
+  $('b-approval').hidden = !approval || linkupVisible;
+  $('linkupSearch').disabled = linkupBusy;
+  $('linkupRefuse').disabled = linkupBusy;
+  $('linkupRefuse').textContent = linkupPending ? 'Refuser' : 'Annuler';
+}
+
+function clearLinkup() {
+  linkupVisible = false; linkupPending = false; linkupBusy = false; linkupId = '';
+  $('linkupQuery').value = ''; $('linkupText').value = '';
+  $('linkupSources').replaceChildren(); $('linkupReview').hidden = true;
+  $('linkupMessage').textContent = '';
+}
 
 function rememberHere() {
   const p = people.find(x => x.path === herePath);
@@ -649,12 +681,13 @@ function renderPeople() {
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws/${permanent ? 'aidant' : 'helper'}/${token}`);
-  ws.onopen = () => { reconnectIn = 1000; connected = true; $('lost').hidden = true; };
+  ws.onopen = () => { reconnectIn = 1000; connected = true; linkupBusy = false; renderLinkup(); $('lost').hidden = true; };
   ws.onmessage = onMessage;
   // Un téléphone passe en veille, change de réseau, perd la 4G dans un couloir.
   // Sans reprise automatique, la page meurt silencieusement.
   ws.onclose = () => {
     connected = false;
+    linkupBusy = false; renderLinkup();
     $('lost').hidden = false;
     setTimeout(connect, reconnectIn);
     reconnectIn = Math.min(reconnectIn * 2, 8000);
@@ -680,7 +713,7 @@ function isOpen() { return ws && ws.readyState === WebSocket.OPEN; }
 function send(o) {
   if (isOpen()) {
     if (o.type !== 'helper_hello') $('sensitiveRefusal').hidden = true;
-    ws.send(JSON.stringify(o)); return true;
+    try { ws.send(JSON.stringify(o)); return true; } catch (e) { /* connexion coupée pendant l'envoi */ }
   }
   toast('Pas de connexion au serveur.');
   return false;
@@ -733,6 +766,7 @@ function render() {
   $('waiting').hidden = s === 'approval';
   $('waitingText').textContent = s === 'waiting' ? "En attente de l'autorisation de l’utilisateur" : "Holo regarde l'écran…";
   $('plan').hidden = s !== 'approval';
+  renderLinkup();
   $('thumb').hidden = !(s === 'approval' && frameSrc);
   tickSince();
 
@@ -969,6 +1003,7 @@ function onMessage(ev) {
     if (m.task !== undefined) task = m.task || '';
     const nouvelle = m.session !== sessionId;
     if (nouvelle) {
+      clearLinkup();
       wasWebLive = false;
       sessionId = m.session; requestAt = Date.now();
     }
@@ -1118,7 +1153,29 @@ function onMessage(ev) {
   else if (m.type === 'remote_refused') toast('L’utilisateur a refusé l’assistance pour le moment.');
   else if (m.type === 'remote_accepted') toast('L’utilisateur a accepté. Holo prépare un plan.');
 
-  else if (m.type === 'answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
+  else if (m.type === 'linkup_proposed' && m.session === sessionId) {
+    linkupVisible = true; linkupPending = true; linkupId = '';
+    $('linkupQuery').value = m.query || task;
+    $('linkupReview').hidden = true;
+    renderLinkup();
+  }
+  else if (m.type === 'linkup_result' && m.session === sessionId) {
+    linkupVisible = true; linkupBusy = false; linkupId = m.id || '';
+    $('linkupMessage').textContent = m.error === 'personal_data'
+      ? 'Retirez le mail, le numéro ou l’adresse de la question, puis relancez la recherche'
+      : m.error ? 'Recherche indisponible pour le moment' : '';
+    $('linkupText').value = m.summary || '';
+    $('linkupSources').replaceChildren();
+    for (const source of m.sources || []) {
+      if (!/^https?:\/\//.test(source.url || '')) continue;
+      const item = document.createElement('li'), a = document.createElement('a');
+      a.textContent = source.name || source.url; a.href = source.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      item.append(a); $('linkupSources').append(item);
+    }
+    $('linkupReview').hidden = !!m.error || !linkupId;
+    renderLinkup();
+  }
+  else if (m.type === 'answer' || m.type === 'linkup_answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
 
   else if (m.type === 'refused') {
     if (m.blocked === 'sensitive') {
@@ -1213,6 +1270,25 @@ function decide(o) {
 }
 
 $('planApprove').onclick = () => decide({ type: 'approve_plan' });
+$('linkupOpen').onclick = () => {
+  clearLinkup(); linkupVisible = true; $('linkupQuery').value = task; renderLinkup();
+};
+$('linkupSearch').onclick = () => {
+  const query = $('linkupQuery').value.trim();
+  if (!query || linkupBusy) return;
+  if (send({ type: 'linkup_search', session: sessionId, query })) {
+    linkupBusy = true; linkupId = ''; $('linkupReview').hidden = true;
+    $('linkupMessage').textContent = 'Recherche en cours…'; renderLinkup();
+  }
+};
+$('linkupApprove').onclick = () => {
+  const text = $('linkupText').value.trim();
+  if (linkupId && text) send({ type: 'linkup_approve', session: sessionId, id: linkupId, approved: true, text });
+};
+$('linkupRefuse').onclick = () => {
+  if (linkupPending) send({ type: 'linkup_approve', session: sessionId, approved: false });
+  else { clearLinkup(); renderLinkup(); }
+};
 $('planRefine').onclick = () => { $('refineSheet').hidden = false; $('refineText').focus(); };
 $('planRefuse').onclick = () => { $('refuseSheet').hidden = false; };
 $('refineText').addEventListener('input', () => $('refineSend').disabled = !$('refineText').value.trim());

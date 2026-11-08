@@ -59,6 +59,8 @@ def reponse(corps: dict) -> dict:
             message["content"] = fiche()
         elif '"folder"' in consigne:
             message["content"] = '{"folder": "pictures", "subfolder": "Noël 2025"}'
+        elif '"linkup_query"' in consigne and "[linkup]" in consigne:
+            message["content"] = '{"linkup_query":"Comprendre une erreur du logiciel"}'
         else:
             etapes = ["Ouvrir le Finder", "Aller dans Images", "Ouvrir Noël 2025"]
             # Consigne « Étape N : remplacer « … » par « … » » de l'iPhone : appliquée.

@@ -44,6 +44,18 @@ async function home(microPresent = true) {
     automationCalls, actions, key: event => listeners.keydown(event) };
 }
 
+test('réponse documentaire et sources restent du texte brut', async () => {
+  const h = await home();
+  h.update(session({ state: 'done', answer: '<script>réponse</script>',
+    answerSources: [{ name: '<b>Documentation</b>', url: 'https://example.org' }] }));
+  assert.match(html(h), /&lt;script&gt;réponse&lt;\/script&gt;/);
+  assert.match(html(h), /&lt;b&gt;Documentation&lt;\/b&gt;/);
+  assert.match(html(h), /https:\/\/example.org/);
+  assert.doesNotMatch(html(h), /<script>réponse/);
+  h.update({ answerSources: [] });
+  assert.doesNotMatch(html(h), /https:\/\/example.org/);
+});
+
 test("accueil direct : « Bonjour <nom Windows> », sans étapes d'accueil ni liaison", async () => {
   const h = await home();
   h.update({ firstName: '<Jeanne>' });
