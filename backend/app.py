@@ -28,7 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.requests import HTTPConnection
 
 from . import (
-    automations, billing, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
+    automate_draft, automations, billing, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
     tickets as tickets_mod, voice,
 )
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
@@ -2561,6 +2561,19 @@ async def _ticket_action(tid: str, body: dict):
         S().tickets.update(t, assignee=by, status="en_attente", offered=int(time.time()))
         await S().bridge.send({"type": "remote_request", "from": by or "Votre support", "task": t["task"],
                                "ticket": t["id"], "number": t["number"], "rdv": False})
+    elif act == "validate":
+        # Demande d'automate : valider le plan, c'est créer l'automate chez l'utilisateur.
+        if not t.get("automate") or t["status"] == "resolu":
+            return JSONResponse({"error": "Ce ticket n'a pas d'automate à valider."}, status_code=409)
+        try:
+            lesson = automations.save(automate_draft.pack(t["automate"], by or "Support IT"), by=by or "Support IT")
+        except automations.Invalid as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
+        print(f"[automate] créé depuis le ticket {t['id']} : {lesson['id']}")
+        S().tickets.update(t, status="resolu", closed_by=by or "Support IT", rdv=None, lesson=lesson["id"])
+        S().tickets.note(t, by, f"Automate « {lesson['title']} » créé.")
+        if S().bridge is not None:
+            await S().bridge.send({"type": "lessons_changed", "title": lesson["title"]})
     else:
         return JSONResponse({"error": "Action inconnue."}, status_code=400)
     await _tickets_changed()
@@ -2597,6 +2610,35 @@ async def tickets_stats_keyed(fam: str, weeks: int = ticket_stats.WEEKS):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return ticket_stats.stats(S().tickets.all(), weeks=weeks)
+async def _ticket_automate(body: dict):
+    """Aucun automate ne répond à la demande : l'utilisateur envoie au support
+    un ticket qui porte le plan proposé par Holo. Rien n'est créé avant Valider."""
+    task = str(body.get("task") or "").strip()[:MAX_TASK]
+    if not task:
+        return JSONResponse({"error": "Demande vide."}, status_code=400)
+    raw = body.get("automate")
+    try:
+        plan = automate_draft.clean(raw if isinstance(raw, dict) else {})
+    except automate_draft.DraftError as e:
+        return JSONResponse({"error": str(e)}, status_code=422)
+    t = _open_ticket(task, "automate", by=S().family.senior)
+    S().tickets.update(t, automate=plan)
+    await _tickets_changed()
+    return {"ticket": tickets_mod.public(t)}
+
+
+@app.post("/k/{fam}/tickets")
+async def ticket_automate_keyed(fam: str, request: Request):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _ticket_automate(await _json_body(request))
+
+
+@app.post("/tickets")
+async def ticket_automate(request: Request):
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _ticket_automate(await _json_body(request))
 
 
 @app.post("/k/{fam}/tickets/{tid}")

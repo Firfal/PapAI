@@ -101,6 +101,13 @@ struct Header: View {
     var body: some View {
         HStack(spacing: 14) {
             LogotypePapai().frame(height: 36 * CGFloat(model.textScale))
+            // Onglets de l'accueil, au-dessus de l'encadré bleu, à distance du logo.
+            if accueilAffiche {
+                @Bindable var m = model
+                Onglets(options: [("Accueil", 0), ("Automates", 1), ("Tickets", 2)], selection: $m.homeTab)
+                    .frame(width: 420)
+                    .padding(.leading, 48)
+            }
             Spacer()
             // Rien quand tout va bien : l’utilisateur n'a pas à se soucier de la connexion.
             if !model.connected {
@@ -121,6 +128,14 @@ struct Header: View {
             .accessibilityLabel("Réglages")
         }
         .padding(.top, 24)
+    }
+
+    /// Vrai seulement quand `RootView` montre l'accueil lui-même (pas l'accueil de départ,
+    /// les autorisations ni une demande par-dessus).
+    private var accueilAffiche: Bool {
+        model.screen == .home && model.remoteRequest == nil
+            && !(model.queued != nil && model.queuedShown)
+            && (model.screenOK && model.axOK || model.permissionsDismissed)
     }
 }
 

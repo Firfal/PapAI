@@ -87,6 +87,8 @@ final class AppModel {
     var showRequests = false
     var requestsLoading = false
     var requestsError = false
+    /// Onglet de l'accueil : 0 Accueil, 1 Automates (affiché dans l'en-tête).
+    var homeTab = 0
     var notice: String?
     var lesson: Lesson?
     /// La fiche d'automate ouverte par-dessus l'accueil.
@@ -373,6 +375,7 @@ final class AppModel {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showRequests = true }
                 return
             }
+            if demo == "tickets" { homeTab = 2; return }
             if demo == "home" { return }
             if demo == "home_empty" { lessons = []; return }
             if demo == "alert" {
@@ -488,8 +491,36 @@ final class AppModel {
            let list = try? JSONDecoder().decode([Lesson].self, from: data) {
             lessons = list
             OfflineLessons.save(data, base: httpBase)
+            if list.isEmpty { await seedExampleAutomates() }
         } else if lessons.isEmpty {
             lessons = OfflineLessons.load(base: httpBase)  // pas de réseau : ceux qui n'ont pas besoin de Holo
+        }
+    }
+
+    /// Espace tout neuf : on y importe une fois les automates d'exemple livrés avec
+    /// l'app (`Resources/automates/*.papai`, actions de premier niveau seulement),
+    /// pour que « Derniers automates » et l'onglet Automates ne soient pas vides.
+    private func seedExampleAutomates() async {
+        let flag = "exemplesAutomates.v1"
+        guard !UserDefaults.standard.bool(forKey: flag),
+              let url = URL(string: httpBase + "/automations") else { return }
+        let files = (Bundle.main.urls(forResourcesWithExtension: "papai", subdirectory: "automates") ?? [])
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+        guard !files.isEmpty else { return }
+        var added = 0
+        for f in files {
+            guard let body = try? Data(contentsOf: f) else { continue }
+            var req = URLRequest(url: url, timeoutInterval: 10)
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let (_, r) = try? await URLSession.shared.upload(for: req, from: body),
+               (r as? HTTPURLResponse)?.statusCode == 200 { added += 1 }
+        }
+        guard added > 0 else { return }
+        UserDefaults.standard.set(true, forKey: flag)
+        if let (data, _) = try? await URLSession.shared.data(from: URL(string: httpBase + "/lessons")!),
+           let list = try? JSONDecoder().decode([Lesson].self, from: data) {
+            lessons = list
         }
     }
 
@@ -1072,6 +1103,7 @@ final class AppModel {
             showNotice("Cet automate est prévu pour un autre ordinateur.")
             return
         }
+        // Ni accord ni support en direct : l'automate a été validé par le support à sa création.
         let holo = acts.first { $0.kind == "holo" }
         if holo != nil && !screenConsent {
             pendingAutomation = l

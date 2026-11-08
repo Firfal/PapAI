@@ -6,6 +6,9 @@ struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var request = ""
     @State private var warning: String?
+    @State private var trouves: [Lesson] = []
+    @State private var prepare = false
+    @State private var proposition: PropositionAutomate?
     @FocusState private var focused: Bool
     @State private var dictation = Dictation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -22,13 +25,19 @@ struct HomeView: View {
             let deux = droite >= Self.droiteMin
             VStack(alignment: .leading, spacing: 24) {
                 // En-tête bleu sur toute la largeur ; la barre de demande garde la largeur de la colonne gauche.
-                enTete(barre: deux ? gauche - Self.marge : nil)
-                if deux {
+                // L'encadré bleu (bonjour + demande) reste sur l'onglet Accueil seulement.
+                if model.homeTab == 0 { enTete(barre: deux ? gauche - Self.marge : nil) }
+                if model.homeTab == 2 {
+                    UserTickets().padding(.bottom, 24).frame(maxHeight: .infinity, alignment: .top)
+                } else if model.homeTab == 1 {
+                    automates(titre: false, tous: true).padding(.bottom, 24)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                } else if deux {
                     // Les deux colonnes partent de la même ligne : titres de section alignés, contenu en haut.
                     HStack(alignment: .top, spacing: Self.ecart) {
                         // Seule la liste défile : le titre de section reste en place.
                         VStack(alignment: .leading, spacing: 14) {
-                            titreSection("sparkles", "Mes automates")
+                            titreSection("sparkles", "Derniers automates")
                             automates(titre: false).padding(.bottom, 24)
                         }
                         .frame(width: gauche)
@@ -82,6 +91,10 @@ struct HomeView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 18).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                }
+                if !trouves.isEmpty || prepare || proposition != nil {
+                    ResultatsRecherche(trouves: trouves, prepare: prepare, proposition: proposition, fermer: fermerRecherche)
+                        .frame(maxWidth: largeur ?? .infinity)
                 }
                 if let q = model.queued, !model.queuedShown {
                     Button { model.queuedShown = true } label: {
@@ -252,19 +265,36 @@ struct HomeView: View {
         guard dictation.phase == .idle else { return }
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { warning = "Dites en quelques mots ce que vous voulez faire."; focused = true; return }
-        if !model.connected { warning = "Je ne joins pas \(model.helperName) pour le moment. Réessayez dans un instant."; return }
         warning = nil
-        // L'accord de partage a été donné à l'inscription : la demande part directement.
-        model.requestConsent(task: text)
+        proposition = nil
+        // D'abord les automates de l'utilisateur : ils se lancent sans autorisation ni support en direct.
+        trouves = RechercheAutomates.chercher(text, dans: model.lessons)
+        if !trouves.isEmpty { return }
+        // Rien ne correspond : Holo propose un plan, à envoyer au support IT dans un ticket.
+        prepare = true
+        Task {
+            let r = await PropositionAutomate.preparer(text, base: model.httpBase)
+            prepare = false
+            switch r {
+            case .success(let p): proposition = p; request = ""
+            case .failure(let e): warning = e.texte
+            }
+        }
+    }
+
+    private func fermerRecherche() {
+        trouves = []; proposition = nil; prepare = false
         request = ""
     }
 
     // MARK: Automates
 
     /// Les automates enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
-    private func automates(titre: Bool = true) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if titre { titreSection("sparkles", "Mes automates") }
+    private func automates(titre: Bool = true, tous: Bool = false) -> some View {
+        // Accueil : les 5 plus récents ; onglet Automates : tous.
+        let liste = tous ? model.lessons : Array(model.lessons.prefix(Self.derniers))
+        return VStack(alignment: .leading, spacing: 14) {
+            if titre { titreSection("sparkles", "Derniers automates") }
             if let n = model.notice {
                 Label(n, systemImage: "info.circle.fill").font(rounded(17, .medium))
                     .foregroundStyle(T.leaf)
@@ -285,11 +315,11 @@ struct HomeView: View {
                 } else {
                     // Deux colonnes : la carte blanche reste en place, seule la liste
                     // défile à l'intérieur et se coupe sur ses bords.
-                    Defilant(actif: !titre) {
+                    Defilant(actif: !titre || tous) {
                         VStack(spacing: 0) {
-                            ForEach(model.lessons) { l in
+                            ForEach(liste) { l in
                                 tuile(l)
-                                if l.id != model.lessons.last?.id {
+                                if l.id != liste.last?.id {
                                     Rectangle().fill(T.line).frame(height: 1).padding(.leading, 64)
                                 }
                             }
@@ -299,6 +329,10 @@ struct HomeView: View {
                 }
             }
             .carte(T.rBig)
+            if !tous && model.lessons.count > Self.derniers {
+                Button("Voir les \(model.lessons.count) automates") { model.homeTab = 1 }
+                    .buttonStyle(.plain).font(rounded(16, .semibold)).foregroundStyle(T.leaf)
+            }
         }
     }
 
@@ -318,6 +352,7 @@ struct HomeView: View {
         .padding(18).frame(maxWidth: .infinity, alignment: .leading)
         .carte(T.r)
     }
+    private static let derniers = 5
 
     private func tuile(_ l: Lesson) -> some View {
         HStack(spacing: 10) {
@@ -390,14 +425,17 @@ extension HomeView {
                             RoundedRectangle(cornerRadius: 20, style: .continuous).fill(T.field)
                                 .frame(width: 72, height: 72)
                                 .overlay(Image(nsImage: icon(bundle)).resizable().frame(width: 48, height: 48))
+                            // Une seule ligne : le nom rétrécit un peu, puis se termine par « … » ;
+                            // le nom complet reste dans la bulle d'aide et pour VoiceOver.
                             Text(name).font(rounded(16, .medium))
-                                .lineLimit(2, reservesSpace: true).multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
+                                .lineLimit(1).minimumScaleFactor(0.8).truncationMode(.tail)
+                                .frame(maxWidth: .infinity)
                         }
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(PressStyle())
+                    .help(name)
                     .accessibilityLabel("Ouvrir \(name)")
                 }
             }
@@ -441,7 +479,7 @@ enum Greeting {
 
 /// Une liste qui défile à l'intérieur de sa carte quand la place manque ; sinon
 /// la carte épouse son contenu. La carte elle-même ne bouge jamais.
-private struct Defilant<Contenu: View>: View {
+struct Defilant<Contenu: View>: View {
     var actif: Bool
     @ViewBuilder var contenu: Contenu
     var body: some View {

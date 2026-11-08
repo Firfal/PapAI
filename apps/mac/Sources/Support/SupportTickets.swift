@@ -120,6 +120,17 @@ struct SupportTickets: View {
                 }
                 Text(t.task.isEmpty ? "Demande sans texte" : "« \(t.task) »").font(rounded(18, .semibold))
                     .fixedSize(horizontal: false, vertical: true)
+                if let p = t.plan {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Automate proposé : \(p.titre)", systemImage: "wand.and.stars")
+                            .font(rounded(15, .semibold)).foregroundStyle(T.accent)
+                        ForEach(Array(p.etapes.enumerated()), id: \.offset) { i, s in
+                            Text("\(i + 1). \(s)").font(rounded(14)).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(T.field))
+                }
                 if let b = t.blocked {
                     Label(b, systemImage: "exclamationmark.circle").font(rounded(14, .medium))
                         .foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
@@ -133,7 +144,11 @@ struct SupportTickets: View {
             }
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 8) {
-                if t.isOpen && t.status != "en_cours" {
+                if t.isOpen && t.plan != nil {
+                    Button(busy == t.id ? "…" : "Valider") { Task { await act(t, "validate") } }
+                        .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
+                        .help("Crée l’automate chez l’utilisateur")
+                } else if t.isOpen && t.status != "en_cours" {
                     Button(busy == t.id ? "…" : "Prendre en charge") { Task { await act(t, "take") } }
                         .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
                 }
@@ -235,6 +250,8 @@ struct SupportTickets: View {
                 model.showToast(obj?["error"] as? String ?? "Action refusée")
             } else if action == "category" {
                 model.showToast("Catégorie : \(TicketCategory.label(extra["category"] ?? ""))")
+            } else if action == "validate" {
+                model.showToast("Automate créé chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
             } else if action == "take" {
                 model.showToast("Demande proposée à \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
                 openUser(t.person)

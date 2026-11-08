@@ -66,6 +66,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Réglages Mac : sans taille du texte, sans changement de rôle, sans lien de parenté (`claude/reglages-connexion`).
 - [x] Accueil support Mac : onglets Tickets (tous les utilisateurs), Utilisateurs, Mes automates (`claude/support-tickets`). Reste : même organisation sur l'iPhone et Android.
 - [x] Plus de création d'automate « à partir de rien » côté support (décision de Corentin, 8 nov.) : enregistrement d'écran avec voix, import de document, création à la main et `POST /automations/draft` retirés. Un automate naît d'un ticket réglé, proposé quand une demande revient (chantier catégories des tickets).
+- [x] Barre de recherche Mac : un automate trouvé se lance sans accord ni support en direct ; sinon, ticket au support IT avec le plan proposé par Holo, « Valider » côté support (Mac, page web) crée l'automate (`claude/ticket-automate`). Reste : Windows, iPhone et Android.
+- [ ] Réactiver la création d'automate côté support quand ce sera décidé (`SupportAutomates.creationActive`).
 - [x] Mode support Mac : « Mes automates » (bibliothèque du support, appliquer à des personnes), création à la main, depuis un document ou un enregistrement d'écran avec voix (`claude/support-automates`).
   - [ ] Porter « Mes automates » sur l'iPhone et Android.
 - [x] Plus de surveillance continue : les apps Mac et Windows n'envoient plus les signaux du gardien toutes les 8 s.

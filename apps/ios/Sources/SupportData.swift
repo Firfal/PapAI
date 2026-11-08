@@ -31,6 +31,8 @@ struct SupportTicket: Identifiable {
     var categoryBy: String
     var resolved: Double?
     var person: Person
+    /// Demande d'automate : le plan proposé par Holo, à valider pour créer l'automate.
+    var plan: (titre: String, etapes: [String])?
 
     var label: String { String(format: "T-%04d", number) }
     var isOpen: Bool { status != "resolu" }
@@ -62,6 +64,9 @@ struct SupportTicket: Identifiable {
         category = d["category"] as? String ?? "autre"
         categoryBy = d["category_by"] as? String ?? ""
         resolved = (d["resolved"] as? NSNumber)?.doubleValue
+        if let a = d["automate"] as? [String: Any] {
+            plan = (a["title"] as? String ?? "Nouvel automate", a["steps"] as? [String] ?? [])
+        }
         self.person = person
     }
 

@@ -113,7 +113,7 @@ struct MonSupport: View {
 
     private var titre: String {
         switch etat {
-        case .rattache(let org): "Support IT · \(org)"
+        case .rattache: "Support IT"
         case .enCours: "Support IT"
         case .aucun: "Aucune organisation configurée"
         }

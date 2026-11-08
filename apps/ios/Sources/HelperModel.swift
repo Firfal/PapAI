@@ -215,8 +215,8 @@ final class HelperModel {
     private var orgTask: Task<Void, Never>?
 
     var orgConfigured: Bool { org != nil }
-    /// « Support IT · Acme », ou « Support IT » tant que le nom n'est pas connu.
-    var orgTitle: String { orgName.map { "Support IT · \($0)" } ?? "Support IT" }
+    /// Toujours « Support IT » : le nom de l’organisation ne s’affiche pas en titre.
+    var orgTitle: String { "Support IT" }
 
     /// Relit la liste des postes toutes les 30 s : un poste inscrit après coup apparaît seul.
     private func startOrg() {
