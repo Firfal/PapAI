@@ -1,6 +1,9 @@
 import SwiftUI
 import UserNotifications
 import os
+#if os(macOS)
+import AppKit
+#endif
 
 private let log = Logger(subsystem: "com.quentin.papai.aidant", category: "connexion")
 
@@ -21,7 +24,7 @@ struct PlanStep: Identifiable {
     }
 }
 
-struct Lesson: Decodable, Identifiable {
+struct HelperLesson: Decodable, Identifiable {
     struct Step: Decodable { var instruction: String? }
     var title: String
     var steps: [Step]?
@@ -42,7 +45,7 @@ struct DraftStep: Identifiable {
     let id = UUID()
     var instruction: String
     var checkpoint: String?
-    var preview: UIImage?
+    var preview: PlatformImage?
 }
 
 enum Screen { case idle, waiting, planning, approval, active, helper, done, stopped }
@@ -121,7 +124,7 @@ final class HelperModel {
     var planBusy = false
 
     // Capture
-    var frame: UIImage?
+    var frame: PlatformImage?
     var frameId: String?
     var frameAt: Date?
 
@@ -138,7 +141,7 @@ final class HelperModel {
     var draftTarget: String?
     var hasDraft = false
     var savedTitle: String?
-    var lessons: [Lesson] = []
+    var lessons: [HelperLesson] = []
 
     var toast: String?
     var sensitiveRefusal: String?
@@ -248,7 +251,8 @@ final class HelperModel {
 
     // MARK: Réglages et connexion
 
-    private var baseHTTP: String {
+    /// Adresse HTTP de l’espace (`…/k/<clé>`) : automates, dictée.
+    var baseHTTP: String {
         var s = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         while s.hasSuffix("/") { s.removeLast() }
         if !s.contains("://") { s = "http://" + s }
@@ -439,7 +443,9 @@ final class HelperModel {
     /// Retour au premier plan : on n'attend pas la fin du délai d'attente.
     func wakeUp() {
         guard isConfigured else { return }
+        #if os(iOS)
         LiveAlert.shared.resume()
+        #endif
         if !connected {
             // Connexion déjà en cours d'ouverture (lancement de l'app) : on la laisse finir.
             if runTask != nil, socket != nil, retryAt == nil, !keyRefused { return }
@@ -659,7 +665,7 @@ final class HelperModel {
     func loadLessons() async {
         guard let url = URL(string: baseHTTP + "/lessons"),
               let (d, _) = try? await URLSession.shared.data(from: url),
-              let l = try? JSONDecoder().decode([Lesson].self, from: d) else { return }
+              let l = try? JSONDecoder().decode([HelperLesson].self, from: d) else { return }
         lessons = l
     }
 
@@ -753,7 +759,7 @@ final class HelperModel {
             syncLive()
 
         case "frame":
-            if let b64 = m["png_b64"] as? String, let d = Data(base64Encoded: b64), let img = UIImage(data: d) {
+            if let b64 = m["png_b64"] as? String, let d = Data(base64Encoded: b64), let img = PlatformImage(data: d) {
                 frame = img; frameId = m["frame_id"] as? String; frameAt = Date()
                 target = nil
             }
@@ -824,8 +830,8 @@ final class HelperModel {
                 draftTarget = Self.shortcutLabel(l["shortcut"] as? [String: Any])
                 let previews = m["preview"] as? [String: String] ?? [:]
                 draftSteps = (l["steps"] as? [[String: Any]] ?? []).map { s in
-                    var img: UIImage?
-                    if let f = s["frame"] as? String, let b = previews[f], let d = Data(base64Encoded: b) { img = UIImage(data: d) }
+                    var img: PlatformImage?
+                    if let f = s["frame"] as? String, let b = previews[f], let d = Data(base64Encoded: b) { img = PlatformImage(data: d) }
                     return DraftStep(instruction: s["instruction"] as? String ?? "",
                                      checkpoint: s["checkpoint"] as? String, preview: img)
                 }
@@ -855,6 +861,7 @@ final class HelperModel {
 
     /// Met à jour la grande carte de l'écran verrouillé (voir `LiveAlert`).
     func syncLive() {
+        #if os(iOS)
         if guardAlertId != nil, let alert = lastAlert {
             LiveAlert.shared.update(senior: seniorTitle, state: "awaiting_helper", task: guardTask,
                                     question: alert.title, step: nil, steps: 0,
@@ -866,11 +873,17 @@ final class HelperModel {
         LiveAlert.shared.update(senior: seniorTitle, state: st, task: task,
                                 question: question?.text, step: planStep, steps: plan.count,
                                 paused: seniorPaused, linked: isConfigured)
+        #else
+        // Mac : pas de carte d'écran verrouillé ; une alerte du gardien ramène la fenêtre devant.
+        if guardAlertId != nil { bringToFront() }
+        #endif
     }
 
     private func notify(_ s: String) {
         // La grande carte de l'écran verrouillé s'en charge déjà (écran allumé, son).
+        #if os(iOS)
         if LiveAlert.shared.isRunning { UINotificationFeedbackGenerator().notificationOccurred(.warning); return }
+        #endif
         let who = seniorTitle
         if s == "awaiting_approval" {
             notifyLocal(title: "\(who) demande de l’aide", body: task.isEmpty ? "Un plan attend votre accord." : "« \(task) » : un plan attend votre accord.")
@@ -880,12 +893,30 @@ final class HelperModel {
     }
 
     private func notifyLocal(title: String, body: String) {
+        #if os(iOS)
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        #else
+        bringToFront()
+        // Exécutable sans paquet (tests, rendus) : UNUserNotificationCenter planterait.
+        guard Bundle.main.bundleIdentifier != nil, !quiet else { return }
+        #endif
         let c = UNMutableNotificationContent()
         c.interruptionLevel = .timeSensitive
         c.title = title; c.body = body; c.sound = .default
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
     }
+
+    #if os(macOS)
+    /// Mac : une demande ou une alerte fait passer la fenêtre PapAI au premier plan.
+    /// `quiet` coupe ce réflexe (rendus hors écran, tests).
+    @ObservationIgnored var quiet = false
+    func bringToFront() {
+        guard !quiet else { return }
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
+        NSApp.requestUserAttention(.criticalRequest)
+    }
+    #endif
 
     // MARK: Actions
 
