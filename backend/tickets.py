@@ -8,13 +8,11 @@ rendez-vous. Rien que du texte : aucune capture d'écran n'est gardée.
 
 from __future__ import annotations
 
-import json
 import secrets
 import time
 from pathlib import Path
 
-from . import ticket_stats
-
+from . import storage, ticket_stats
 OPEN = ("nouveau", "en_attente", "rdv", "en_cours", "a_reprendre")
 STATUSES = (*OPEN, "resolu")
 MAX = 500
@@ -31,7 +29,7 @@ class Tickets:
     def _load(self) -> list[dict]:
         if self._items is None:
             try:
-                d = json.loads(self.path.read_text("utf-8"))
+                d = storage.read_json(self.path, [])
                 self._items = [t for t in d if isinstance(t, dict) and t.get("id")] if isinstance(d, list) else []
             except (OSError, ValueError):
                 self._items = []
@@ -40,10 +38,7 @@ class Tickets:
     def _save(self) -> None:
         items = self._load()[-MAX:]
         self._items = items
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(items, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(self.path)
+        storage.write_json(self.path, items)
 
     def all(self) -> list[dict]:
         return list(reversed(self._load()))

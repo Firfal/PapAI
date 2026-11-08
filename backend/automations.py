@@ -30,6 +30,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .caremamory import KNOWN_FOLDERS, lessons_dir
+from . import storage
 
 FORMAT = 1
 PLATFORMS = {"windows", "mac"}
@@ -225,10 +226,9 @@ def save(pack, by: str = "", folder: Path | None = None) -> dict:
     lesson["approved_by"] = _text(by, "Importé par", 80, required=False) or "import par la clé de la famille"
     lesson["approved_at"] = time.time()
     folder = (folder or lessons_dir()) / lesson["id"]
-    folder.mkdir(parents=True, exist_ok=True)
     for name, data in files.items():
-        (folder / name).write_bytes(data)
-    (folder / "lesson.json").write_text(json.dumps(lesson, ensure_ascii=False, indent=2), encoding="utf-8")
+        storage.write(folder / name, data)
+    storage.write_json(folder / "lesson.json", lesson)
     return lesson
 
 
@@ -237,7 +237,7 @@ def load(lesson_id: str, folder: Path | None = None) -> dict | None:
     if not re.fullmatch(r"imp-[0-9a-f]{12}", lid):
         return None
     try:
-        return json.loads(((folder or lessons_dir()) / lid / "lesson.json").read_text(encoding="utf-8"))
+        return storage.read_json((folder or lessons_dir()) / lid / "lesson.json")
     except (OSError, ValueError):
         return None
 
@@ -246,9 +246,7 @@ def remove(lesson_id: str, folder: Path | None = None) -> bool:
     if load(lesson_id, folder) is None:
         return False
     folder = (folder or lessons_dir()) / lesson_id
-    for f in folder.iterdir():
-        f.unlink()
-    folder.rmdir()
+    storage.delete_folder(folder)
     return True
 
 

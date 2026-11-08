@@ -10,3 +10,5 @@ websockets>=13.0
 hai-agents==1.4.3
 # Tests seulement (tests/test_protocole.py, tests/faux_mac.py) : images de test.
 Pillow>=10.0
+google-cloud-firestore==2.34.1
+google-cloud-storage==3.17.1

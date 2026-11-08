@@ -13,7 +13,6 @@ import hmac
 import json
 import logging
 import os
-import tempfile
 import time
 from pathlib import Path
 from threading import Lock
@@ -22,6 +21,8 @@ from urllib.request import Request as URLRequest, urlopen
 
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse
+
+from . import storage
 
 _live_warned = False
 _live_warning_lock = Lock()
@@ -42,22 +43,14 @@ def config():
 
 def read(org):
     try:
-        value = json.loads((org.folder / "billing.json").read_text())
+        value = storage.read_json(org.folder / "billing.json", {})
         return value if isinstance(value, dict) else {}
     except (OSError, ValueError):
         return {}
 
 
 def write(org, value):
-    org.folder.mkdir(parents=True, exist_ok=True)
-    fd, name = tempfile.mkstemp(dir=org.folder, prefix=".billing-")
-    try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(value, f)
-        os.replace(name, org.folder / "billing.json")
-    finally:
-        if os.path.exists(name):
-            os.unlink(name)
+    storage.write_json(org.folder / "billing.json", value)
 
 
 def stripe(path, data=None):
