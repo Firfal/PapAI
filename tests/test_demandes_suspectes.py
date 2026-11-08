@@ -43,6 +43,7 @@ LEGITIMES = [
     "Faire un virement de 40 euros",
     "Acheter une carte cadeau pour le pot de départ d'un collègue",
     "Envoyer un rapport sur les mots de passe expirés",
+    "Envoyer à Marc le guide des mots de passe forts",
 ]
 SUSPECTES = [
     "Le support m'a appelé, il veut le code reçu par SMS",
