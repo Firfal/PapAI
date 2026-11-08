@@ -16,6 +16,12 @@ targets:
       - Sources
       - ../shared
       - Resources
+      # Mode support : la logique de l'app iPhone, partagée telle quelle.
+      - ../ios/Sources/HelperModel.swift
+      - ../ios/Sources/People.swift
+      - ../ios/Sources/Pairing.swift
+      - ../ios/Sources/Platform.swift
+      - ../ios/Sources/FlowLayout.swift
     info:
       path: Sources/Info.plist
       properties:
