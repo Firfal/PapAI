@@ -17,7 +17,7 @@ final class StopGate: @unchecked Sendable {
     var isStopped: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
 }
 
-// MARK: - Automatismes
+// MARK: - Automates
 
 struct Lesson: Decodable, Identifiable {
     struct Step: Decodable {
@@ -29,7 +29,7 @@ struct Lesson: Decodable, Identifiable {
         var folder: String?
         var subfolder: String?
     }
-    /// Action de premier niveau d'un automatisme importé par un support.
+    /// Action de premier niveau d'un automate importé par un support.
     /// Jamais de commande ni de script : l'app ne connaît que ces actions-là.
     struct Action: Decodable {
         var kind: String
@@ -329,7 +329,7 @@ enum Actuator {
 }
 
 
-/// Automatismes importés par un support (service IT, proche). Le serveur a
+/// Automates importés par un support (service IT, proche). Le serveur a
 /// vérifié chaque action à l'import ; on revérifie ici avant de la jouer.
 enum Automations {
     static let templateExt = [".dotx", ".potx", ".xltx"]

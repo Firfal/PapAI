@@ -1,14 +1,14 @@
-"""Automatismes importés : fournis par un support (service IT, proche) et non
+"""Automates importés : fournis par un support (service IT, proche) et non
 nés d'une session.
 
-Un automatisme importé ne contient que des actions de premier niveau, connues
+Un automate importé ne contient que des actions de premier niveau, connues
 de l'app : ouvrir un dossier, une page de Réglages, un lien https, copier des
 modèles de documents, lancer un scan antivirus rapide, ou confier à Holo une
 tâche à l'écran. Jamais de commande, de script ni de chemin libre : l'app ne
 sait jouer que ces actions-là, avec des paramètres vérifiés ici puis sur
 l'ordinateur.
 
-Le support valide l'automatisme en l'important : la personne le lance ensuite
+Le support valide l'automate en l'important : la personne le lance ensuite
 seule, en un clic.
 """
 
@@ -38,7 +38,7 @@ _BAD_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
 
 
 class Invalid(ValueError):
-    """Automatisme refusé à l'import : le message dit pourquoi, en clair."""
+    """Automate refusé à l'import : le message dit pourquoi, en clair."""
 
 
 def _text(v, what: str, limit: int = MAX_TEXT, required: bool = True) -> str:
@@ -117,9 +117,9 @@ def _action(a, files: dict[str, bytes]) -> dict:
 
 
 def validate(pack) -> tuple[dict, dict[str, bytes]]:
-    """Vérifie un automatisme importé ; renvoie sa fiche et ses fichiers."""
+    """Vérifie un automate importé ; renvoie sa fiche et ses fichiers."""
     if not isinstance(pack, dict):
-        raise Invalid("Un automatisme est un objet JSON.")
+        raise Invalid("Un automate est un objet JSON.")
     if pack.get("papai") != FORMAT:
         raise Invalid(f"Format inconnu : « papai » doit valoir {FORMAT}.")
     platforms = pack.get("platforms") or sorted(PLATFORMS)
@@ -142,7 +142,7 @@ def validate(pack) -> tuple[dict, dict[str, bytes]]:
         "id": "imp-" + secrets.token_hex(6),
         "title": _text(pack.get("title"), "Titre", 120),
         "description": _text(pack.get("description"), "Description", 600, required=False),
-        "publisher": _text(pack.get("publisher"), "Éditeur (qui fournit l'automatisme)", 80),
+        "publisher": _text(pack.get("publisher"), "Éditeur (qui fournit l'automate)", 80),
         "platforms": sorted(set(platforms)),
         "actions": actions,
         "steps": [{"instruction": _text(s.get("instruction") if isinstance(s, dict) else s, "Étape")}

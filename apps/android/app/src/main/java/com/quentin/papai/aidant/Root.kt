@@ -191,8 +191,8 @@ fun IdleScreen() {
                     }
                 }
                 HomeCard.AUTOMATIONS -> {
-                    T("Derniers automatismes", 17.sp, FontWeight.SemiBold)
-                    if (m.lessons.isEmpty()) T("Aucun automatisme pour l'instant.", 15.sp, color = Soin.secondary)
+                    T("Derniers automates", 17.sp, FontWeight.SemiBold)
+                    if (m.lessons.isEmpty()) T("Aucun automate pour l'instant.", 15.sp, color = Soin.secondary)
                     else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         m.lessons.take(5).forEach { l ->
                             Row(Modifier.fillMaxWidth().soinCard().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
