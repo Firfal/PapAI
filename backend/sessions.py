@@ -110,6 +110,8 @@ class Session:
     support_requested: bool = False
     # Où l'automate s'est arrêté faute de pouvoir continuer seul : {step, label, reason}.
     blocked: dict | None = None
+    # La même demande a déjà été réglée : ce qui avait été fait, pour Holo.
+    reprise: str = ""
     journal: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)

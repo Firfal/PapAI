@@ -620,6 +620,30 @@ aucune capture). Numéro `number` par espace, ou unique dans l’organisation (`
 Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus deux) et
 `suggestion_lancee` (`id` ou `null`).
 
+### Mes demandes (utilisateur)
+
+`GET /k/{fam}/requests` est en lecture seule et exige la clé réelle du poste
+(`_key_ok(fam, support=False)`) : clé inconnue ou clé dérivée d'un support
+d'organisation → HTTP 404 `{"error":"Lien invalide."}`. Aucun ticket d'un autre espace.
+Réponse : `{"requests":[{"id":"…","number":1,"created":0,"updated":0,"task":"…",
+"status":"resolu","solution":null,"relaunch":null}]}` (100 plus récentes par `created`,
+d'abord les plus récentes ; liste vide si aucune). Statut brut conservé.
+
+`solution`, par priorité :
+- `{"kind":"automate","lesson":"…","title":"…"}` si la demande est `resolu` et que `automation` (posé au lancement
+  `run_automation`) ou `suggestion_lancee` est renseigné. Titre du catalogue courant du poste
+  (automates locaux et organisation), sinon titre de la suggestion, sinon chaîne vide.
+- `{"kind":"answer","text":"…","sources":[{"title":"…","url":"…"}]}` pour une
+  `linkup_answer` validée par le support (jamais la requête ni l'auteur internes).
+- `{"kind":"plan","steps":["…"]}` seulement si `end == "done"` et plan texte non vide.
+- Sinon `null`. L'automate prime donc sur la réponse, qui prime sur le plan exécuté.
+
+`relaunch` est l'id de l'automate seulement si le statut est `resolu`, la solution un
+automate et cet id existe encore dans le catalogue courant ; sinon `null`.
+Liste blanche stricte à chaque niveau : texte seulement, aucun objet d'étape/capture,
+image, note interne, token, assignation, catégorie ni suggestion complète.
+Relancer = `run_automation` existant (ou lancement local existant), pas de nouveau chemin.
+
 **Ordinateur aidé (`/ws/bridge`)**
 - `help_request` peut porter `"ticket"` (reprise d'un ticket proposé par `remote_request`).
 - Sans `requested_by` ni `ticket`, si l'espace a un support connu (appairé ou organisation) mais
@@ -632,6 +656,20 @@ Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus 
   `{"type":"ticket_automate_launched","ticket","lesson"}`. Seul un ID suggéré pour ce ticket est accepté ;
   le serveur mémorise `suggestion_lancee`, ajoute la note « Automate proposé lancé : <titre> » et garde
   le statut du ticket.
+- **Pas de ticket en double.** Avant d'ouvrir un ticket pour une demande de l'utilisateur (ni
+  `ticket`, ni `requested_by`, ni `new`, ni `tidy`), le serveur cherche un ticket de l'espace qui porte déjà
+  cette demande (mêmes mots, sans accents ni mots vides, radical de 5 lettres ; tickets
+  d'automates exclus) : ouvert d'abord, sinon réglé depuis moins de 90 jours. Pas de session.
+  - Ouvert → `{"type":"ticket_exists","ticket","number","task","status","rdv"}` ; le ticket reçoit
+    la note « Demandé à nouveau par l’utilisateur. » (un `en_cours` sans session vivante passe
+    `a_reprendre` ; un `en_attente` est reproposé si un support est là).
+  - Réglé → `{"type":"ticket_solved","ticket","number","task","solution":{"note","steps","by","at"}}` :
+    `note` = mot du support à la clôture (`close` avec `text`, gardé dans `solution`), `steps` = plan
+    si Holo est allé au bout (`end` = `done`).
+  - L'app affiche l'état ou la solution. « C’est une autre demande » = `help_request` avec
+    `"new": true` (nouveau ticket). « Refaire avec Holo » = `help_request` avec `"reopen": "<id>"` :
+    le même ticket est rouvert (note « Le problème est revenu. »), puis attente ou session comme
+    d'habitude ; Holo reçoit ce qui l'avait réglé (`session.reprise`).
 - `session` porte en plus `"ticket"` et `"number"`.
 - App → `{"type":"ticket_schedule","ticket","at"}` (entre 1 min et 30 jours) →
   `{"type":"ticket_scheduled","ticket","number","at"}` ou `{"type":"ticket_refused","ticket","reason"}`.

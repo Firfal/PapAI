@@ -144,7 +144,8 @@ def unit() -> None:
     asks = []
 
     class TicketBridge(FakeBridge):
-        def ask_help(self, task, requested_by=None, ticket=None): asks.append((task, requested_by, ticket))
+        def ask_help(self, task, requested_by=None, ticket=None, **kw):
+            asks.append((task, requested_by, ticket, kw) if kw else (task, requested_by, ticket))
 
     t = Model(demo="", on_compact=lambda _c: None)
     t.bridge = TicketBridge()
@@ -192,6 +193,28 @@ def unit() -> None:
     t._handle({"type": "remote_request", "from": "Claire", "task": "Imprimer", "ticket": "t1"})
     t.accept_remote()
     check(asks[-1] == ("Imprimer", "Claire", "t1"), "accepté : la session reprend le ticket")
+
+    # Demande qui a déjà son ticket : pas de nouveau ticket.
+    t.ask_help("Le Wi-Fi est coupé")
+    t._handle({"type": "ticket_exists", "ticket": "t2", "number": 5, "task": "Le Wi-Fi ne marche plus",
+               "status": "en_attente", "rdv": None})
+    snap = t.snapshot()
+    check(snap["existing"]["kind"] == "open" and snap["existing"]["number"] == 5 and snap["screen"] == "home"
+          and not snap["sessionOpen"], "demande déjà ouverte : signalée, retour à l'accueil")
+    t.new_request()
+    check(asks[-1] == ("Le Wi-Fi est coupé", None, None, {"reopen": None, "new": True}) and t.existing is None,
+          "« c'est une autre demande » : repart avec son propre ticket")
+    t._handle({"type": "ticket_solved", "ticket": "t3", "number": 2, "task": "Imprimer un document",
+               "solution": {"note": "Pilote réinstallé", "steps": ["Ouvrir Imprimantes"], "by": "Claire", "at": 1}})
+    e = t.snapshot()["existing"]
+    check(e["kind"] == "solved" and e["note"] == "Pilote réinstallé" and e["steps"] == ["Ouvrir Imprimantes"]
+          and e["by"] == "Claire", "demande déjà réglée : la solution est montrée")
+    t.retry_existing()
+    check(asks[-1] == ("Le Wi-Fi est coupé", None, None, {"reopen": "t3", "new": False}),
+          "le problème est revenu : le même ticket est rouvert")
+    t._handle({"type": "ticket_solved", "ticket": "t3", "number": 2, "task": "Imprimer", "solution": {}})
+    t.close_existing()
+    check(t.snapshot()["existing"] is None, "« c'est réglé, merci » : retour à l'accueil")
 
     # Bridge sans serveur : exécutions refusées sans plan validé, puis après arrêt.
     sent = []
