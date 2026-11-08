@@ -1872,7 +1872,12 @@ async def org_set_security(token: str, request: Request):
         body = None
     if not isinstance(body, dict):
         return JSONResponse({"error": "Configuration invalide."}, status_code=400)
-    return {"org": o.name, "security": o.set_security(body)}
+    sec = o.set_security(body)
+    regles = guard.regles(sec["remote_tools"], sec["domains"])
+    for sp in spaces.members(o.id):
+        if sp.bridge is not None:
+            await sp.bridge.send(regles)  # postes connectés : nouvelles règles tout de suite
+    return {"org": o.name, "security": sec}
 
 
 @app.get("/o/{token}/supports")
