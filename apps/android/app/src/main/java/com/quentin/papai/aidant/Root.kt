@@ -55,7 +55,7 @@ fun Root() {
     }
     Box(Modifier.fillMaxSize().background(Soin.bg)) {
         Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
-            Header(m.helperName ?: "Aidant") { m.sheet = AppSheet.Settings }
+            Header(m.helperName ?: "Support") { m.sheet = AppSheet.Settings }
             if (m.isConfigured && !m.connected) {
                 LostBanner(Modifier.padding(horizontal = 20.dp).padding(bottom = 10.dp))
             }
@@ -162,7 +162,7 @@ fun IdleScreen() {
         homeCards(m.lastAlert != null, m.liveDictation != null).forEach { card ->
             when (card) {
                 HomeCard.WELLBEING -> Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    T("Tout va bien chez ${m.senior}", 28.sp, FontWeight.Bold)
+                    T("Rien à signaler pour ${m.senior}", 28.sp, FontWeight.Bold)
                     T("Vous serez prévenu dès qu'une demande d'aide arrive.", 16.sp, color = Soin.secondary)
                 }
                 HomeCard.DICTATION -> m.liveDictation?.let { live ->
@@ -181,8 +181,8 @@ fun IdleScreen() {
                     }
                 }
                 HomeCard.AUTOMATIONS -> {
-                    T("Derniers automatismes", 17.sp, FontWeight.SemiBold)
-                    if (m.lessons.isEmpty()) T("Aucun automatisme pour l'instant.", 15.sp, color = Soin.secondary)
+                    T("Derniers automates", 17.sp, FontWeight.SemiBold)
+                    if (m.lessons.isEmpty()) T("Aucun automate pour l'instant.", 15.sp, color = Soin.secondary)
                     else Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         m.lessons.take(5).forEach { l ->
                             Row(Modifier.fillMaxWidth().soinCard().padding(16.dp), verticalAlignment = Alignment.CenterVertically,

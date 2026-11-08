@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 enum PairServer {
-    static let refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR depuis le Mac de votre proche (Réglages > Proches)."
+    static let refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
     static let officialHost = "papai-450417131702.europe-west1.run.app"
 
     static func allowed(_ text: String) -> Bool {
@@ -80,8 +80,8 @@ struct PairLink: Identifiable, Equatable {
 }
 
 private let relations: [(label: String, value: String)] = [
-    ("Fille", "sa fille"), ("Fils", "son fils"), ("Petite-fille", "sa petite-fille"),
-    ("Petit-fils", "son petit-fils"), ("Proche", "un proche"), ("Voisin, voisine", "un voisin"),
+    ("Fille", "sa fille"), ("Fils", "son fils"), ("Proche", "un proche"),
+    ("Collègue", "un collègue"), ("Service informatique", "le service informatique"), ("Voisin, voisine", "un voisin"),
 ]
 
 /// « Rejoindre <prénom> » : prénom et lien, puis POST et réglage automatique.
@@ -118,7 +118,7 @@ struct PairSheet: View {
 
     @ViewBuilder private var form: some View {
         Text("Relier ce téléphone").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
-        Text("Vous serez prévenu quand elle demande de l’aide sur son ordinateur. Rien ne bouge sans votre accord.")
+        Text("Vous serez prévenu dès qu’une demande d’aide arrive sur son ordinateur. Rien ne bouge sans votre accord.")
             .font(.system(size: 15)).foregroundStyle(Soin.secondary)
         if link.code == nil {
             label("Code affiché sur l’ordinateur")
@@ -131,7 +131,7 @@ struct PairSheet: View {
         label("Votre prénom")
         TextField("Claire", text: $name)
             .textContentType(.givenName).font(.system(size: 17)).padding(16).soinCard(radius: 18)
-        label("Votre lien avec \(model.needsReplaceConfirmation(link) ? "votre proche" : model.senior)")
+        label("Votre lien avec \(model.needsReplaceConfirmation(link) ? "la personne aidée" : model.senior)")
         FlowLayout(spacing: 8) {
             ForEach(relations, id: \.value) { r in
                 Button { relation = relation == r.value ? "" : r.value } label: {
@@ -150,7 +150,7 @@ struct PairSheet: View {
                 Text("Serveur PapAI officiel")
                     .font(.system(size: 19, weight: .bold)).foregroundStyle(Soin.ink)
             } else {
-                Label("Serveur inconnu : ne continuez que si votre proche vous a donné ce lien en personne", systemImage: "exclamationmark.triangle.fill")
+                Label("Serveur inconnu : ne continuez que si la personne aidée vous a donné ce lien elle-même", systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 19, weight: .bold)).foregroundStyle(Soin.danger)
             }
             Text(link.host).font(.system(size: 13)).foregroundStyle(Soin.secondary)
@@ -180,7 +180,7 @@ struct PairSheet: View {
         HStack(spacing: 8) {
             if model.connected {
                 Circle().fill(Soin.accent).frame(width: 8, height: 8)
-                Text("Connecté. Vous serez prévenu dès qu’elle demande de l’aide.")
+                Text("Connecté. Vous serez prévenu dès qu’une demande d’aide arrive.")
             } else if let e = model.linkError {
                 Text(e).foregroundStyle(Soin.danger)
             } else {
@@ -208,8 +208,8 @@ struct ScannerSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Scanner le QR de l’ordinateur").font(.system(size: 26, weight: .bold)).foregroundStyle(Soin.ink)
-            Text("Sur l’ordinateur de \(model.senior) : Proches › Ajouter un proche.")
+            Text("Scanner le QR code de l’ordinateur").font(.system(size: 26, weight: .bold)).foregroundStyle(Soin.ink)
+            Text("Sur l’ordinateur de \(model.senior) : Mon support › Ajouter un support.")
                 .font(.system(size: 15)).foregroundStyle(Soin.secondary)
             ZStack {
                 Soin.ink

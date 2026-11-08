@@ -55,7 +55,7 @@ async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> l
     messages = [
         {"role": "system", "content": PLAN_PROMPT.format(os="Mac" if bridge.os == "macos" else "Windows")},
         {"role": "user", "content": f"Demande de la personne : « {session.task} »"
-            + (f"\nPrécision de son proche : {note}" if note else "")},
+            + (f"\nPrécision de son support : {note}" if note else "")},
     ]
     if frame is not None:
         session.set_frame(frame)
@@ -117,7 +117,7 @@ def describe_doing(thought: str, name: str, args: dict) -> str:
     if name == "ask_helper":
         return "Holo vous pose une question"
     if name == "ask_senior":
-        return "Holo pose une question à votre proche"
+        return "Holo pose une question à la personne aidée"
     if name == "answer":
         return "Holo termine"
     return "Holo regarde l'écran"
@@ -154,12 +154,12 @@ class AgentRunner:
     async def _loop(self) -> None:
         brief = self.s.task
         if self.s.plan:
-            brief += "\n\nPlan validé par le proche, à suivre :\n" + "\n".join(
+            brief += "\n\nPlan validé par le support, à suivre :\n" + "\n".join(
                 f"{i}. {step}" for i, step in enumerate(self.s.plan, 1)
             )
             brief += "\nÀ chaque action, indique dans plan_step le numéro de l'étape du plan que tu exécutes."
         for n in self.notes:
-            brief += f"\nPrécision du proche : {n}"
+            brief += f"\nPrécision du support : {n}"
         messages = [
             {"role": "system", "content": system_prompt(self.bridge.os)},
             {"role": "user", "content": brief},
@@ -246,7 +246,7 @@ class AgentRunner:
                 )
                 if result is None:
                     return
-                messages.append({"role": "user", "content": f"Consigne du proche : {result}"})
+                messages.append({"role": "user", "content": f"Consigne du support : {result}"})
 
             # Free tier : 10 requêtes / minute.
             elapsed = time.time() - started
@@ -300,5 +300,5 @@ class AgentRunner:
             return None
         if to == "helper":
             self._sensitive_blocked = None
-        who = "la personne aidée" if to == "senior" else "du proche"
-        return f"Réponse de {who} : {reply}" if to == "senior" else f"Réponse du proche : {reply}"
+        who = "la personne aidée" if to == "senior" else "du support"
+        return f"Réponse de {who} : {reply}" if to == "senior" else f"Réponse du support : {reply}"

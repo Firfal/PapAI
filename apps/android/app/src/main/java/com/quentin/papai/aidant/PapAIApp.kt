@@ -12,7 +12,7 @@ class PapAIApp : Application() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_HELP, "Demandes d'aide", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "Votre proche demande de l'aide ou Holo a besoin de vous."
+                description = "Une demande d'aide arrive ou Holo a besoin de vous."
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 400, 200, 400, 200, 600)
                 setSound(

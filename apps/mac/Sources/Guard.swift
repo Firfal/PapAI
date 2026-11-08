@@ -102,10 +102,10 @@ struct GuardAlertView: View {
                 }
                 .frame(maxHeight: 260)
                 if alert.acknowledged {
-                    Text("Un proche a vu l'alerte et s'en occupe")
+                    Text("Votre support a vu l'alerte et s'en occupe")
                         .font(rounded(22, .semibold)).fixedSize(horizontal: false, vertical: true)
                 }
-                Text(alert.blocked ? "Votre proche a été prévenu. Attendez de lui avoir parlé." : "Ne faites rien d'autre et appelez \(model.helperName).")
+                Text(alert.blocked ? "Votre support a été prévenu. Attendez de lui avoir parlé." : "Ne faites rien d'autre et appelez \(model.helperName).")
                     .font(rounded(18)).foregroundStyle(T.muted)
                 if model.sessionOpen && !alert.blocked {
                     Button { model.stop() } label: {

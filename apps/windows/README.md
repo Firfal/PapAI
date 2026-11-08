@@ -6,16 +6,21 @@ pont `/ws/bridge` (voir `PROTOCOL.md`), et s'annonce avec `{"type":"hello","os":
 
 ## Lancer sur Windows 10 ou 11
 
-1. Installer Python 3.10 ou plus récent (python.org, cocher « Add to PATH »).
-2. Double-cliquer `install.bat` (une seule fois : crée `.venv` et installe les dépendances).
-3. Double-cliquer `run.bat`.
+Depuis le dépôt (cloné ou téléchargé), double-cliquer `apps\windows\PapAI.bat`.
+Rien à installer : au premier lancement, il récupère un Python portable et les
+dépendances dans `apps\windows\.python` (une minute environ, il faut Internet),
+puis ouvre PapAI. Les lancements suivants sont immédiats. Si Windows affiche
+« Windows a protégé votre ordinateur » : Informations complémentaires > Exécuter
+quand même. Pour repartir de zéro, supprimer le dossier `.python`.
+
+Avec un Python déjà installé sur le PC : `install.bat` (crée un `.venv`), puis `run.bat`.
 
 Le serveur par défaut est `ws://localhost:8000/ws/bridge`. Pour un autre
-serveur : roue dentée > Serveur, ou variable `PAPAI_SERVER` avant `run.bat`.
+serveur : roue dentée > Serveur, ou variable `PAPAI_SERVER` avant `PapAI.bat`.
 WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon, l'installer
 depuis le site de Microsoft (« Evergreen Runtime »).
 
-En ligne de commande : `.venv\Scripts\python -m papai` (avec `PAPAI_DEBUG=1`
+En ligne de commande : `.python\python -m papai` (avec `PAPAI_DEBUG=1`
 pour les outils de développement de WebView2).
 
 ### Essayer sans clé H Company
@@ -134,7 +139,7 @@ cd apps/windows && python -m papai.preview      # http://127.0.0.1:8765/?demo=ho
 ce sont des écrans de démonstration, aucune capture réelle.
 
 Accueil avec micro : `/?demo=home&mic=1` ; sans micro : `/?demo=home&mic=0` ;
-sans tutoriel : `/?demo=home_empty` ; avec ajouts personnels : `/?demo=home_shortcuts`.
+sans automate : `/?demo=home_empty` ; avec ajouts personnels : `/?demo=home_shortcuts`.
 L'aperçu simule la présence audio : il n'ouvre pas le micro du navigateur.
 
 ```bash

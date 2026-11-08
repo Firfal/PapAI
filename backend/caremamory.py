@@ -30,7 +30,7 @@ client = make_client()
 # Holo accepte 5 images par requête.
 MAX_LESSON_FRAMES = 4
 
-PROMPT = """Tu rédiges une fiche pour une personne âgée peu à l'aise avec l'informatique,
+PROMPT = """Tu rédiges une fiche pour une personne peu à l'aise avec l'informatique,
 à partir d'une manipulation qu'un assistant vient de réussir sur son ordinateur.
 Tu reçois la liste des actions et de vraies captures de son écran, prises pendant
 la manipulation.
@@ -68,7 +68,7 @@ def _trajectory(session: Session, ids: list[str]) -> str:
             frame = e.get("frame", "")
             lines.append(f"- [{e['tool']}] {target}" + (f"   (capture {frame})" if frame else ""))
         elif e["kind"] == "helper_reply":
-            lines.append(f"- Le proche a précisé : {e.get('text','')}")
+            lines.append(f"- Le support a précisé : {e.get('text','')}")
         elif e["kind"] == "answer":
             lines.append(f"\nRésultat annoncé : {e.get('content','')}")
 

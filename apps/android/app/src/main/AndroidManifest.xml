@@ -61,7 +61,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Liaison avec l'ordinateur d'un proche âgé : l'aidant doit être prévenu tout de suite quand il demande de l'aide." />
+                android:value="Liaison avec l'ordinateur de la personne aidée : le support doit être prévenu tout de suite quand il demande de l'aide." />
         </service>
     </application>
 </manifest>

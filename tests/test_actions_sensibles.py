@@ -78,7 +78,7 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
                 result = await self.runner._act(name, {})
                 self.assertEqual(self.link._request.await_count, before)
                 self.assertTrue(self.session.is_open)
-                self.assertIn("Réponse du proche", result)
+                self.assertIn("Réponse du support", result)
                 question = [e for e in self.events if e.get("type") == "question"][-1]
                 self.assertEqual(question["to"], "helper")
                 self.assertEqual(question["question"],

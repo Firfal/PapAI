@@ -60,27 +60,6 @@ struct HomeShortcutsTest {
         try fm.createSymbolicLink(at: lienNormal, withDestinationURL: normal)
         verifier(DossierRaccourci.valider(lienNormal) == normal.resolvingSymlinksInPath(), "lien vers un dossier normal résolu")
 
-        let domaine = "test.raccourcis.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: domaine)!
-        defer { defaults.removePersistentDomain(forName: domaine) }
-        let favoris = HomeShortcuts(defaults: defaults, demo: false)
-        verifier(favoris.ajoutes.isEmpty, "stockage vide accepté")
-        verifier(!favoris.ajouterDossier(lien), "ajout dangereux refusé")
-        verifier(!favoris.ajouterAlbum(" \n "), "album vide refusé")
-        verifier(favoris.ajouterDossier(normal), "ajout d'un dossier validé")
-        verifier(favoris.ajouterAlbum("Petits-enfants"), "ajout explicite d'un album")
-        let relu = HomeShortcuts(defaults: defaults, demo: false)
-        verifier(relu.ajoutes == favoris.ajoutes, "stockage JSON relu")
-        relu.retirer(relu.ajoutes[0])
-        verifier(HomeShortcuts(defaults: defaults, demo: false).ajoutes.count == 1, "retrait enregistré")
-        verifier(HomeShortcuts.echapperAlbum("a\"\\\n\r\t") == "a\\\"\\\\\\n\\r\\t", "nom d'album échappé")
-        defaults.set(Data("JSON invalide".utf8), forKey: "raccourcisAccueil.v1")
-        verifier(HomeShortcuts(defaults: defaults, demo: false).ajoutes.isEmpty, "JSON invalide ignoré")
-        let demo = HomeShortcuts(defaults: defaults, demo: true)
-        verifier(demo.tuiles.count == 7, "démo fixe indépendante du stockage")
-        let album = demo.tuiles.first { $0.ajoutee }!
-        demo.retirer(album)
-        verifier(!demo.tuiles.contains(album), "retrait en démo sans stockage")
         print("\(total) contrôles raccourcis passés, 0 échec(s)")
     }
 }

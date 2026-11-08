@@ -172,10 +172,10 @@ object Helper {
 
     val isConfigured get() = serverURL.isNotBlank() && helperKey.isNotBlank()
 
-    /** Dans une phrase : « Tout va bien chez Sophie », sinon « chez votre proche ». */
-    val senior get() = seniorName.ifEmpty { "votre proche" }
+    /** Dans une phrase : « Rien à signaler pour Sophie », sinon « de la personne aidée ». */
+    val senior get() = seniorName.ifEmpty { "la personne aidée" }
     /** En début de phrase : « Sophie a besoin de vous ». */
-    val seniorTitle get() = seniorName.ifEmpty { "Votre proche" }
+    val seniorTitle get() = seniorName.ifEmpty { "La personne aidée" }
     val webBrowserTitle get() = seniorName.trim().split(Regex("\\s+")).firstOrNull()
         ?.let { "Chrome PapAI de $it" } ?: "Chrome PapAI"
 
@@ -395,7 +395,7 @@ object Helper {
                 main.post {
                     pairBusy = false
                     if (!r.optBoolean("ok")) {
-                        pairError = r.text("error").ifEmpty { "Le serveur a refusé l'appairage." }
+                        pairError = r.text("error").ifEmpty { "Le serveur a refusé la liaison." }
                         return@post
                     }
                     val key = r.text("key")
@@ -465,7 +465,7 @@ object Helper {
                 // sans session (serveur redémarré), il ne reste rien de l'ancienne demande.
                 state = null; frame = null; frameId = null; frameAt = null
                 // On se présente : l'ordinateur doit voir ce proche dans sa liste.
-                send("type" to "helper_hello", "id" to helperId, "name" to (helperName ?: "Votre proche"),
+                send("type" to "helper_hello", "id" to helperId, "name" to (helperName ?: "Support"),
                     "relation" to helperRelation)
             }
 
@@ -629,7 +629,7 @@ object Helper {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setPublicVersion(NotificationCompat.Builder(ctx, PapAIApp.CHANNEL_HELP)
                 .setSmallIcon(R.drawable.ic_notif)
-                .setContentTitle("PapAI : votre proche a besoin de vous")
+                .setContentTitle("PapAI : une demande d'aide vous attend")
                 .setContentIntent(pi)
                 .build())
             .setSmallIcon(R.drawable.ic_notif)

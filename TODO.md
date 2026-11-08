@@ -23,7 +23,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
   - [ ] Bloqué : Quentin doit cliquer « Autoriser » dans la fenêtre macOS « contourner le sélecteur de fenêtre privée » (enregistrement de l'écran de PapAI).
 - [ ] **Vrais clics CGEvent** de l'app Mac (`apps/mac/Sources/Bridge.swift`) : jamais exercés en réel.
 - [ ] **Bouton Arrêter** cliqué pendant une session active : vérifier qu'aucune action ne passe ensuite.
-- [ ] **Automatisme** : « Garder comme automatisme » sur l'iPhone, puis rejeu depuis la tuile du Mac.
+- [ ] **Automate** : « Garder comme automate » sur l'iPhone, puis rejeu depuis la tuile du Mac.
 - [x] Fiche : des étapes renvoyées en simples chaînes ne font plus planter « Garder comme automatisme ». En cas d'échec, l'aidant reçoit `refused` et l'app iPhone libère le bouton. Faux Holo pour tester sans clé : `tests/faux_holo.py`.
 - [x] Fiche : chaque étape est illustrée par une vraie capture d'écran de la session (Holo voit les captures pour rédiger ; si son choix n'est pas valable, le serveur prend la capture correspondante). Aucune illustration faite à la main.
 - [x] Page web aidant (`helper.html`) : sur `refused`, réactiver le bouton « Garder comme automatisme » resté sur « Rédaction en cours… ».
@@ -36,10 +36,11 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 - [x] 1. Accueil au premier lancement : bienvenue, prénom, taille du texte (grande par défaut), autorisations expliquées.
 - [x] 2. Ajouter un proche : QR ou code à 6 chiffres (10 min, usage unique), prénom et lien, plusieurs proches. Page `/p/{code}`, `backend/family.py`.
+  - [x] Réglages Mac : section Mon support, Ajouter un support avec démarrage à la connexion, liste existante, QR/code/lien et copie confirmée ; partage SMS, WhatsApp ou mail, panneaux défilants en Très grande.
 - [x] Session proposée à distance par le proche, que la personne aidée accepte ou refuse sur le Mac (`remote_request`).
 - [x] 3. Demande : gros bouton, dictée (celle de l'équipe, Gladia) ou clavier.
   - [x] Accueil Mac voix d'abord : grand micro, écriture discrète, détection du micro, tutoriels masqués si vides, logotype et taille du texte dans l'encart.
-  - [x] Mes raccourcis sur Mac : applications utilisées, dossiers et groupes de photos, nouveau message Mail, albums ajoutés à la main ; ajout/retrait local, dossiers validés et ouverts dans le Finder explicitement (#16). Cibles des automatismes sécurisées sur serveur/Mac/Windows : règle Unicode commune, refus des paquets et liens, ouverture Finder/Explorer ; cible affichée et retirable par l'aidant web. Vérifié sur la VM Mac (Noël 2025 ouvert, Facture.app refusé) et par tests Windows simulés.
+  - [x] Mes raccourcis sur Mac : applications utilisées, dossiers et groupes de photos, nouveau message Mail, albums ajoutés à la main ; ajout/retrait local, dossiers validés et ouverts dans le Finder explicitement (#16). Cibles des automatismes sécurisées sur serveur/Mac/Windows : règle Unicode commune, refus des paquets et liens, ouverture Finder/Explorer ; cible affichée et retirable par l'aidant web. Vérifié sur la VM Mac (Noël 2025 ouvert, Facture.app refusé) et par tests Windows simulés. Retirés de l’accueil Mac le 8 nov. (simplification : barre de recherche, micro, automates).
 - [x] 4. Consentement : écran dédié « PapAI va regarder votre écran » à la place de la case à cocher.
 - [x] Accord de partage d'écran demandé une seule fois (Mac et Windows), gardé ensuite ; « Retirer l'accord de partage » dans Réglages.
 - [x] 5. Holo explique chaque action en phrase simple, avec l'historique et le plan validé.
@@ -70,6 +71,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Rangement guidé des dossiers : plan de rangement validé par l'aidant, rien supprimé, tout annulable.
 - [ ] Notification push quand l'app iPhone est fermée (APNs).
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).
+- [x] App Windows au niveau du Mac pendant l'aide : Pause/Reprendre, question de Holo à la personne, avancement en 3 étapes, encart en bas à droite pendant que Holo agit, fin du gardien adaptée à l'aidé, dictée transmise à l'aidant. Reste : l'essayer sur un vrai Windows ; verrou souris/clavier pendant que Holo agit (`InputLock` du Mac) pas porté.
 - [x] Version Windows de l'app de la personne aidée, design « Soin » de l'app Mac (`apps/windows`) : accueil voix d'abord, micro détecté à chaud, envoi après silence, logotype et raccourcis locaux sécurisés (4 dossiers personnels). Tests Windows app/serveur + faux Holo et rendu Chrome/Linux comparé au Mac vérifiés. Reste : l'essayer sur un vrai Windows (capture, clics, accents, exclusion de la fenêtre, dictée et branchement du micro).
 - [ ] Plusieurs aidants : plusieurs proches s'ajoutent déjà et reçoivent tous la demande. Reste à éprouver « le premier disponible valide » avec deux aidants connectés.
 - [x] Renommer `carepilot_tools.py` en `papai_tools.py` (fusionné le 7 novembre au soir).
@@ -84,4 +86,6 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] App Android sur un vrai téléphone : installer l'APK, appairer, faire tout le parcours (plan, prise de main, automatisme), vérifier la notification écran éteint.
 - [x] Gardien anti-arnaque (logique et 14 contrôles), banc d'essai du protocole (13 contrôles avec `tests/faux_holo.py`), parcours de bout en bout (`tests/test_parcours.py`, 26 contrôles), route de dictée (`tests/test_transcribe.py`), faux Mac.
 - [x] Design « Soin », logo (logotype C) et mascotte papaye Pastel en icône des deux apps.
+- [x] UX plus chaleureuse : mascotte Papaye et palette réchauffée sur Mac et iPhone, mascotte qui s'efface en petite fenêtre, iPhone hors connexion sans fausse assurance (PR #39). Reste : Windows et Android, essai VoiceOver, écran « Lancer une tâche » `.papi` à la place de « Mes tutoriels ».
+- [x] Accueil Mac simplifié : barre de demande avec petit micro et « Mes automates » (automates existants, futurs `.papi`) à la place de « Mes tutoriels ». Reste : Windows, et l'import des `.papi` (#34).
 - [x] Notion du hackathon avec la base Features, mise à jour le 7 novembre à 18 h 30 selon l'état réel.

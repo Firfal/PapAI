@@ -24,14 +24,15 @@ struct OnboardingView: View {
                     case 0: welcome
                     case 1: firstName
                     case 2: permissions
-                    default: HelpersPanel(onboarding: true)
+                    default:
+                        ScrollView { HelpersPanel(onboarding: true) }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
             .foregroundStyle(T.ink).padding(40)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
+            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(step == 0 ? T.peach : T.mint))
 
             HStack(spacing: 14) {
                 if step > 0 {
@@ -93,29 +94,69 @@ struct OnboardingView: View {
 
     // MARK: Étapes
 
+    /// Le décor cède la place avant le texte : mascotte réduite, promesses sans carte, puis mascotte masquée.
     private var welcome: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Text("Bienvenue sur PapAI").font(rounded(52, .semibold)).tracking(-0.8)
-            Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Un proche est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
-                .font(rounded(23)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-            promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre proche.")
-            promise("stop.circle.fill", "Vous pouvez tout arrêter à tout moment.")
-            promise("lock.fill", "Votre écran n'est partagé que quand vous le demandez.")
+        ViewThatFits(in: .vertical) {
+            welcome(mascotte: Mascotte.Taille.bienvenue)
+            welcome(mascotte: Mascotte.Taille.bienvenueReduite)
+            welcome(mascotte: Mascotte.Taille.bienvenueReduite, cartes: false)
+            welcome(mascotte: nil, cartes: false)
+            welcome(mascotte: nil, cartes: false, titre: 44)
+            ScrollView { welcome(mascotte: nil, cartes: false, titre: 44) }
         }
     }
 
-    private func promise(_ symbol: String, _ text: String) -> some View {
-        HStack(spacing: 16) {
-            Image(systemName: symbol).font(.system(size: 24)).foregroundStyle(T.accent).frame(width: 34)
-            Text(text).font(rounded(20, .medium)).fixedSize(horizontal: false, vertical: true)
+    private func welcome(mascotte taille: CGFloat?, cartes: Bool = true, titre: CGFloat = 52) -> some View {
+        VStack(alignment: .leading, spacing: cartes ? 22 : titre < 52 ? 10 : 12) {
+            HStack(alignment: .center, spacing: 28) {
+                VStack(alignment: .leading, spacing: cartes ? 18 : titre < 52 ? 10 : 12) {
+                    Text("Bienvenue sur PapAI").font(rounded(titre, .bold)).tracking(-0.8)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
+                        .font(rounded(23)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if let taille {
+                    Mascotte(humeur: .joyeuse).frame(width: taille, height: taille)
+                }
+            }
+            promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre support.", carte: cartes)
+            promise("stop.circle.fill", "Vous pouvez tout arrêter à tout moment.", carte: cartes)
+            promise("lock.fill", "Votre écran n'est partagé que quand vous le demandez.", carte: cartes)
         }
+    }
+
+    private func promise(_ symbol: String, _ text: String, carte: Bool = true) -> some View {
+        HStack(spacing: 16) {
+            Image(systemName: symbol).font(.system(size: 22)).foregroundStyle(T.leaf).frame(width: 34)
+            Text(text).font(rounded(20, .medium)).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, carte ? 18 : 0).padding(.vertical, carte ? 12 : 0)
+        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(carte ? T.card.opacity(0.8) : .clear))
     }
 
     private var firstName: some View {
+        ViewThatFits(in: .vertical) {
+            firstName(mascotte: Mascotte.Taille.prenom)
+            firstName(mascotte: Mascotte.Taille.prenomReduite)
+            firstName(mascotte: nil)
+        }
+    }
+
+    private func firstName(mascotte taille: CGFloat?) -> some View {
         VStack(alignment: .leading, spacing: 22) {
-            Text("Comment vous appelez-vous ?").font(rounded(44, .semibold)).tracking(-0.6)
-            Text("Votre prénom suffit. C'est ainsi que PapAI vous dira bonjour.")
-                .font(rounded(21)).foregroundStyle(T.muted)
+            HStack(alignment: .center, spacing: 24) {
+                if let taille {
+                    Mascotte(humeur: .ecoute).frame(width: taille, height: taille)
+                }
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Comment vous appelez-vous ?").font(rounded(44, .bold)).tracking(-0.6)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Votre prénom suffit. C'est ainsi que PapAI vous dira bonjour.")
+                        .font(rounded(21)).foregroundStyle(T.muted)
+                }
+            }
             TextField("Votre prénom", text: $name)
                 .textFieldStyle(.plain).font(rounded(30, .semibold))
                 .focused($nameFocused)
@@ -128,14 +169,15 @@ struct OnboardingView: View {
 
     private var permissions: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Text("Deux autorisations, une seule fois").font(rounded(44, .semibold)).tracking(-0.6)
+            Text("Deux autorisations, une seule fois").font(rounded(44, .bold)).tracking(-0.6)
+                .lineLimit(1).minimumScaleFactor(0.8)
             Text("macOS doit vous demander votre accord. Cliquez sur chaque bouton, puis cochez PapAI dans la liste qui s'ouvre.")
                 .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
             PermissionRow(ok: model.screenOK, title: "Voir mon écran",
                           detail: "Pour que Holo voie ce que vous voyez. Jamais sans votre demande.",
                           action: Permissions.requestScreen)
             PermissionRow(ok: model.axOK, title: "Utiliser la souris et le clavier",
-                          detail: "Pour cliquer à votre place, uniquement après l'accord de votre proche.",
+                          detail: "Pour cliquer à votre place, uniquement après l'accord de votre support.",
                           action: Permissions.requestAccessibility)
         }
     }
@@ -146,16 +188,17 @@ struct OnboardingView: View {
 struct HelpersPanel: View {
     @Environment(AppModel.self) private var model
     var onboarding = false
+    @State private var copiedLink: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 28) {
             VStack(alignment: .leading, spacing: 20) {
-                Text(onboarding ? "Qui va vous aider ?" : "Mes proches")
+                Text(onboarding ? "Qui va vous aider ?" : "Mon support")
                     .font(rounded(onboarding ? 44 : 34, .semibold)).tracking(-0.6)
                 Text("Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.")
                     .font(rounded(20)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 if let added = model.pairAdded {
-                    Label("\(added) fait maintenant partie de vos proches.", systemImage: "checkmark.circle.fill")
+                    Label("\(added) fait maintenant partie de votre support.", systemImage: "checkmark.circle.fill")
                         .font(rounded(19, .semibold)).foregroundStyle(T.accent)
                 }
                 ForEach(model.helpers) { h in
@@ -183,7 +226,7 @@ struct HelpersPanel: View {
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 }
                 if model.pairCode == nil {
-                    Button(model.helpers.isEmpty ? "Ajouter un proche" : "Ajouter un autre proche") {
+                    Button(model.helpers.isEmpty ? "Ajouter un support" : "Ajouter un autre support") {
                         model.startPairing()
                     }
                     .buttonStyle(PillStyle(filled: model.helpers.isEmpty, height: 60))
@@ -202,38 +245,54 @@ struct HelpersPanel: View {
     }
 
     private func pairCard(code: String, qr qrText: String, url: String) -> some View {
-        VStack(spacing: 10) {
-            if let qr = QRCode.image(qrText) {
-                Image(nsImage: qr).interpolation(.none).resizable()
-                    .frame(width: 170, height: 170)
-                    .accessibilityLabel("QR code à scanner par votre proche")
+        VStack(spacing: 6) {
+            HStack(spacing: 12) {
+                if let qr = QRCode.image(qrText) {
+                    Image(nsImage: qr).interpolation(.none).resizable()
+                        .frame(width: 110, height: 110)
+                        .accessibilityLabel("QR code à scanner par votre support")
+                }
+                VStack(spacing: 8) {
+                    Text("ou le code").font(rounded(16)).foregroundStyle(T.muted)
+                    Text(code.prefix(3) + " " + code.suffix(3))
+                        .font(rounded(28, .semibold))
+                        .monospacedDigit().tracking(2)
+                        .textSelection(.enabled)
+                    Text(model.pairLong ? "Valable 24 heures" : "Valable 10 minutes").font(rounded(15)).foregroundStyle(T.muted)
+                }.frame(maxWidth: .infinity)
             }
-            Text("ou le code").font(rounded(16)).foregroundStyle(T.muted)
-            Text(code.prefix(3) + " " + code.suffix(3))
-                .font(.system(size: 38 * CGFloat(TextScale.current), weight: .semibold, design: .rounded))
-                .monospacedDigit().tracking(4)
-                .textSelection(.enabled)
-            Text(model.pairLong ? "Valable 24 heures" : "Valable 10 minutes").font(rounded(15)).foregroundStyle(T.muted)
             if let link = URL(string: url) {
                 ShareLink(item: link, subject: Text("Rejoignez-moi sur PapAI"),
                           message: Text(model.invitationText)) {
-                    Label("Envoyer par SMS, WhatsApp…", systemImage: "square.and.arrow.up")
+                    Label("Envoyer par SMS, WhatsApp, mail…", systemImage: "square.and.arrow.up")
+                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PillStyle(height: 56))
-                .frame(width: 260)
+                .buttonStyle(PillStyle(height: 64))
             }
             if !url.isEmpty {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    if NSPasteboard.general.setString(url, forType: .string) { copiedLink = url }
+                } label: {
+                    Label(copiedLink == url ? "Lien copié" : "Copier le lien",
+                          systemImage: copiedLink == url ? "checkmark" : "doc.on.doc")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillStyle(filled: false, height: 50))
                 Text("Sans l'app PapAI : \(url)")
                     .font(rounded(13)).foregroundStyle(T.muted)
                     .multilineTextAlignment(.center).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button("Annuler") { model.stopPairing() }.buttonStyle(.plain).font(rounded(17, .semibold)).foregroundStyle(T.muted)
+            Button("Annuler") { copiedLink = nil; model.stopPairing() }
+                .buttonStyle(.plain).font(rounded(17, .semibold)).foregroundStyle(T.muted)
+                .frame(minHeight: 50)
         }
         .foregroundStyle(T.ink)
-        .padding(22)
+        .padding(12).frame(width: 350)
         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+        .onChange(of: url) { copiedLink = nil }
     }
 }
 
@@ -258,12 +317,19 @@ struct RemoteRequestView: View {
     var body: some View {
         VStack(spacing: 18) {
             VStack(alignment: .leading, spacing: 22) {
-                HStack(spacing: 12) {
-                    Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(T.accent)
-                    Text("Proposition d'aide").font(rounded(20, .semibold)).foregroundStyle(T.accent)
+                HStack(alignment: .center, spacing: 22) {
+                    Text(String(request.from.prefix(1)).uppercased())
+                        .font(rounded(40, .bold)).foregroundStyle(.white)
+                        .frame(width: 88 * CGFloat(model.textScale), height: 88 * CGFloat(model.textScale))
+                        .background(Circle().fill(T.accent))
+                        .overlay(Circle().strokeBorder(.white, lineWidth: 5))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Proposition d'aide").font(rounded(20, .semibold)).foregroundStyle(T.leaf)
+                        Text("\(request.from) propose de vous aider").font(rounded(48, .bold)).tracking(-0.7)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                Text("\(request.from) propose de vous aider").font(rounded(48, .semibold)).tracking(-0.7)
-                    .fixedSize(horizontal: false, vertical: true)
                 if !request.task.isEmpty {
                     Text("« \(request.task) »").font(rounded(26, .medium))
                         .padding(24).frame(maxWidth: .infinity, alignment: .leading)

@@ -17,19 +17,19 @@ PapAI
 ## Accroche (une ligne)
 
 ```
-Un agent qui aide votre grand-parent sur son ordinateur, uniquement avec votre accord.
+Le support informatique de premier niveau, automatisé : votre support valide, PapAI exécute.
 ```
 
 Variante courte :
 
 ```
-L'aide à distance pour nos aînés : Holo agit, le proche valide d'abord.
+Support informatique de niveau 1 : Holo agit, le support valide d'abord.
 ```
 
 ## Description courte (environ 300 caractères)
 
 ```
-La personne âgée dicte sa demande sur son Mac. Holo, le modèle d'H Company, regarde l'écran et propose un plan. Son proche le valide, le précise ou le refuse depuis son iPhone : rien ne bouge avant. Holo exécute sous ses yeux, et une réussite devient un bouton qu'elle relance seule.
+La personne dicte sa demande sur son ordinateur. Holo, le modèle d'H Company, regarde l'écran et propose un plan. Son support (un proche, le service informatique) le valide, le précise ou le refuse depuis son iPhone : rien ne bouge avant. Holo exécute sous ses yeux, et une réussite devient un bouton qu'elle relance seule.
 ```
 
 Seule la dernière proposition dépend d'un essai (R1, R4) : si R4 manque, finir sur « Holo exécute sous ses yeux. »
@@ -41,13 +41,13 @@ Le problème
 Jeanne veut revoir ses photos de Noël et ne sait plus dans quel dossier elles sont. Son proche est dans le métro, sans ordinateur. Lui faire installer un logiciel de prise en main n'est pas une option : c'est précisément ce que réclament les arnaqueurs au téléphone.
 
 La solution
-PapAI est un agent de computer use pour les personnes âgées, avec une règle non négociable : rien ne bouge sur l'ordinateur sans un plan validé par un proche.
+PapAI est un agent de computer use pour le support informatique de premier niveau, avec une règle non négociable : rien ne bouge sur l'ordinateur sans un plan validé par un support (un proche, ou le service informatique d'une entreprise). Les grands-parents aidés par leurs enfants sont notre premier cas d'usage ; les employés d'une entreprise en sont un autre.
 
-1. Demander : la personne appuie sur un gros bouton « J'ai besoin d'aide » et explique avec ses mots, au clavier ou à la voix. La dictée est transcrite par Gladia côté serveur, avec la reconnaissance vocale d'Apple en secours sur le Mac. Elle accepte ensuite que PapAI regarde son écran.
+1. Demander : la personne appuie sur un gros bouton « Demander une assistance » et explique avec ses mots, au clavier ou à la voix. La dictée est transcrite par Gladia côté serveur, avec la reconnaissance vocale d'Apple en secours sur le Mac. Elle accepte ensuite que PapAI regarde son écran.
 2. Proposer : Holo, le modèle d'H Company, regarde l'écran et propose un plan de 2 à 5 étapes en langage simple.
 3. Valider : le proche reçoit le plan sur son iPhone (ou sur une page web) et choisit Valider, Préciser ou Refuser. S'il précise, Holo refait le plan.
 4. Exécuter : Holo clique et tape pendant que la personne regarde [R1] ; chaque action est expliquée en une phrase, avec l'étape du plan en cours. Le bouton Arrêter lève un verrou local sur le Mac qui bloque toute action suivante [R3].
-5. Garder : une session réussie devient un automatisme, une tuile que la personne relance seule [R4]. Le rejeu est local et sans modèle : l'app ouvre un dossier connu du système. Si le dossier a bougé, l'app s'arrête et prévient le proche au lieu d'agir à l'aveugle [R5].
+5. Garder : une session réussie devient un automate, une tuile que la personne relance seule [R4]. Le rejeu est local et sans modèle : l'app ouvre un dossier connu du système. Si le dossier a bougé, l'app s'arrête et prévient le proche au lieu d'agir à l'aveugle [R5].
 
 Les garde-fous
 - Aucune action sans plan validé, et chaque décision du proche est revalidée par le serveur.
@@ -62,7 +62,7 @@ Gardien anti-arnaque
 PapAI sait reconnaître les situations d'arnaque typiques à partir de trois signaux textuels, sans capture : un outil de prise en main qui tourne (AnyDesk, TeamViewer…), une fausse alerte « votre ordinateur est infecté », un site de carte prépayée, et surtout un outil de prise en main avec une page bancaire ouverte. La logique est testée (14 contrôles) et branchée sur l'app Mac, qui envoie ces signaux toutes les 8 secondes en dehors des sessions. Le proche est prévenu, et Holo lui décrit ce qui est réellement à l'écran. [R6]
 
 Limites connues
-Les automatismes sont gardés sur une seule instance du serveur et disparaissent à un redéploiement ; le stockage durable est la prochaine étape. Les notifications de l'iPhone demandent que l'app soit ouverte (pas encore de push).
+Les automates sont gardés sur une seule instance du serveur et disparaissent à un redéploiement ; le stockage durable est la prochaine étape. Les notifications de l'iPhone demandent que l'app soit ouverte (pas encore de push).
 ```
 
 ## Technologies
@@ -76,7 +76,7 @@ Les automatismes sont gardés sur une seule instance du serveur et disparaissent
 - Développement avec des agents IA : Devin (Cognition) en sessions parallèles, Claude Code, [À COMPLÉTER : agents de cyp-cor et snarbe].
 ```
 
-Tags éventuels : `computer use`, `accessibilité`, `seniors`, `aidants`, `sécurité`, `H Company`, `Holo`, `Gladia`, `Devin`.
+Tags éventuels : `computer use`, `accessibilité`, `support informatique`, `seniors`, `aidants`, `sécurité`, `H Company`, `Holo`, `Gladia`, `Devin`.
 
 ## Prix sponsors visés
 
@@ -95,7 +95,7 @@ Vérifié : Gladia en ligne sur Cloud Run, dictée de l'app Mac essayée par Que
 Devin a travaillé sur PapAI comme un membre de l'équipe, en plusieurs sessions parallèles le 7 novembre, chacune sur sa branche et avec une réservation de fichiers dans AGENTS.md pour ne pas gêner les autres agents. Au 7 novembre à 18 h, il a écrit 66 des 114 commits de la branche principale, et toutes ses branches de la journée y sont fusionnées :
 - la page web du proche, refaite sur le modèle des apps macOS et iPhone : plan à valider, préciser ou refuser, écran en direct avec prise en main, alertes (PR #1) ;
 - l'étape du plan en cours, du serveur jusqu'aux écrans du Mac et de l'iPhone (PR #3) ;
-- la robustesse de la rédaction des automatismes : une réponse mal formée de Holo ne fait plus planter « Garder comme automatisme », et le proche est prévenu au lieu d'attendre en silence ; un faux Holo local pour tester sans clé (PR #4) ;
+- la robustesse de la rédaction des automates : une réponse mal formée de Holo ne fait plus planter « Garder comme automate », et le proche est prévenu au lieu d'attendre en silence ; un faux Holo local pour tester sans clé (PR #4) ;
 - un correctif de l'accueil Mac, compilé et essayé sur une machine macOS, et un test de bout en bout en une commande : serveur, Holo simulé, faux Mac et faux proche, 26 contrôles (PR #5) ;
 - le pitch, la vidéo et ces textes de soumission (PR #2) ;
 - l'app Windows de la personne aidée : fusion du portage de cyp-cor (PR #7), puis refonte dans le design de l'app Mac, avec les mêmes écrans et le même protocole (PR #9) ;

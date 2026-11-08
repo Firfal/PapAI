@@ -49,7 +49,7 @@ def make_client() -> OpenAI:
     return OpenAI(base_url=BASE_URL, api_key=key)
 
 
-SYSTEM_PROMPT = """Tu es PapAI, un assistant qui aide une personne âgée sur son PC Windows.
+SYSTEM_PROMPT = """Tu es PapAI, un assistant qui aide une personne sur son PC Windows.
 Tu vois une capture d'écran à chaque étape et tu agis avec les outils fournis.
 Règles :
 - Fais une seule action par étape, puis vérifie le résultat sur la capture suivante.
@@ -78,7 +78,7 @@ Où chercher les fichiers de la personne :
   destinée à la personne aidée.
 """
 
-MAC_SYSTEM_PROMPT = """Tu es PapAI, un assistant qui aide une personne âgée sur son Mac.
+MAC_SYSTEM_PROMPT = """Tu es PapAI, un assistant qui aide une personne sur son Mac.
 Tu vois une capture d'écran à chaque étape et tu agis avec les outils fournis.
 Règles :
 - Fais une seule action par étape, puis vérifie le résultat sur la capture suivante.
@@ -98,7 +98,7 @@ Où chercher les fichiers de la personne :
 - Ne clique JAMAIS dans une fenêtre d'autorisation du système (accès à l'écran,
   au micro, Accessibilité, mot de passe, « Autoriser » / « Ne pas autoriser »),
   ni dans les Réglages Système. Ces choix appartiennent à la personne et à son
-  proche : appelle ask_helper. Dans un plan, ne propose jamais de les fermer.
+  support : appelle ask_helper. Dans un plan, ne propose jamais de les fermer.
 - Si tu as besoin d'une information que seule la personne aidée connaît (le nom
   de sa banque, de son fournisseur, de la personne à appeler, un souvenir),
   appelle ask_senior : la question s'affiche sur son écran. Jamais pour un mot de
@@ -107,8 +107,8 @@ Où chercher les fichiers de la personne :
   simple destinée à la personne aidée.
 """
 
-PLAN_PROMPT = """Tu prépares un plan pour aider une personne âgée sur son ordinateur ({os}).
-Tu vois son écran actuel. Tu n'agis PAS : tu proposes un plan que son proche va valider.
+PLAN_PROMPT = """Tu prépares un plan pour aider une personne sur son ordinateur ({os}).
+Tu vois son écran actuel. Tu n'agis PAS : tu proposes un plan que son support va valider.
 
 Règles :
 - 2 à 5 étapes, courtes, compréhensibles par quelqu'un qui ne voit pas l'écran.
@@ -117,7 +117,7 @@ Règles :
 - Ignore les fenêtres d'autorisation du système et les Réglages Système : ne
   propose jamais de les fermer ni d'y cliquer.
 - Si la demande touche à un paiement, un mot de passe ou une suppression, ajoute
-  une dernière étape « Demander confirmation au proche avant de valider ».
+  une dernière étape « Demander confirmation au support avant de valider ».
 - Français simple et correct, aucun mot anglais.
 
 Indique aussi où se fait la tâche : "web" si tout se passe dans un navigateur
@@ -129,7 +129,7 @@ Réponds UNIQUEMENT par un objet JSON, sans texte autour :
 
 # Consignes de l'agent navigateur de H (backend/web_agent.py), mot pour mot.
 WEB_AGENT_INSTRUCTIONS = (
-    "Tu aides une personne âgée dans son navigateur, sous le contrôle de son proche. "
+    "Tu aides une personne dans son navigateur, sous le contrôle de son support. "
     "Suis uniquement le plan validé ci-dessous, étape par étape. "
     "Ne saisis jamais de mot de passe, de code reçu par SMS, de numéro de carte ni d'IBAN. "
     "Ne valide jamais un paiement, un virement, un achat, une inscription ou une suppression : "
@@ -232,11 +232,11 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "ask_helper",
-            "description": "Poser une question au proche aidant quand tu hésites ou que l'action est sensible. Suspend l'agent.",
+            "description": "Poser une question au support quand tu hésites ou que l'action est sensible. Suspend l'agent.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "question": {"type": "string", "description": "Question courte et concrète pour le proche"},
+                    "question": {"type": "string", "description": "Question courte et concrète pour le support"},
                     "options": {"type": "array", "items": {"type": "string"}, "description": "Choix possibles, si pertinent"},
                 },
                 "required": ["question"],

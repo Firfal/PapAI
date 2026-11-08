@@ -21,7 +21,7 @@ struct GuardRequestView: View {
                     Text(instructions)
                         .font(.system(size: 17, design: .rounded)).foregroundStyle(Soin.secondary)
                     if model.guardAcknowledged {
-                        Text("Un proche a vu l'alerte et s'en occupe")
+                        Text("Un support a vu l'alerte et s'en occupe")
                             .font(.system(size: 17, weight: .semibold, design: .rounded)).foregroundStyle(Soin.ink)
                     }
                 }
