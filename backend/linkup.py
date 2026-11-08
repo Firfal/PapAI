@@ -22,7 +22,9 @@ MAX_SOURCES = 3
 # Les noms ne sont pas détectables : le prompt et la page du support les interdisent.
 _PERSONAL = re.compile(
     r"\S+@\S+\.\S+|(?<!\w)\d(?:[\s./-]?\d){5,}|\bFR\d{2}"
-    r"|\b\d{1,4}\s*(?:bis|ter)?\s*,?\s*(?:rue|avenue|av\.|boulevard|bd|chemin|allée|impasse|place|quai|route)\b",
+    r"|\b\d{1,4}\s*(?:bis|ter)?\s*,?\s*(?:rue|avenue|av|boulevard|bd|blvd|chemin|ch|allée|allee|impasse|imp|place|pl|quai|route|rte"
+    r"|passage|cours|square|sq|villa|cité|cite|résidence|residence|hameau|lieu-dit|faubourg|fbg|sentier"
+    r"|esplanade|parvis|rond-point|voie|traverse|montée|lotissement)\b",
     re.I)
 
 

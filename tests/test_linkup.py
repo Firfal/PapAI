@@ -50,7 +50,8 @@ class Filtre(unittest.TestCase):
     def test_donnees_personnelles_refusees(self):
         for q in ["", "ok", "écrire à jeanne.dupont@gmail.com", "rappeler le 06 12 34 56 78",
                   "carte 4970 1012 3456 7890", "virement FR76 3000 6000",
-                  "rappeler le 06/12/34/56/78", "livraison au 12 rue de la Paix", "3 bis, avenue Foch"]:
+                  "rappeler le 06/12/34/56/78", "livraison au 12 rue de la Paix", "3 bis, avenue Foch",
+                  "8 av Foch", "8 passage des Lilas", "4 résidence les Pins"]:
             with self.subTest(q=q):
                 self.assertIsNone(linkup.question_ok(q))
 
@@ -182,6 +183,23 @@ class Support(unittest.IsolatedAsyncioTestCase):
         with patch.object(app.S(), "helper_sockets", set(scopes)), patch.object(app.S(), "helper_alert_scopes", scopes):
             await app.broadcast_helper({"type": "web_search", "session": "s1", "ok": True}, to_bridge=False)
         self.assertEqual([s.send_json.await_count for s in (espace, meme, autre)], [1, 1, 0])
+
+    async def test_session_terminee_non_rattachee(self):
+        ws = FakeSocket()
+        session = Registry().create("Ancienne demande")
+        session.stop(by="support")
+        sent = []
+
+        async def broadcast(m, to_bridge=True):
+            sent.append(m)
+
+        with patch.dict(os.environ, {"LINKUP_API_KEY": "lk_test"}), \
+                patch("urllib.request.urlopen", return_value=FakeResponse(REPONSE)), \
+                patch.object(app, "broadcast_helper", broadcast):
+            await app.handle_support_search({"type": "web_search", "question": "Comment réinitialiser Chrome ?"}, ws, session)
+        self.assertEqual(sent, [])
+        self.assertNotIn("session", ws.send_json.await_args.args[0])
+        self.assertFalse([e for e in session.journal if e["kind"] == "web_search"])
 
     async def test_refus_sans_cle(self):
         ws = FakeSocket()
