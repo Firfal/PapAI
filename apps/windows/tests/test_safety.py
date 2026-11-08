@@ -31,6 +31,7 @@ class SafetyTests(unittest.TestCase):
     def api(self):
         api = Mock()
         api.foreground.return_value = 1
+        api.password_focused.return_value = False
         api.at_point.return_value = 1
         api.identity.side_effect = lambda hwnd: {
             1: (10, 'ApplicationFrameHost.exe'), 2: (11, 'SystemSettings.exe'),
@@ -54,6 +55,43 @@ class SafetyTests(unittest.TestCase):
         self.assertIsNotNone(safety.window_reason(1))
         api.children.return_value = [3, 2]
         self.assertIsNotNone(safety.window_reason(1))
+
+    def test_password_focus_win32(self):
+        api = core.Win32Targets.__new__(core.Win32Targets)
+        api.user = Mock()
+        api.user.GetWindowThreadProcessId.return_value = 71
+
+        def gui_info(thread, info):
+            self.assertEqual(thread, 71)
+            self.assertEqual(info._obj.cbSize, core.ctypes.sizeof(info._obj))
+            info._obj.hwndFocus = 123
+            return True
+
+        api.user.GetGUIThreadInfo.side_effect = gui_info
+        for style, expected in ((0x20, True), (0x500100A0, True), (0x50010080, False)):
+            api.user.GetWindowLongW.return_value = style
+            self.assertEqual(api.password_focused(3), expected)
+            api.user.GetWindowLongW.assert_called_with(123, -16)
+        api.user.GetGUIThreadInfo.side_effect = lambda thread, info: True
+        self.assertFalse(api.password_focused(3))
+        api.user.GetGUIThreadInfo.return_value = False
+        api.user.GetGUIThreadInfo.side_effect = None
+        with self.assertRaises(core.SensitiveTarget):
+            api.password_focused(3)
+
+    def test_password_rechecked_per_character(self):
+        api = self.api()
+        api.foreground.return_value = 3
+        safety = core.DesktopSafety(api, own_pid=42)
+        api.password_focused.return_value = True
+        with self.assertRaisesRegex(core.SensitiveTarget, "un champ protégé attend une saisie confidentielle"):
+            safety.check_keyboard()
+        api.password_focused.side_effect = [False, False, True]
+        fake = Mock()
+        with patch.dict(sys.modules, {'pyautogui': fake}), patch.object(core, 'WINDOWS', False):
+            with self.assertRaises(core.SensitiveTarget):
+                core.run_action('type_text', {'text': 'AB'}, None, core.StopGate(), safety=safety)
+        self.assertEqual(fake.write.call_args_list, [unittest.mock.call('A')])
 
     def test_pointer_and_keyboard(self):
         api = self.api()

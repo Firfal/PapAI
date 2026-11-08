@@ -58,6 +58,8 @@ Reçoit :
 - `{"type":"remote_request","from":"Claire","task":"…"}` un proche propose une session : rien ne démarre sans l'accord de la personne aidée.
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
 
+Sous Windows, les champs natifs portant le style `ES_PASSWORD` sont refusés, y compris avant chaque caractère. UI Automation n'est pas une dépendance : les champs web/WinUI sans ce style ne sont pas couverts par cette détection.
+
 ## App de l'aidant (iPhone) : `ws://SERVEUR/ws/aidant/CLÉ`
 
 Lien permanent : suit toujours la dernière demande, reste ouvert entre deux demandes.

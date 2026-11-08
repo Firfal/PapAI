@@ -109,6 +109,8 @@ class Win32Targets:
             (self.user.GetAncestor, [w.HWND, w.UINT], w.HWND),
             (self.user.GetWindowThreadProcessId, [w.HWND, ctypes.POINTER(w.DWORD)], w.DWORD),
             (self.user.GetForegroundWindow, [], w.HWND),
+            (self.user.GetGUIThreadInfo, [w.DWORD, ctypes.c_void_p], w.BOOL),
+            (self.user.GetWindowLongW, [w.HWND, ctypes.c_int], w.LONG),
             (self.user.SetForegroundWindow, [w.HWND], w.BOOL),
             (self.user.GetWindow, [w.HWND, w.UINT], w.HWND),
             (self.user.IsWindowVisible, [w.HWND], w.BOOL),
@@ -131,6 +133,23 @@ class Win32Targets:
 
     def foreground(self):
         return self.root(self.user.GetForegroundWindow())
+
+    def password_focused(self, hwnd):
+        from ctypes import wintypes as w
+
+        class GUIThreadInfo(ctypes.Structure):
+            _fields_ = [("cbSize", w.DWORD), ("flags", w.DWORD),
+                        ("hwndActive", w.HWND), ("hwndFocus", w.HWND),
+                        ("hwndCapture", w.HWND), ("hwndMenuOwner", w.HWND),
+                        ("hwndMoveSize", w.HWND), ("hwndCaret", w.HWND),
+                        ("rcCaret", w.RECT)]
+
+        info = GUIThreadInfo()
+        info.cbSize = ctypes.sizeof(info)
+        thread = self.user.GetWindowThreadProcessId(hwnd, None)
+        if not thread or not self.user.GetGUIThreadInfo(thread, ctypes.byref(info)):
+            raise SensitiveTarget("le champ au premier plan ne peut pas être vérifié")
+        return bool(info.hwndFocus and self.user.GetWindowLongW(info.hwndFocus, -16) & 0x20)
 
     def identity(self, hwnd):
         from ctypes.wintypes import DWORD
@@ -217,9 +236,12 @@ class DesktopSafety:
         if self.api is None:
             return
         self.remember_foreground()
-        reason = self.window_reason(self.api.foreground())
+        hwnd = self.api.foreground()
+        reason = self.window_reason(hwnd)
         if reason:
             raise SensitiveTarget(reason)
+        if self.api.password_focused(hwnd):
+            raise SensitiveTarget("un champ protégé attend une saisie confidentielle")
 
     def prepare_keyboard(self):
         if self.api is None:
