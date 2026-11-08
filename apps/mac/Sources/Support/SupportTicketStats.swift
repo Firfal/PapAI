@@ -50,6 +50,54 @@ struct TicketStats {
         var id: String { category }
     }
 
+    /// Carte « Cette semaine » : `week` du serveur, 7 derniers jours.
+    struct WeekSummary {
+        struct Automate: Identifiable { var key: String; var title: String; var count: Int; var id: String { key } }
+        var count = 0
+        var resolved = 0
+        var byAutomate = 0
+        var resolutionTotal: Double = 0
+        var by: [String: Int] = [:]
+        var automates: [Automate] = []
+        var suggestion: Suggestion?
+        var automateShare: Double { resolved > 0 ? Double(byAutomate) / Double(resolved) : 0 }
+        var meanResolution: Double? { resolved > 0 ? resolutionTotal / Double(resolved) : nil }
+        var top: [(id: String, label: String, count: Int)] {
+            let order = TicketCategory.all.map(\.id)
+            return by.filter { $0.value > 0 }
+                .sorted { ($0.value, order.firstIndex(of: $1.key) ?? 99) > ($1.value, order.firstIndex(of: $0.key) ?? 99) }
+                .prefix(3).map { ($0.key, TicketCategory.label($0.key), $0.value) }
+        }
+        var automate: Automate? { automates.first }
+        var isEmpty: Bool { count == 0 && resolved == 0 }
+
+        init() {}
+        init(_ d: [String: Any]) {
+            func int(_ v: Any?) -> Int { (v as? NSNumber)?.intValue ?? 0 }
+            count = int(d["count"]); resolved = int(d["resolved"]); byAutomate = int(d["by_automate"])
+            resolutionTotal = (d["resolution_total_s"] as? NSNumber)?.doubleValue ?? 0
+            by = ((d["by"] as? [String: Any]) ?? [:]).mapValues { int($0) }
+            automates = ((d["automates"] as? [[String: Any]]) ?? []).compactMap { a in
+                guard let k = a["key"] as? String else { return nil }
+                return Automate(key: k, title: a["title"] as? String ?? "Automate", count: int(a["count"]))
+            }
+        }
+
+        /// Additionne plusieurs utilisateurs : même automate (même clé) cumulé.
+        static func merge(_ parts: [WeekSummary]) -> WeekSummary {
+            var out = WeekSummary()
+            var autos: [String: Automate] = [:]
+            for p in parts {
+                out.count += p.count; out.resolved += p.resolved; out.byAutomate += p.byAutomate
+                out.resolutionTotal += p.resolutionTotal
+                for (k, v) in p.by { out.by[k, default: 0] += v }
+                for a in p.automates { autos[a.key, default: Automate(key: a.key, title: a.title, count: 0)].count += a.count }
+            }
+            out.automates = autos.values.sorted { ($0.count, $1.title) > ($1.count, $0.title) }
+            return out
+        }
+    }
+
     static let suggestMin = 5
     static let examplesMax = 3
 
@@ -60,7 +108,15 @@ struct TicketStats {
     var resolved: Int
     var byAutomate: Int
     var medianResolution: Double?
+    var week = WeekSummary()
     var automateShare: Double { resolved > 0 ? Double(byAutomate) / Double(resolved) : 0 }
+
+    /// La semaine, avec la suggestion d'automate la plus forte du mois.
+    var thisWeek: WeekSummary {
+        var w = week
+        w.suggestion = suggestions.max { $0.count < $1.count }
+        return w
+    }
 
     var suggestions: [Suggestion] {
         categories.compactMap { c in
@@ -105,6 +161,7 @@ struct TicketStats {
         }
         count = int(tot["count"]); resolved = int(tot["resolved"]); byAutomate = int(tot["by_automate"])
         medianResolution = dbl(tot["median_resolution_s"])
+        week = (d["week"] as? [String: Any]).map { WeekSummary($0) } ?? WeekSummary()
     }
 
     static func median(_ xs: [Double]) -> Double? {
@@ -156,6 +213,7 @@ struct TicketStats {
             return c
         }.sorted { ($0.count, order.firstIndex(of: $1.id) ?? 99) > ($1.count, order.firstIndex(of: $0.id) ?? 99) }
         out.medianResolution = median(resolutions[""] ?? [])
+        out.week = WeekSummary.merge(parts.map(\.week))
         return out
     }
 }
