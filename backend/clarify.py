@@ -112,6 +112,8 @@ def _objet(texte: str) -> str:
 def _objet_secours(demande: str, precisions: list[dict]) -> str:
     """Sans Holo : les réponses de l'utilisateur titrent le ticket mieux qu'une demande vide."""
     sens = [m for m in _mots(demande) if m not in _VIDES and len(m) > 1]
+    if len(demande) > 50 and precisions:
+        demande = demande[:50].rsplit(" ", 1)[0] + "…"  # place gardée pour la réponse
     morceaux = [demande] if sens or not precisions else []
     return _objet(" — ".join(morceaux + [p["a"] for p in precisions]))
 

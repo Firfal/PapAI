@@ -53,6 +53,9 @@ def regles() -> None:
         check("Holo injoignable après une réponse : le ticket porte la réponse", r["objet"] == "L'imprimante ne marche plus")
         r = asyncio.run(clarify.evaluer("Imprimante", [{"q": "Quoi ?", "a": "Ça ne marche plus"}]))
         check("Holo injoignable : un mot utile de la demande reste dans l'objet", "Imprimante" in r["objet"])
+        longue = "Bonjour, excusez-moi de vous déranger, j'ai un souci avec l'imprimante depuis ce matin au bureau"
+        r = asyncio.run(clarify.evaluer(longue, [{"q": "Quoi ?", "a": "Bourrage papier"}]))
+        check("Holo injoignable : la réponse reste visible après une longue demande", "Bourrage papier" in r["objet"])
         r = asyncio.run(clarify.evaluer(VAGUE, [], force=True))
         check("« Envoyer quand même » ne repose jamais de question", r["clair"])
     finally:
