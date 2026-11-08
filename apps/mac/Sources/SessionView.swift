@@ -172,7 +172,7 @@ struct SessionView: View {
                 if model.sessionWhere == "web" {
                     endNote("globe", "Holo a fermé sa fenêtre Chrome.")
                 }
-                endNote("book.fill", "\(model.HelperName) peut en faire un tutoriel. Vous le retrouverez dans « Mes tutoriels » pour le refaire sans aide.")
+                endNote("book.fill", "\(model.HelperName) peut en faire un automate. Vous le retrouverez dans « Mes automates » pour le refaire sans aide.")
             }
         case .stopped where guardStopped:
             VStack(alignment: .leading, spacing: 20) {

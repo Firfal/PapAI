@@ -59,17 +59,17 @@ fun DoneScreen() {
                 Box(Modifier.size(34.dp).clip(CircleShape).background(Soin.accent), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Check, null, Modifier.size(18.dp), tint = Color.White)
                 }
-                T("Automatisme « $saved » enregistré.", 16.sp, FontWeight.SemiBold)
+                T("Automate « $saved » enregistré.", 16.sp, FontWeight.SemiBold)
             }
             m.hasDraft -> Draft { zoom = it }
             else -> {
                 CapsuleButton("", enabled = !m.lessonBusy, content = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         if (m.lessonBusy) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                        T(if (m.lessonBusy) "Rédaction en cours…" else "Garder comme automatisme", 17.sp, FontWeight.SemiBold, Color.White)
+                        T(if (m.lessonBusy) "Rédaction en cours…" else "Garder comme automate", 17.sp, FontWeight.SemiBold, Color.White)
                     }
                 }) { m.requestLesson() }
-                T("Holo transforme cette session en pas à pas que ${m.senior} pourra relancer sans aide.", 13.sp, color = Soin.secondary)
+                T("Holo transforme cette assistance en automate que ${m.senior} pourra relancer sans aide.", 13.sp, color = Soin.secondary)
             }
         }
     }
@@ -81,13 +81,13 @@ private fun Draft(onZoom: (ImageBitmap) -> Unit) {
     val m = Helper
     val sentence = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        T("Brouillon de l'automatisme", 17.sp, FontWeight.SemiBold)
+        T("Brouillon de l'automate", 17.sp, FontWeight.SemiBold)
         SoinField(m.draftTitle, { m.draftTitle = it }, "Titre", size = 18.sp, weight = FontWeight.SemiBold, keyboard = sentence)
         Row(Modifier.fillMaxWidth().soinCard().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(Icons.Default.Folder, null, tint = Soin.accent)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 T("La tuile ouvrira", 13.sp, FontWeight.SemiBold, Soin.secondary)
-                T(m.draftTarget ?: "Aucun dossier : ${m.senior} aura seulement le pas à pas.", 16.sp, FontWeight.SemiBold)
+                T(m.draftTarget ?: "Aucun dossier : ${m.senior} aura seulement les étapes.", 16.sp, FontWeight.SemiBold)
             }
         }
         m.draftSteps.forEachIndexed { i, s ->

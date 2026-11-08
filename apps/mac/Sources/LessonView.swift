@@ -33,7 +33,7 @@ struct LessonView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     Text(lesson.title).font(rounded(18, .semibold)).foregroundStyle(T.muted)
                     if steps.isEmpty {
-                        Text("Pas de pas à pas pour ce raccourci.").font(rounded(30, .semibold))
+                        Text("Cet automate n'a pas encore d'étapes.").font(rounded(30, .semibold))
                     } else {
                         let step = steps[min(i, steps.count - 1)]
                         Text("Étape \(i + 1) sur \(steps.count)").font(rounded(18, .semibold)).foregroundStyle(T.accent)
