@@ -94,7 +94,7 @@
     const cols = [['Ticket', num], ['Poste', t => t.poste || ''], ['Statut', t => STATUS[t.status] || t.status],
       ['Demande', t => t.task], ['Source', t => SOURCE[t.source] || t.source], ['Créé', t => new Date(t.created * 1000).toISOString()],
       ['Mis à jour', t => new Date(t.updated * 1000).toISOString()], ['Rendez-vous', t => t.rdv ? new Date(t.rdv * 1000).toISOString() : ''],
-      ['Pris par', t => t.assignee || ''], ['Aidé par', t => t.helper || ''],
+      ['Pris par', t => t.assignee || ''], ['Utilisateur par', t => t.helper || ''],
       ['Étapes', t => (t.plan || []).length ? `${t.steps_done || 0}/${t.plan.length}` : ''],
       ['Arrêté par', t => t.stopped_by || ''], ['Clos par', t => t.closed_by || ''],
       ['Notes', t => (t.notes || []).map(n => `${n.by}: ${n.text}`).join(' | ')]];

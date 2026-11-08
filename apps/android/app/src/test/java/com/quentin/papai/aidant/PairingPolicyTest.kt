@@ -34,7 +34,7 @@ class PairingPolicyTest {
                 assertEquals(status == 408 || status == 409 || (status == 403 && refused), PairingPolicy.needsNew(status, refused))
             }
         }
-        assertEquals("Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).", PairingPolicy.instruction)
+        assertEquals("Demandez à l’utilisateur d'appuyer sur Accepter sur son ordinateur (2 min).", PairingPolicy.instruction)
     }
     @Test fun successRequiresHttp200AndBooleanOk() {
         assertTrue(PairingPolicy.isSuccess(200, true))
@@ -61,18 +61,18 @@ class PairingPolicyTest {
             assertEquals(PairingPolicy.presentation(link.copy(senior = null)), copy)
             assertFalse(copy.toString().contains("Pirate"))
             assertEquals("Relier ce téléphone", copy.title)
-            assertEquals("Votre lien avec la personne aidée", copy.relationLabel)
+            assertEquals("Votre lien avec l’utilisateur", copy.relationLabel)
         }
     }
 
     @Test fun serverLabelsMatchSafetyCopy() {
         assertEquals("Serveur PapAI officiel", PairingPolicy.presentation(PairLink("https://${PairingPolicy.officialHost}", null)).server)
-        assertEquals("Serveur inconnu : ne continuez que si la personne aidée vous a donné ce lien elle-même",
+        assertEquals("Serveur inconnu : ne continuez que si l’utilisateur vous a donné ce lien lui-même",
             PairingPolicy.presentation(PairLink("http://10.0.2.2:8000", null)).server)
     }
 
     @Test fun refusalsAreExactAndActionable() {
-        val expected = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
+        val expected = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de l’utilisateur (Réglages > Mon support)."
         for (debug in listOf(false, true)) {
             for (text in listOf("http://example.com/p/123456", "papai://pair?u=http%3A%2F%2Fexample.com%2Fp%2F123456", "illisible", "", "https://foreign.example/qr")) {
                 assertEquals(expected, PairingPolicy.invitationError(text, debug))

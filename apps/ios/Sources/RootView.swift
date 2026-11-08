@@ -386,7 +386,7 @@ struct RequestCard: View {
     }
 }
 
-/// Mes personnes aidées : qui suivre en détail, qui demande une assistance, ajouter ou retirer.
+/// Mes utilisateurs : qui suivre en détail, qui demande une assistance, ajouter ou retirer.
 struct PeopleRow: View {
     @Bindable var model: HelperModel
     @State private var forget: Person?
@@ -416,7 +416,7 @@ struct PeopleRow: View {
     private func chip(_ p: Person) -> some View {
         let here = model.isCurrent(p)
         let asking = !here && model.othersAsking[p.key] == true
-        let name = p.name.isEmpty ? "Personne aidée" : p.name
+        let name = p.name.isEmpty ? "Utilisateur" : p.name
         return Button { model.switchTo(p) } label: {
             HStack(spacing: 8) {
                 Text(String(name.prefix(1)).uppercased()).font(.system(size: 15, weight: .bold)).foregroundStyle(Soin.accent)

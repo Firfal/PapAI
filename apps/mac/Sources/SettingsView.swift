@@ -21,11 +21,6 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Taille du texte").font(rounded(15, .semibold)).foregroundStyle(T.muted)
-                        Onglets(options: TextScale.options,
-                                selection: Binding(get: { model.textScale }, set: { model.setTextScale($0) }))
-                    }
-                    VStack(alignment: .leading, spacing: 8) {
                         Toggle(isOn: Binding(get: { model.realtimeProtection }, set: { model.setRealtimeProtection($0) })) {
                             Text("Protection en temps réel").font(rounded(22, .semibold))
                         }

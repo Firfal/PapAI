@@ -274,7 +274,7 @@ test('question de Holo à la personne : réponse proposée ou écrite, une seule
   assert.deepEqual(h.calls.at(-1), ['answer_senior', 'Noël 2025']);
 });
 
-test("encart pendant que Holo agit, et fin du gardien adaptée à l'aidé", async () => {
+test("encart pendant que Holo agit, et fin du gardien adaptée à l’utilisateur", async () => {
   const h = await home();
   h.update(session({ state: 'active', compact: true }));
   assert.match(html(h), /class="col mini"/);

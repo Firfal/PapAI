@@ -57,19 +57,31 @@ enum SupportConnection {
 
 struct SupportRoot: View {
     @Bindable var model: HelperModel
+    @State private var onglet = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             SupportHeader(model: model)
             if model.isConfigured {
-                HStack(alignment: .top, spacing: 22) {
-                    PeopleSidebar(model: model).frame(width: 236)
-                    VStack(alignment: .leading, spacing: 12) {
-                        if !model.connected { LostBar(model: model) }
-                        if let reason = model.sensitiveRefusal { refusal(reason) }
-                        content
+                VStack(alignment: .leading, spacing: 14) {
+                    Onglets(options: [("Tickets", 0), ("Utilisateurs", 1), ("Mes automates", 2)], selection: $onglet)
+                        .frame(maxWidth: 520)
+                    switch onglet {
+                    case 0:
+                        SupportTickets(model: model) { p in model.switchTo(p); onglet = 1 }
+                    case 2:
+                        SupportAutomates(model: model)
+                    default:
+                        HStack(alignment: .top, spacing: 22) {
+                            PeopleSidebar(model: model).frame(width: 236)
+                            VStack(alignment: .leading, spacing: 12) {
+                                if !model.connected { LostBar(model: model) }
+                                if let reason = model.sensitiveRefusal { refusal(reason) }
+                                content
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                        }
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
             } else {
                 SupportWelcome(model: model)
@@ -84,6 +96,8 @@ struct SupportRoot: View {
         .overlay(alignment: .bottom) { toast }
         .animation(.spring(duration: 0.35), value: model.toast)
         .animation(.easeInOut(duration: 0.25), value: model.screen)
+        // Une assistance démarre : on montre l'utilisateur concerné, quel que soit l'onglet.
+        .onChange(of: model.screen) { _, s in if s != .idle { onglet = 1 } }
         .sheet(item: $model.sheet) { s in
             switch s {
             case .pair(let l): SupportPairSheet(model: model, link: l)
@@ -189,7 +203,7 @@ struct LostBar: View {
     }
 }
 
-/// Mes personnes aidées : qui suivre en détail, qui demande une assistance, ajouter ou retirer.
+/// Mes utilisateurs : qui suivre en détail, qui demande une assistance, ajouter ou retirer.
 struct PeopleSidebar: View {
     @Bindable var model: HelperModel
     @State private var forget: Person?
@@ -198,7 +212,7 @@ struct PeopleSidebar: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: "person.2").font(rounded(18, .semibold)).foregroundStyle(T.accent)
-                Text("Mes personnes aidées").font(rounded(18, .bold)).lineLimit(1).minimumScaleFactor(0.8)
+                Text("Mes utilisateurs").font(rounded(18, .bold)).lineLimit(1).minimumScaleFactor(0.8)
             }
             .accessibilityAddTraits(.isHeader)
             ScrollView(showsIndicators: false) {
@@ -232,7 +246,7 @@ struct PeopleSidebar: View {
         let here = model.isCurrent(p)
         let asking = !here && model.othersAsking[p.key] == true
         let online = here ? (model.seniorOnline == true) : (model.othersOnline[p.key] == true)
-        let name = p.name.isEmpty ? "Personne aidée" : p.name
+        let name = p.name.isEmpty ? "Utilisateur" : p.name
         return Button { model.switchTo(p) } label: {
             HStack(spacing: 12) {
                 Text(String(name.prefix(1)).uppercased()).font(rounded(17, .bold))
@@ -286,7 +300,7 @@ struct RequestHead: View {
     }
 }
 
-/// Capture de l'écran de la personne aidée ; en visée, un clic place le viseur.
+/// Capture de l'écran de l’utilisateur ; en visée, un clic place le viseur.
 struct SupportCapture: View {
     @Bindable var model: HelperModel
     var aimable = false

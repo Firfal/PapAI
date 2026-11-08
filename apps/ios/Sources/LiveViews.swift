@@ -85,7 +85,7 @@ struct PlanProgress: View {
     }
 }
 
-/// Capture de l'écran de la personne aidée, avec le viseur quand on prend la main.
+/// Capture de l'écran de l’utilisateur, avec le viseur quand on prend la main.
 struct CaptureView: View {
     let model: HelperModel
     var body: some View {

@@ -8,7 +8,8 @@ cd "$ROOT"
 OUT="build/cli"
 APP="$OUT/PapAI.app"
 mkdir -p "$OUT"
-swiftc -O -swift-version 5 -enable-bare-slash-regex -parse-as-library -target "$(uname -m)-apple-macos15.0" \
+# PAPAI_DEBUG=1 : build de mise au point (-D DEBUG), qui accepte un serveur http local.
+swiftc -O $([[ "${PAPAI_DEBUG:-}" == 1 ]] && echo "-D DEBUG") -swift-version 5 -enable-bare-slash-regex -parse-as-library -target "$(uname -m)-apple-macos15.0" \
   Sources/*.swift Sources/Support/*.swift ../shared/*.swift \
   ../ios/Sources/{HelperModel,People,Pairing,Platform,FlowLayout}.swift -o "$OUT/PapAI"
 
@@ -30,6 +31,10 @@ if [[ -f "$ICONS/icon-1024.png" ]]; then
   iconutil -c icns "$SET" -o "$APP/Contents/Resources/AppIcon.icns"
   /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" "$APP/Contents/Info.plist" 2>/dev/null || true
 fi
+
+# Exemples d'automates (bibliothèque du mode support au premier lancement).
+mkdir -p "$APP/Contents/Resources/automates"
+for f in ../../automations/*.papai; do cat "$f" > "$APP/Contents/Resources/automates/$(basename "$f")"; done
 
 xattr -cr "$APP"
 codesign --force --deep --sign - "$APP"

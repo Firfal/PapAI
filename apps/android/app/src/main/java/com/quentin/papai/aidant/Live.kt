@@ -82,7 +82,7 @@ fun ActiveScreen() {
     }
 }
 
-/** Capture de l'écran de la personne aidée, avec le viseur quand on prend la main. */
+/** Capture de l'écran de l’utilisateur, avec le viseur quand on prend la main. */
 @Composable
 fun CaptureView() {
     val m = Helper

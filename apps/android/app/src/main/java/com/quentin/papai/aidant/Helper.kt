@@ -89,7 +89,7 @@ object Helper {
     private var helperRelation = ""
     var seniorName by mutableStateOf("")
 
-    // Mes personnes aidées : une liaison par ordinateur, une seule suivie en détail à la fois.
+    // Mes utilisateurs : une liaison par ordinateur, une seule suivie en détail à la fois.
     val people = mutableStateListOf<Person>()
     /** Pour les autres personnes : clé → ordinateur connecté / demande en attente. */
     val othersOnline = mutableStateMapOf<String, Boolean>()
@@ -187,10 +187,10 @@ object Helper {
 
     val isConfigured get() = serverURL.isNotBlank() && helperKey.isNotBlank()
 
-    /** Dans une phrase : « Rien à signaler pour Sophie », sinon « de la personne aidée ». */
-    val senior get() = seniorName.ifEmpty { "la personne aidée" }
+    /** Dans une phrase : « Rien à signaler pour Sophie », sinon « de l’utilisateur ». */
+    val senior get() = seniorName.ifEmpty { "l’utilisateur" }
     /** En début de phrase : « Sophie a besoin de vous ». */
-    val seniorTitle get() = seniorName.ifEmpty { "La personne aidée" }
+    val seniorTitle get() = seniorName.ifEmpty { "L’utilisateur" }
     val webBrowserTitle get() = seniorName.trim().split(Regex("\\s+")).firstOrNull()
         ?.let { "Chrome PapAI de $it" } ?: "Chrome PapAI"
 
@@ -246,9 +246,9 @@ object Helper {
         LinkService.start(ctx)
     }
 
-    // MARK: Mes personnes aidées
+    // MARK: Mes utilisateurs
 
-    // Organisations (service IT) : chaque poste inscrit devient une personne aidée, sans code.
+    // Organisations (service IT) : chaque poste inscrit devient un utilisateur, sans code.
     val orgs = mutableStateListOf<Org>()
     var orgError by mutableStateOf<String?>(null)
     var orgBusy by mutableStateOf(false)
@@ -376,7 +376,7 @@ object Helper {
                 val m = try { JSONObject(text) } catch (_: Exception) { return }
                 main.post {
                     if (watches[p.key] !== webSocket) return@post
-                    val who = people.firstOrNull { it.key == p.key }?.name?.ifEmpty { null } ?: "Une personne aidée"
+                    val who = people.firstOrNull { it.key == p.key }?.name?.ifEmpty { null } ?: "Un utilisateur"
                     when (m.text("type")) {
                         "refused" -> {
                             watches.remove(p.key); othersOnline[p.key] = false
@@ -544,7 +544,7 @@ object Helper {
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
     } catch (_: Exception) { null }
 
-    // MARK: Personne aidée
+    // MARK: Utilisateur
 
     fun setSenior(name: String?) {
         val n = cleanText(name)

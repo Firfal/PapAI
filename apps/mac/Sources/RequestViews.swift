@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Le support propose une assistance : la personne accepte ou refuse.
+/// Le support propose une assistance : l’utilisateur accepte ou refuse.
 struct RemoteRequestView: View {
     @Environment(AppModel.self) private var model
     let request: RemoteRequest
