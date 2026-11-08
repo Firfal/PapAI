@@ -15,30 +15,30 @@ Rien de ce scénario n'a encore été fait en entier sur le vrai Mac : **faire l
       Autorisations déjà données : Enregistrement de l'écran, Accessibilité, Micro, Reconnaissance vocale (faire une dictée d'essai avant).
 - [ ] **Gardien** : aucun outil de prise en main ouvert (AnyDesk, TeamViewer…), sinon une alerte s'affiche par-dessus tout entre deux sessions.
       Si macOS demande d'autoriser PapAI à contrôler un navigateur (lecture de l'adresse), répondre avant la démo.
-- [ ] **Dossier** `~/Pictures/Noël 2025` présent avec ses 4 images ; aucun autre dossier « Noël 2025 » ailleurs (Bureau compris).
+- [ ] **Dossier** `~/Documents/Comptabilité 2025` présent avec quelques fichiers ; aucun autre dossier « Comptabilité 2025 » ailleurs (Bureau compris).
 - [ ] **iPhone** : app PapAI **au premier plan** et connectée, Verrouillage auto sur Jamais, Ne pas déranger, batterie chargée.
       En arrière-plan, la connexion se coupe et le plan n'arrive pas.
 - [ ] **H − 30 min : automate de secours créé** (session complète puis « Garder comme automate »). Sur le Mac, la tuile rouvre bien le dossier.
       Hors de la vue du public, vérifier que le raccourci retient le sous-dossier :
-      `curl -s https://papai-450417131702.europe-west1.run.app/k/<clé famille>/lessons` doit contenir `"subfolder": "Noël 2025"`.
-      Sinon la tuile ouvre seulement Images, et le déplacement du dossier ne déclenchera pas d'alerte.
+      `curl -s https://papai-450417131702.europe-west1.run.app/k/<clé famille>/lessons` doit contenir `"subfolder": "Comptabilité 2025"`.
+      Sinon la tuile ouvre seulement Documents, et le déplacement du dossier ne déclenchera pas d'alerte.
 - [ ] Vidéo de 2 min prête à lancer (plan B), sur l'ordinateur de projection.
 
 ## Scénario (environ 3 min, ce qu'on doit voir à chaque pas)
 
-1. **Demande** (Mac) : toucher le micro, dire « Je veux voir mes photos de Noël », retoucher le micro. Le texte apparaît (Gladia). « Demander une assistance ».
+1. **Demande** (Mac) : toucher le micro, dire « Je ne retrouve plus le dossier de la comptabilité », retoucher le micro. Le texte apparaît (Gladia). « Demander une assistance ».
 2. **Consentement** (Mac) : « PapAI va regarder votre écran », accepter. L'iPhone reçoit la demande.
-3. **Plan** (iPhone) : le plan de Holo arrive. Le lire à voix haute. Il propose souvent l'app Photos : c'est voulu.
-4. **Précision** (iPhone) : Préciser, écrire « dans le Finder, Images › Noël 2025 ». Un nouveau plan arrive sur l'iPhone et le Mac.
+3. **Plan** (iPhone) : le plan de Holo arrive. Le lire à voix haute. S'il ne passe pas par le Finder, on le précise à l'étape suivante.
+4. **Précision** (iPhone) : Préciser, écrire « dans le Finder, Documents › Comptabilité 2025 ». Un nouveau plan arrive sur l'iPhone et le Mac.
 5. **Validation** (iPhone) : Valider. **Plus personne ne touche la souris.**
-6. **Holo ouvre le dossier** (Mac) : Finder, Images, Noël 2025. Une phrase et l'étape du plan à chaque action (environ 6,5 s par action). « C'est fait ! ».
+6. **Holo ouvre le dossier** (Mac) : Finder, Documents, Comptabilité 2025. Une phrase et l'étape du plan à chaque action (environ 6,5 s par action). « C'est fait ! ».
 7. **Garder comme automate** (iPhone) : relire le brouillon, Valider. La tuile apparaît dans « Mes automates » sur l'accueil du Mac.
 8. **Rejeu** (Mac) : fermer la fenêtre Finder, cliquer la tuile. « C'est ouvert. », le dossier s'ouvre sans appel à Holo.
-9. **Déplacement** : fermer le Finder, glisser `Noël 2025` d'Images vers le Bureau (déplacer, jamais supprimer).
+9. **Déplacement** : fermer le Finder, glisser `Comptabilité 2025` de Documents vers le Bureau (déplacer, jamais supprimer).
 10. **Alerte** : cliquer la tuile. Mac : « Je ne retrouve pas ce dossier. <prénom du proche> a reçu un message pour s'en occuper. »
-    iPhone : alerte au titre de l'automate, « « Noël 2025 » n'existe pas (ou plus) sur cet ordinateur. »
+    iPhone : alerte au titre de l'automate, « « Comptabilité 2025 » n'existe pas (ou plus) sur cet ordinateur. »
 
-Après : remettre `Noël 2025` du Bureau dans Images.
+Après : remettre `Comptabilité 2025` du Bureau dans Documents.
 
 ## Plan B si Holo rate
 

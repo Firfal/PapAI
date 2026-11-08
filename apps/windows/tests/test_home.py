@@ -88,13 +88,13 @@ class Folders(unittest.TestCase):
     def test_recent_photos_and_three_known_folders(self):
         for n in ['Documents', 'Téléchargements']:
             (self.root / n).mkdir()
-        album = self.photos / 'Noël 2025'
+        album = self.photos / 'Séminaire 2025'
         album.mkdir()
         (album / 'image.jpg').write_bytes(b'image')
         home = HomeShortcuts(storage=self.root / 'local.json', catalog=lambda: [],
                              folders=lambda k: self.root / {'pictures': 'Images', 'documents': 'Documents',
                                                            'downloads': 'Téléchargements'}[k], foreground=lambda: None)
-        self.assertEqual([t['label'] for t in home.snapshot()], ['Images', 'Documents', 'Téléchargements', 'Noël 2025', 'Nouveau message'])
+        self.assertEqual([t['label'] for t in home.snapshot()], ['Images', 'Documents', 'Téléchargements', 'Séminaire 2025', 'Nouveau message'])
 
     def test_new_message_only_opens_fixed_empty_mailto(self):
         home = self.home()

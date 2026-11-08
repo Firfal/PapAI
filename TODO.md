@@ -22,7 +22,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Couper les images et les états d'une autre assistance sur les liens de session terminée (fin normale, Arrêter, refus du plan, alerte, déconnexion), sans fermer le socket nécessaire à la rédaction de l'automate ; reconnexion sans image, réponse finale de sa propre assistance conservée. Test de non-régression : 21 contrôles réussis.
 - [x] **Abonnement entreprise Stripe (mode test seulement)** : page Abonnement liée à la console, prix par poste, Checkout, portail et webhook signé ; stockage séparé de l'organisation, aucun blocage sans abonnement. Faux Stripe local, 5 tests OK ; suites serveur comparées à main sans nouvel échec. Paiement réel et interface à l'écran non vérifiés.
 - [ ] **Réinstaller les apps Mac et iPhone depuis `main`** : celles des appareils datent d'avant les PR #1 à #4. Compilées sur macOS depuis, mais pas encore lancées.
-- [ ] **Répétition réelle sur le Mac** : demande → plan → précision → validation → Holo ouvre `Images/Noël 2025` → Arrêter. Trois fois de suite sans accroc.
+- [ ] **Répétition réelle sur le Mac** : demande → plan → précision → validation → Holo ouvre `Documents/Comptabilité 2025` → Arrêter. Trois fois de suite sans accroc.
   - [ ] Bloqué : Quentin doit cliquer « Autoriser » dans la fenêtre macOS « contourner le sélecteur de fenêtre privée » (enregistrement de l'écran de PapAI).
 - [ ] **Vrais clics CGEvent** de l'app Mac (`apps/mac/Sources/Bridge.swift`) : jamais exercés en réel.
 - [ ] **Bouton Arrêter** cliqué pendant une session active : vérifier qu'aucune action ne passe ensuite.
