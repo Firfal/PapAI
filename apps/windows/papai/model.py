@@ -12,6 +12,7 @@ import json
 import os
 import threading
 import urllib.request
+from urllib.parse import quote
 from typing import Callable
 
 from . import apps as start_apps
@@ -45,10 +46,12 @@ class Model:
     def __init__(self, push: Callable[[dict], None] = lambda s: None,
                  on_level: Callable[[bool], None] = lambda on: None,
                  on_remote: Callable[[], None] = lambda: None,
+                 on_compact: Callable[[bool], None] = lambda on: None,
                  demo: str | None = None, bridge_factory: Callable | None = None) -> None:
         self._push = push
         self._on_level = on_level
         self._on_remote = on_remote
+        self._on_compact = on_compact
         self._lock = threading.RLock()
         self.demo = demo if demo is not None else (os.environ.get("PAPAI_DEMO") or None)
         self.prefs = settings.load()
@@ -61,6 +64,16 @@ class Model:
         self.plan: list[str] = []
         self.plan_step: int | None = None
         self.question: str | None = None
+        # Holo pose la question à la personne aidée elle-même (`ask_senior`).
+        self.question_for_me = False
+        self.question_options: list[str] = []
+        self.paused = False
+        self.guard_acknowledged = False
+        self.session_helper: str | None = None
+        # Pendant que Holo agit, la fenêtre devient un petit encart (MiniPanel du Mac).
+        self.compact = False
+        self.user_expanded = False
+        self._last_state: str | None = None
         self.answer: str | None = None
         self.current_action: str | None = None
         self.actions: list[str] = []
@@ -71,6 +84,11 @@ class Model:
         self.helpers: list[dict] = []
         self.pair_code: str | None = None
         self.pair_url: str | None = None
+        # Lien `papai://` du QR : ouvre l'app du support au lieu du navigateur.
+        self.pair_app_url: str | None = None
+        # Invitation à envoyer (SMS, WhatsApp…), valable 24 h, comme sur le Mac.
+        self.pair_long = False
+        self.pair_expires = 600
         self.pair_added: str | None = None
         self.remote_request: dict | None = None
         self.pending_task = ""
@@ -127,6 +145,13 @@ class Model:
             return f"{h[0]['name']} ou {h[1]['name']}"
         return "l'un de vos proches"
 
+    @property
+    def carer(self) -> str:
+        """Qui s'occupe de la session en cours (comme `carer` sur le Mac)."""
+        if self.session_helper:
+            return self.session_helper
+        return self.helpers[0]["name"] if len(self.helpers) == 1 else "Votre proche"
+
     def snapshot(self) -> dict:
         with self._lock:
             hn = self.helper_name
@@ -143,10 +168,14 @@ class Model:
                 "task": self.task, "pendingTask": self.pending_task, "screenConsent": self.screen_consent,
                 "plan": list(self.plan), "planStep": self.plan_step,
                 "question": self.question, "answer": self.answer,
+                "questionForMe": self.question_for_me, "questionOptions": list(self.question_options),
+                "paused": self.paused, "guardAcknowledged": self.guard_acknowledged,
+                "carer": self.carer, "compact": self.compact,
                 "currentAction": self.current_action, "actions": list(self.actions),
                 "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "notice": self.notice, "alert": self.alert,
                 "helpers": list(self.helpers), "pairCode": self.pair_code,
-                "pairURL": self.pair_url, "pairQR": qr_data_url(self.pair_url or ""),
+                "pairURL": self.pair_url, "pairQR": qr_data_url(self.pair_app_url or self.pair_url or ""),
+                "pairLong": self.pair_long, "pairExpires": self.pair_expires,
                 "pairAdded": self.pair_added, "remoteRequest": self.remote_request,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
@@ -155,7 +184,47 @@ class Model:
         self._push(self.snapshot())
 
     def _level(self) -> None:
+        with self._lock:
+            if self.state != self._last_state:
+                self._last_state = self.state
+                self.user_expanded = False
+            want = (self.session_open and not self.user_expanded and
+                    (self.state == "active" or (self.state == "awaiting_helper" and not self.question_for_me)))
+            changed = want != self.compact
+            self.compact = want
         self._on_level(self.session_open)
+        if changed:
+            self._on_compact(want)
+
+    def expand_window(self) -> None:
+        """Bouton « agrandir » de l'encart : la grande fenêtre revient."""
+        with self._lock:
+            self.user_expanded = True
+        self._level()
+        self.push()
+
+    def toggle_pause(self) -> None:
+        with self._lock:
+            if not self.session_open:
+                return
+            self.paused = not self.paused
+            paused = self.paused
+        if self.bridge is not None:
+            self.bridge.send({"type": "pause" if paused else "resume"})
+        self._level()
+        self.push()
+
+    def answer_senior(self, text: str) -> None:
+        """Réponse de la personne aidée à une question de Holo qui lui est posée."""
+        t = str(text or "").strip()[:300]
+        if t and self.bridge is not None:
+            self.bridge.send({"type": "senior_answer", "text": t})
+
+    def send_dictation(self, text: str, final: bool = False) -> None:
+        """La dictée part aussi chez l'aidant, qui voit ce qu'elle a dit."""
+        t = str(text or "").strip()[:300]
+        if t and self.bridge is not None:
+            self.bridge.send({"type": "dictation", "text": t, "final": final})
 
     # ------------------------------------------------------------ démarrage
 
@@ -258,7 +327,7 @@ class Model:
         with self._lock:
             self.onboarded = True
             self.onboarding_step = 0
-            self.pair_code = self.pair_url = None
+            self._clear_pair()
         self.push()
 
     def reset_onboarding(self) -> None:
@@ -276,12 +345,39 @@ class Model:
 
     def start_pairing(self) -> None:
         self.pair_added = None
-        self._send({"type": "pair_start"})
+        self._send({"type": "pair_start", "long": True})
         self.push()
 
     def stop_pairing(self) -> None:
-        self.pair_code = self.pair_url = None
+        self._clear_pair()
         self.push()
+
+    def _clear_pair(self) -> None:
+        self.pair_code = self.pair_url = self.pair_app_url = None
+        self.pair_long = False
+
+    @staticmethod
+    def app_pairing_url(url: str) -> str:
+        """`papai://pair?u=<url encodée>` : l'appareil photo du téléphone ouvre l'app, pas le navigateur."""
+        return "papai://pair?u=" + quote(url, safe="-._~")
+
+    @property
+    def invitation_text(self) -> str:
+        n = str(self.prefs.get("firstName") or "").strip()
+        who = n or "Votre proche"
+        return (f"{who} aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre "
+                f"téléphone pour vous relier (valable {'24 heures' if self.pair_long else '10 minutes'}) :")
+
+    def copy_invitation(self) -> bool:
+        """« Envoyer par SMS, WhatsApp… » : Windows n'a pas de ShareLink, l'invitation part dans le presse-papiers."""
+        if not self.pair_url:
+            return False
+        try:
+            import pyperclip
+            pyperclip.copy(f"{self.invitation_text}\n{self.pair_url}")
+        except Exception:  # noqa: BLE001 — pas de presse-papiers (aperçu, session distante)
+            return False
+        return True
 
     def remove_helper(self, helper_id: str) -> None:
         self._send({"type": "remove_helper", "id": helper_id})
@@ -350,6 +446,8 @@ class Model:
             self.task = str(task or "")
             self.pending_task = ""
             self.plan, self.plan_step, self.question = [], None, None
+            self.question_for_me, self.question_options, self.paused = False, [], False
+            self.session_helper = None
             self.answer, self.current_action, self.actions = None, None, []
             self.state = "planning"
             self.screen = "session"
@@ -398,8 +496,9 @@ class Model:
                             for d in lst if isinstance(d, dict) and d.get("id") and d.get("name")]
             if m.get("added"):
                 self.pair_added = str(m["added"])
-                self.pair_code = self.pair_url = None
+                self._clear_pair()
         elif kind == "alert":
+            self.guard_acknowledged = bool(m.get("acknowledged") or m.get("acknowledged_by"))
             if m.get("level") == "danger" or m.get("blocked"):
                 self.gate.raise_stop()
                 self.state = "stopped"
@@ -410,6 +509,7 @@ class Model:
         elif kind == "alert_acknowledged":
             if self.alert and m.get("alert_id") and m["alert_id"] == self.alert.get("id"):
                 self.alert["acknowledged"] = True
+                self.guard_acknowledged = True
         elif kind == "alert_cleared":
             if self.alert and m.get("alert_id") and m["alert_id"] == self.alert.get("id"):
                 self.alert = None
@@ -422,6 +522,12 @@ class Model:
         elif kind == "pair_code":
             self.pair_code = m.get("code")
             self.pair_url = m.get("url")
+            self.pair_app_url = m.get("app_url") or (self.app_pairing_url(self.pair_url) if self.pair_url else None)
+            self.pair_long = bool(m.get("long"))
+            try:
+                self.pair_expires = int(m.get("expires_in") or 600)
+            except (TypeError, ValueError):
+                self.pair_expires = 600
         elif kind == "remote_request":
             if self.session_open:
                 return
@@ -434,6 +540,8 @@ class Model:
     def _apply_status(self, m: dict) -> None:
         with self._lock:
             self.stopped_by = m.get("stopped_by")
+            if isinstance(m.get("guard_acknowledged"), bool):
+                self.guard_acknowledged = m["guard_acknowledged"]
             if self.screen != "session":
                 return
             if self.gate.is_stopped:
@@ -452,6 +560,12 @@ class Model:
                 self.plan_step = ps if isinstance(ps, int) and not isinstance(ps, bool) else None
                 q = m.get("question")
                 self.question = q.get("question") if isinstance(q, dict) else None
+                self.question_for_me = isinstance(q, dict) and q.get("to") == "senior"
+                opts = q.get("options") if isinstance(q, dict) else None
+                self.question_options = [str(o) for o in opts][:4] if isinstance(opts, list) else []
+                self.paused = bool(m.get("paused"))
+                if m.get("helper_name"):
+                    self.session_helper = str(m["helper_name"])
                 if self.state != "active":
                     self.current_action = None
         self._level()
@@ -609,10 +723,12 @@ class Model:
                 self.onboarding_step = 0
             if self.onboarding_step == 1:
                 self.prefs["firstName"] = "Jeanne"
-            if self.onboarding_step == 4:
+            if self.onboarding_step == 3:
                 self.helpers = [{"id": "1", "name": "Claire", "relation": "sa fille"}]
                 self.pair_code = "482913"
                 self.pair_url = "http://192.168.1.20:8000/p/482913"
+                self.pair_app_url = self.app_pairing_url(self.pair_url)
+                self.pair_long = True
             return
         self.onboarded = True
         self.helpers = [{"id": "1", "name": "Claire", "relation": "sa fille"}]
@@ -644,7 +760,9 @@ class Model:
             self.pending_task = "Je ne retrouve plus mes photos de Noël"
             self.screen = "consent"
             return
-        if demo not in STATES:
+        state = {"senior_question": "awaiting_helper", "paused": "active",
+                 "compact": "active", "gardien": "stopped"}.get(demo, demo)
+        if state not in STATES:
             return
         self.task = "Je ne retrouve plus mes photos de Noël"
         self.plan = ["Ouvrir l'Explorateur de fichiers", "Aller dans le dossier Images",
@@ -655,5 +773,15 @@ class Model:
         self.actions = ["J'ouvre la recherche de Windows", "J'écris « Explorateur »",
                         "Je clique sur l'icône de l'Explorateur"]
         self.question = "Je vois deux dossiers « Noël ». Lequel faut-il ouvrir ?"
-        self.state = demo
+        if demo == "senior_question":
+            self.question = "Vos photos de Noël sont-elles sur cet ordinateur ou sur une clé USB ?"
+            self.question_for_me = True
+            self.question_options = ["Sur l'ordinateur", "Sur une clé USB"]
+        self.paused = demo == "paused"
+        if demo == "gardien":
+            self.stopped_by, self.guard_acknowledged = "gardien", True
+        self.state = state
         self.screen = "session"
+        self._last_state = state
+        self.compact = demo == "compact"
+        self.user_expanded = not self.compact
