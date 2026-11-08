@@ -59,12 +59,12 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Automates importés par un support (`.papai`) : import et retrait (page aidant, `POST /k/CLÉ/automations`), actions de premier niveau, lancement en un clic sans validation à chaque fois, 7 exemples dans `automations/` (dont démos Wi-Fi, bloqueur de publicités, navigateur remis à zéro). Tests : `tests/test_automatismes.py` (40 contrôles) et `apps/windows/tests/test_windows_app.py`.
 - [ ] Charger les 7 exemples d'automates dans un nouvel espace (aujourd'hui il faut les importer à la main). Touche `backend/space.py`, réservé par Devin (multi-espaces).
 - [x] Réglages Mac : sans taille du texte, sans changement de rôle, sans lien de parenté (`claude/reglages-connexion`).
-- [x] Accueil support Mac : onglets Tickets (tous les utilisateurs), Utilisateurs, Mes automates (`claude/support-tickets`). Reste : même organisation sur l'iPhone et Android.
+- [x] Accueil support Mac : onglets Tickets (tous les utilisateurs), Utilisateurs, Mes automates (`claude/support-tickets`). Reste : même organisation sur l'iPhone (Android fait : `devin/1794130475-android-aligne-iphone`).
 - [ ] Réactiver la création d'automate côté support quand ce sera décidé (`SupportAutomates.creationActive`).
 - [x] Mode support Mac : « Mes automates » (bibliothèque du support, appliquer à des personnes), création à la main, depuis un document ou un enregistrement d'écran avec voix (`claude/support-automates`).
   - [ ] Essayer l'enregistrement d'écran en vrai (autorisation d'enregistrement et micro sur le poste du support).
   - [ ] Joindre les captures clés au pas à pas « Montrez-moi » de l'automate créé.
-  - [ ] Porter « Mes automates » sur l'iPhone et Android.
+  - [ ] Porter « Mes automates » sur l'iPhone (Android fait : `devin/1794130475-android-aligne-iphone`).
 - [x] Plus de surveillance continue : les apps Mac et Windows n'envoient plus les signaux du gardien toutes les 8 s.
 - [x] Protection en temps réel (8 nov., décision de Corentin) : le gardien reprend ses trois signaux textuels toutes les 8 s hors assistance, derrière l'interrupteur « Protection en temps réel » des Réglages Mac et Windows, activé par défaut et gardé ; coupé, rien ne part. L'état s'affiche sur la page du support. Profil Chrome PapAI effacé après chaque assistance, Holo demande à la personne de se connecter elle-même. Reste : Swift non compilé, pas essayé sur un vrai Mac ni un vrai Windows ; Android et iPhone n'affichent pas encore l'état.
 - [ ] Compiler et essayer sur un Mac (`Automations` dans `Core.swift`) : modèles Word, page Imprimantes, Google via Holo.
@@ -100,6 +100,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Essayer l'inscription d'un vrai poste Windows et d'un vrai Mac avec un jeton d'organisation.
 - [x] Support connecté d'office à l'organisation, liaison archivée : Mac (`supportToken`), iPhone (MDM, xcconfig local), Android (restrictions gérées), web (`/o/<jeton>`). Tests : `apps/mac/tests/support_org_test.swift`, `tests/test_helper_postes.js`.
 - [x] Android après le pivot (`devin/1794128283-android-pivot`, contient #72) : compilé, 26 tests JVM, jeton personnel du support (#77) et clé dérivée acceptés, accès retiré (4401/4403) sans reconnexion en boucle ; parcours joué sur émulateur contre un serveur local (postes, demande, plan à valider, en cours, fin, demande d'un autre poste).
+- [x] Android aligné sur l'iPhone et le support Mac (`devin/1794130475-android-aligne-iphone`) : onglets Tickets / Utilisateurs / Mes automates, alerte du gardien plein écran, « Modifier l'étape », palette unique. 33 tests JVM ; parcours joué sur émulateur contre un serveur local. Reste : mascotte Papaye absente sur Android, vrai téléphone.
 - [ ] Essayer le support sur un vrai iPhone avec une configuration MDM (ou le xcconfig local) et sur un vrai Android avec restrictions gérées.
 - [ ] Essayer « Mes personnes aidées » sur un vrai Android et un vrai iPhone (Swift non compilé ici).
 - [ ] Plusieurs aidants : plusieurs proches s'ajoutent déjà et reçoivent tous la demande. Reste à éprouver « le premier disponible valide » avec deux aidants connectés.
@@ -120,4 +121,4 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Accueil Mac en deux colonnes (60/40) : barre de demande réduite puis « Mes automates » à gauche ; « Applications récentes » (6 dernières applications utilisées) au milieu à droite.
 - [x] Notion du hackathon avec la base Features, mise à jour le 7 novembre à 18 h 30 selon l'état réel.
 - [x] Tickets : chaque demande d'assistance suivie (numéro, statut, plan, fin), demande en attente quand aucun support n'est là, personne reprévenue dès qu'un support arrive, rendez-vous et rappel ; onglet Tickets de l'organisation (filtres, CSV) et liste sur la page du support (`tests/test_tickets.py`).
-- [ ] Tickets dans les apps Android et iPhone du support (aujourd'hui : page web seulement).
+- [ ] Tickets dans l'app iPhone du support (Android fait : onglet Tickets, `devin/1794130475-android-aligne-iphone`).

@@ -10,8 +10,15 @@ l'organisation (`GET <serveur>/o/<jeton>/spaces`, toutes les 30 s), suit un post
 signale les demandes et alertes des autres. La version avec liaison est archivée dans la branche
 `archive/particuliers`.
 
-Ce qu'elle fait : postes de l'organisation (« prénom · service »), demande et plan
-(valider, préciser au clavier ou à la voix, refuser), écran en direct, pause, question de Holo,
+Ce qu'elle fait : accueil en trois onglets, comme le support Mac et l'iPhone : **Tickets**
+(tous les tickets de tous les postes, filtres Ouverts/Tous, Prendre en charge / Clore / Rouvrir,
+« Voir l’utilisateur »), **Utilisateurs** (postes de l'organisation, « prénom · service », et
+l'assistance en cours) et **Mes automates** (bibliothèque du support gardée sur le téléphone, avec
+les exemples de `automations/` au premier lancement, import d'un `.papai`, « Appliquer… » à un ou
+plusieurs postes ; pas de création à partir de rien). Une assistance qui démarre ramène sur
+Utilisateurs. Demande et plan (valider, préciser au clavier ou à la voix, toucher une étape pour
+la modifier, refuser), écran en direct, pause, question de Holo, alerte du gardien en plein écran
+(« Je m'en occupe », « C'est normal »),
 prise en main (viseur et loupe ×3, clic normalisé), dictée en direct de l’utilisateur, alertes,
 fin de l'assistance et automate (brouillon modifiable avec ses captures réelles).
 Une notification « Connexion » (service de premier plan) garde la connexion ouverte, et une
@@ -74,3 +81,6 @@ Sans clé, l'APK de release est signé avec la clé de debug de la machine.
 3. Ouvrir PapAI et autoriser les notifications : les postes de l'organisation apparaissent seuls.
 
 Ou par câble : `adb install -r app-release.apk`.
+
+Captures d'écran : interdites (`FLAG_SECURE`), sauf build de debug lancé avec
+`adb shell am start -n com.quentin.papai.aidant/.MainActivity --ez captures true`.
