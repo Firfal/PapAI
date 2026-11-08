@@ -23,7 +23,7 @@ struct RootView: View {
     var body: some View {
         @Bindable var model = model
         VStack(alignment: .leading, spacing: 22) {
-            Header().padding(.top, 24)
+            Header()
             Group {
                 if let p = model.pairRequest {
                     PairRequestView(request: p)
@@ -47,7 +47,7 @@ struct RootView: View {
             }
         }
         .padding(.horizontal, 28).padding(.bottom, 28)
-        .background(T.bg.ignoresSafeArea())
+        .background(T.fond.ignoresSafeArea())
         .background(WindowGrabber { model.window = $0 })
         .disabled(model.guardAlert != nil)
         .overlay { if let a = model.guardAlert { GuardAlertView(alert: a) } }
@@ -59,7 +59,7 @@ struct RootView: View {
                 Button("Fermer") { model.stopPairing(); model.showHelpers = false }
                     .buttonStyle(PillStyle(height: 54)).keyboardShortcut(.cancelAction)
             }
-            .padding(24).frame(width: 820, height: 580).background(T.mint)
+            .padding(24).frame(width: 820, height: 580).background(T.bg)
             .environment(model)
             .onDisappear { model.stopPairing() }
         }
