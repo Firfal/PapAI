@@ -124,7 +124,7 @@ def public(t: dict) -> dict:
 
 
 def for_user(t: dict, lessons: list[dict]) -> dict:
-    """Vue texte : automate prioritaire sur la réponse validée, puis le plan exécuté."""
+    """Vue texte : automate (demande résolue seulement) prioritaire sur la réponse validée, puis le plan exécuté."""
     def text(value):
         return value if isinstance(value, str) else ""
 
@@ -133,13 +133,13 @@ def for_user(t: dict, lessons: list[dict]) -> dict:
                    for k in ("number", "created", "updated")})
     solution, relaunch = None, None
     lesson_id = text(t.get("automate")) or text(t.get("suggestion_lancee"))
-    if lesson_id:
+    if lesson_id and t.get("status") == "resolu":
         lesson = next((a for a in lessons if a.get("id") == lesson_id), None)
         title = text(lesson.get("title")) if lesson else next(
             (text(a.get("title")) for a in t.get("suggestions", [])
              if isinstance(a, dict) and a.get("id") == lesson_id), "")
         solution = {"kind": "automate", "lesson": lesson_id, "title": title}
-        if t.get("status") == "resolu" and lesson is not None:
+        if lesson is not None:
             relaunch = lesson_id
     elif isinstance(t.get("linkup_answer"), dict):
         answer = t["linkup_answer"]

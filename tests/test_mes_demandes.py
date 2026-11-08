@@ -25,6 +25,11 @@ def projections():
         "kind": "automate", "lesson": "auto", "title": "Titre courant"} and r["relaunch"] == "auto")
     check("automate retiré : pas de relance", for_user(t, [])["relaunch"] is None)
     check("non résolu : pas de relance", for_user({**t, "status": "en_attente"}, [lesson])["relaunch"] is None)
+    attente = for_user({"id": "s", "task": "Imprimer", "status": "en_attente", "suggestion_lancee": "auto"}, [lesson])
+    check("automate suggéré lancé, demande en attente : pas présenté comme solution",
+          attente["solution"] is None and attente["relaunch"] is None)
+    echec = for_user({"status": "a_reprendre", "automate": "auto"}, [lesson])
+    check("automate interrompu : pas présenté comme solution", echec["solution"] is None and echec["relaunch"] is None)
     del t["automate"], t["suggestion_lancee"]
     r = for_user(t, [])
     check("réponse validée prioritaire sur plan, sources filtrées", r["solution"] == {
