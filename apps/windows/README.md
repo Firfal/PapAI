@@ -15,10 +15,10 @@ quand même. Pour repartir de zéro, supprimer le dossier `.python`.
 
 Avec un Python déjà installé sur le PC : `install.bat` (crée un `.venv`), puis `run.bat`.
 
-Le serveur par défaut est `ws://localhost:8000/ws/bridge`. Pour un autre
-serveur : roue dentée > Serveur, ou variable `PAPAI_SERVER` avant `PapAI.bat`.
-WebView2 est déjà présent sur Windows 10 (à jour) et 11 ; sinon, l'installer
-depuis le site de Microsoft (« Evergreen Runtime »).
+Sans réglage, au premier lancement, l'app crée son espace sur le serveur PapAI officiel
+(`POST /spaces`) et garde l'adresse reçue, clé comprise : rien à régler. Pour un autre
+serveur (par exemple `ws://localhost:8000/ws/bridge` en démo) : roue dentée > Serveur, ou
+variable `PAPAI_SERVER` avant `PapAI.bat`.
 
 En ligne de commande : `.python\python -m papai` (avec `PAPAI_DEBUG=1`
 pour les outils de développement de WebView2).

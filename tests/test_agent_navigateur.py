@@ -72,8 +72,8 @@ class Base(unittest.IsolatedAsyncioTestCase):
         async def diffuser(msg, to_bridge=True):
             self.envoyes.append(msg)
 
-        for p in (patch.object(app, "registry", self.registry), patch.object(app, "bridge", self.link),
-                  patch.object(app, "pending_alert", None), patch.object(app, "broadcast_helper", diffuser),
+        for p in (patch.object(app.S(), "registry", self.registry), patch.object(app.S(), "bridge", self.link),
+                  patch.object(app.S(), "pending_alert", None), patch.object(app, "broadcast_helper", diffuser),
                   patch.object(web_agent, "PAUSE_POLL_S", 0.05),
                   patch.object(app, "WEB_AGENT_START_TIMEOUT_S", 0.05)):
             p.start()
@@ -344,7 +344,7 @@ class QuestionAuProche(Base):
         s.decide_plan("approve", "")
         self.assertTrue(await attendre(lambda: s.state == State.AWAITING_HELPER))
         ws = SimpleNamespace(send_json=AsyncMock())
-        with patch.object(app, "bridge", self.link):
+        with patch.object(app.S(), "bridge", self.link):
             with self.assertRaises(app.Refused):
                 await app.handle_helper_click(s, {"frame_id": "x", "x": 0.5, "y": 0.5}, ws)
             await app.handle_helper_refresh(s, ws)
@@ -408,7 +408,7 @@ class PauseEtArret(Base):
 
     async def test_navigateur_perdu_arrete_et_annule_h(self):
         s, task = await self.demarrer()
-        with patch.object(app, "agent_task", task):
+        with patch.object(app.S(), "agent_task", task):
             await app.handle_web_agent_change(self.link, None)
         self.assertEqual(s.status()["stopped_by"], "navigateur")
         self.assertTrue(await attendre(lambda: self.api.a_appele("DELETE", "/sessions/h1")))
@@ -438,15 +438,15 @@ class MessagesDuPont(unittest.IsolatedAsyncioTestCase):
         vus = []
 
         async def recevoir():
-            if app.bridge is not None and vus is not None and len(vus) < 4:
-                vus.append((app.bridge.web_agent, app.bridge.web_agent_available))
+            if app.S().bridge is not None and vus is not None and len(vus) < 4:
+                vus.append((app.S().bridge.web_agent, app.S().bridge.web_agent_available))
             if msgs:
                 return msgs.pop(0)
             raise WebSocketDisconnect()
 
         ws = SimpleNamespace(accept=AsyncMock(), send_json=AsyncMock(), close=AsyncMock(), receive_json=recevoir)
-        with patch.object(app, "bridge", None), patch.object(app, "registry", Registry()), \
-                patch.object(app, "broadcast_helper", AsyncMock()), patch.object(app, "family") as fam:
+        with patch.object(app.S(), "bridge", None), patch.object(app.S(), "registry", Registry()), \
+                patch.object(app, "broadcast_helper", AsyncMock()), patch.object(app.S(), "family") as fam:
             fam.set_senior.return_value = False
             fam.restore.return_value = False
             await app._ws_bridge(ws)

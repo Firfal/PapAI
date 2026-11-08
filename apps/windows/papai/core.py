@@ -16,6 +16,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Callable
 
 WINDOWS = sys.platform == "win32"
 SEND_WIDTH = 1280  # comme le Mac : assez pour viser juste, pas plus
@@ -297,7 +298,7 @@ def window_rect(hwnd: int) -> tuple | None:
     return (r.left - 4, r.top - 4, r.right + 4, r.bottom + 4)
 
 
-# ------------------------------------------------------------ automatismes
+# ------------------------------------------------------------ automates
 
 KNOWN_FOLDERS = {
     "pictures": "{33E28130-4E1E-4676-835A-98395C3BC3BB}",
@@ -338,7 +339,7 @@ def known_folder(name: str) -> Path | None:
 
 
 def open_shortcut(shortcut: dict | None) -> tuple[bool, str]:
-    """Ouvre le dossier d'un automatisme. Le modèle ne fournit jamais de chemin :
+    """Ouvre le dossier d'un automate. Le modèle ne fournit jamais de chemin :
     un dossier connu du système et au plus un nom de sous-dossier. Si le dossier
     n'existe plus, on n'invente rien."""
     sc = shortcut or {}
@@ -388,3 +389,163 @@ def guard_signals() -> dict | None:
     names = sorted({line.split('","')[0].strip('"').removesuffix(".exe")
                     for line in out.splitlines() if line.startswith('"')})
     return {"type": "guard", "processes": names, "window": buf.value, "url": ""}
+
+
+# ------------------------------------------------- automates importés
+#
+# Un automate fourni par un support (service IT, proche) ne contient que
+# des actions de premier niveau, connues ici. Jamais de commande, de script
+# ni de chemin libre : le serveur les a vérifiées à l'import, on revérifie.
+
+SETTINGS_PAGES = {
+    "printers": "ms-settings:printers",
+    "default_apps": "ms-settings:defaultapps",
+    "updates": "ms-settings:windowsupdate",
+    "antivirus": "windowsdefender:",
+    "wifi": "ms-settings:network-wifi",
+    "bluetooth": "ms-settings:bluetooth",
+    "sound": "ms-settings:sound",
+    "display": "ms-settings:display",
+}
+TEMPLATE_EXT = (".dotx", ".potx", ".xltx")
+SCAN_TIMEOUT_S = 30 * 60
+
+
+def _start(target: str) -> None:
+    if WINDOWS:
+        os.startfile(target)  # noqa: S606 — une URI ou un dossier, jamais une commande
+    else:
+        import webbrowser
+        webbrowser.open(target)
+
+
+def open_settings(page: str) -> tuple[bool, str]:
+    uri = SETTINGS_PAGES.get(str(page or "").strip().lower())
+    if uri is None:
+        return False, f"Page de Réglages inconnue : {page}"
+    try:
+        _start(uri)
+    except OSError as e:
+        return False, str(e)
+    return True, uri
+
+
+def open_https(url: str) -> tuple[bool, str]:
+    from urllib.parse import urlsplit
+    u = urlsplit(str(url or ""))
+    if u.scheme != "https" or not u.hostname or u.username or u.password:
+        return False, "Lien refusé : seulement https://."
+    try:
+        _start(u.geturl())
+    except OSError as e:
+        return False, str(e)
+    return True, u.geturl()
+
+
+def templates_dir() -> Path:
+    """Le dossier « Modèles personnels » de Word (%APPDATA%\\Microsoft\\Templates)."""
+    if WINDOWS and os.environ.get("APPDATA"):
+        return Path(os.environ["APPDATA"]) / "Microsoft" / "Templates"
+    return Path.home() / ".papai" / "Templates"
+
+
+def template_name_ok(name: str) -> bool:
+    n = str(name or "")
+    return (bool(n) and not any(c in n for c in '\\/:*?"<>|') and ".." not in n
+            and not n.startswith(".") and n.lower().endswith(TEMPLATE_EXT))
+
+
+def install_templates(files: list[tuple[str, bytes]], dest: Path | None = None) -> tuple[bool, str]:
+    dest = dest or templates_dir()
+    for name, data in files:
+        if not template_name_ok(name) or not data.startswith(b"PK"):
+            return False, f"Modèle refusé : {name}"
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        for name, data in files:
+            target = dest / name
+            if target.is_file() and target.read_bytes() != data:
+                # Jamais rien de perdu : une copie de l'ancien modèle est gardée à côté.
+                import shutil
+                stem, ext = os.path.splitext(name)
+                n, backup = 1, dest / f"{stem} (avant PapAI){ext}"
+                while backup.exists():
+                    n += 1
+                    backup = dest / f"{stem} (avant PapAI {n}){ext}"
+                shutil.copy2(target, backup)
+            else:
+                backup = None
+            tmp = dest / f".{name}.papai-tmp"
+            try:
+                tmp.write_bytes(data)
+                os.replace(tmp, target)
+            except OSError:
+                # Modèle ouvert dans Word, disque plein… : rien ne reste derrière.
+                tmp.unlink(missing_ok=True)
+                if backup is not None:
+                    backup.unlink(missing_ok=True)
+                raise
+    except OSError as e:
+        return False, str(e)
+    n = len(files)
+    return True, f"{n} modèle{'s' if n > 1 else ''} ajouté{'s' if n > 1 else ''} dans Word."
+
+
+def defender_exe() -> Path | None:
+    base = os.environ.get("ProgramFiles") or r"C:\Program Files"
+    exe = Path(base) / "Windows Defender" / "MpCmdRun.exe"
+    return exe if WINDOWS and exe.is_file() else None
+
+
+def antivirus_scan(gate: "StopGate | None" = None) -> tuple[bool, str]:
+    """Scan rapide Microsoft Defender : exécutable fixe, arguments fixes, sans shell.
+    Code 0 : rien trouvé. Code 2 : une menace a été trouvée, le support est prévenu."""
+    exe = defender_exe()
+    if exe is None:
+        return False, "Microsoft Defender est introuvable sur cet ordinateur."
+    import subprocess
+    p = subprocess.Popen([str(exe), "-Scan", "-ScanType", "1"],  # noqa: S603
+                         shell=False, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    t0 = time.monotonic()
+    while p.poll() is None:
+        if (gate is not None and gate.is_stopped) or time.monotonic() - t0 > SCAN_TIMEOUT_S:
+            p.terminate()
+            return False, "Scan interrompu."
+        time.sleep(0.5)
+    if p.returncode == 0:
+        return True, "Scan antivirus terminé : rien à signaler."
+    if p.returncode == 2:
+        return False, "Le scan antivirus a trouvé une menace."
+    return False, f"Le scan antivirus n'a pas abouti (code {p.returncode})."
+
+
+def play_actions(lesson: dict, fetch: Callable[[str], bytes], gate: "StopGate") -> tuple[bool, str]:
+    """Joue, dans l'ordre, les actions locales d'un automate importé.
+    L'action `holo` (s'il y en a une) est confiée ensuite au serveur."""
+    detail = ""
+    for a in lesson.get("actions") or []:
+        if gate.is_stopped:
+            return False, "Arrêté."
+        do = str(a.get("do") or "")
+        if do == "open_folder":
+            ok, detail = open_shortcut({"folder": a.get("folder"), "subfolder": a.get("subfolder")})
+        elif do == "open_settings":
+            ok, detail = open_settings(a.get("page"))
+        elif do == "open_url":
+            ok, detail = open_https(a.get("url"))
+        elif do == "install_templates":
+            try:
+                files = [(n, fetch(n)) for n in a.get("files") or [] if template_name_ok(n)]
+            except Exception as e:  # noqa: BLE001 — serveur injoignable
+                return False, f"Modèles introuvables : {e}"
+            ok, detail = install_templates(files) if files else (False, "Aucun modèle valable.")
+        elif do == "antivirus_scan":
+            ok, detail = antivirus_scan(gate)
+        elif do == "holo":
+            continue
+        else:
+            return False, f"Action inconnue : {do}"
+        if not ok:
+            return False, detail
+    return True, detail

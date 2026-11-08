@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 
 DEFAULT_SERVER = "ws://localhost:8000/ws/bridge"
+# Serveur PapAI officiel : sans réglage, l'ordinateur y crée son espace au premier lancement.
+OFFICIAL_HTTP = "https://papai-450417131702.europe-west1.run.app"
 
 
 def _path() -> Path:
@@ -25,7 +27,7 @@ def load() -> dict:
 
 def save(values: dict) -> dict:
     data = load()
-    for k in ("firstName", "server", "textScale", "onboarded", "screenConsent"):
+    for k in ("firstName", "server", "textScale", "onboarded", "screenConsent", "orgJoined", "orgName"):
         if k in values:
             data[k] = values[k]
     p = _path()
@@ -34,6 +36,74 @@ def save(values: dict) -> dict:
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(p)
     return data
+
+
+def needs_space(data: dict | None = None) -> bool:
+    """Aucun serveur réglé (ni dans l'app, ni par PAPAI_SERVER) : il faut un espace."""
+    stored = str((data if data is not None else load()).get("server") or "").strip()
+    return not stored and not os.environ.get("PAPAI_SERVER", "").strip()
+
+
+# Poste d'entreprise : le service IT dépose son jeton d'inscription à côté de
+# PapAI.bat (organisation.txt) ou dans PAPAI_ORG. Le poste rejoint seul l'organisation.
+ORG_FILE = Path(__file__).resolve().parent.parent / "organisation.txt"
+
+
+def org_token() -> str:
+    t = os.environ.get("PAPAI_ORG", "").strip()
+    if not t:
+        try:
+            t = ORG_FILE.read_text(encoding="utf-8").strip().splitlines()[0].strip()
+        except (OSError, IndexError):
+            t = ""
+    return t if t.startswith("ins-") and len(t) <= 100 else ""
+
+
+def machine_name() -> str:
+    """Nom du poste vu par les supports de l'organisation avant que la personne donne son prénom."""
+    import getpass
+    import platform
+    try:
+        user = getpass.getuser()
+    except Exception:  # noqa: BLE001
+        user = ""
+    return " · ".join(x for x in (user, platform.node()) if x)[:60]
+
+
+def _post(url: str, body: dict, timeout: float) -> tuple[int, dict]:
+    import urllib.error
+    import urllib.request
+    req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), method="POST",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        return e.code, {}
+    except (OSError, ValueError):
+        return 0, {}
+
+
+def provision(base: str = OFFICIAL_HTTP, timeout: float = 10, org: str = "",
+              info: dict | None = None) -> str | None:
+    """Crée l'espace de cet ordinateur (`POST /spaces`) et renvoie l'adresse du pont,
+    clé comprise. La personne aidée n'a rien à régler. `info` reçoit la réponse
+    (nom de l'organisation pour un poste d'entreprise)."""
+    body = {"org": org, "name": machine_name()} if org else {}
+    st, d = _post(base.rstrip("/") + "/spaces", body, timeout)
+    url = str(d.get("bridge_url") or "") if st == 200 else ""
+    if info is not None:
+        info.update(d, status=st)
+    return url if url.startswith(("wss://", "ws://")) and "/k/" in url else None
+
+
+def join_org(http: str, org: str, timeout: float = 10) -> str | None:
+    """Poste déjà installé : rejoint l'organisation (`POST /k/<clé>/org`).
+    Renvoie le nom de l'organisation, "" si le serveur refuse, None hors ligne."""
+    st, d = _post(http.rstrip("/") + "/org", {"org": org, "name": machine_name()}, timeout)
+    if st == 200:
+        return str(d.get("org") or "")
+    return None if st == 0 or st >= 500 else ""
 
 
 def server_url(data: dict | None = None) -> str:

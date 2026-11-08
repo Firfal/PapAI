@@ -27,6 +27,15 @@ struct HomeView: View {
                         .padding(.horizontal, 18).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(T.card))
                 }
+                if let q = model.queued, !model.queuedShown {
+                    Button { model.queuedShown = true } label: {
+                        Label(q.rdv.map { "Demande n° \(q.number) · rendez-vous \(rdvText($0))" } ?? "Demande n° \(q.number) en attente",
+                              systemImage: "person.wave.2.fill")
+                            .font(rounded(17, .semibold))
+                    }
+                    .buttonStyle(.plain).padding(.horizontal, 18).padding(.vertical, 12)
+                    .background(Capsule().fill(T.card))
+                }
             }
             ScrollView(showsIndicators: false) {
                 automates.padding(.bottom, 8)
@@ -176,7 +185,7 @@ struct HomeView: View {
 
     // MARK: Automates
 
-    /// Les automatismes enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
+    /// Les automates enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
     private var automates: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let n = model.notice {
@@ -213,10 +222,15 @@ struct HomeView: View {
             Button { model.runShortcut(l) } label: {
                 HStack(spacing: 12) {
                     Circle().fill(T.mint).frame(width: 40, height: 40)
-                        .overlay(Image(systemName: Shortcuts.symbol(for: l.shortcut?.folder))
+                        .overlay(Image(systemName: l.shortcut == nil && !(l.actions ?? []).isEmpty ? "wand.and.stars" : Shortcuts.symbol(for: l.shortcut?.folder))
                             .font(rounded(18)).foregroundStyle(T.accent))
-                    Text(l.title).font(rounded(18, .semibold)).multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(l.title).font(rounded(18, .semibold)).multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let p = l.publisher, !p.isEmpty {
+                            Text("Fourni par \(p)").font(rounded(14)).foregroundStyle(T.muted)
+                        }
+                    }
                     Spacer(minLength: 0)
                 }
                 .frame(minHeight: 44)
