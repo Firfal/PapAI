@@ -1,7 +1,9 @@
 package com.quentin.papai.aidant
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SupportConfigTest {
@@ -67,5 +69,20 @@ class SupportConfigTest {
         assertNull(SupportConfig.name("null"))
         assertNull(SupportConfig.name(null))
         assertEquals(80, SupportConfig.name("a".repeat(200))!!.length)
+    }
+
+    @Test fun jetonPersonnelDuSupport() {
+        // Jeton par support (#77) : "sup-" + token_urlsafe(24), 36 caractères, même forme que celui de l'organisation.
+        val perso = "sup-AbC_dEf-0123456789xyzABCDEFGhijk"
+        assertEquals(36, perso.length)
+        assertEquals(perso, SupportConfig.token(perso))
+        assertEquals(SupportOrg("http://10.0.2.2:8000", perso),
+            SupportConfig.resolve(listOf(mapOf("supportToken" to perso, "server" to "http://10.0.2.2:8000"))))
+    }
+
+    @Test fun accesRetire() {
+        assertTrue(SupportConfig.accessRevoked(4401))
+        assertTrue(SupportConfig.accessRevoked(4403))
+        for (c in listOf(1000, 1001, 1006, 4409, 4400)) assertFalse("$c", SupportConfig.accessRevoked(c))
     }
 }

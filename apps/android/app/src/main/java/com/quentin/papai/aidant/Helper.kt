@@ -62,7 +62,7 @@ fun splitStep(raw: String): Pair<String, String?> {
 }
 
 /**
- * Tout l'état de l'app de l'aidant, comme `HelperModel` sur l'iPhone.
+ * Tout l'état de l'app du support, comme `HelperModel` sur l'iPhone.
  * Les champs sont des états Compose ; on ne les modifie que sur le fil principal.
  */
 @SuppressLint("StaticFieldLeak")
@@ -276,7 +276,7 @@ object Helper {
                     if (org != o) { refreshOrg(); return@post }
                     if (code != 200 || r == null) {
                         orgError = if (code == 404 || code == 403)
-                            "Jeton d'organisation refusé par $host. Contactez votre administrateur."
+                            "Jeton support refusé par $host. Contactez votre administrateur."
                         else "Le serveur $host répond une erreur $code."
                         return@post
                     }
@@ -462,6 +462,7 @@ object Helper {
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                if (SupportConfig.accessRevoked(code)) main.post { unwatch(p, webSocket) }
                 webSocket.close(1000, null)
             }
 
@@ -470,9 +471,16 @@ object Helper {
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                main.post { rewatch(p, webSocket) }
+                val refused = response?.code == 401 || response?.code == 403
+                main.post { if (refused) unwatch(p, webSocket) else rewatch(p, webSocket) }
             }
         })
+    }
+
+    /** Accès retiré à ce poste : on le laisse, sans réessayer ; la prochaine liste valide le rouvrira. */
+    private fun unwatch(p: Person, ws: WebSocket) {
+        if (watches[p.key] !== ws) return
+        watches.remove(p.key); othersOnline[p.key] = false
     }
 
     private fun rewatch(p: Person, ws: WebSocket) {
@@ -553,6 +561,9 @@ object Helper {
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                if (SupportConfig.accessRevoked(code)) main.post {
+                    if (gen == generation) { keyRefused = true; linkError = "Accès retiré par votre administrateur." }
+                }
                 webSocket.close(1000, null)
             }
 

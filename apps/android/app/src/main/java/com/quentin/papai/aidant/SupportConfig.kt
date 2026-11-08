@@ -6,7 +6,8 @@ import java.net.URI
 
 /**
  * L'organisation du support, déposée par le service informatique : rien ne se saisit dans l'app.
- * Avec le jeton support (`sup-…`), le support voit d'office tous les postes de l'organisation
+ * Avec le jeton support (`sup-…` : jeton de l'organisation, ou jeton personnel du support créé
+ * dans la console), le support voit d'office tous les postes de l'organisation
  * (`GET /o/<jeton>/spaces`) et reçoit leurs demandes. Pas de liaison poste par poste.
  *
  * Sources, dans l'ordre (la première qui porte un jeton valide l'emporte) :
@@ -53,6 +54,12 @@ object SupportConfig {
         }
         return null
     }
+
+    /**
+     * Fermeture de `ws/aidant` qui retire l'accès : 4401 (jeton personnel révoqué par l'IT),
+     * 4403 (jeton ou clé dérivée refusés). On ne réessaie pas en boucle, on relit la liste des postes.
+     */
+    fun accessRevoked(code: Int): Boolean = code == 4401 || code == 4403
 
     /** Nom affiché du support (facultatif) : texte court, sinon null. */
     fun name(raw: Any?): String? = cleanText(raw as? String).take(80).ifEmpty { null }
