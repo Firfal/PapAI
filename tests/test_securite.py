@@ -35,7 +35,7 @@ import websockets
 
 RACINE = Path(__file__).resolve().parent.parent
 CLE = secrets.token_urlsafe(16)
-TACHE = "Retrouver les photos de Noël de Paulette " + secrets.token_hex(4)
+TACHE = "Retrouver le dossier comptabilité de Paulette " + secrets.token_hex(4)
 PRENOM = "Claire" + secrets.token_hex(3)
 DESCRIPTION = "Une page de carte prepayee est ouverte."
 FRAME = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")

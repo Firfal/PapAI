@@ -119,7 +119,7 @@ class HomeShortcuts:
             if self._demo:
                 labels = [('Mail', 'mail'), ('Photos', 'photos'), ('Microsoft Edge', 'globe'),
                           ('Images', 'folder'), ('Documents', 'doc'), ('Téléchargements', 'download'),
-                          ('Noël 2025', 'photos'), ('Petits-enfants', 'photos')]
+                          ('Comptabilité 2025', 'folder'), ('Projets', 'folder')]
                 self._tiles = [dict(id=f'demo-{i}', label=n, symbol=s, personal=i == 7)
                                for i, (n, s) in enumerate(labels)]
                 self._add_message()

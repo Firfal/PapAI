@@ -137,7 +137,7 @@ fun RefineSheet(onClose: () -> Unit) {
             SheetTitle("Préciser le plan", 24.sp)
             T("Dites ou écrivez à Holo ce qu'il doit changer. Il proposera un nouveau plan.", 15.sp, color = Soin.secondary)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SoinField(text, { text = it }, "Par exemple : les photos sont dans Images > Noël 2025",
+                SoinField(text, { text = it }, "Par exemple : le dossier est dans Documents > Comptabilité 2025",
                     Modifier.weight(1f), single = false, minLines = 3,
                     keyboard = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences))
                 MicButton({ text }, { text = it; error = null }, { error = it })

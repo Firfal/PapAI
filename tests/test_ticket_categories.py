@@ -80,7 +80,7 @@ def regles() -> None:
         "Mon imprimante n'imprime plus": "imprimante", "Le scanner ne marche pas": "imprimante",
         "J'ai oublié mon mot de passe": "comptes", "Word ne se lance plus": "logiciels",
         "Installer Zoom": "logiciels", "La pièce jointe ne s'ouvre pas dans Outlook": "messagerie",
-        "Retrouver mes photos de Noël": "fichiers", "Une fenêtre dit que j'ai un virus, appelez ce numéro": "securite",
+        "Retrouver le dossier de la comptabilité": "fichiers", "Une fenêtre dit que j'ai un virus, appelez ce numéro": "securite",
     }
     rates = [t for t, c in attendu.items() if ts.classify(t) != (c, True)]
     check("règles : catégorie sûre pour les demandes nettes", not rates)

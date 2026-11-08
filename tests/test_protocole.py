@@ -43,11 +43,11 @@ def bureau() -> str:
     d = ImageDraw.Draw(img)
     d.rectangle([60, 40, 1220, 740], fill=(246, 246, 248), outline=(200, 200, 205))
     d.rectangle([60, 40, 1220, 86], fill=(232, 233, 238))
-    d.text((80, 58), "Finder  —  Images", fill=(30, 30, 35))
+    d.text((80, 58), "Finder  —  Documents", fill=(30, 30, 35))
     d.rectangle([60, 86, 300, 740], fill=(238, 239, 243))
     for i, nom in enumerate(["Favoris", "Bureau", "Documents", "Images", "Téléchargements"]):
         d.text((84, 110 + i * 32), nom, fill=(50, 50, 60))
-    for nom, x in [("Photos", 360), ("Noël 2025", 600)]:
+    for nom, x in [("Factures", 360), ("Comptabilité 2025", 600)]:
         d.rectangle([x, 140, x + 170, 250], fill=(255, 214, 128), outline=(214, 170, 80))
         d.text((x + 10, 262), nom, fill=(30, 30, 35))
     buf = io.BytesIO()
@@ -118,7 +118,7 @@ async def main() -> None:
 
             # --- la personne aidée demande de l'aide
             await pont.send(json.dumps({
-                "type": "help_request", "task": "Je ne retrouve pas mes photos de Noël"}))
+                "type": "help_request", "task": "Je ne retrouve plus le dossier de la comptabilité"}))
 
             st = await attendre(aidant, "status", 20)
             check("l'aidant reçoit l'état de la demande", st is not None, st)
@@ -139,7 +139,7 @@ async def main() -> None:
 
             # --- l'aidant précise plutôt que valider
             await aidant.send(json.dumps({
-                "type": "refine_plan", "text": "Ce sont les photos de Noël 2025."}))
+                "type": "refine_plan", "text": "C'est le dossier Comptabilité 2025, dans Documents."}))
             encore = None
             fin = asyncio.get_running_loop().time() + 60
             while asyncio.get_running_loop().time() < fin:
@@ -205,9 +205,9 @@ async def main() -> None:
             check("chaque étape de la fiche a une vraie capture de la session",
                   etapes != [] and all(apercu.get(e.get("frame")) for e in etapes),
                   [e.get("frame") for e in etapes])
-            check("le raccourci de démonstration conserve Noël 2025",
+            check("le raccourci de démonstration conserve Comptabilité 2025",
                   ((fiche or {}).get("lesson") or {}).get("shortcut") ==
-                  {"folder": "pictures", "subfolder": "Noël 2025"})
+                  {"folder": "documents", "subfolder": "Comptabilité 2025"})
 
         service.cancel()
 
