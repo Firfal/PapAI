@@ -53,6 +53,10 @@ struct GuardRequestView: View {
             .padding(24).padding(.vertical, 20)
         }
         .background { SoinBackground() }
+        // Bande rouge sous la barre d'état : l'heure, blanche, reste lisible et l'alerte se voit d'emblée.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear.frame(height: 0).background(Soin.danger.ignoresSafeArea(edges: .top))
+        }
     }
 
     private var instructions: String {
