@@ -1577,6 +1577,10 @@ async def org_revoke_support(token: str, sid: str):
                 s.stop(by="support_revoque")
                 stopped += 1
                 await broadcast_helper(s.status())
+        if any(h["id"] == "s" + sid for h in sp.family.helpers):
+            sp.family.remove("s" + sid)
+            if sp.bridge is not None:
+                await sp.bridge.send({"type": "helpers", "helpers": sp.family.public(_online_ids())})
     print(f"[organisations] support {sid} révoqué dans {o.id} ({closed} connexion(s) fermée(s), "
           f"{stopped} assistance(s) arrêtée(s))")
     return {**o.public_support(rec), "closed": closed, "stopped": stopped}

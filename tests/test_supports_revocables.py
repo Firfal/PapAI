@@ -253,6 +253,9 @@ async def parcours(base: str, data: Path, log: Path) -> None:
         stop = await b.attendre("status", 10, state="stopped")
         check("l'assistance validée par Alice s'arrête", stop and stop.get("stopped_by") == "support_revoque", stop)
         check("le poste reçoit l'arrêt", await mac.attendre("status", 10, state="stopped"))
+        hp = await mac.attendre("helpers", 10)
+        check("Alice disparaît de la liste des supports du poste",
+              hp and {h["name"] for h in hp.get("helpers", [])} == {"Bob"}, hp)
         check("la socket de Bob reste ouverte", b.ferme is None and not b.tache.done())
 
         print("\n4. Après la révocation")

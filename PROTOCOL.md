@@ -485,7 +485,8 @@ Le `support_token` ci-dessus est le **jeton de l'organisation** : il reste accep
   "server","support_url","app_url"}`. Le jeton n'est donné qu'ici. Nom vide → 400 ; 200 supports max → 409.
 - `POST /o/<jeton org>/supports/<id>/revoke` → `{… ,"closed","stopped"}` : ses sockets (`ws/aidant`,
   `transcribe/live`) sont fermées tout de suite (code **4401**), l'assistance qu'il avait validée
-  s'arrête (`status` `stopped`, `stopped_by: "support_revoque"`), puis son jeton et ses clés dérivées
+  s'arrête (`status` `stopped`, `stopped_by: "support_revoque"`), il sort de la liste des supports de
+  chaque poste (`helpers` renvoyé au pont), puis son jeton et ses clés dérivées
   sont refusés (404 en HTTP, 4403 ou `refused` en WebSocket). Une autre organisation → 404.
 - `POST /o/<jeton org>/rotate` → `{"support_token","server","support_url","app_url"}` : nouveau
   jeton de l'organisation (fin de migration ou fuite), l'ancien est refusé. Les jetons personnels restent.
