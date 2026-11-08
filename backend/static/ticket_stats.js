@@ -146,13 +146,22 @@
   }
 
   // Carte « Cette semaine » : `stats.week` (7 derniers jours). onSuggest(sug) comme render.
+  function renderSuggestion(box, w, opts) {
+    if (!w.suggestion) return;
+    const b = el('div', 'ps-sug');
+    const go = el('button', '', 'Créer l’automate'); go.type = 'button';
+    go.onclick = () => opts.onSuggest && opts.onSuggest(w.suggestion);
+    b.append(el('p', '', w.suggestion.text), go);
+    box.append(b);
+  }
+
   function renderWeek(box, st, opts) {
     opts = opts || {};
     const w = (st && st.week) || {};
     box.replaceChildren();
     box.classList.add('ps');
     box.append(el('h4', '', 'Cette semaine'));
-    if (!w.count && !w.resolved) { box.append(el('p', 'ps-empty', 'Aucune demande ces 7 derniers jours.')); return; }
+    if (!w.count && !w.resolved) { box.append(el('p', 'ps-empty', 'Aucune demande ces 7 derniers jours.')); renderSuggestion(box, w, opts); return; }
     const kpis = el('div', 'ps-kpis');
     const kpi = (v, l) => { const k = el('div', 'ps-kpi'); k.append(el('b', '', v), el('span', '', l)); kpis.append(k); };
     kpi(String(w.count || 0), 'demandes reçues');
@@ -170,13 +179,7 @@
     p.append(el('b', '', 'Automate le plus utile : '),
       a ? `« ${a.title} », ${a.count} demande${a.count > 1 ? 's' : ''} réglée${a.count > 1 ? 's' : ''}` : 'aucun cette semaine');
     box.append(p);
-    if (w.suggestion) {
-      const b = el('div', 'ps-sug');
-      const go = el('button', '', 'Créer l’automate'); go.type = 'button';
-      go.onclick = () => opts.onSuggest && opts.onSuggest(w.suggestion);
-      b.append(el('p', '', w.suggestion.text), go);
-      box.append(b);
-    }
+    renderSuggestion(box, w, opts);
   }
 
   // Formulaire d'automate prérempli. submit(pack) → Promise<{ok, error}>
