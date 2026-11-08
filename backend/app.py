@@ -1,7 +1,7 @@
 """Backend PapAI : sessions, verrou de contrôle, relais vers le pont.
 
 Deux WebSockets :
-  /ws/bridge          le PC de la personne aidée (capture et exécution)
+  /ws/bridge          le PC de l’utilisateur (capture et exécution)
   /ws/helper/{token}  la page du proche (captures, questions, clics)
 
 Rien de ce que dit la page du proche n'est cru sur parole : chaque message
@@ -73,7 +73,7 @@ def S() -> space.Space:
     return space.current()
 
 # Tout passe par /k/{clé de la famille}/… : sans la clé, personne ne peut se
-# faire passer pour le PC de la personne aidée, ni lire ses fiches. En local
+# faire passer pour le PC de l’utilisateur, ni lire ses fiches. En local
 # (PAPAI_PUBLIC absent), les routes sans clé ne répondent qu'à une app lancée
 # sur la machine même du serveur (voir _same_machine).
 PUBLIC_MODE = os.environ.get("PAPAI_PUBLIC", "") == "1"
@@ -164,7 +164,7 @@ class BridgeLink:
         # Protection en temps réel, annoncée par l'app (None : app qui ne la connaît pas).
         self.protection: bool | None = None
         # Identifiant du navigateur servi par `holo local browser` sur la machine
-        # de la personne aidée, s'il tourne (PROTOCOL.md, agent navigateur).
+        # de l’utilisateur, s'il tourne (PROTOCOL.md, agent navigateur).
         self.web_agent: str | None = None
         self._web_agent_waiter: asyncio.Future[str] | None = None
         self.active_web_session: Session | None = None
@@ -271,7 +271,7 @@ class BridgeLink:
 
 
 
-# Ce que la personne aidée doit aussi voir : l'état de la session, le plan en
+# Ce que l’utilisateur doit aussi voir : l'état de la session, le plan en
 # attente, la réponse finale. Jamais les captures, qu'elle a sous les yeux.
 BRIDGE_TYPES = {"status", "answer", "alert", "alert_cleared", "alert_acknowledged"}
 
@@ -349,7 +349,7 @@ async def _sync_ticket(st: dict) -> None:
 
 async def _offer_waiting(who: str = "") -> bool:
     """Un support est là (ou c'est l'heure du rendez-vous) : on repropose la
-    demande en attente à la personne aidée, qui accepte ou non."""
+    demande en attente à l’utilisateur, qui accepte ou non."""
     if S().bridge is None:
         return False
     s = current_session()
@@ -559,11 +559,11 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "remote_answer":
-                # Réponse de la personne aidée à une session proposée par un proche.
+                # Réponse de l’utilisateur à une session proposée par un proche.
                 if not msg.get("accepted"):
                     t = S().tickets.get(str(msg.get("ticket") or ""))
                     if t is not None:
-                        S().tickets.note(t, S().family.senior or "La personne aidée", "Pas disponible pour l'instant.")
+                        S().tickets.note(t, S().family.senior or "L’utilisateur", "Pas disponible pour l'instant.")
                         await _tickets_changed()
                         _later(_offer_next(space.current()))
                     await broadcast_helper({"type": "remote_refused"})
@@ -680,7 +680,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind in ("pause", "resume"):
-                # La personne aidée suspend ou reprend l'aide depuis son écran.
+                # L’utilisateur suspend ou reprend l'aide depuis son écran.
                 s = current_session()
                 if s is not None and s.is_open:
                     s.paused = kind == "pause"
@@ -696,7 +696,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "senior_answer":
-                # La personne aidée répond à une question de Holo qui lui était posée.
+                # L’utilisateur répond à une question de Holo qui lui était posée.
                 s = current_session()
                 text = str(msg.get("text", "")).strip()[:300]
                 if s is not None and text and s.question and s.question.get("to") == "senior":
@@ -715,7 +715,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                         await broadcast_helper(s.status())
                 if S().agent_task and not S().agent_task.done():
                     S().agent_task.cancel()
-                print("[pont] ARRÊT demandé par la personne aidée")
+                print("[pont] ARRÊT demandé par l’utilisateur")
                 continue
 
     except (WebSocketDisconnect, RuntimeError, ValueError):
@@ -1096,7 +1096,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             saved = approve_and_save(session.lesson, session)
             await ws.send_json({"type": "lesson_saved", "lesson": saved})
             if S().bridge is not None:
-                # La personne aidée le retrouve aussitôt dans « Mes automates ».
+                # L’utilisateur le retrouve aussitôt dans « Mes automates ».
                 await S().bridge.send({"type": "lessons_changed", "title": saved.get("title", "")})
 
         else:
@@ -1185,7 +1185,7 @@ def pairing_url(code: str, *, invitation: bool = False) -> str:
 def app_pairing_url(code: str, *, invitation: bool = False) -> str:
     """Le lien du QR : ouvre l'app iPhone, qui fait elle-même le POST sur `url`.
 
-    `n` porte le prénom de la personne aidée, pour que l'aidant lise « Rejoindre
+    `n` porte le prénom de l’utilisateur, pour que l'aidant lise « Rejoindre
     Sophie » avant même d'avoir validé.
     """
     link = "papai://pair?u=" + quote(pairing_url(code, invitation=invitation), safe="")
@@ -1254,10 +1254,10 @@ async def _pair_submit(code: str, request: Request, confirm: bool = False, *, fi
             if sp.bridge is not link or not link.connected:
                 return JSONResponse({"ok": False, "error": PAIR_OFFLINE}, status_code=409)
             if answer is None:
-                return JSONResponse({"ok": False, "error": "Pas de réponse sur l'ordinateur. Demandez un nouveau code sur l'ordinateur de la personne aidée."}, status_code=408)
+                return JSONResponse({"ok": False, "error": "Pas de réponse sur l'ordinateur. Demandez un nouveau code sur l'ordinateur de l’utilisateur."}, status_code=408)
             decided = True
             if not (isinstance(answer, dict) and answer.get("accept") is True):
-                return JSONResponse({"ok": False, "refused": True, "error": "La personne aidée a refusé. Rien n'a été partagé."}, status_code=403)
+                return JSONResponse({"ok": False, "refused": True, "error": "L’utilisateur a refusé. Rien n'a été partagé."}, status_code=403)
         finally:
             _pair_waiting.discard(sp.key)
             if not decided:
@@ -1273,7 +1273,7 @@ async def _pair_submit(code: str, request: Request, confirm: bool = False, *, fi
 
 
 PAIR_CONFIRM_S = float(os.environ.get("PAPAI_PAIR_CONFIRM_S", "120"))
-PAIR_OFFLINE = "L'ordinateur de la personne aidée n'est pas connecté. Allumez-le, ouvrez PapAI, puis réessayez."
+PAIR_OFFLINE = "L'ordinateur de l’utilisateur n'est pas connecté. Allumez-le, ouvrez PapAI, puis réessayez."
 _pair_waiting: set[str] = set()
 WRONG_CODES_MAX = 10
 GLOBAL_WRONG_CODES_MAX = 300
@@ -1340,7 +1340,7 @@ async def invitation_submit(token: str, request: Request):
     return await _pair_submit(token, request, confirm=PUBLIC_MODE, find_space=True, invitation=True)
 
 
-# Création d'un espace : au premier lancement, l'ordinateur aidé reçoit sa clé.
+# Création d'un espace : au premier lancement, l'ordinateur de l’utilisateur reçoit sa clé.
 @app.post("/spaces")
 async def create_space(request: Request):
     body = await _small_json(request)
@@ -1549,7 +1549,7 @@ async def ws_aidant(ws: WebSocket, key: str) -> None:
     """Le canal de l'app iPhone : il suit toujours la dernière demande.
 
     Contrairement au lien par session, il reste ouvert entre deux demandes :
-    c'est lui qui « sonne » quand la personne aidée appuie sur le bouton.
+    c'est lui qui « sonne » quand l’utilisateur appuie sur le bouton.
     """
     await ws.accept()
     if not _key_ok(key):
@@ -1637,11 +1637,11 @@ async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
                else "L'assistance est arrêtée.")
     senior = {**common, "title": "Attention, cette démarche peut être une arnaque.",
               "detail": senior_detail or detail}
-    who = S().family.senior or "La personne aidée"
+    who = S().family.senior or "L’utilisateur"
     detail = f"{who} a besoin de votre avis. {alerte.detail}"
     if session:
         detail += f"\nDemande : « {session.task} »"
-    detail += f"\nPrenez contact avec {S().family.senior or 'la personne aidée'} avant de poursuivre. Choisissez « C'est normal » uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
+    detail += f"\nPrenez contact avec {S().family.senior or 'l’utilisateur'} avant de poursuivre. Choisissez « C'est normal » uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
     helper = {**common, "title": f"Démarche à vérifier pour {who}", "detail": helper_detail or detail}
     S().pending_alert = {"senior": senior, "helper": helper}
     if S().bridge:
@@ -2057,7 +2057,7 @@ async def org_ticket_action(token: str, key: str, tid: str, request: Request):
 
 @app.get("/sessions")
 async def list_sessions(request: Request):
-    """Le journal des actions, lisible par la personne aidée (section 08).
+    """Le journal des actions, lisible par l’utilisateur (section 08).
 
     Sert aussi de point d'observation pendant les essais. Sans clé, seulement
     depuis la machine du serveur ; sinon /k/{clé}/sessions.

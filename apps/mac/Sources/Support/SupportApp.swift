@@ -194,7 +194,7 @@ struct LostBar: View {
     }
 }
 
-/// Mes personnes aidées : qui suivre en détail, qui demande une assistance, ajouter ou retirer.
+/// Mes utilisateurs : qui suivre en détail, qui demande une assistance, ajouter ou retirer.
 struct PeopleSidebar: View {
     @Bindable var model: HelperModel
     @State private var forget: Person?
@@ -203,7 +203,7 @@ struct PeopleSidebar: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: "person.2").font(rounded(18, .semibold)).foregroundStyle(T.accent)
-                Text("Mes personnes aidées").font(rounded(18, .bold)).lineLimit(1).minimumScaleFactor(0.8)
+                Text("Mes utilisateurs").font(rounded(18, .bold)).lineLimit(1).minimumScaleFactor(0.8)
             }
             .accessibilityAddTraits(.isHeader)
             ScrollView(showsIndicators: false) {
@@ -237,7 +237,7 @@ struct PeopleSidebar: View {
         let here = model.isCurrent(p)
         let asking = !here && model.othersAsking[p.key] == true
         let online = here ? (model.seniorOnline == true) : (model.othersOnline[p.key] == true)
-        let name = p.name.isEmpty ? "Personne aidée" : p.name
+        let name = p.name.isEmpty ? "Utilisateur" : p.name
         return Button { model.switchTo(p) } label: {
             HStack(spacing: 12) {
                 Text(String(name.prefix(1)).uppercased()).font(rounded(17, .bold))
@@ -291,7 +291,7 @@ struct RequestHead: View {
     }
 }
 
-/// Capture de l'écran de la personne aidée ; en visée, un clic place le viseur.
+/// Capture de l'écran de l’utilisateur ; en visée, un clic place le viseur.
 struct SupportCapture: View {
     @Bindable var model: HelperModel
     var aimable = false

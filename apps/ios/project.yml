@@ -37,7 +37,7 @@ targets:
         NSLocalNetworkUsageDescription: PapAI se connecte au serveur de démonstration sur votre réseau local.
         NSMicrophoneUsageDescription: PapAI utilise le micro pour que vous dictiez vos consignes et vos réponses à Holo. L’enregistrement est transcrit par le serveur PapAI (Gladia), puis effacé de l’iPhone.
         NSSpeechRecognitionUsageDescription: PapAI affiche vos mots pendant que vous parlez, pour préciser le plan, modifier une étape ou répondre à Holo.
-        NSCameraUsageDescription: PapAI utilise l’appareil photo pour scanner le QR code affiché sur l’ordinateur de la personne aidée.
+        NSCameraUsageDescription: PapAI utilise l’appareil photo pour scanner le QR code affiché sur l’ordinateur de l’utilisateur.
         CFBundleURLTypes:
           - CFBundleURLName: com.quentin.papai.aidant
             CFBundleURLSchemes: [papai]

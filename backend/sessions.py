@@ -29,7 +29,7 @@ class State(str, Enum):
     ACTIVE = "active"                     # l'agent travaille
     AWAITING_HELPER = "awaiting_helper"   # agent suspendu, question posée au proche
     DONE = "done"
-    STOPPED = "stopped"                   # arrêt par la personne aidée — terminal
+    STOPPED = "stopped"                   # arrêt par l’utilisateur — terminal
 
 
 class Owner(str, Enum):
@@ -106,13 +106,13 @@ class Session:
     # Posé par le proche, lu par la boucle entre deux étapes : on ne coupe
     # jamais une action en cours, on refuse la suivante.
     pause_requested: bool = False
-    # Le prénom de l'aidant qui a validé le plan : la personne aidée lit
+    # Le prénom de l'aidant qui a validé le plan : l’utilisateur lit
     # « Quentin s'en occupe » plutôt que le nom de l'agent.
     helper_name: str = ""
     # Une seule phrase pour l'aidant : ce que Holo est en train de faire.
     doing: str = ""
 
-    # Pause demandée par la personne aidée depuis son écran : Holo n'agit plus,
+    # Pause demandée par l’utilisateur depuis son écran : Holo n'agit plus,
     # elle reprend la main sur sa souris et son clavier, jusqu'à « Reprendre ».
     paused: bool = False
 
@@ -227,7 +227,7 @@ class Session:
 
     def ask_helper(self, question: str, options: list[str] | None = None,
                    to: str = "helper") -> asyncio.Future:
-        """`to` : « helper » (le proche) ou « senior » (la personne aidée, pour ce
+        """`to` : « helper » (le proche) ou « senior » (l’utilisateur, pour ce
         qu'elle seule sait). Les deux peuvent répondre ; la première réponse compte."""
         self.require_open()
         self.state = State.AWAITING_HELPER

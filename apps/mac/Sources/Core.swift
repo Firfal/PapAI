@@ -88,7 +88,7 @@ enum Shortcuts {
 // MARK: - Description des actions
 
 func describeAction(_ name: String, _ args: [String: Any]) -> String {
-    // Une phrase simple, à la première personne : la personne aidée lit ce
+    // Une phrase simple, à la première personne : l’utilisateur lit ce
     // que fait Holo pendant qu'il le fait.
     let cible = (args["element"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
     switch name {

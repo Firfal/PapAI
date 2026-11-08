@@ -227,7 +227,7 @@
     return `<div class="col progressBox" style="gap:18px;padding:24px;border-radius:var(--r)">${bar(st, 18)}${rows}</div>`;
   }
 
-  // Une question que Holo pose à la personne aidée, pour ce qu'elle seule sait.
+  // Une question que Holo pose à l’utilisateur, pour ce que lui seul sait.
   function seniorQuestion() {
     const sent = ui.seniorSent === S.question;
     const options = (S.questionOptions || []).map((o) =>

@@ -70,7 +70,7 @@ Où chercher les fichiers de la personne :
 - Si tu hésites entre plusieurs choix (par ex. deux dossiers plausibles), ou si une action
   semble sensible (mot de passe, paiement, suppression), appelle ask_helper au lieu d'agir.
 - Ne touche jamais aux mots de passe, paiements, opérations bancaires ou démarches administratives.
-- Si tu as besoin d'une information que seule la personne aidée connaît (le nom
+- Si tu as besoin d'une information que seul l’utilisateur connaît (le nom
   de sa banque, de son fournisseur, de la personne à appeler, un souvenir),
   appelle ask_senior : la question s'affiche sur son écran. Jamais pour un mot de
   passe, un code ou un numéro de carte : ceux-là, on ne les demande à personne.
@@ -78,7 +78,7 @@ Où chercher les fichiers de la personne :
   ask_senior pour que la personne se connecte elle-même (« Connectez-vous, puis
   dites-moi quand c'est fait »), puis continue. PapAI ne garde aucun compte.
 - Quand la tâche est terminée et visible à l'écran, appelle answer avec une phrase simple
-  destinée à la personne aidée.
+  destinée à l’utilisateur.
 """
 
 MAC_SYSTEM_PROMPT = """Tu es PapAI, un assistant qui aide une personne sur son Mac.
@@ -102,7 +102,7 @@ Où chercher les fichiers de la personne :
   au micro, Accessibilité, mot de passe, « Autoriser » / « Ne pas autoriser »),
   ni dans les Réglages Système. Ces choix appartiennent à la personne et à son
   support : appelle ask_helper. Dans un plan, ne propose jamais de les fermer.
-- Si tu as besoin d'une information que seule la personne aidée connaît (le nom
+- Si tu as besoin d'une information que seul l’utilisateur connaît (le nom
   de sa banque, de son fournisseur, de la personne à appeler, un souvenir),
   appelle ask_senior : la question s'affiche sur son écran. Jamais pour un mot de
   passe, un code ou un numéro de carte : ceux-là, on ne les demande à personne.
@@ -110,7 +110,7 @@ Où chercher les fichiers de la personne :
   ask_senior pour que la personne se connecte elle-même (« Connectez-vous, puis
   dites-moi quand c'est fait »), puis continue. PapAI ne garde aucun compte.
 - Quand la tâche est terminée et visible à l'écran, appelle answer avec une phrase
-  simple destinée à la personne aidée.
+  simple destinée à l’utilisateur.
 """
 
 PLAN_PROMPT = """Tu prépares un plan pour aider une personne sur son ordinateur ({os}).
@@ -266,7 +266,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "ask_senior",
-            "description": ("Poser une question à la personne aidée elle-même, sur son écran, pour une "
+            "description": ("Poser une question à l’utilisateur lui-même, sur son écran, pour une "
                             "information qu'elle seule connaît (sa banque, son fournisseur, un nom). "
                             "Jamais de mot de passe, de code ni de numéro de carte. Suspend l'agent."),
             "parameters": {
@@ -283,7 +283,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "answer",
-            "description": "Terminer la tâche et expliquer le résultat à la personne aidée",
+            "description": "Terminer la tâche et expliquer le résultat à l’utilisateur",
             "parameters": {
                 "type": "object",
                 "properties": {"content": {"type": "string"}},
@@ -323,8 +323,8 @@ for _tool in [*TOOLS, OPEN_BROWSER_TOOL]:
             "description": "Numéro de l'étape du plan validé que sert cette action (1 pour la première)",
         }
 
-# Actions qui pilotent réellement la souris ou le clavier du PC de la personne
-# aidée. Toute action hors de cette liste est traitée par le backend et ne
+# Actions qui pilotent réellement la souris ou le clavier du PC de l’utilisateur
+# . Toute action hors de cette liste est traitée par le backend et ne
 # descend jamais au pont.
 ACTUATING_TOOLS = {"click", "double_click", "type_text", "press_key", "scroll"}
 

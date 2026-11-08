@@ -3,7 +3,7 @@ package com.quentin.papai.aidant
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** Une personne aidée suivie par ce support : un ordinateur, son espace et sa clé. */
+/** Un utilisateur suivie par ce support : un ordinateur, son espace et sa clé. */
 data class Person(
     val server: String,
     val key: String,

@@ -42,7 +42,7 @@
 
   /* ------------------------------------------------------------- en-tête */
 
-  /* Bandeau bleu en dégradé, titre blanc ; la liste des personnes aidées le prolonge. */
+  /* Bandeau bleu en dégradé, titre blanc ; la liste des utilisateurs le prolonge. */
   header { display: flex; align-items: center; gap: 12px; color: #fff; background: var(--grad-head);
            box-shadow: 0 14px 28px -12px rgba(31,90,232,.45);
            padding: calc(14px + env(safe-area-inset-top)) 20px 14px; border-radius: 0 0 24px 24px; }
@@ -65,7 +65,7 @@
   .person .avatar { width: 32px; height: 32px; font-size: 15px; background: rgba(255,255,255,.22); color: #fff; }
   .person.here { background: #fff; color: var(--accent); box-shadow: 0 4px 12px rgba(10,30,90,.18); }
   .person.here .avatar { background: var(--sky); color: var(--accent); }
-  /* Une personne aidée qui demande de l'aide : pastille blanche cerclée de rouge, impossible à rater. */
+  /* Un utilisateur qui demande de l'aide : pastille blanche cerclée de rouge, impossible à rater. */
   .person.asking { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 3px var(--danger), 0 4px 12px rgba(10,30,90,.18); }
   .person.asking .avatar { background: var(--danger-soft); color: var(--danger-ink); }
   .person.asking small { color: var(--danger-ink); opacity: 1; font-weight: 600; }
@@ -309,7 +309,7 @@
   <div class="round" aria-hidden="true"><svg class="i"><use href="#i-bell"/></svg></div>
 </header>
 
-<nav class="people" id="people" aria-label="Mes personnes aidées" hidden></nav>
+<nav class="people" id="people" aria-label="Mes utilisateurs" hidden></nav>
 
 <div id="lost" hidden role="status"><div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:#fff;width:16px;height:16px"></div><span>Connexion perdue</span><span>reconnexion…</span></div>
 
@@ -330,12 +330,12 @@
   <section id="v-idle" class="stack">
     <div class="mint idle-hero" id="allWell">
       <h1>Tout va bien</h1>
-      <p id="idleSub">Vous serez prévenu dès que la personne aidée demande de l'aide.</p>
+      <p id="idleSub">Vous serez prévenu dès que l’utilisateur demande de l'aide.</p>
       <p id="protectionState" hidden></p>
     </div>
     <div class="card remote" id="remote">
       <h3 class="section-title">Proposer une assistance</h3>
-      <p>La personne aidée devra l'accepter sur son ordinateur.</p>
+      <p>L’utilisateur devra l'accepter sur son ordinateur.</p>
       <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Objet de l'assistance">
       <button class="capsule" id="remoteSend" type="button">Proposer</button>
     </div>
@@ -347,7 +347,7 @@
     <div id="lessons" class="stack"><p class="muted" style="font-size:15px">Aucun automate pour l'instant.</p></div>
     <div class="card stack" id="importCard" hidden>
       <h3 class="section-title">Importer un automate</h3>
-      <p>Un fichier <code>.papai</code> fourni par un support informatique ou préparé par vous. En l'important, vous le validez : la personne aidée pourra le lancer seule, en un clic.</p>
+      <p>Un fichier <code>.papai</code> fourni par un support informatique ou préparé par vous. En l'important, vous le validez : l’utilisateur pourra le lancer seul, en un clic.</p>
       <input type="file" id="importFile" accept=".papai,application/json" aria-label="Fichier d'automate">
       <p class="muted" id="importMsg" role="status" style="font-size:15px"></p>
     </div>
@@ -358,7 +358,7 @@
     <div class="mint request">
       <div class="who">
         <div class="avatar" id="procheInitial">P</div>
-        <div><small id="since">Demande · à l'instant</small><strong>La personne aidée</strong></div>
+        <div><small id="since">Demande · à l'instant</small><strong>L’utilisateur</strong></div>
       </div>
       <p class="quote" id="task"></p>
       <button class="thumb" id="thumb" type="button" hidden aria-label="Agrandir la dernière capture">
@@ -375,7 +375,7 @@
   <!-- Holo agit, ou l'aidant a la main -->
   <section id="v-live" class="stack" hidden>
     <div class="mint question" id="question" hidden>
-      <small id="questionTitle">La personne aidée a besoin de vous</small>
+      <small id="questionTitle">L’utilisateur a besoin de vous</small>
       <h2 id="qtext"></h2>
       <div class="options" id="options"></div>
       <div class="reply">
@@ -390,20 +390,20 @@
     </div>
     <div class="shot" id="shot">
       <div id="empty">En attente de la première capture d'écran…</div>
-      <img id="frame" alt="Écran de la personne aidée" style="display:none">
+      <img id="frame" alt="Écran de l’utilisateur" style="display:none">
       <div id="pin"></div>
     </div>
     <div class="card working" id="working">
       <div class="spinner"></div>
-      <div><strong id="workingTitle">Holo travaille sur l'ordinateur de la personne aidée</strong><small id="workingTask"></small></div>
+      <div><strong id="workingTitle">Holo travaille sur l'ordinateur de l’utilisateur</strong><small id="workingTask"></small></div>
     </div>
     <div class="hand" id="hand" hidden>
       <button class="capsule" id="arm" type="button">Prendre la main</button>
-      <p>Vous pouvez cliquer vous-même sur l'écran de la personne aidée.</p>
+      <p>Vous pouvez cliquer vous-même sur l'écran de l’utilisateur.</p>
     </div>
     <div id="aimbar" hidden aria-live="polite">
       <div class="card aim">
-        <strong id="aimText">Touchez l'écran de la personne aidée à l'endroit où il faut cliquer.</strong>
+        <strong id="aimText">Touchez l'écran de l’utilisateur à l'endroit où il faut cliquer.</strong>
         <small id="freshText"></small>
         <button class="link" id="refresh" type="button" hidden>Rafraîchir</button>
       </div>
@@ -423,7 +423,7 @@
     </div>
     <div id="makeWrap">
       <button class="capsule" id="makeLesson" type="button">Garder comme automate</button>
-      <p class="hint">Holo transforme cette assistance en automate que la personne aidée pourra relancer sans aide.</p>
+      <p class="hint">Holo transforme cette assistance en automate que l’utilisateur pourra relancer sans aide.</p>
     </div>
     <div class="draft" id="draft" hidden>
       <h3>Brouillon de l'automate</h3>
@@ -444,8 +444,8 @@
   <!-- Arrêté ou refusé -->
   <section id="v-stopped" class="stopped" hidden>
     <div class="round" style="width:64px;height:64px"><svg class="i" style="width:24px;height:24px"><use id="stoppedIcon" href="#i-pause"/></svg></div>
-    <h2 id="stoppedTitle">La personne aidée a arrêté l'assistance</h2>
-    <p id="stoppedDetail">L'assistance est arrêtée. Vérifiez avec la personne aidée ce qui a été fait.</p>
+    <h2 id="stoppedTitle">L’utilisateur a arrêté l'assistance</h2>
+    <p id="stoppedDetail">L'assistance est arrêtée. Vérifiez avec l’utilisateur ce qui a été fait.</p>
     <button class="back" data-home type="button">Retour à l'accueil</button>
   </section>
 
@@ -481,14 +481,14 @@
 <div class="scrim" id="refuseSheet" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="refuseTitle">
     <h2 id="refuseTitle">Refuser ce plan ?</h2>
-    <p>La personne aidée sera prévenu que rien ne sera fait.</p>
+    <p>L’utilisateur sera prévenu que rien ne sera fait.</p>
     <button class="capsule" id="refuseYes" type="button">Refuser le plan</button>
     <button class="capsule light" id="refuseNo" type="button">Annuler</button>
   </div>
 </div>
 
 <div id="zoom" hidden>
-  <img id="zoomImg" alt="Dernière capture de l'écran de la personne aidée">
+  <img id="zoomImg" alt="Dernière capture de l'écran de l’utilisateur">
   <button class="roundbtn" id="zoomClose" type="button" aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button>
 </div>
 
@@ -520,7 +520,7 @@ let myName = '';
 try { myName = localStorage.getItem('papai_name') || ''; } catch (e) {}
 if (myName) { $('meName').textContent = myName; $('me').textContent = myName[0].toUpperCase(); }
 
-/* ------------------------------------------------- mes personnes aidées */
+/* ------------------------------------------------- mes utilisateurs */
 
 // Un support suit plusieurs personnes : chaque lien /a/<clé> déjà ouvert est
 // gardé dans ce navigateur, et un canal discret par personne dit qui demande
@@ -577,14 +577,14 @@ function watchPeople() {
           const was = w.asking;
           w.asking = ASKING.includes(m.state);
           if (w.asking && !was) {
-            toast(`${p.name || 'Une personne aidée'} demande une assistance.`);
+            toast(`${p.name || 'Un utilisateur'} demande une assistance.`);
             if (navigator.vibrate) navigator.vibrate(200);
           }
         }
         else if (m.type === 'alert_cleared') { w.asking = false; }
         else if (m.type === 'helper_added') { toast(`${m.name} est maintenant support.`); }
-        else if (m.type === 'ticket_due') { w.asking = true; toast(`${p.name || 'Une personne aidée'} : rendez-vous`); }
-        else if (m.type === 'alert') { w.asking = true; toast(`${p.name || 'Une personne aidée'} : ${m.title || 'alerte'}`); }
+        else if (m.type === 'ticket_due') { w.asking = true; toast(`${p.name || 'Un utilisateur'} : rendez-vous`); }
+        else if (m.type === 'alert') { w.asking = true; toast(`${p.name || 'Un utilisateur'} : ${m.title || 'alerte'}`); }
         renderPeople();
       };
       ws.onclose = () => {
@@ -630,7 +630,7 @@ function renderPeople() {
     const el = document.createElement(here ? 'span' : 'a');
     el.className = 'person' + (here ? ' here' : '') + (w && w.asking ? ' asking' : '');
     if (!here) el.href = p.path;
-    const name = p.name || 'Personne aidée';
+    const name = p.name || 'Utilisateur';
     const av = document.createElement('span');
     av.className = 'avatar'; av.textContent = name[0].toUpperCase();
     const label = document.createElement('span');
@@ -646,7 +646,7 @@ function renderPeople() {
       }
       el.oncontextmenu = e => {
         e.preventDefault();
-        if (confirm(`Retirer ${name} de vos personnes aidées dans ce navigateur ?`)) forgetPerson(p.path);
+        if (confirm(`Retirer ${name} de vos utilisateurs dans ce navigateur ?`)) forgetPerson(p.path);
       };
     }
     nav.append(el);
@@ -732,7 +732,7 @@ function render() {
   $('browserLabel').hidden = !isWebLive;
   $('browserTitle').textContent = browserTitle();
   $('thumbTitle').textContent = isWebLive ? browserTitle() : 'Son écran';
-  $('frame').alt = isWebLive ? browserTitle() : 'Écran de la personne aidée';
+  $('frame').alt = isWebLive ? browserTitle() : 'Écran de l’utilisateur';
   $('empty').textContent = isWebLive
     ? 'En attente de la première image de Chrome PapAI…'
     : "En attente de la première capture d'écran…";
@@ -743,7 +743,7 @@ function render() {
 
   $('task').textContent = task ? `« ${task} »` : '';
   $('waiting').hidden = s === 'approval';
-  $('waitingText').textContent = s === 'waiting' ? "En attente de l'autorisation de la personne aidée" : "Holo regarde l'écran…";
+  $('waitingText').textContent = s === 'waiting' ? "En attente de l'autorisation de l’utilisateur" : "Holo regarde l'écran…";
   $('plan').hidden = s !== 'approval';
   $('thumb').hidden = !(s === 'approval' && frameSrc);
   tickSince();
@@ -755,9 +755,9 @@ function render() {
   $('working').hidden = s !== 'active';
   $('workingTitle').textContent = isWebLive
     ? `Holo travaille dans ${browserTitle()}`
-    : "Holo travaille sur l'ordinateur de la personne aidée";
+    : "Holo travaille sur l'ordinateur de l’utilisateur";
   $('workingTask').textContent = task ? `« ${task} »` : '';
-  $('questionTitle').textContent = isWebLive ? 'Holo a une question' : 'La personne aidée a besoin de vous';
+  $('questionTitle').textContent = isWebLive ? 'Holo a une question' : 'L’utilisateur a besoin de vous';
   $('question').hidden = s !== 'helper' || armed || !$('qtext').textContent;
   $('hand').hidden = s !== 'helper' || armed || isWebLive;
   $('aimbar').hidden = !armed || isWebLive;
@@ -771,9 +771,9 @@ function render() {
   $('makeLesson').innerHTML = lessonBusy ? '<div class="spinner"></div>Rédaction en cours…' : 'Garder comme automate';
 
   $('stoppedTitle').textContent = stoppedBy === 'gardien' ? "PapAI a arrêté l'assistance : démarche suspecte"
-    : refusedByMe ? 'Vous avez refusé le plan' : "La personne aidée a arrêté l'assistance";
+    : refusedByMe ? 'Vous avez refusé le plan' : "L’utilisateur a arrêté l'assistance";
   $('stoppedDetail').textContent = executionStarted === false ? "Rien n'a été fait sur son ordinateur."
-    : `L'assistance est arrêtée. Vérifiez avec ${seniorName || 'la personne aidée'} ce qui a été fait.`;
+    : `L'assistance est arrêtée. Vérifiez avec ${seniorName || 'l’utilisateur'} ce qui a été fait.`;
   $('stoppedIcon').setAttribute('href', refusedByMe ? '#i-x' : '#i-pause');
   $('remote').hidden = !!state && !['done', 'stopped'].includes(state);
   tickFreshness();
@@ -894,7 +894,7 @@ function clearAim() {
   target = null;
   $('pin').style.display = 'none';
   $('loupe').style.display = 'none';
-  $('aimText').textContent = "Touchez l'écran de la personne aidée à l'endroit où il faut cliquer.";
+  $('aimText').textContent = "Touchez l'écran de l’utilisateur à l'endroit où il faut cliquer.";
 }
 
 function requestRefresh() {
@@ -1042,8 +1042,8 @@ function onMessage(ev) {
   else if (m.type === 'hello') {
     seniorName = m.senior || '';
     rememberHere();
-    if (!m.bridge) $('idleSub').textContent = "L'ordinateur de la personne aidée n'est pas connecté pour le moment.";
-    else $('idleSub').textContent = "Vous serez prévenu dès que la personne aidée demande de l'aide.";
+    if (!m.bridge) $('idleSub').textContent = "L'ordinateur de l’utilisateur n'est pas connecté pour le moment.";
+    else $('idleSub').textContent = "Vous serez prévenu dès que l’utilisateur demande de l'aide.";
     showProtection(m.bridge ? m.protection : null);
     loadLessons();
     loadTickets();
@@ -1097,9 +1097,9 @@ function onMessage(ev) {
 
   else if (m.type === 'protection') showProtection(m.on);
 
-  else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. La personne aidée doit l’accepter sur son ordinateur.');
-  else if (m.type === 'remote_refused') toast('La personne aidée a refusé l’assistance pour le moment.');
-  else if (m.type === 'remote_accepted') toast('La personne aidée a accepté. Holo prépare un plan.');
+  else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. L’utilisateur doit l’accepter sur son ordinateur.');
+  else if (m.type === 'remote_refused') toast('L’utilisateur a refusé l’assistance pour le moment.');
+  else if (m.type === 'remote_accepted') toast('L’utilisateur a accepté. Holo prépare un plan.');
 
   else if (m.type === 'answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
 
@@ -1116,7 +1116,7 @@ function onMessage(ev) {
 
   else if (m.type === 'ack' && m.what === 'click') {
     sending = false;
-    toast('Clic transmis à l’ordinateur de la personne aidée.');
+    toast('Clic transmis à l’ordinateur de l’utilisateur.');
     setArmed(false);
   }
 
@@ -1148,7 +1148,7 @@ function onMessage(ev) {
       if (s.checkpoint) {
         const c = document.createElement('div');
         c.className = 'cp';
-        c.textContent = 'La personne aidée doit voir : ' + s.checkpoint;
+        c.textContent = 'L’utilisateur doit voir : ' + s.checkpoint;
         d.appendChild(c);
       }
       const b64 = m.preview && m.preview[s.frame];
@@ -1244,7 +1244,7 @@ $('sensitiveRefusalOk').onclick = () => { $('sensitiveRefusal').hidden = true; }
 $('refresh').onclick = requestRefresh;
 
 // Le clic part en coordonnées normalisées relatives à l'image affichée, jamais
-// en pixels : l'app de la personne aidée les reprojette sur l'écran réel.
+// en pixels : l'app de l’utilisateur les reprojette sur l'écran réel.
 $('confirm').onclick = () => {
   if (!target || sending) return;
   if (!send({ type: 'click', frame_id: frameId, x: target.x, y: target.y })) return;

@@ -55,7 +55,7 @@ class SensitiveBlocked(str):
 
 
 def protected_window_support_text(click: bool = False) -> str:
-    name = space.current().family.senior.strip() or "la personne aidée"
+    name = space.current().family.senior.strip() or "l’utilisateur"
     if click:
         return ("Clic non effectué : cette fenêtre est protégée (réglages ou mots de passe). "
                 f"Guidez {name} par téléphone pour faire cette étape sur l'ordinateur.")
@@ -174,7 +174,7 @@ def describe_doing(thought: str, name: str, args: dict) -> str:
     if name == "ask_helper":
         return "Holo vous pose une question"
     if name == "ask_senior":
-        return "Holo pose une question à la personne aidée"
+        return "Holo pose une question à l’utilisateur"
     if name == "answer":
         return "Holo termine"
     if name == "open_browser":
@@ -423,5 +423,5 @@ class AgentRunner:
             return None
         if to == "helper":
             self._sensitive_blocked = None
-        who = "la personne aidée" if to == "senior" else "du support"
+        who = "l’utilisateur" if to == "senior" else "du support"
         return f"Réponse de {who} : {reply}" if to == "senior" else f"Réponse du support : {reply}"
