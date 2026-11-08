@@ -254,7 +254,24 @@ final class AppModel {
     static func appPairingURL(_ url: String) -> String {
         var allowed = CharacterSet.alphanumerics
         allowed.insert(charactersIn: "-._~")
-        return "papai://pair?u=" + (url.addingPercentEncoding(withAllowedCharacters: allowed) ?? url)
+        let safe = pairingURLWithoutKey(url)
+        return "papai://pair?u=" + (safe.addingPercentEncoding(withAllowedCharacters: allowed) ?? safe)
+    }
+
+    static func pairingURLWithoutKey(_ url: String) -> String {
+        guard var c = URLComponents(string: url) else { return url }
+        if c.scheme?.lowercased() == "papai" {
+            let original = c.queryItems
+            c.queryItems = c.queryItems?.map { item in
+                guard item.name == "u", let value = item.value,
+                      ["http", "https"].contains(URLComponents(string: value)?.scheme?.lowercased() ?? "") else { return item }
+                return URLQueryItem(name: item.name, value: pairingURLWithoutKey(value))
+            }
+            if c.queryItems == original { return url }
+        } else {
+            c.path = c.path.replacingOccurrences(of: "/k/[^/]+/p/", with: "/p/", options: .regularExpression)
+        }
+        return c.string ?? url
     }
 
     func removeHelper(_ h: Helper) {
@@ -715,8 +732,8 @@ final class AppModel {
             }
         case "pair_code":
             pairCode = m["code"] as? String
-            pairURL = m["url"] as? String
-            pairAppURL = m["app_url"] as? String ?? pairURL.map(Self.appPairingURL)
+            pairURL = (m["url"] as? String).map(Self.pairingURLWithoutKey)
+            pairAppURL = (m["app_url"] as? String).map(Self.pairingURLWithoutKey) ?? pairURL.map(Self.appPairingURL)
             pairLong = m["long"] as? Bool ?? false
             pairExpires = m["expires_in"] as? Int ?? 600
         case "alert":

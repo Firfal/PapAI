@@ -11,10 +11,11 @@ import base64
 import datetime
 import json
 import os
+import re
 import threading
 import time
 import urllib.request
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from typing import Callable
 
 from . import apps as start_apps
@@ -435,9 +436,18 @@ class Model:
         self.pair_long = False
 
     @staticmethod
+    def pairing_url_without_key(url: str) -> str:
+        parts = urlsplit(url)
+        if parts.scheme.lower() == "papai":
+            query = [(k, Model.pairing_url_without_key(v) if k == "u" and urlsplit(v).scheme.lower() in ("http", "https") else v)
+                     for k, v in parse_qsl(parts.query, keep_blank_values=True)]
+            return urlunsplit(parts._replace(query=urlencode(query)))
+        return urlunsplit(parts._replace(path=re.sub(r"/k/[^/]+/p/", "/p/", parts.path)))
+
+    @staticmethod
     def app_pairing_url(url: str) -> str:
         """`papai://pair?u=<url encodée>` : l'appareil photo du téléphone ouvre l'app, pas le navigateur."""
-        return "papai://pair?u=" + quote(url, safe="-._~")
+        return "papai://pair?u=" + quote(Model.pairing_url_without_key(url), safe="-._~")
 
     @property
     def invitation_text(self) -> str:
@@ -641,8 +651,8 @@ class Model:
             threading.Thread(target=go, daemon=True).start()
         elif kind == "pair_code":
             self.pair_code = m.get("code")
-            self.pair_url = m.get("url")
-            self.pair_app_url = m.get("app_url") or (self.app_pairing_url(self.pair_url) if self.pair_url else None)
+            self.pair_url = self.pairing_url_without_key(m["url"]) if m.get("url") else None
+            self.pair_app_url = self.pairing_url_without_key(m["app_url"]) if m.get("app_url") else (self.app_pairing_url(self.pair_url) if self.pair_url else None)
             self.pair_long = bool(m.get("long"))
             try:
                 self.pair_expires = int(m.get("expires_in") or 600)

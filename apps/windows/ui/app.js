@@ -407,14 +407,14 @@
         ${onb ? '' : `<button class="circle press" data-act="removeHelper" data-arg="${esc(h.id)}" aria-label="Retirer ${esc(h.name)}"
           style="width:36px;height:36px;background:var(--bg)">${icon('xmark', 16)}</button>`}
       </div>`).join('');
-    const add = S.pairCode ? '' :
+    const add = S.pairCode || S.pairURL ? '' :
       `<div>${pill(S.helpers.length ? 'Ajouter un autre support' : 'Ajouter un support', 'pair', { filled: !S.helpers.length, height: 60, disabled: !S.connected })}</div>
        ${S.connected ? '' : `<div class="muted" style="${f(16, 4)}">Connexion au serveur en cours…</div>`}`;
-    const added = S.pairAdded ? `<div class="row accent" style="gap:8px;${f(19, 6)}">${icon('checkCircle', 22)}${esc(S.pairAdded)} fait maintenant partie de votre support.</div>` : '';
-    const code = S.pairCode ? `<div class="card col" style="padding:18px 22px;gap:8px;align-items:center;flex:none">
+    const added = S.pairAdded ? `<div class="row accent" style="gap:8px;${f(19, 6)}">${icon('checkCircle', 22)}${esc(S.pairAdded)} est maintenant support.</div>` : '';
+    const code = S.pairCode || S.pairURL ? `<div class="card col" style="padding:18px 22px;gap:8px;align-items:center;flex:none">
         ${S.pairQR ? `<img src="${S.pairQR}" alt="QR code à scanner par votre support" style="width:170px;height:170px;image-rendering:pixelated">` : ''}
-        <div class="muted" style="${f(16, 4)}">ou le code</div>
-        <div style="font-size:${38 * S.textScale}px;font-weight:600;letter-spacing:4px;font-variant-numeric:tabular-nums;user-select:text">${esc(S.pairCode.slice(0, 3))} ${esc(S.pairCode.slice(3))}</div>
+        ${S.pairCode ? `<div class="muted" style="${f(16, 4)}">ou le code</div>
+        <div style="font-size:${38 * S.textScale}px;font-weight:600;letter-spacing:4px;font-variant-numeric:tabular-nums;user-select:text">${esc(S.pairCode.slice(0, 3))} ${esc(S.pairCode.slice(3))}</div>` : `<div style="${f(20, 6)}">Lien d'invitation</div>`}
         <div class="muted" style="${f(15, 4)}">${S.pairLong ? 'Valable 24 heures' : 'Valable 10 minutes'}</div>
         ${S.pairURL ? `<button class="accent press" data-act="shareInvite" style="${f(17, 6)}">Envoyer par SMS, WhatsApp…</button>` : ''}
         ${ui.inviteCopied ? `<div class="accent" style="max-width:260px;text-align:center;${f(15, 6)}">${esc(ui.inviteCopied)}</div>` : ''}
@@ -433,9 +433,10 @@
   function pairAsk() {
     const r = S.pairRequest;
     return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Nouveau support</span></div>
-      <div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.name)} veut devenir votre support</div>
-      ${r.relation ? `<div class="card" style="padding:24px;${f(26, 5)}">${esc(r.relation)}</div>` : ''}
-      ${lead("Cette personne vient de taper votre code à 6 chiffres. Acceptez seulement si vous la connaissez et que vous lui avez donné ce code.")}`, 40, 22) +
+      <div class="col" style="gap:8px"><div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.name)} veut devenir votre support</div>
+      ${r.relation ? `<div class="muted" style="${f(17, 4)}">${esc(r.relation)}</div>` : ''}</div>
+      ${lead("Acceptez seulement si vous connaissez cette personne.")}
+      ${lead("Si quelqu'un vous a appelé ou écrit pour vous demander ce code, refusez.")}`, 40, 22) +
       `<div class="row" style="gap:14px;margin-top:18px">
         ${pill('Refuser', 'refusePair', { filled: false, height: 78, grow: true, arg: r.req })}
         ${pill("Accepter", 'acceptPair', { height: 78, grow: true, disabled: !S.connected, arg: r.req })}
