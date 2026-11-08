@@ -18,8 +18,8 @@ Un seul mot par notion, dans toutes les apps. Les identifiants internes (`senior
 
 | Notion | Mot à l'écran | À ne pas écrire |
 |---|---|---|
-| Celui qui aide (proche, service informatique) | **support** (« Mon support », « Ajouter un support ») | aidant, proche, famille |
-| Celui qui est aidé | son **prénom**, sinon « la personne aidée » | personne âgée, senior, Mamie, votre proche |
+| Celui qui aide (le support informatique de l'entreprise) | **support** (« Mon support », « Support IT · <organisation> ») | aidant, proche, famille |
+| Celui qui est aidé (l'employé) | son **prénom** (tiré du compte de l'ordinateur), sinon « la personne aidée » | personne âgée, senior, Mamie, votre proche |
 | L'app | **PapAI** | |
 | L'assistant IA | **Holo** | l'IA, l'agent |
 | La tâche enregistrée, relancée d'un clic | **automate** (« Mes automates », « un automate ») | tutoriel, automatisme, fiche, AutoMate |
@@ -29,6 +29,8 @@ Un seul mot par notion, dans toutes les apps. Les identifiants internes (`senior
 | Les décisions sur le plan | **Valider**, **Préciser**, **Refuser** | Accepter, Approuver |
 
 ## Décisions produit (arbitrées par Corentin)
+
+- **Entreprise uniquement (8 nov., Quentin)** : plus de parcours « particuliers ». L'employé arrive directement sur l'app, configurée avec son nom (compte de l'ordinateur) ; son support est rattaché d'office par le jeton d'organisation déposé par le service informatique (profil MDM, stratégie de groupe). Pas d'inscription, pas de liaison manuelle (QR code, code à 6 chiffres, invitation), pas de choix du rôle ni de pages d'introduction. La version particuliers complète est archivée dans la branche `archive/particuliers`.
 
 - **Surveillance continue du gardien** : elle est conservée, comme option à activer ou non, à la manière de la protection en temps réel d'un antivirus. Hors assistance, seuls partent des noms d'apps, le titre de la fenêtre et le nom du site, jamais d'image de l'écran.
 - **Aucun compte ni identifiant retenu par l'app** : pas d'import de cookies ni de mot de passe, même pour une liste de sites. Quand un site demande une connexion, la personne aidée reprend la main et se connecte elle-même, puis Holo continue.
@@ -51,6 +53,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 8 nov. | Claude | `claude/entreprise-mac` | App Mac entreprise uniquement : plus d'écran de choix du rôle, d'accueil en 4 étapes, de champ Prénom, de « Christine » codé en dur, de liaison (QR code, code, invitation, `HelpersPanel`, feuille `PairRequestView` ; un `pair_confirm` reçu est refusé sans rien afficher), ni de « Changer de rôle » (deux modes). Nom affiché = prénom du compte macOS (`NSFullUserName`, sinon `NSUserName`), forçable par `displayName` géré. Poste configuré par préférences gérées (`Poste.swift`) : `orgToken`, `server` (crée l'espace sur ce serveur, pont gardé dans `bridgeURL`), `displayName`, `role support` (agent IT). Réglages : « Mon support » en lecture seule (Support IT · organisation, en ligne ou non ; sinon « Aucune organisation configurée »). `OnboardingView.swift` → `RequestViews.swift`, `SettingsView.swift`, test `poste_test.swift` (17) à la place de `support_pairing_test.swift`. Build Xcode zéro erreur ; tests Swift poste 17, silence 5, sécurité 168, dossier 58, micro OK ; rendus hors écran accueil et Réglages regardés ; inscription par jeton et rattachement d'un poste existant rejoués contre un serveur local. Serveur inchangé. Fichiers libérés. |
 | 8 nov. | Claude | `claude/mac-mode-support` | App Mac : écran de choix au premier lancement (« Je me fais aider » / « J'aide quelqu'un », clé `role`, `-role aide|support` au lancement, « Changer de rôle » discret dans les Réglages des deux modes, relance de l'app). Mode support Mac = fonctions de l'iPhone sur `HelperModel` partagé (`apps/ios/Sources/{HelperModel,People,Pairing,Platform,FlowLayout}.swift` ajoutés à la cible Mac ; `Lesson` → `HelperLesson`, `PlatformImage`, Live Activity et haptique sous `#if os(iOS)`) : liaison par code ou lien collé (pas de caméra), personnes aidées, plan à valider / préciser / modifier une étape (dictée Mac), suivi en direct, question de Holo, prise en main au clic, gardien, automates, notifications macOS + fenêtre au premier plan. Écrans dans `apps/mac/Sources/Support/`. Mac et iOS compilés, tests `apps/mac/tests` verts, parcours support joué contre un serveur local (liaison → plan → préciser → valider → question → fin → automate enregistré). Pas de PR. Fichiers libérés. |
 | 8 nov. | Devin (pilotage) | `test-demo` | Arbitrage de Corentin : sélecteur « Taille du texte » (Grande / Très grande) remis dans les Réglages Mac, style `Onglets` du nouveau design ; étiquette VoiceOver « Voir l'automate » au lieu de « fiche ». `PermissionsView.swift`, `HomeView.swift`. Swift non compilé (Linux). Fichiers libérés. |
 | 8 nov. | Claude | `devin/1794097973-gardien-trous` | PR #53, relecture sécurité : exception impôts/loyer refusée dès qu'un site autre que `impots.gouv.fr` (ou sous-domaine) est cité, ou qu'apparaît « téléphone » ou « donner/envoyer/dicter le code ou numéro » ; carte cadeau + code ou numéro communiqué à quelqu'un = alerte quel que soit le montant (Google Play 99 €). 15 cas ajoutés à `tests/test_demandes_suspectes.py` ; suspectes, gardien, parcours, sécurité verts. |

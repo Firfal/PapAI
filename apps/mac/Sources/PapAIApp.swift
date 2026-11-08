@@ -3,25 +3,20 @@ import SwiftUI
 @main
 struct PapAIApp: App {
     @State private var model = AppModel()
-    /// Rôle de ce Mac : rien tant qu'il n'est pas choisi (voir `AppRole`).
-    @State private var role = AppRole.saved
+    /// Rôle de ce Mac, fixé par le service informatique (voir `AppRole`) : l'employé par défaut.
+    private let role = AppRole.current
 
     var body: some Scene {
         WindowGroup("PapAI") {
             Group {
                 switch role {
                 case .aide:
-                    // L'app de la personne aidée, inchangée.
+                    // L'app de l'employé : elle s'ouvre directement sur l'accueil.
                     RootView()
                         .environment(model)
                         .onAppear { model.start(); Snapshot.scheduleIfAsked(model) }
                 case .support:
                     SupportApp()
-                case nil:
-                    RoleChoiceView { r in
-                        UserDefaults.standard.set(r.rawValue, forKey: AppRole.key)
-                        withAnimation(.easeInOut(duration: 0.25)) { role = r }
-                    }
                 }
             }
             .preferredColorScheme(.light)
@@ -40,9 +35,7 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 22) {
             Header()
             Group {
-                if !model.onboarded {
-                    OnboardingView()
-                } else if let r = model.remoteRequest {
+                if let r = model.remoteRequest {
                     RemoteRequestView(request: r)
                 } else if let q = model.queued, model.queuedShown {
                     QueuedView(ticket: q)
@@ -66,28 +59,8 @@ struct RootView: View {
         .overlay { if let l = model.docLesson, model.guardAlert == nil { LessonDocView(lesson: l) } }
         .overlay { if let a = model.guardAlert { GuardAlertView(alert: a) } }
         .id(model.textScale)
-        .sheet(isPresented: Binding(
-            get: { model.showSettings || model.showHelpers || model.pairRequest != nil },
-            set: { if !$0 { model.showSettings = false; model.showHelpers = false } }
-        )) {
-            Group {
-                if let p = model.pairRequest {
-                    PairRequestView(request: p).padding(24)
-                        .frame(width: 820, height: 580).background(T.bg)
-                } else if model.showSettings {
-                    SettingsView()
-                } else {
-                    VStack(alignment: .trailing, spacing: 18) {
-                        ScrollView { HelpersPanel() }
-                        Button("Fermer") { model.stopPairing(); model.showHelpers = false }
-                            .buttonStyle(PillStyle(height: 54)).keyboardShortcut(.cancelAction)
-                    }
-                    .padding(24).frame(width: 820, height: 580).background(T.bg)
-                    .onDisappear { model.stopPairing() }
-                }
-            }
-            .environment(model)
-            .interactiveDismissDisabled(model.pairRequest != nil)
+        .sheet(isPresented: $model.showSettings) {
+            SettingsView().environment(model)
         }
     }
 }
