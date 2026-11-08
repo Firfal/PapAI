@@ -59,6 +59,7 @@ Reçoit :
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
 
 Sous Windows, les champs natifs portant le style `ES_PASSWORD` sont refusés, y compris avant chaque caractère. UI Automation n'est pas une dépendance : les champs web/WinUI sans ce style ne sont pas couverts par cette détection.
+Toute alerte affichée, même `info` ou `attention`, lève le verrou local sur Mac et Windows : la frappe en cours s'arrête avant le caractère suivant et fermer l'alerte ne relance pas le geste. Un clic du support bloqué comme sensible renvoie `refused` (« Clic non effectué »), sans accusé de réussite ni réponse automatique à Holo ; l'assistance reste en `awaiting_helper`.
 
 ## App de l'aidant (iPhone) : `ws://SERVEUR/ws/aidant/CLÉ`
 

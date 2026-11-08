@@ -220,6 +220,7 @@ class BridgeSafetyTests(unittest.IsolatedAsyncioTestCase):
             safety.check_pointer.side_effect = lambda *args: gate.raise_stop()
             safety.prepare_keyboard.side_effect = gate.raise_stop
             fake = Mock()
+            fake.KEYBOARD_KEYS = ['enter']
             screen = Mock()
             screen.to_pixels.return_value = (10, 20)
             with patch.dict(sys.modules, {'pyautogui': fake}), patch.object(core, 'WINDOWS', False):

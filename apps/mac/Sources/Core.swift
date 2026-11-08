@@ -400,7 +400,7 @@ enum Automations {
             if gate.isStopped { return (false, "Arrêté.") }
             switch a.kind {
             case "open_folder":
-                let r = Shortcuts.open(Lesson.Shortcut(folder: a.folder, subfolder: a.subfolder))
+                let r = await Shortcuts.open(Lesson.Shortcut(folder: a.folder, subfolder: a.subfolder))
                 if !r.ok { return r }
             case "open_settings":
                 guard let u = settingsURL(a.page ?? ""), NSWorkspace.shared.open(u)
