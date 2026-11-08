@@ -765,9 +765,19 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
   Réglé par un automate = ticket résolu de `source` `automatisme`. `resolution_s` : durées de résolution (s) de la catégorie, pour fusionner les médianes de plusieurs utilisateurs ; le mois glissant compte même si `weeks` couvre moins de 30 jours. Suggestion à partir de 5 demandes des
   30 derniers jours hors automates (pas pour « autre ») : « 12 demandes Wi-Fi ce mois-ci : créer un
   automate ? » ; `draft` préremplit la création d'automate, rien n'est créé sans le support.
+- **Point de la semaine (8 nov.)** : même réponse, champ `"week"` ajouté (même calcul, pas de route nouvelle,
+  accès inchangé : `_key_ok` pour `/k`, `orgs.auth` pour `/o`) → `{"since","days":7,"count","resolved","by_automate",
+  "automate_share","mean_resolution_s","resolution_total_s","by":{catégorie: n},"top":[{"id","label","count"}],
+  "automates":[{"key","title","count"}],"automate":{"key","title","count"}|null,"suggestion":<1re suggestion>|null}`.
+  7 derniers jours glissants : reçues = créées dans la période ; réglées = passées à `resolu` dans la période
+  (`resolved`, sinon `updated`), même arrivées avant ; temps moyen sur ces réglées ; 3 catégories en tête ;
+  automate le plus utile = celui qui a réglé le plus de tickets (`source` `automatisme`), repéré par le champ
+  `automation` du ticket (id de l'automate, posé à son lancement) ou, pour les anciens tickets, par `titre:<titre>`.
+  `by`, `resolution_total_s` et `automates` servent à additionner plusieurs utilisateurs (Mac). Rien n'est envoyé par mail.
+- Champ ajouté au ticket : `automation` (id de l'automate lancé par `run_automation`).
 - `GET /ticket_stats.js` : graphiques SVG (page du support et organisation), sans bibliothèque.
 - Mac support : `TicketStats.merge` additionne les statistiques de tous les utilisateurs reliés.
-- Tests : `python tests/test_ticket_categories.py`, `apps/mac/tests/ticket_stats_test.swift`.
+- Tests : `python tests/test_ticket_categories.py`, `python tests/test_point_semaine.py`, `node --test tests/test_ticket_stats_js.js`, `apps/mac/tests/ticket_stats_test.swift`.
 
 ## Prénom et invitation (7 novembre au soir)
 

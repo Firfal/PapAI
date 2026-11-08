@@ -48,8 +48,31 @@ struct TicketStatsTest {
         precondition(s.count == 1 && s[0].text == "5 demandes Wi-Fi ce mois-ci : créer un automate ?", "suggestion au total")
         precondition(s[0].draft["title"] == "Rétablir le Wi-Fi" && s[0].draft["description"]!.contains("« Plus d'internet »"),
                      "brouillon prérempli")
+        precondition(m.thisWeek.suggestion?.category == "wifi" && m.panelSuggestions.isEmpty,
+                     "panneau sans la suggestion de la carte « Cette semaine »")
         precondition(TicketCategory.label("securite") == "Sécurité" && TicketCategory.label("??") == "Autre", "libellés")
         precondition(TicketStats.median([]) == nil && TicketStats.median([1, 3]) == 2, "médiane")
+        let wa = stats("""
+        {"since": "x", "totals": {"count": 0, "resolved": 0, "by_automate": 0}, "weeks": [],
+         "week": {"count": 3, "resolved": 2, "by_automate": 1, "resolution_total_s": 3600,
+                  "by": {"wifi": 2, "imprimante": 1},
+                  "automates": [{"key": "imp-1", "title": "Remettre l'imprimante", "count": 1}]}}
+        """, key: "k1")
+        let wb = stats("""
+        {"since": "x", "totals": {"count": 0, "resolved": 0, "by_automate": 0}, "weeks": [],
+         "week": {"count": 2, "resolved": 2, "by_automate": 2, "resolution_total_s": 600,
+                  "by": {"imprimante": 1, "comptes": 1},
+                  "automates": [{"key": "imp-1", "title": "Remettre l'imprimante", "count": 1},
+                                {"key": "wifi-1", "title": "Rétablir le Wi-Fi", "count": 1}]}}
+        """, key: "k2")
+        precondition(wa.week.count == 3 && wa.week.meanResolution == 1800 && wa.week.automate?.key == "imp-1", "lecture semaine")
+        let w = TicketStats.merge([wa, wb]).week
+        precondition(w.count == 5 && w.resolved == 4 && w.byAutomate == 3 && abs(w.automateShare - 0.75) < 1e-9, "semaine additionnée")
+        precondition(w.meanResolution == 1050, "temps moyen recalculé sur toutes les réglées")
+        precondition(w.top.map(\.id) == ["wifi", "imprimante", "comptes"], "trois catégories en tête, égalité dans l’ordre des catégories")
+        precondition(w.automate?.key == "imp-1" && w.automate?.count == 2, "automate le plus utile cumulé")
+        precondition(TicketStats.WeekSummary().isEmpty && TicketStats.WeekSummary().meanResolution == nil, "semaine vide")
+        precondition(m.thisWeek.suggestion?.category == "wifi", "suggestion reprise dans la carte")
         print("ticket_stats_test : OK")
     }
 }
