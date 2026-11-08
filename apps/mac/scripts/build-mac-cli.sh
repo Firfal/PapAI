@@ -9,7 +9,8 @@ OUT="build/cli"
 APP="$OUT/PapAI.app"
 mkdir -p "$OUT"
 swiftc -O -swift-version 5 -parse-as-library -target "$(uname -m)-apple-macos15.0" \
-  Sources/*.swift ../shared/*.swift -o "$OUT/PapAI"
+  Sources/*.swift Sources/Support/*.swift ../shared/*.swift \
+  ../ios/Sources/{HelperModel,People,Pairing,Platform,FlowLayout}.swift -o "$OUT/PapAI"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
