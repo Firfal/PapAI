@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PapAI · Pitch (prompter)</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout : une scène fixe 1920×1080 (le bureau de Christine), un ticket qui avance d'état à chaque slide.
+   Un seul look clair, choisi : les couleurs de l'app PapAI (bleu + encre), posées en dur ici. */
+:root {
+  color-scheme: light;
+  --bg: #F1F4FD;          /* fond bleu-lavande de l'app */
+  --bg2: #E8EDFC;
+  --card: #FFFFFF;
+  --ink: #141A33;         /* encre */
+  --muted: #5A6178;
+  --faint: #9AA1B8;
+  --line: #DFE4F2;
+  --accent: #2F6EF7;      /* le bleu PapAI */
+  --accent-deep: #1A56E0;
+  --accent-pale: #EAF1FF;
+  --pip: #F58A3A;         /* pépin du logotype, rien d'autre */
+  --stage-bg: #0D1124;
+  --slide-bg: var(--bg);
+
+  --display: "Bricolage Grotesque", "SF Pro Display", system-ui, sans-serif;
+  --body: "Geist", "SF Pro Text", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* une courbe signature (ease-out franc), une pour ce qui bouge à l'écran, un ressort pour le ticket */
+  --ease: cubic-bezier(.23, 1, .32, 1);
+  --in-out: cubic-bezier(.77, 0, .175, 1);
+  --spring: linear(0, .06 3%, .22 7%, .46 12%, .72 18%, .9 24%, 1 30%, 1.04 36%, 1.05 42%, 1.04 50%, 1.015 62%, 1 75%, .998 88%, 1);
+}
+
+/* === FIXED 16:9 STAGE (frontend-slides viewport-base.css) === */
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--stage-bg); }
+.deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg); }
+.deck-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: var(--slide-bg); }
+.slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; display: block; visibility: hidden; opacity: 0; pointer-events: none; background: transparent; }
+.slide.active { visibility: visible; opacity: 1; pointer-events: auto; z-index: 2; }
+.slide.leaving { visibility: visible; opacity: 1; z-index: 1; pointer-events: none; }
+img, svg { max-width: 100%; max-height: 100%; }
+@media print {
+  html, body { overflow: visible; background: #fff; }
+  .deck-viewport { position: static; }
+  .deck-stage { position: relative; transform: none !important; }
+  .slide { position: relative; visibility: visible; opacity: 1; page-break-after: always; }
+  .chrome { display: none; }
+}
+
+body { font-family: var(--body); color: var(--ink); -webkit-font-smoothing: antialiased; }
+::selection { background: var(--accent-pale); }
+
+/* === LE BUREAU : fond commun, il ne bouge jamais === */
+.desk { position: absolute; inset: 0; z-index: 0;
+  background:
+    radial-gradient(1200px 700px at 85% -10%, #DCE6FF 0%, transparent 60%),
+    radial-gradient(900px 600px at -5% 110%, #E9E4FB 0%, transparent 60%),
+    linear-gradient(var(--bg), var(--bg2)); }
+.pad { position: absolute; inset: 0; padding: 200px 160px 120px; box-sizing: border-box; }
+
+/* === LE TICKET : la signature du deck. Il change d'état à chaque slide, comme une vraie demande === */
+.ticket { position: absolute; left: 160px; top: 72px; z-index: 5; display: flex; align-items: center; gap: 18px;
+  font-family: var(--mono); font-size: 22px; color: var(--muted); letter-spacing: .02em; }
+.ticket .id { color: var(--faint); }
+.ticket .state { position: relative; display: inline-flex; align-items: center; gap: 12px; height: 48px; padding: 0 22px 0 18px;
+  border-radius: 24px; background: var(--card); color: var(--ink); font-family: var(--body); font-weight: 600; font-size: 22px; letter-spacing: 0;
+  box-shadow: 0 0 0 1px var(--line), 0 10px 30px -12px rgba(42,63,143,.35); }
+.ticket .state i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px var(--accent-pale); }
+.ticket .state.done i { background: var(--ink); box-shadow: 0 0 0 5px #E7E9F0; }
+.ticket .state.pop { animation: pop .7s var(--spring); }
+@keyframes pop { 0% { transform: scale(.86); } 100% { transform: none; } }
+/* la ligne du ticket : son avancement dans le pitch */
+.track { position: absolute; left: 160px; right: 160px; top: 148px; height: 2px; background: var(--line); z-index: 4; border-radius: 1px; }
+.track b { position: absolute; inset: 0; background: var(--accent); transform-origin: 0 0; transform: scaleX(0); transition: transform .9s var(--spring); border-radius: 1px; }
+.brand { position: absolute; right: 160px; top: 76px; z-index: 5; height: 40px; color: var(--ink); }
+.brand svg { height: 40px; width: auto; display: block; }
+
+/* === TYPE === */
+h1, h2, .say { font-family: var(--display); font-weight: 700; letter-spacing: -.035em; line-height: .98; margin: 0; text-wrap: balance; color: var(--ink); }
+h2 { font-size: 112px; }
+.lead { font-size: 40px; line-height: 1.3; color: var(--muted); max-width: 1180px; margin: 36px 0 0; text-wrap: balance; }
+.blue { color: var(--accent); }
+.small { font-family: var(--mono); font-size: 20px; color: var(--faint); letter-spacing: .02em; }
+
+/* === ENTRÉES : chaque calque arrive décalé, une seule fois par slide === */
+.slide .r { opacity: 0; transform: translateY(26px); }
+.slide.active .r { animation: rise .9s var(--ease) both; animation-delay: calc(var(--d, 0) * 1ms); }
+@keyframes rise { to { opacity: 1; transform: none; } }
+
+/* === CHANGEMENT DE SLIDE : le bureau reste, ce qui est posé dessus glisse (View Transitions, comme Pullback) === */
+.slide.active h2, .slide.active .say { view-transition-name: vt-title; }
+.slide.active .hero { view-transition-name: vt-hero; }
+.ticket { view-transition-name: vt-ticket; }
+.brand { view-transition-name: vt-brand; }
+.track { view-transition-name: vt-track; }
+::view-transition-group(*) { animation-duration: .7s; animation-timing-function: var(--in-out); }
+::view-transition-group(vt-ticket), ::view-transition-group(vt-brand), ::view-transition-group(vt-track) { animation: none; }
+::view-transition-old(vt-ticket), ::view-transition-old(vt-brand), ::view-transition-old(vt-track) { display: none; }
+::view-transition-new(vt-ticket), ::view-transition-new(vt-brand), ::view-transition-new(vt-track) { animation: none; }
+::view-transition-old(root) { animation: vt-out .3s var(--ease) both; }
+::view-transition-new(root) { animation: vt-in .45s var(--ease) .08s both; }
+::view-transition-old(vt-title), ::view-transition-new(vt-title) { inline-size: auto; block-size: auto; }
+::view-transition-old(vt-title) { animation: vt-out .25s cubic-bezier(.55,0,1,.45) both; }
+::view-transition-new(vt-title) { animation: vt-in .45s var(--ease) .25s both; }
+::view-transition-old(vt-hero) { animation: vt-out .5s linear both; }
+::view-transition-new(vt-hero) { animation: vt-in .45s var(--ease) .25s both; }
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; } }
+
+/* =========================================================
+   1 · LA DEMANDE
+   ========================================================= */
+.s-hook .who { display: inline-flex; align-items: center; gap: 16px; font-size: 26px; color: var(--muted); }
+.s-hook .who .av { width: 56px; height: 56px; border-radius: 50%; background: var(--accent-pale); color: var(--accent-deep);
+  display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 26px; }
+.s-hook .say { font-size: 168px; margin-top: 64px; max-width: 1500px; }
+.s-hook .say .ch { opacity: 0; }
+.s-hook.active .say .ch { animation: ch .01s linear both; animation-delay: calc(500ms + var(--i) * 42ms); }
+@keyframes ch { to { opacity: 1; } }
+.s-hook .caret { display: inline-block; width: 10px; height: .82em; margin-left: 8px; background: var(--accent); vertical-align: -.06em; border-radius: 3px;
+  animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.s-hook .foot { position: absolute; left: 160px; bottom: 120px; }
+
+/* =========================================================
+   2 · LE COÛT
+   ========================================================= */
+.s-cost .num { font-family: var(--display); font-weight: 800; font-size: 400px; letter-spacing: -.06em; line-height: .8; color: var(--accent);
+  font-variant-numeric: tabular-nums; margin-top: 30px; }
+.s-cost .num small { font-size: 160px; letter-spacing: -.04em; margin-left: 18px; }
+.s-cost .what { font-family: var(--display); font-weight: 700; font-size: 64px; letter-spacing: -.03em; margin-top: 40px; }
+.s-cost .lead { margin-top: 22px; }
+.s-cost .src { position: absolute; left: 160px; bottom: 96px; }
+
+/* =========================================================
+   3 · LA BOUCLE
+   ========================================================= */
+.s-loop .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; margin-top: 110px; position: relative; }
+.s-loop .wire { position: absolute; left: 36px; right: 36px; top: 35px; height: 3px; background: var(--line); border-radius: 2px; }
+.s-loop .wire b { position: absolute; inset: 0; background: var(--accent); transform-origin: 0 0; transform: scaleX(0); border-radius: 2px; }
+.s-loop.active .wire b { animation: wire 2.2s var(--in-out) .5s both; }
+@keyframes wire { to { transform: scaleX(1); } }
+.s-loop .st { position: relative; }
+.s-loop .st .n { width: 72px; height: 72px; border-radius: 50%; background: var(--card); color: var(--accent-deep); display: grid; place-items: center;
+  font-family: var(--display); font-weight: 700; font-size: 32px; box-shadow: 0 0 0 1px var(--line), 0 12px 30px -14px rgba(42,63,143,.4); position: relative; }
+.s-loop .st.key .n { background: var(--accent); color: #fff; box-shadow: 0 0 0 8px var(--accent-pale), 0 16px 40px -12px rgba(47,110,247,.6); }
+.s-loop .st h3 { font-family: var(--display); font-weight: 700; font-size: 50px; letter-spacing: -.03em; margin: 40px 0 14px; line-height: 1.02; }
+.s-loop .st p { font-size: 28px; line-height: 1.35; color: var(--muted); margin: 0; max-width: 340px; }
+
+/* =========================================================
+   4 · EN DIRECT (la carte du plan, telle que le support la voit : sert aussi de plan B)
+   ========================================================= */
+.s-live .cols { display: grid; grid-template-columns: 1fr 760px; gap: 120px; align-items: center; height: 100%; }
+.s-live .badge { display: inline-flex; align-items: center; gap: 14px; height: 52px; padding: 0 24px; border-radius: 26px;
+  background: var(--ink); color: #fff; font-weight: 600; font-size: 24px; letter-spacing: .04em; text-transform: uppercase; }
+.s-live .badge i { width: 12px; height: 12px; border-radius: 50%; background: #5B8CFF; animation: live 1.6s var(--ease) infinite; }
+@keyframes live { 0% { box-shadow: 0 0 0 0 rgba(91,140,255,.7); } 100% { box-shadow: 0 0 0 16px rgba(91,140,255,0); } }
+.s-live h2 { margin-top: 40px; }
+.phone { width: 760px; border-radius: 44px; background: var(--card); overflow: hidden;
+  box-shadow: 0 0 0 1px var(--line), 0 60px 120px -40px rgba(42,63,143,.45); }
+.phone .hd { background: linear-gradient(90deg, #1F5FF0, #3D7FFF); color: #fff; padding: 40px 44px 34px; }
+.phone .hd .t { font-family: var(--display); font-weight: 700; font-size: 40px; letter-spacing: -.02em; }
+.phone .hd .s { font-size: 22px; opacity: .9; margin-top: 8px; }
+.phone .bd { padding: 34px 44px 40px; display: flex; flex-direction: column; gap: 18px; }
+.phone .ask { background: var(--accent-pale); border-radius: 20px; padding: 22px 26px; font-size: 26px; line-height: 1.35; }
+.phone .ask b { display: block; font-size: 18px; color: var(--accent-deep); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.phone .lbl { font-size: 18px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-top: 10px; }
+.phone .step { display: flex; gap: 18px; align-items: center; font-size: 26px; padding: 16px 20px; border-radius: 16px; box-shadow: 0 0 0 1px var(--line); }
+.phone .step em { font-style: normal; width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--accent-pale); color: var(--accent-deep);
+  display: grid; place-items: center; font-weight: 600; font-size: 20px; }
+.phone .acts { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 14px; margin-top: 14px; }
+.phone .acts span { height: 72px; border-radius: 36px; display: grid; place-items: center; font-weight: 600; font-size: 24px; box-shadow: 0 0 0 1px var(--line); }
+.phone .acts .ok { background: linear-gradient(90deg, #1F5FF0, #3D7FFF); color: #fff; box-shadow: 0 14px 30px -12px rgba(47,110,247,.7); }
+.s-live.active .phone .ok { animation: tap 1s var(--ease) 2.4s both; }
+@keyframes tap { 0%, 100% { transform: none; } 40% { transform: scale(.95); } }
+
+/* =========================================================
+   5 · UNE FOIS, PARTOUT
+   ========================================================= */
+.s-fleet .cols { display: grid; grid-template-columns: 1fr 700px; gap: 110px; align-items: end; margin-top: 50px; }
+.s-fleet .lead { font-size: 34px; margin-top: 24px; }
+.s-fleet .lib { display: flex; flex-direction: column; gap: 16px; }
+.s-fleet .lib .it { display: flex; align-items: center; gap: 22px; padding: 24px 30px; border-radius: 22px; background: var(--card);
+  font-size: 30px; box-shadow: 0 0 0 1px var(--line), 0 10px 30px -18px rgba(42,63,143,.35); }
+.s-fleet .lib .it i { width: 14px; height: 14px; border-radius: 4px; background: var(--accent); flex: none; }
+.s-fleet .lib .it span { margin-left: auto; font-size: 22px; color: var(--muted); font-family: var(--mono); }
+.s-fleet .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 14px; }
+.s-fleet .grid i { aspect-ratio: 1.3; border-radius: 10px; background: var(--card); box-shadow: 0 0 0 1px var(--line); }
+.s-fleet.active .grid i { animation: lit .5s var(--ease) both; animation-delay: calc(1200ms + var(--k) * 22ms); }
+@keyframes lit { to { background: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 8px 18px -8px rgba(47,110,247,.7); } }
+.s-fleet .cap { margin-top: 22px; display: flex; justify-content: space-between; }
+
+/* =========================================================
+   6 · SOUS CONTRÔLE
+   ========================================================= */
+.s-trust .rules { margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
+.s-trust .rules div { font-family: var(--display); font-weight: 700; font-size: 128px; letter-spacing: -.045em; line-height: 1.04; }
+.s-trust .rules div:nth-child(2) { color: var(--accent); }
+.s-trust .lead { margin-top: 56px; }
+
+/* =========================================================
+   7 · DÉJÀ INSTALLÉ
+   ========================================================= */
+.s-deploy .cols { display: grid; grid-template-columns: 1fr 820px; gap: 110px; align-items: start; margin-top: 70px; }
+.s-deploy .lead { margin-top: 10px; }
+.code { background: var(--ink); color: #DDE5FF; border-radius: 28px; padding: 46px 52px; font-family: var(--mono); font-size: 27px; line-height: 1.75;
+  box-shadow: 0 50px 100px -40px rgba(20,26,51,.6); white-space: pre; }
+.code .k { color: #8FB0FF; }
+.code .c { color: #6E7697; }
+.code .sep { display: block; height: 22px; }
+
+/* =========================================================
+   8 · DEUX PUBLICS : à gauche l'entreprise (bleu PapAI), à droite la famille (vert de l'ancien design « Soin »)
+   ========================================================= */
+.s-two .pair { position: absolute; left: 160px; right: 160px; top: 210px; bottom: 110px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.s-two .side { position: relative; border-radius: 40px; padding: 64px 64px 60px; display: flex; flex-direction: column; color: #fff; overflow: hidden; }
+.s-two .ent { background: linear-gradient(150deg, #1F5FF0, #3D7FFF); box-shadow: 0 40px 80px -36px rgba(47,110,247,.7); }
+.s-two .fam { background: linear-gradient(150deg, #17633A, #2E8B57); box-shadow: 0 40px 80px -36px rgba(28,114,64,.7); }
+.s-two .eyebrow { font-family: var(--mono); font-size: 22px; letter-spacing: .08em; text-transform: uppercase; opacity: .85; }
+.s-two .big { font-family: var(--display); font-weight: 700; font-size: 92px; letter-spacing: -.04em; line-height: 1; margin-top: auto; text-wrap: balance; }
+.s-two .who2 { margin-top: 30px; font-size: 30px; line-height: 1.35; opacity: .92; max-width: 640px; }
+.s-two .tag { display: inline-flex; align-self: flex-start; align-items: center; gap: 12px; height: 46px; padding: 0 20px; border-radius: 23px;
+  background: rgba(255,255,255,.16); box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); font-weight: 600; font-size: 22px; margin-top: 36px; }
+.s-two .mid2 { position: absolute; left: 50%; top: 210px; transform: translate(-50%, -50%); z-index: 3; height: 64px; padding: 0 30px; border-radius: 32px;
+  background: var(--card); color: var(--ink); display: flex; align-items: center; font-family: var(--display); font-weight: 700; font-size: 28px; letter-spacing: -.01em;
+  box-shadow: 0 0 0 1px var(--line), 0 20px 40px -16px rgba(20,26,51,.45); white-space: nowrap; }
+.s-two.active .mid2 { animation: rise2 .8s var(--spring) .9s both; }
+@keyframes rise2 { from { opacity: 0; transform: translate(-50%, -30%) scale(.9); } to { opacity: 1; transform: translate(-50%, -50%); } }
+
+/* =========================================================
+   9 · FIN
+   ========================================================= */
+.s-end .mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.s-end .logo { height: 220px; color: var(--ink); }
+.s-end .logo svg { height: 220px; width: auto; }
+.s-end .say { font-size: 104px; margin-top: 70px; }
+.s-end .cred { margin-top: 70px; display: flex; gap: 40px; font-size: 28px; color: var(--muted); }
+.s-end .cred b { color: var(--ink); font-weight: 600; }
+
+/* === 4 · LE CŒUR, 5 · avis, 7 · étapes === */
+.s-core .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; margin-top: 110px; }
+.s-core .tr { background: var(--card); border-radius: 32px; padding: 48px 48px 52px; box-shadow: 0 0 0 1px var(--line), 0 20px 50px -30px rgba(42,63,143,.45); }
+.s-core .tr.key { background: linear-gradient(150deg, #1F5FF0, #3D7FFF); color: #fff; }
+.s-core .tr .eb { font-family: var(--mono); font-size: 22px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+.s-core .tr.key .eb, .s-core .tr.key p { color: rgba(255,255,255,.85); }
+.s-core .tr h3 { font-family: var(--display); font-weight: 700; font-size: 72px; letter-spacing: -.035em; margin: 26px 0 16px; line-height: 1; }
+.s-core .tr p { font-size: 30px; line-height: 1.35; color: var(--muted); margin: 0; }
+.s-hook .say { font-size: 150px; }
+.s-hook .notice { font-size: 32px; line-height: 1.4; color: var(--muted); background: var(--card); border-radius: 24px; padding: 26px 34px; max-width: 1300px;
+  box-shadow: 0 0 0 1px var(--line), 0 16px 40px -24px rgba(42,63,143,.4); }
+.s-hook .notice b { color: var(--ink); }
+.s-live .lead { font-size: 34px; margin-top: 32px; }
+.phone .step.done em { background: var(--accent); color: #fff; }
+.phone .step.stop { box-shadow: 0 0 0 2px var(--pip); }
+.phone .step.stop em { background: #FFF0E4; color: #C25A12; }
+.phone .acts.two { grid-template-columns: 1fr 1.5fr; }
+.s-act.active .phone .ok { animation: tap 1s var(--ease) 2.4s both; }
+.s-intro .say { font-size: 120px; }
+.s-end:not(.s-intro) .say { font-size: 88px; }
+.s-shots .shots { display: grid; grid-template-columns: 820px 740px; gap: 40px; margin-top: 56px; align-items: start; }
+.s-shots .col { display: flex; flex-direction: column; gap: 28px; }
+.s-shots figure { margin: 0; }
+.s-shots img { display: block; width: 100%; max-height: none; border-radius: 20px; box-shadow: 0 0 0 1px var(--line), 0 30px 60px -30px rgba(42,63,143,.5); }
+.s-shots figcaption { margin-top: 14px; font-size: 24px; color: var(--muted); display: flex; gap: 12px; align-items: center; }
+.s-shots figcaption b { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: 18px; flex: none; }
+.s-shots .src { position: absolute; left: auto; right: 160px; bottom: 170px; }
+.s-scale .cols { display: grid; grid-template-columns: 520px 1fr; gap: 90px; margin-top: 70px; align-items: start; }
+.s-scale .eb { font-family: var(--mono); font-size: 22px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-bottom: 22px; }
+.s-scale .new .eb { color: var(--accent); }
+.s-scale .x { font-family: var(--display); font-weight: 700; font-size: 52px; letter-spacing: -.03em; color: var(--faint); text-decoration: line-through; text-decoration-thickness: 4px; text-decoration-color: var(--faint); line-height: 1.3; }
+.s-scale p { font-size: 30px; line-height: 1.35; color: var(--muted); margin: 28px 0 0; }
+.s-scale .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; align-items: end; }
+.s-scale .tier { background: var(--card); border-radius: 28px; padding: 34px 34px 36px; display: flex; flex-direction: column; gap: 8px;
+  box-shadow: 0 0 0 1px var(--line), 0 20px 50px -30px rgba(42,63,143,.45); }
+.s-scale .tier:nth-child(1) { min-height: 200px; } .s-scale .tier:nth-child(2) { min-height: 260px; } .s-scale .tier:nth-child(3) { min-height: 320px; }
+.s-scale .tier b { font-family: var(--display); font-weight: 700; font-size: 54px; letter-spacing: -.03em; margin-top: auto; }
+.s-scale .tier span { font-size: 28px; color: var(--muted); }
+.s-scale .tier em { font-style: normal; font-family: var(--mono); font-size: 22px; color: var(--accent-deep); }
+.s-scale .tier.key { background: linear-gradient(150deg, #1F5FF0, #3D7FFF); color: #fff; }
+.s-scale .tier.key span, .s-scale .tier.key em { color: rgba(255,255,255,.88); }
+.s-data .cols { display: grid; grid-template-columns: 1000px 1fr; gap: 80px; margin-top: 50px; align-items: start; }
+.s-data .panel { background: var(--card); border-radius: 32px; padding: 40px 44px 34px; box-shadow: 0 0 0 1px var(--line), 0 30px 60px -36px rgba(42,63,143,.5); display: flex; flex-direction: column; gap: 22px; }
+.s-data .ph { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 22px; color: var(--muted); letter-spacing: .02em; margin-bottom: 6px; }
+.s-data .row { display: grid; grid-template-columns: 300px 1fr 80px; gap: 24px; align-items: center; font-size: 28px; }
+.s-data .bar { height: 26px; border-radius: 13px; background: var(--accent-pale); overflow: hidden; }
+.s-data .bar b { display: block; height: 100%; width: var(--w); border-radius: 13px; background: var(--accent); }
+.s-data .row:first-of-type .bar b { background: var(--accent-deep); }
+.s-data .v { font-family: var(--mono); font-size: 24px; text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+.s-data .foot2 { margin-top: 6px; font-size: 18px; }
+.s-data .ins { display: flex; flex-direction: column; gap: 56px; padding-top: 60px; }
+.s-data .in b { display: block; font-family: var(--display); font-weight: 700; font-size: 46px; letter-spacing: -.03em; line-height: 1.05; }
+.s-data .in span { display: block; font-size: 28px; line-height: 1.35; color: var(--muted); margin-top: 10px; }
+.s-fleet .flow { display: grid; grid-template-columns: 1fr 70px 1fr 70px 1fr; align-items: stretch; margin-top: 80px; }
+.s-fleet .fc { background: var(--card); border-radius: 30px; padding: 38px 38px 40px; display: flex; flex-direction: column; gap: 18px;
+  box-shadow: 0 0 0 1px var(--line), 0 24px 56px -32px rgba(42,63,143,.5); }
+.s-fleet .fc .eb { font-family: var(--mono); font-size: 21px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+.s-fleet .fc .t { font-family: var(--display); font-weight: 700; font-size: 44px; letter-spacing: -.03em; line-height: 1.05; }
+.s-fleet .fc .m { font-size: 26px; color: var(--muted); display: flex; align-items: center; gap: 12px; margin-top: auto; }
+.s-fleet .fc .m .ok { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px var(--accent-pale); }
+.s-fleet .fc .btn { align-self: flex-start; height: 64px; padding: 0 30px; border-radius: 32px; background: linear-gradient(90deg, #1F5FF0, #3D7FFF); color: #fff;
+  display: flex; align-items: center; font-weight: 600; font-size: 26px; box-shadow: 0 14px 30px -12px rgba(47,110,247,.7); }
+.s-fleet .fc.key { background: linear-gradient(150deg, #1F5FF0, #3D7FFF); color: #fff; }
+.s-fleet .fc.key .eb { color: rgba(255,255,255,.8); }
+.s-fleet .fc .run { align-self: flex-start; margin-top: auto; height: 54px; padding: 0 30px; border-radius: 27px; background: #fff; color: var(--accent-deep);
+  display: flex; align-items: center; font-weight: 600; font-size: 24px; }
+.s-fleet .ar { position: relative; }
+.s-fleet .ar::before { content: ""; position: absolute; left: 16px; right: 22px; top: 50%; height: 3px; background: var(--accent); border-radius: 2px; }
+.s-fleet .ar::after { content: ""; position: absolute; right: 16px; top: 50%; width: 16px; height: 16px; border-top: 3px solid var(--accent); border-right: 3px solid var(--accent); transform: translateY(-50%) rotate(45deg); }
+.s-fleet .lead { margin-top: 56px; }
+.s-merge .mg { display: grid; grid-template-columns: 400px 1fr; gap: 80px; margin-top: 56px; align-items: start; }
+.s-merge .eb { font-family: var(--mono); font-size: 21px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-bottom: 20px; }
+.s-merge .eb.blue { color: var(--accent); }
+.s-merge .x { font-family: var(--display); font-weight: 700; font-size: 46px; letter-spacing: -.03em; color: var(--faint); text-decoration: line-through; text-decoration-thickness: 4px; line-height: 1.32; }
+.s-merge p { font-size: 28px; line-height: 1.35; color: var(--muted); margin: 24px 0 0; }
+.s-merge .flow { grid-template-columns: 1fr 56px 1fr 56px 1fr; margin-top: 0; }
+.s-merge .fc { padding: 28px 28px 30px; gap: 14px; border-radius: 26px; min-height: 230px; box-sizing: border-box; }
+.s-merge .fc .eb { margin: 0; font-size: 18px; }
+.s-merge .fc .t { font-size: 34px; }
+.s-merge .fc .m { font-size: 21px; }
+.s-merge .fc .btn { height: 52px; padding: 0 22px; font-size: 21px; }
+.s-merge .fc .run { height: 46px; padding: 0 24px; font-size: 21px; }
+.s-merge .ar::before { left: 10px; right: 16px; } .s-merge .ar::after { right: 10px; }
+.s-merge .tiers2 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 26px; }
+.s-merge .tiers2 div { background: var(--card); border-radius: 22px; padding: 20px 26px; font-size: 22px; color: var(--muted); font-family: var(--mono);
+  box-shadow: 0 0 0 1px var(--line), 0 14px 34px -26px rgba(42,63,143,.45); }
+.s-merge .tiers2 b { display: block; font-family: var(--display); font-weight: 700; font-size: 38px; letter-spacing: -.03em; color: var(--ink); margin-bottom: 4px; }
+.s-merge .tiers2 .key { background: var(--ink); color: rgba(255,255,255,.75); } .s-merge .tiers2 .key b { color: #fff; }
+/* === CHROME HORS SCÈNE === */
+.chrome { position: fixed; right: 18px; bottom: 14px; z-index: 50; font: 500 12px/1 var(--mono); color: rgba(255,255,255,.45); letter-spacing: .04em; user-select: none; }
+.hit { position: fixed; top: 0; bottom: 0; width: 33%; z-index: 40; cursor: default; }
+.hit.l { left: 0; } .hit.rr { right: 0; width: 67%; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .slide .r, .s-hook .say .ch { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .s-loop .wire b { transform: none; animation: none !important; }
+  .s-fleet .grid i { background: var(--accent); animation: none !important; }
+  .track b, .ticket .state { transition: none; animation: none !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+
+<div class="deck-viewport">
+<div class="deck-stage" id="stage">
+  <div class="desk"></div>
+  <div class="ticket" aria-hidden="true"><span class="id">Request #0412</span><span class="state" id="state"><i></i><span id="stateTxt">New</span></span></div>
+  <div class="track" aria-hidden="true"><b id="track"></b></div>
+  <div class="brand" aria-label="PapAI"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="5 15 235 101">
+<g fill="currentColor">
+<path d="M32.064 96.96C28.928 96.96 26.048 96.352 23.424 95.136C20.8 93.92 18.656 92.256 16.992 90.144C15.328 87.968 14.368 85.504 14.112 82.752V63.072C14.368 60.32 15.328 57.824 16.992 55.584C18.656 53.344 20.8 51.584 23.424 50.304C26.048 49.024 28.928 48.384 32.064 48.384C36.48 48.384 40.384 49.44 43.776 51.552C47.232 53.664 49.92 56.544 51.84 60.192C53.824 63.84 54.816 68 54.816 72.672C54.816 77.344 53.824 81.504 51.84 85.152C49.92 88.8 47.232 91.68 43.776 93.792C40.384 95.904 36.48 96.96 32.064 96.96ZM5.18402 115.68V49.344H19.872V61.344L17.472 72.672L19.68 84V115.68H5.18402ZM29.376 83.712C31.488 83.712 33.312 83.232 34.848 82.272C36.448 81.312 37.696 80 38.592 78.336C39.488 76.672 39.936 74.784 39.936 72.672C39.936 70.496 39.488 68.576 38.592 66.912C37.696 65.248 36.448 63.968 34.848 63.072C33.312 62.112 31.52 61.632 29.472 61.632C27.424 61.632 25.6 62.112 24 63.072C22.464 63.968 21.248 65.248 20.352 66.912C19.456 68.576 19.008 70.496 19.008 72.672C19.008 74.784 19.424 76.672 20.256 78.336C21.152 80 22.4 81.312 24 82.272C25.6 83.232 27.392 83.712 29.376 83.712Z"/>
+<path d="M78.8858 96.96C74.5978 96.96 70.7578 95.904 67.3658 93.792C64.0378 91.68 61.3818 88.8 59.3978 85.152C57.4778 81.504 56.5178 77.344 56.5178 72.672C56.5178 68 57.4778 63.84 59.3978 60.192C61.3818 56.544 64.0378 53.664 67.3658 51.552C70.7578 49.44 74.5978 48.384 78.8858 48.384C82.0218 48.384 84.8378 48.992 87.3338 50.208C89.8938 51.424 91.9738 53.12 93.5738 55.296C95.1738 57.408 96.0698 59.84 96.2618 62.592V82.752C96.0698 85.504 95.1738 87.968 93.5738 90.144C92.0378 92.256 89.9898 93.92 87.4298 95.136C84.8698 96.352 82.0218 96.96 78.8858 96.96ZM81.8618 83.712C84.9978 83.712 87.5258 82.688 89.4458 80.64C91.3658 78.528 92.3258 75.872 92.3258 72.672C92.3258 70.496 91.8778 68.576 90.9818 66.912C90.1498 65.248 88.9338 63.968 87.3338 63.072C85.7978 62.112 84.0058 61.632 81.9578 61.632C79.9098 61.632 78.0858 62.112 76.4858 63.072C74.9498 63.968 73.7018 65.248 72.7418 66.912C71.8458 68.576 71.3978 70.496 71.3978 72.672C71.3978 74.784 71.8458 76.672 72.7418 78.336C73.6378 80 74.8858 81.312 76.4858 82.272C78.0858 83.232 79.8778 83.712 81.8618 83.712ZM91.7498 96V83.424L93.9578 72.096L91.7498 60.768V49.344H106.15V96H91.7498Z"/>
+<path d="M140.492 96.96C137.356 96.96 134.476 96.352 131.852 95.136C129.228 93.92 127.084 92.256 125.42 90.144C123.756 87.968 122.796 85.504 122.54 82.752V63.072C122.796 60.32 123.756 57.824 125.42 55.584C127.084 53.344 129.228 51.584 131.852 50.304C134.476 49.024 137.356 48.384 140.492 48.384C144.908 48.384 148.812 49.44 152.204 51.552C155.66 53.664 158.348 56.544 160.268 60.192C162.252 63.84 163.244 68 163.244 72.672C163.244 77.344 162.252 81.504 160.268 85.152C158.348 88.8 155.66 91.68 152.204 93.792C148.812 95.904 144.908 96.96 140.492 96.96ZM113.612 115.68V49.344H128.3V61.344L125.9 72.672L128.108 84V115.68H113.612ZM137.804 83.712C139.916 83.712 141.74 83.232 143.276 82.272C144.876 81.312 146.124 80 147.02 78.336C147.916 76.672 148.364 74.784 148.364 72.672C148.364 70.496 147.916 68.576 147.02 66.912C146.124 65.248 144.876 63.968 143.276 63.072C141.74 62.112 139.948 61.632 137.9 61.632C135.852 61.632 134.028 62.112 132.428 63.072C130.892 63.968 129.676 65.248 128.78 66.912C127.884 68.576 127.436 70.496 127.436 72.672C127.436 74.784 127.852 76.672 128.684 78.336C129.58 80 130.828 81.312 132.428 82.272C134.028 83.232 135.82 83.712 137.804 83.712Z"/>
+<path d="M187.313 96.96C183.025 96.96 179.185 95.904 175.793 93.792C172.465 91.68 169.809 88.8 167.825 85.152C165.905 81.504 164.945 77.344 164.945 72.672C164.945 68 165.905 63.84 167.825 60.192C169.809 56.544 172.465 53.664 175.793 51.552C179.185 49.44 183.025 48.384 187.313 48.384C190.449 48.384 193.265 48.992 195.761 50.208C198.321 51.424 200.401 53.12 202.001 55.296C203.601 57.408 204.497 59.84 204.689 62.592V82.752C204.497 85.504 203.601 87.968 202.001 90.144C200.465 92.256 198.417 93.92 195.857 95.136C193.297 96.352 190.449 96.96 187.313 96.96ZM190.289 83.712C193.425 83.712 195.953 82.688 197.873 80.64C199.793 78.528 200.753 75.872 200.753 72.672C200.753 70.496 200.305 68.576 199.409 66.912C198.577 65.248 197.361 63.968 195.761 63.072C194.225 62.112 192.433 61.632 190.385 61.632C188.337 61.632 186.513 62.112 184.913 63.072C183.377 63.968 182.129 65.248 181.169 66.912C180.273 68.576 179.825 70.496 179.825 72.672C179.825 74.784 180.273 76.672 181.169 78.336C182.065 80 183.313 81.312 184.913 82.272C186.513 83.232 188.305 83.712 190.289 83.712ZM200.177 96V83.424L202.385 72.096L200.177 60.768V49.344H214.577V96H200.177Z"/>
+<path d="M222.039 96V49.344H236.727V96H222.039Z"/>
+</g>
+<g fill="#F58A3A">
+<path d="M230.789 18.3313C235.343 18.3313 238.459 23.3646 239.058 30.0756C239.777 37.9851 235.822 43.4977 230.789 43.4977C225.756 43.4977 221.801 37.9851 222.52 30.0756C223.119 23.3646 226.235 18.3313 230.789 18.3313Z"/>
+<path d="M230.07 19.0503C229.95 17.3725 230.43 16.1741 231.508 15.4551L232.467 16.294C231.748 16.8932 231.508 17.8519 231.748 19.0503H230.07Z"/>
+</g>
+</svg>
+</div>
+
+  <!-- 1 · Intro -->
+  <section class="slide s-end s-intro" data-state="New" aria-label="PapAI">
+    <div class="mid">
+      <div class="logo hero r"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="5 15 235 101">
+<g fill="currentColor">
+<path d="M32.064 96.96C28.928 96.96 26.048 96.352 23.424 95.136C20.8 93.92 18.656 92.256 16.992 90.144C15.328 87.968 14.368 85.504 14.112 82.752V63.072C14.368 60.32 15.328 57.824 16.992 55.584C18.656 53.344 20.8 51.584 23.424 50.304C26.048 49.024 28.928 48.384 32.064 48.384C36.48 48.384 40.384 49.44 43.776 51.552C47.232 53.664 49.92 56.544 51.84 60.192C53.824 63.84 54.816 68 54.816 72.672C54.816 77.344 53.824 81.504 51.84 85.152C49.92 88.8 47.232 91.68 43.776 93.792C40.384 95.904 36.48 96.96 32.064 96.96ZM5.18402 115.68V49.344H19.872V61.344L17.472 72.672L19.68 84V115.68H5.18402ZM29.376 83.712C31.488 83.712 33.312 83.232 34.848 82.272C36.448 81.312 37.696 80 38.592 78.336C39.488 76.672 39.936 74.784 39.936 72.672C39.936 70.496 39.488 68.576 38.592 66.912C37.696 65.248 36.448 63.968 34.848 63.072C33.312 62.112 31.52 61.632 29.472 61.632C27.424 61.632 25.6 62.112 24 63.072C22.464 63.968 21.248 65.248 20.352 66.912C19.456 68.576 19.008 70.496 19.008 72.672C19.008 74.784 19.424 76.672 20.256 78.336C21.152 80 22.4 81.312 24 82.272C25.6 83.232 27.392 83.712 29.376 83.712Z"/>
+<path d="M78.8858 96.96C74.5978 96.96 70.7578 95.904 67.3658 93.792C64.0378 91.68 61.3818 88.8 59.3978 85.152C57.4778 81.504 56.5178 77.344 56.5178 72.672C56.5178 68 57.4778 63.84 59.3978 60.192C61.3818 56.544 64.0378 53.664 67.3658 51.552C70.7578 49.44 74.5978 48.384 78.8858 48.384C82.0218 48.384 84.8378 48.992 87.3338 50.208C89.8938 51.424 91.9738 53.12 93.5738 55.296C95.1738 57.408 96.0698 59.84 96.2618 62.592V82.752C96.0698 85.504 95.1738 87.968 93.5738 90.144C92.0378 92.256 89.9898 93.92 87.4298 95.136C84.8698 96.352 82.0218 96.96 78.8858 96.96ZM81.8618 83.712C84.9978 83.712 87.5258 82.688 89.4458 80.64C91.3658 78.528 92.3258 75.872 92.3258 72.672C92.3258 70.496 91.8778 68.576 90.9818 66.912C90.1498 65.248 88.9338 63.968 87.3338 63.072C85.7978 62.112 84.0058 61.632 81.9578 61.632C79.9098 61.632 78.0858 62.112 76.4858 63.072C74.9498 63.968 73.7018 65.248 72.7418 66.912C71.8458 68.576 71.3978 70.496 71.3978 72.672C71.3978 74.784 71.8458 76.672 72.7418 78.336C73.6378 80 74.8858 81.312 76.4858 82.272C78.0858 83.232 79.8778 83.712 81.8618 83.712ZM91.7498 96V83.424L93.9578 72.096L91.7498 60.768V49.344H106.15V96H91.7498Z"/>
+<path d="M140.492 96.96C137.356 96.96 134.476 96.352 131.852 95.136C129.228 93.92 127.084 92.256 125.42 90.144C123.756 87.968 122.796 85.504 122.54 82.752V63.072C122.796 60.32 123.756 57.824 125.42 55.584C127.084 53.344 129.228 51.584 131.852 50.304C134.476 49.024 137.356 48.384 140.492 48.384C144.908 48.384 148.812 49.44 152.204 51.552C155.66 53.664 158.348 56.544 160.268 60.192C162.252 63.84 163.244 68 163.244 72.672C163.244 77.344 162.252 81.504 160.268 85.152C158.348 88.8 155.66 91.68 152.204 93.792C148.812 95.904 144.908 96.96 140.492 96.96ZM113.612 115.68V49.344H128.3V61.344L125.9 72.672L128.108 84V115.68H113.612ZM137.804 83.712C139.916 83.712 141.74 83.232 143.276 82.272C144.876 81.312 146.124 80 147.02 78.336C147.916 76.672 148.364 74.784 148.364 72.672C148.364 70.496 147.916 68.576 147.02 66.912C146.124 65.248 144.876 63.968 143.276 63.072C141.74 62.112 139.948 61.632 137.9 61.632C135.852 61.632 134.028 62.112 132.428 63.072C130.892 63.968 129.676 65.248 128.78 66.912C127.884 68.576 127.436 70.496 127.436 72.672C127.436 74.784 127.852 76.672 128.684 78.336C129.58 80 130.828 81.312 132.428 82.272C134.028 83.232 135.82 83.712 137.804 83.712Z"/>
+<path d="M187.313 96.96C183.025 96.96 179.185 95.904 175.793 93.792C172.465 91.68 169.809 88.8 167.825 85.152C165.905 81.504 164.945 77.344 164.945 72.672C164.945 68 165.905 63.84 167.825 60.192C169.809 56.544 172.465 53.664 175.793 51.552C179.185 49.44 183.025 48.384 187.313 48.384C190.449 48.384 193.265 48.992 195.761 50.208C198.321 51.424 200.401 53.12 202.001 55.296C203.601 57.408 204.497 59.84 204.689 62.592V82.752C204.497 85.504 203.601 87.968 202.001 90.144C200.465 92.256 198.417 93.92 195.857 95.136C193.297 96.352 190.449 96.96 187.313 96.96ZM190.289 83.712C193.425 83.712 195.953 82.688 197.873 80.64C199.793 78.528 200.753 75.872 200.753 72.672C200.753 70.496 200.305 68.576 199.409 66.912C198.577 65.248 197.361 63.968 195.761 63.072C194.225 62.112 192.433 61.632 190.385 61.632C188.337 61.632 186.513 62.112 184.913 63.072C183.377 63.968 182.129 65.248 181.169 66.912C180.273 68.576 179.825 70.496 179.825 72.672C179.825 74.784 180.273 76.672 181.169 78.336C182.065 80 183.313 81.312 184.913 82.272C186.513 83.232 188.305 83.712 190.289 83.712ZM200.177 96V83.424L202.385 72.096L200.177 60.768V49.344H214.577V96H200.177Z"/>
+<path d="M222.039 96V49.344H236.727V96H222.039Z"/>
+</g>
+<g fill="#F58A3A">
+<path d="M230.789 18.3313C235.343 18.3313 238.459 23.3646 239.058 30.0756C239.777 37.9851 235.822 43.4977 230.789 43.4977C225.756 43.4977 221.801 37.9851 222.52 30.0756C223.119 23.3646 226.235 18.3313 230.789 18.3313Z"/>
+<path d="M230.07 19.0503C229.95 17.3725 230.43 16.1741 231.508 15.4551L232.467 16.294C231.748 16.8932 231.508 17.8519 231.748 19.0503H230.07Z"/>
+</g>
+</svg></div>
+      <div class="say r" style="--d:250">AI-augmented <span class="blue">IT support.</span></div>
+      <div class="cred r" style="--d:550"><span><b>Branscôme</b></span><span><b>Corentin</b></span><span><b>Quentin</b></span><span>H Company × 42AI Hackathon</span></div>
+    </div>
+  </section>
+  <!-- 2 · Le problème -->
+  <section class="slide s-cost" data-state="Waiting" aria-label="The problem">
+    <div class="pad">
+      <div class="num hero r" style="--d:0"><span data-count="22">22</span><small>$</small></div>
+      <div class="what r" style="--d:250">per level-1 request. Blocked for days.</div>
+      <p class="lead r" style="--d:450">Download, fix or find something: the employee waits for checks and approvals. The support loses time on low-value tasks.</p>
+      <div class="small src r" style="--d:700">Average cost of a level-1 ticket, MetricNet</div>
+    </div>
+  </section>
+  <!-- 3 · La boucle -->
+  <section class="slide s-loop" data-state="Plan ready" aria-label="How it works">
+    <div class="pad">
+      <h2 class="r">Erased <span class="blue">in minutes.</span></h2>
+      <div class="steps hero">
+        <div class="wire"><b></b></div>
+        <div class="st r" style="--d:350"><div class="n">1</div><h3>The user asks</h3><p>In their own words, by voice or text.</p></div>
+        <div class="st r" style="--d:650"><div class="n">2</div><h3>Holo plans</h3><p>It writes the flow to get it done.</p></div>
+        <div class="st key r" style="--d:950"><div class="n">3</div><h3>Support approves</h3><p>From the Mac or the phone, wherever they are.</p></div>
+        <div class="st r" style="--d:1250"><div class="n">4</div><h3>Holo does it</h3><p>On the user's computer, under their eyes.</p></div>
+      </div>
+    </div>
+  </section>
+  <!-- 4 · Le cœur -->
+  <section class="slide s-loop s-core" data-state="Plan ready" aria-label="Under the hood">
+    <div class="pad">
+      <h2 class="r">At the heart, <span class="blue">Holo.</span></h2>
+      <div class="trio hero">
+        <div class="tr key r" style="--d:300"><div class="eb">H Company</div><h3>Holo</h3><p>Sees, understands and pilots the user's computer.</p></div>
+        <div class="tr r" style="--d:550"><div class="eb">Linkup</div><h3>Context</h3><p>Searches the web when the plan needs facts.</p></div>
+        <div class="tr r" style="--d:800"><div class="eb">Gladia</div><h3>Voice</h3><p>The user simply says what they need.</p></div>
+      </div>
+    </div>
+  </section>
+  <!-- 5 · La demande -->
+  <section class="slide s-hook" data-state="Sent to support" aria-label="The request">
+    <div class="pad">
+      <div class="who r" style="--d:100"><span class="av">C</span>Christine · Accounting · 9:12 am</div>
+      <div class="say" data-type>“I can’t print on the 3rd-floor printer.”<span class="caret"></span></div>
+      <div class="foot notice r" style="--d:2600"><b>No automation matches.</b> Your request is sent to your IT support, with a plan.</div>
+    </div>
+  </section>
+  <!-- 6 · Le support -->
+  <section class="slide s-live" data-state="To approve" aria-label="The support">
+    <div class="pad">
+      <div class="cols">
+        <div>
+          <div class="badge r"><i></i>IT support</div>
+          <h2 class="r" style="--d:150">Check the plan.<br><span class="blue">Run it.</span></h2>
+          <p class="lead r" style="--d:350">Or change it with one sentence: Holo rewrites the whole plan.</p>
+        </div>
+        <div class="phone hero r" style="--d:300">
+          <div class="hd"><div class="t">Christine needs help</div><div class="s">Ticket · Mac · 8 s ago</div></div>
+          <div class="bd">
+            <div class="ask"><b>Her request</b>Print on the 3rd-floor printer (HP LaserJet M507).</div>
+            <div class="lbl">Holo's plan</div>
+            <div class="step"><em>1</em>Find the right driver for her Mac (Linkup)</div>
+            <div class="step"><em>2</em>Download it from the HP support page</div>
+            <div class="step"><em>3</em>Install it and add “Printer 3rd floor”</div>
+            <div class="acts"><span class="ok">Run</span><span>Edit</span><span>Linkup</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- 7 · Holo agit, le support garde la main -->
+  <section class="slide s-live s-act" data-state="In progress" aria-label="Holo at work">
+    <div class="pad">
+      <div class="cols">
+        <div>
+          <div class="badge r"><i></i>Holo at work</div>
+          <h2 class="r" style="--d:150">Holo does it.<br><span class="blue">A human stays in the loop.</span></h2>
+          <p class="lead r" style="--d:350">Christine can stop it at any moment. At an admin password, Holo stops: the support takes control, then ends the help.</p>
+        </div>
+        <div class="phone hero r" style="--d:300">
+          <div class="hd"><div class="t">Christine needs you</div><div class="s">Holo stopped at an admin password</div></div>
+          <div class="bd">
+            <div class="step done"><em>✓</em>Driver found and downloaded</div>
+            <div class="step done"><em>✓</em>Installer opened</div>
+            <div class="step stop"><em>!</em>Admin password: support takes over</div>
+            <div class="acts two"><span>Take control</span><span class="ok">End help: it's fixed</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- 8 · Automate -->
+  <section class="slide s-fleet s-merge" data-state="Fixed" aria-label="Automations">
+    <div class="pad">
+      <h2 class="r">No more procedures.<br><span class="blue">One automation, deployed.</span></h2>
+      <div class="mg">
+        <div class="old">
+          <div class="eb r" style="--d:250">Before</div>
+          <div class="x r" style="--d:350">Procedure PDF</div>
+          <div class="x r" style="--d:450">Wiki tutorial</div>
+          <div class="x r" style="--d:550">“How to” email</div>
+          <p class="r" style="--d:650">Read by few.<br>Done again by everyone.</p>
+        </div>
+        <div class="nw hero">
+          <div class="eb blue r" style="--d:700">With PapAI</div>
+          <div class="flow">
+            <div class="fc r" style="--d:800"><div class="eb">1 · Ticket</div><div class="t">Christine can't print</div><div class="m"><i class="ok"></i>Fixed by the support</div></div>
+            <div class="ar r" style="--d:900"></div>
+            <div class="fc r" style="--d:1000"><div class="eb">2 · One click</div><div class="btn">Keep as automation</div><div class="m">Signed by the support</div></div>
+            <div class="ar r" style="--d:1100"></div>
+            <div class="fc key r" style="--d:1200"><div class="eb">3 · Every user's app</div><div class="t">Add the 3rd-floor printer</div><div class="run">Run</div></div>
+          </div>
+          <div class="tiers2">
+            <div class="r" style="--d:1350"><b>Small</b>one team · 10 devices</div>
+            <div class="r" style="--d:1450"><b>Medium</b>one site · 200 devices</div>
+            <div class="r key" style="--d:1550"><b>Large</b>company · 5,000 devices</div>
+          </div>
+          <p class="r" style="--d:1650">Validated once, deployed from one central place.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- 10 · Les tickets sont une donnée -->
+  <section class="slide s-data" data-state="Fixed" aria-label="Ticket data">
+    <div class="pad">
+      <h2 class="r">Every ticket becomes data.<br><span class="blue">All in one central place.</span></h2>
+      <div class="cols">
+        <div class="panel hero r" style="--d:250">
+          <div class="ph"><span>Requests by app · all sites</span><span>1,284 tickets</span></div>
+          <div class="row r" style="--d:400"><span class="lb">Printers & drivers</span><span class="bar"><b style="--w:100%"></b></span><span class="v">34%</span></div><div class="row r" style="--d:520"><span class="lb">Outlook & mail</span><span class="bar"><b style="--w:76%"></b></span><span class="v">26%</span></div><div class="row r" style="--d:640"><span class="lb">VPN & Wi-Fi</span><span class="bar"><b style="--w:56%"></b></span><span class="v">19%</span></div><div class="row r" style="--d:760"><span class="lb">CRM access</span><span class="bar"><b style="--w:38%"></b></span><span class="v">13%</span></div><div class="row r" style="--d:880"><span class="lb">Excel macros</span><span class="bar"><b style="--w:24%"></b></span><span class="v">8%</span></div>
+          <div class="small foot2">Illustrative figures</div>
+        </div>
+        <div class="ins">
+          <div class="in r" style="--d:900"><b>Which apps break</b></div>
+          <div class="in r" style="--d:1050"><b>Where users get stuck</b></div>
+          <div class="in r" style="--d:1200"><b>What to fix next</b></div>
+        </div>
+      </div>
+    </div>
+  </section>
+  <!-- 10 · Fin -->
+  <section class="slide s-end" data-state="Fixed" aria-label="PapAI">
+    <div class="mid">
+      <div class="logo hero r"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="5 15 235 101">
+<g fill="currentColor">
+<path d="M32.064 96.96C28.928 96.96 26.048 96.352 23.424 95.136C20.8 93.92 18.656 92.256 16.992 90.144C15.328 87.968 14.368 85.504 14.112 82.752V63.072C14.368 60.32 15.328 57.824 16.992 55.584C18.656 53.344 20.8 51.584 23.424 50.304C26.048 49.024 28.928 48.384 32.064 48.384C36.48 48.384 40.384 49.44 43.776 51.552C47.232 53.664 49.92 56.544 51.84 60.192C53.824 63.84 54.816 68 54.816 72.672C54.816 77.344 53.824 81.504 51.84 85.152C49.92 88.8 47.232 91.68 43.776 93.792C40.384 95.904 36.48 96.96 32.064 96.96ZM5.18402 115.68V49.344H19.872V61.344L17.472 72.672L19.68 84V115.68H5.18402ZM29.376 83.712C31.488 83.712 33.312 83.232 34.848 82.272C36.448 81.312 37.696 80 38.592 78.336C39.488 76.672 39.936 74.784 39.936 72.672C39.936 70.496 39.488 68.576 38.592 66.912C37.696 65.248 36.448 63.968 34.848 63.072C33.312 62.112 31.52 61.632 29.472 61.632C27.424 61.632 25.6 62.112 24 63.072C22.464 63.968 21.248 65.248 20.352 66.912C19.456 68.576 19.008 70.496 19.008 72.672C19.008 74.784 19.424 76.672 20.256 78.336C21.152 80 22.4 81.312 24 82.272C25.6 83.232 27.392 83.712 29.376 83.712Z"/>
+<path d="M78.8858 96.96C74.5978 96.96 70.7578 95.904 67.3658 93.792C64.0378 91.68 61.3818 88.8 59.3978 85.152C57.4778 81.504 56.5178 77.344 56.5178 72.672C56.5178 68 57.4778 63.84 59.3978 60.192C61.3818 56.544 64.0378 53.664 67.3658 51.552C70.7578 49.44 74.5978 48.384 78.8858 48.384C82.0218 48.384 84.8378 48.992 87.3338 50.208C89.8938 51.424 91.9738 53.12 93.5738 55.296C95.1738 57.408 96.0698 59.84 96.2618 62.592V82.752C96.0698 85.504 95.1738 87.968 93.5738 90.144C92.0378 92.256 89.9898 93.92 87.4298 95.136C84.8698 96.352 82.0218 96.96 78.8858 96.96ZM81.8618 83.712C84.9978 83.712 87.5258 82.688 89.4458 80.64C91.3658 78.528 92.3258 75.872 92.3258 72.672C92.3258 70.496 91.8778 68.576 90.9818 66.912C90.1498 65.248 88.9338 63.968 87.3338 63.072C85.7978 62.112 84.0058 61.632 81.9578 61.632C79.9098 61.632 78.0858 62.112 76.4858 63.072C74.9498 63.968 73.7018 65.248 72.7418 66.912C71.8458 68.576 71.3978 70.496 71.3978 72.672C71.3978 74.784 71.8458 76.672 72.7418 78.336C73.6378 80 74.8858 81.312 76.4858 82.272C78.0858 83.232 79.8778 83.712 81.8618 83.712ZM91.7498 96V83.424L93.9578 72.096L91.7498 60.768V49.344H106.15V96H91.7498Z"/>
+<path d="M140.492 96.96C137.356 96.96 134.476 96.352 131.852 95.136C129.228 93.92 127.084 92.256 125.42 90.144C123.756 87.968 122.796 85.504 122.54 82.752V63.072C122.796 60.32 123.756 57.824 125.42 55.584C127.084 53.344 129.228 51.584 131.852 50.304C134.476 49.024 137.356 48.384 140.492 48.384C144.908 48.384 148.812 49.44 152.204 51.552C155.66 53.664 158.348 56.544 160.268 60.192C162.252 63.84 163.244 68 163.244 72.672C163.244 77.344 162.252 81.504 160.268 85.152C158.348 88.8 155.66 91.68 152.204 93.792C148.812 95.904 144.908 96.96 140.492 96.96ZM113.612 115.68V49.344H128.3V61.344L125.9 72.672L128.108 84V115.68H113.612ZM137.804 83.712C139.916 83.712 141.74 83.232 143.276 82.272C144.876 81.312 146.124 80 147.02 78.336C147.916 76.672 148.364 74.784 148.364 72.672C148.364 70.496 147.916 68.576 147.02 66.912C146.124 65.248 144.876 63.968 143.276 63.072C141.74 62.112 139.948 61.632 137.9 61.632C135.852 61.632 134.028 62.112 132.428 63.072C130.892 63.968 129.676 65.248 128.78 66.912C127.884 68.576 127.436 70.496 127.436 72.672C127.436 74.784 127.852 76.672 128.684 78.336C129.58 80 130.828 81.312 132.428 82.272C134.028 83.232 135.82 83.712 137.804 83.712Z"/>
+<path d="M187.313 96.96C183.025 96.96 179.185 95.904 175.793 93.792C172.465 91.68 169.809 88.8 167.825 85.152C165.905 81.504 164.945 77.344 164.945 72.672C164.945 68 165.905 63.84 167.825 60.192C169.809 56.544 172.465 53.664 175.793 51.552C179.185 49.44 183.025 48.384 187.313 48.384C190.449 48.384 193.265 48.992 195.761 50.208C198.321 51.424 200.401 53.12 202.001 55.296C203.601 57.408 204.497 59.84 204.689 62.592V82.752C204.497 85.504 203.601 87.968 202.001 90.144C200.465 92.256 198.417 93.92 195.857 95.136C193.297 96.352 190.449 96.96 187.313 96.96ZM190.289 83.712C193.425 83.712 195.953 82.688 197.873 80.64C199.793 78.528 200.753 75.872 200.753 72.672C200.753 70.496 200.305 68.576 199.409 66.912C198.577 65.248 197.361 63.968 195.761 63.072C194.225 62.112 192.433 61.632 190.385 61.632C188.337 61.632 186.513 62.112 184.913 63.072C183.377 63.968 182.129 65.248 181.169 66.912C180.273 68.576 179.825 70.496 179.825 72.672C179.825 74.784 180.273 76.672 181.169 78.336C182.065 80 183.313 81.312 184.913 82.272C186.513 83.232 188.305 83.712 190.289 83.712ZM200.177 96V83.424L202.385 72.096L200.177 60.768V49.344H214.577V96H200.177Z"/>
+<path d="M222.039 96V49.344H236.727V96H222.039Z"/>
+</g>
+<g fill="#F58A3A">
+<path d="M230.789 18.3313C235.343 18.3313 238.459 23.3646 239.058 30.0756C239.777 37.9851 235.822 43.4977 230.789 43.4977C225.756 43.4977 221.801 37.9851 222.52 30.0756C223.119 23.3646 226.235 18.3313 230.789 18.3313Z"/>
+<path d="M230.07 19.0503C229.95 17.3725 230.43 16.1741 231.508 15.4551L232.467 16.294C231.748 16.8932 231.508 17.8519 231.748 19.0503H230.07Z"/>
+</g>
+</svg></div>
+      <div class="say r" style="--d:250">Users unblocked in seconds. <span class="blue">Support freed.</span></div>
+      <div class="cred r" style="--d:550"><span><b>Holo</b> · H Company</span><span><b>Linkup</b> · context</span><span><b>Gladia</b> · voice</span></div>
+    </div>
+  </section>
+</div>
+</div>
+<div class="hit l" id="hitL" aria-hidden="true"></div><div class="hit rr" id="hitR" aria-hidden="true"></div>
+<div class="chrome" id="count">1 / 10</div>
+
+<script>
+(() => {
+  const stage = document.getElementById('stage');
+  const slides = [...document.querySelectorAll('.slide')];
+  const state = document.getElementById('state'), stateTxt = document.getElementById('stateTxt'), track = document.getElementById('track'), count = document.getElementById('count');
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  let i = -1, timers = [];
+
+  // la scène 1920×1080 tient dans la fenêtre, sans jamais se réorganiser
+  function fit() {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `translate(${(innerWidth - 1920 * s) / 2}px, ${(innerHeight - 1080 * s) / 2}px) scale(${s})`;
+  }
+  addEventListener('resize', fit); fit();
+
+  // texte tapé : une lettre par span, le CSS fait le rythme
+  document.querySelectorAll('[data-type]').forEach(el => {
+    const caret = el.querySelector('.caret'); if (caret) caret.remove();
+    const t = el.textContent; el.textContent = '';
+    [...t].forEach((c, k) => { const s = document.createElement('span'); s.className = 'ch'; s.style.setProperty('--i', k); s.textContent = c; el.appendChild(s); });
+    if (caret) el.appendChild(caret);
+    el.setAttribute('aria-label', t);
+  });
+
+  // le parc : 60 postes qui s'allument l'un après l'autre
+  const fleet = document.getElementById('fleet');
+  if (fleet) for (let k = 0; k < 60; k++) { const c = document.createElement('i'); c.style.setProperty('--k', k); fleet.appendChild(c); }
+
+  // les chiffres montent une fois posés
+  function countUp(sl) {
+    sl.querySelectorAll('[data-count]').forEach(el => {
+      const to = +el.dataset.count; if (still.matches) { el.textContent = to; return; }
+      el.textContent = '0'; const t0 = performance.now() + 300, dur = 1100;
+      const tick = now => { const p = Math.max(0, Math.min(1, (now - t0) / dur)); el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))); if (p < 1) timers.push(requestAnimationFrame(tick)); };
+      timers.push(requestAnimationFrame(tick));
+    });
+  }
+
+  function render(n) {
+    timers.forEach(cancelAnimationFrame); timers = [];
+    slides.forEach(s => s.classList.remove('active'));
+    const sl = slides[n]; sl.classList.add('active');
+    // le ticket avance d'état
+    const st = sl.dataset.state;
+    if (stateTxt.textContent !== st) { stateTxt.textContent = st; state.classList.remove('pop'); void state.offsetWidth; state.classList.add('pop'); }
+    state.classList.toggle('done', n === slides.length - 1);
+    track.style.transform = `scaleX(${n / (slides.length - 1)})`;
+    countUp(sl);
+    count.textContent = (n + 1) + ' / ' + slides.length;
+    try { history.replaceState(null, '', '#' + (n + 1)); } catch (e) {}
+  }
+  function go(n) {
+    n = Math.max(0, Math.min(slides.length - 1, n));
+    if (n === i) return;
+    const first = i < 0; i = n;
+    if (!first && !still.matches && document.startViewTransition && !document.hidden) {
+      const v = document.startViewTransition(() => render(n));
+      v.ready.catch(() => {}); v.finished.catch(() => {});
+    } else render(n);
+  }
+
+  addEventListener('keydown', e => {
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); go(i + 1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); go(i - 1); }
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(slides.length - 1);
+    else if (e.key === 'f' || e.key === 'F') { const d = document.documentElement; (document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen?.())?.catch?.(() => {}); }
+    else if (/^[0-9]$/.test(e.key)) go(e.key === '0' ? 9 : +e.key - 1);
+  });
+  document.getElementById('hitL').addEventListener('click', () => go(i - 1));
+  document.getElementById('hitR').addEventListener('click', () => go(i + 1));
+  let tx = null;
+  addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+  addEventListener('touchend', e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 40) go(i + (dx < 0 ? 1 : -1)); tx = null; });
+
+  const h = parseInt(location.hash.slice(1), 10);
+  go(Number.isFinite(h) ? h - 1 : 0);
+})();
+</script>
+
+<style>
+.prompter { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; max-height: 42vh; overflow: auto; box-sizing: border-box;
+  padding: 18px max(28px, env(safe-area-inset-right, 0px)) calc(22px + env(safe-area-inset-bottom, 0px)) max(28px, env(safe-area-inset-left, 0px));
+  background: rgba(10,13,28,.92); color: #fff; font: 500 clamp(18px, 2.4vw, 34px)/1.4 "Geist", system-ui, sans-serif; }
+.prompter .pn { font: 500 13px/1 "Geist Mono", ui-monospace, monospace; letter-spacing: .08em; color: #8FB0FF; margin-bottom: 10px; text-transform: uppercase; }
+.prompter .nx { margin-top: 12px; font-size: .55em; color: rgba(255,255,255,.5); }
+.prompter[hidden] { display: none !important; }
+</style>
+<div class="prompter" id="prompter"><div class="pn" id="pn"></div><div id="pt"></div><div class="nx" id="px"></div></div>
+<script>
+(() => {
+  const N = ["Hi, we are Bransc\u00f4me, Corentin and Quentin, and today we are glad to present PapAI.", "PapAI is AI-augmented tech support. We all worked in companies and had the same experience: someone has a simple IT request, need to download, fix or find something, and they stay blocked for days because of technical checks and approvals. And for the support, it's lost time with little added value, and it delays everything else.", "PapAI erases this problem in minutes. The user simply says what they need. Our agent writes the plan to get it done. The support just approves it, wherever they are. And the person gets unblocked.", "At PapAI's heart, a Holo model from H Company sees, understands and pilots the user's computer. It is boosted by Linkup for context, and directed by the user's voice thanks to Gladia.", "For instance, take Christine, in accounting. She can't print on the 3rd-floor printer. She just says it, in her own words. No automation matches, so her request goes to the IT support, with a plan. She has nothing to formulate, and nothing is done without approval.", "The support receives the ticket with Holo's plan: Linkup finds the right driver, Holo downloads it and adds the printer. They check it and click Run. If something is off, they change the plan with one sentence and Holo rewrites it.", "Then Holo pilots Christine's computer and applies the plan like a technician. When the installer asks for an admin password, Holo stops: the support takes control, enters it, and ends the help. Fixed.", "No more procedures nobody reads. The fix becomes an automation, validated once and deployed from one place, to a team or the whole company.", "Every ticket becomes data, centralized in one place. It shows which apps break, where users get stuck, and what to fix next.", "So PapAI unblocks users in seconds, while freeing the support from repetitive, low-value tasks. Thank you."];
+  const box = document.getElementById('prompter'), c = document.getElementById('count');
+  const up = () => { const n = parseInt(c.textContent, 10) - 1; document.getElementById('pn').textContent = 'Slide ' + (n + 1) + ' / ' + N.length + ' · N hides the prompter';
+    document.getElementById('pt').textContent = N[n] || ''; document.getElementById('px').textContent = N[n + 1] ? 'Next: ' + N[n + 1].slice(0, 90) + '…' : ''; box.scrollTop = 0; };
+  new MutationObserver(up).observe(c, { childList: true, characterData: true, subtree: true }); up();
+  addEventListener('keydown', e => { if (e.key === 'n' || e.key === 'N') box.hidden = !box.hidden; });
+})();
+</script>
+</body>
+</html>
