@@ -1,0 +1,574 @@
+[
+  {
+    "url": "https://ameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://ameli.fr/",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://assure.ameli.fr/compte",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://a.b.ameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "HTTPS://AMELI.FR/",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://ameli.fr.",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://AMELI.FR.:443/a?b=c#d",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://ameli.fr:443",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://ameli.fr/a%20b",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "ameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https:///ameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "http://ameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "data:text/html,bonjour",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "javascript:alert(1)",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "file:///ameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "blob:https://ameli.fr/id",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "chrome://settings",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://evilameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr.evil.com",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr@evil.com",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://u:p@ameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://@ameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr:80",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr:444",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr:",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr:0443",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr:65536",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr:abc",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr\\\\@evil.com",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr/a\\\\b",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr/a b",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr/\t",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr/\n",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr/\u0000",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr..",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://%61meli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://аmeli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://xn--meli-43d.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://-ameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://a..ameli.fr",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://127.0.0.1",
+    "sites": [
+      "127.0.0.1"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://[::1]",
+    "sites": [
+      "[::1]"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://[::ffff:127.0.0.1]",
+    "sites": [
+      "[::ffff:127.0.0.1]"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://2130706433",
+    "sites": [
+      "2130706433"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://0x7f000001",
+    "sites": [
+      "0x7f000001"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://017700000001",
+    "sites": [
+      "017700000001"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://0x7f.0.0.1",
+    "sites": [
+      "0x7f.0.0.1"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://0177.0.0.1",
+    "sites": [
+      "0177.0.0.1"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://127.1",
+    "sites": [
+      "127.1"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://127.0.1",
+    "sites": [
+      "127.0.1"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://127.0.0.1.",
+    "sites": [
+      "127.0.0.1."
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "about:blank",
+    "sites": [],
+    "hosts": [],
+    "attendu": "neutre"
+  },
+  {
+    "url": "chrome://newtab/",
+    "sites": [],
+    "hosts": [],
+    "attendu": "neutre"
+  },
+  {
+    "url": "edge://newtab/",
+    "sites": [],
+    "hosts": [],
+    "attendu": "neutre"
+  },
+  {
+    "url": "chrome-error://chromewebdata/",
+    "sites": [],
+    "hosts": [],
+    "attendu": "neutre"
+  },
+  {
+    "url": "chrome-search://local-ntp/local-ntp.html",
+    "sites": [],
+    "hosts": [],
+    "attendu": "neutre"
+  },
+  {
+    "url": "about:blank#x",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "chrome://newtab/evil",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "edge://settings/",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "chrome-error://other/",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "chrome-search://a b",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://ameli.fr",
+    "sites": [],
+    "hosts": [],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://service.example",
+    "sites": [],
+    "hosts": [
+      "service.example"
+    ],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://sub.service.example",
+    "sites": [],
+    "hosts": [
+      "service.example"
+    ],
+    "attendu": "hors"
+  },
+  {
+    "url": "https://SERVICE.EXAMPLE.",
+    "sites": [],
+    "hosts": [
+      "service.example"
+    ],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://école.fr",
+    "sites": [
+      "xn--cole-9oa.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://xn--cole-9oa.fr",
+    "sites": [
+      "école.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://faß.de",
+    "sites": [
+      "xn--fa-hia.de"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://аmeli.fr",
+    "sites": [],
+    "hosts": [
+      "xn--meli-43d.fr"
+    ],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://ameli.fr?next=https://evil.com",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://connexion.ameli.fr/redirection",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "ok"
+  },
+  {
+    "url": "https://evil.com/retour",
+    "sites": [
+      "ameli.fr"
+    ],
+    "hosts": [],
+    "attendu": "hors"
+  }
+]
