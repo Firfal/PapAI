@@ -18,6 +18,8 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 |---|---|---|---|---|
 | Devin | `devin/1794098007-securite-actions-sensibles` | Sécurité #15/#16 : actions sensibles bloquées | apps/mac/Sources/Safety.swift (nouveau), apps/mac/Sources/Model.swift, Core.swift, HomeShortcuts.swift, Guard.swift, apps/mac/tests/, apps/windows/papai/core.py, bridge.py, model.py, home_shortcuts.py, apps/windows/ui/app.js, apps/windows/tests/, backend/agent.py, backend/caremamory.py, backend/app.py (bloc approve_lesson), backend/papai_tools.py, backend/static/helper.html, tests/, PROTOCOL.md | 8 nov. |
 
+La réservation Devin ci-dessus inclut aussi `papai_tools.py` (à la racine, pas dans `backend/`) et `backend/app.py` (`BridgeLink.execute`) pour l'étape serveur des refus sensibles.
+
 ## Journal
 
 | Date | Agent | Branche | Fait |

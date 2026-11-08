@@ -25,7 +25,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
 from . import guard, voice
-from .agent import AgentRunner, propose_plan
+from .agent import AgentRunner, SensitiveBlocked, propose_plan
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, Family, PairingError
 from .caremamory import LESSONS_DIR, approve_and_save, draft_lesson, list_lessons
@@ -198,6 +198,8 @@ class BridgeLink:
             return None
         if data.get("refused"):
             return None  # le pont a refusé : arrêt local, la session s'arrête
+        if data.get("blocked") == "sensitive":
+            return SensitiveBlocked(data.get("result", ""))
         return data.get("result", "")
 
     async def send(self, payload: dict) -> None:
