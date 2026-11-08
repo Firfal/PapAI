@@ -40,7 +40,7 @@ final class AppModel {
     var screen: AppScreen = .home
     var state: SessionState?
     var sessionWhere: String?
-    /// L'aide est en pause à la demande de la personne aidée : Holo n'agit plus et
+    /// L'aide est en pause à la demande de l’utilisateur : Holo n'agit plus et
     /// elle retrouve sa souris et son clavier.
     var paused = false
     /// Dernier message du serveur : sans nouvelles, le verrou des entrées se lève.
@@ -50,7 +50,7 @@ final class AppModel {
     /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
     var planStep: Int?
     var question: String?
-    /// Vrai quand Holo pose la question à la personne aidée elle-même (`ask_senior`).
+    /// Vrai quand Holo pose la question à l’utilisateur lui-même (`ask_senior`).
     var questionForMe = false
     var questionOptions: [String] = []
     var answer: String?
@@ -484,7 +484,7 @@ final class AppModel {
         ]
     }
 
-    /// Pause ou reprise, depuis l'écran de la personne aidée.
+    /// Pause ou reprise, depuis l'écran de l’utilisateur.
     func togglePause() {
         guard sessionOpen else { return }
         paused.toggle()
@@ -522,7 +522,7 @@ final class AppModel {
         client.send(["type": "dictation", "text": String(text.prefix(300)), "final": final])
     }
 
-    /// Réponse de la personne aidée à une question de Holo qui lui est posée.
+    /// Réponse de l’utilisateur à une question de Holo qui lui est posée.
     func answerSenior(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
@@ -776,7 +776,7 @@ final class AppModel {
             let r = try await Actuator.run(name: name, args: args, gate: gate, protected: protectedRect())
             reply(r, refused: false)
         } catch ActionError.stopped {
-            reply("Arrêt demandé par la personne aidée.", refused: true)
+            reply("Arrêt demandé par l’utilisateur.", refused: true)
         } catch ActionError.protectedZone {
             reply("Action refusée par PapAI : cette zone appartient à PapAI. Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.", refused: false, blocked: "sensitive")
         } catch ActionError.sensitive(let reason) {

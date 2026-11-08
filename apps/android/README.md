@@ -1,7 +1,7 @@
 # PapAI Android : l'app du support
 
 Même app que l'iPhone (`apps/ios`), en Kotlin + Jetpack Compose, distribuée en APK
-à installer hors Play Store (« sources inconnues »). Il n'y a pas d'app mobile pour la personne aidée.
+à installer hors Play Store (« sources inconnues »). Il n'y a pas d'app mobile pour l’utilisateur.
 
 Version entreprise uniquement : le support est rattaché d'office à son organisation par le jeton
 support (`sup-…`) déposé par le service informatique. Il n'y a ni liaison poste par poste (QR code,
@@ -12,7 +12,7 @@ signale les demandes et alertes des autres. La version avec liaison est archivé
 
 Ce qu'elle fait : postes de l'organisation (« prénom · service »), demande et plan
 (valider, préciser au clavier ou à la voix, refuser), écran en direct, pause, question de Holo,
-prise en main (viseur et loupe ×3, clic normalisé), dictée en direct de la personne aidée, alertes,
+prise en main (viseur et loupe ×3, clic normalisé), dictée en direct de l’utilisateur, alertes,
 fin de l'assistance et automate (brouillon modifiable avec ses captures réelles).
 Une notification « Connexion » (service de premier plan) garde la connexion ouverte, et une
 notification forte arrive quand une demande ou une question attend le support.

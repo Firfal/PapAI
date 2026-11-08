@@ -96,11 +96,11 @@ final class HelperModel {
     /// Ce que Holo est en train de faire, en une phrase (envoyée par le serveur).
     var doing: String?
     var question: (text: String, options: [String])?
-    /// Vrai quand Holo pose la question à la personne aidée (`to: senior`).
+    /// Vrai quand Holo pose la question à l’utilisateur (`to: senior`).
     var questionToSenior = false
-    /// Ce que la personne aidée est en train de dicter, en direct.
+    /// Ce que l’utilisateur est en train de dicter, en direct.
     var liveDictation: String?
-    /// La personne aidée a mis l'aide en pause depuis son écran.
+    /// L’utilisateur a mis l'aide en pause depuis son écran.
     var seniorPaused = false
     private var dictationClear: Task<Void, Never>?
     var sessionId = ""
@@ -125,7 +125,7 @@ final class HelperModel {
     var lessonBusy = false
     var draftTitle = ""
     var draftSteps: [DraftStep] = []
-    /// Ce que la tuile ouvrira chez la personne aidée (« Images › Noël 2025 »), à voir avant de valider.
+    /// Ce que la tuile ouvrira chez l’utilisateur (« Images › Noël 2025 »), à voir avant de valider.
     var draftTarget: String?
     var hasDraft = false
     var savedTitle: String?
@@ -359,7 +359,7 @@ final class HelperModel {
 
     private func observe(_ key: String, _ m: [String: Any]) {
         let known = people.first { $0.key == key }?.name ?? ""
-        let who = known.isEmpty ? "Une personne aidée" : known
+        let who = known.isEmpty ? "Un utilisateur" : known
         switch m["type"] as? String {
         case "hello":
             othersOnline[key] = m["bridge"] as? Bool ?? false; othersAsking[key] = false
@@ -517,15 +517,15 @@ final class HelperModel {
         return "Le serveur ne répond pas à \(host)"
     }
 
-    // MARK: Personne aidée
+    // MARK: Utilisateur
 
     /// Prénom de l'employé, envoyé par son ordinateur (`hello.senior`, `senior`, liste des
     /// postes). Jamais un nom figé.
     var seniorName: String = UserDefaults.standard.string(forKey: "seniorName") ?? ""
-    /// Dans une phrase : « Rien à signaler pour Sophie », sinon « de la personne aidée ».
-    var senior: String { seniorName.isEmpty ? "la personne aidée" : seniorName }
-    /// En début de phrase : « Sophie a besoin de vous », sinon « La personne aidée… ».
-    var seniorTitle: String { seniorName.isEmpty ? "La personne aidée" : seniorName }
+    /// Dans une phrase : « Rien à signaler pour Sophie », sinon « de l’utilisateur ».
+    var senior: String { seniorName.isEmpty ? "l’utilisateur" : seniorName }
+    /// En début de phrase : « Sophie a besoin de vous », sinon « L’utilisateur… ».
+    var seniorTitle: String { seniorName.isEmpty ? "L’utilisateur" : seniorName }
     var webBrowserTitle: String {
         let firstName = seniorName.split(whereSeparator: \.isWhitespace).first.map(String.init)
         return firstName.map { "Chrome PapAI de \($0)" } ?? "Chrome PapAI"
