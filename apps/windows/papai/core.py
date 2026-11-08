@@ -76,6 +76,7 @@ SENSITIVE_PROCESSES = frozenset({
     "consent", "credentialuibroker", "systemsettings", "logonui", "sechealthui",
     "useraccountcontrolsettings", "1password", "bitwarden", "dashlane", "lastpass",
     "keepass", "keepassxc", "enpass", "keeper", "nordpass", "roboform",
+    "control", "rundll32", "mmc", "regedit",
 })
 
 
@@ -95,6 +96,34 @@ def pointer_verdict(pid: int, name: str | None, own_pid: int | None = None) -> s
 
 def keyboard_verdict(pid: int, name: str | None, own_pid: int | None = None) -> str | None:
     return pointer_verdict(pid, name, own_pid)
+
+
+def control_panel_verdict(name: str, window_class: str, title: str, target: str = "") -> str | None:
+    if process_name(name) != "explorer" or window_class.casefold() != "cabinetwclass":
+        return None
+    titles = ("panneau de configuration", "control panel", "système et sécurité", "system and security",
+              "programmes et fonctionnalités", "programs and features", "comptes d’utilisateurs",
+              "comptes d'utilisateurs", "user accounts", "centre réseau et partage", "network and sharing center",
+              "sécurité et maintenance", "security and maintenance", "pare-feu windows", "windows defender firewall")
+    namespaces = ("{26ee0668-a00a-44d7-9371-beb064c98683}", "{21ec2020-3aea-1069-a2dd-08002b30309d}")
+    if any(label in title.casefold() for label in titles) or any(guid in target.casefold() for guid in namespaces):
+        return "cette fenêtre contient le Panneau de configuration ou des réglages sensibles"
+    return None
+
+
+def explorer_target(hwnd) -> str:
+    import comtypes
+    from comtypes.client import CreateObject
+
+    comtypes.CoInitialize()
+    try:
+        shell = CreateObject("Shell.Application", dynamic=True)
+        for window in shell.Windows():
+            if int(window.HWND) == int(hwnd):
+                return str(window.Document.Folder.Self.Path)
+        return ""
+    finally:
+        comtypes.CoUninitialize()
 
 
 def focused_password_uia() -> bool:
@@ -132,6 +161,7 @@ class Win32Targets:
             (self.user.GetWindow, [w.HWND, w.UINT], w.HWND),
             (self.user.IsWindowVisible, [w.HWND], w.BOOL),
             (self.user.GetClassNameW, [w.HWND, w.LPWSTR, ctypes.c_int], ctypes.c_int),
+            (self.user.GetWindowTextW, [w.HWND, w.LPWSTR, ctypes.c_int], ctypes.c_int),
             (self.user.EnumChildWindows, [w.HWND, self.callback, w.LPARAM], w.BOOL),
             (self.kernel.OpenProcess, [w.DWORD, w.BOOL, w.DWORD], w.HANDLE),
             (self.kernel.QueryFullProcessImageNameW,
@@ -150,6 +180,22 @@ class Win32Targets:
 
     def foreground(self):
         return self.root(self.user.GetForegroundWindow())
+
+    def control_panel_reason(self, hwnd, name):
+        window_class = ctypes.create_unicode_buffer(256)
+        self.user.GetClassNameW(hwnd, window_class, len(window_class))
+        if process_name(name) != "explorer" or window_class.value.casefold() != "cabinetwclass":
+            return None
+        title = ctypes.create_unicode_buffer(32768)
+        self.user.GetWindowTextW(hwnd, title, len(title))
+        reason = control_panel_verdict(name, window_class.value, title.value)
+        if reason:
+            return reason
+        try:
+            target = explorer_target(hwnd)
+        except Exception:
+            target = ""
+        return control_panel_verdict(name, window_class.value, title.value, target)
 
     def password_focused(self, hwnd):
         from ctypes import wintypes as w
@@ -223,6 +269,10 @@ class DesktopSafety:
         reason = pointer_verdict(pid, name, self.own_pid)
         if reason:
             return reason
+        if process_name(name) == "explorer":
+            reason = self.api.control_panel_reason(hwnd, name)
+            if reason:
+                return reason
         if process_name(name) == "applicationframehost":
             children = self.api.children(hwnd)
             if not children:

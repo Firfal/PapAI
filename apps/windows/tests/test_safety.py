@@ -69,6 +69,7 @@ class SafetyTests(unittest.TestCase):
         api = Mock()
         api.foreground.return_value = 1
         api.password_focused.return_value = False
+        api.control_panel_reason.return_value = None
         api.at_point.return_value = 1
         api.identity.side_effect = lambda hwnd: {
             1: (10, 'ApplicationFrameHost.exe'), 2: (11, 'SystemSettings.exe'),
@@ -77,6 +78,40 @@ class SafetyTests(unittest.TestCase):
         api.children.return_value = [2]
         api.next_visible.return_value = [4, 3]
         return api
+
+    def test_control_panel_verdict(self):
+        for title in ('Panneau de configuration', 'CONTROL PANEL', 'Control Panel > System',
+                      'Système et sécurité', 'Programmes et fonctionnalités', 'Network and Sharing Center'):
+            self.assertIsNotNone(core.control_panel_verdict('explorer.exe', 'CabinetWClass', title))
+        for target in ('shell:::{26EE0668-A00A-44D7-9371-BEB064C98683}\\0\\System',
+                       '::{21EC2020-3AEA-1069-A2DD-08002B30309D}'):
+            self.assertIsNotNone(core.control_panel_verdict('explorer.exe', 'CabinetWClass', 'Sous-page', target))
+        self.assertIsNone(core.control_panel_verdict('explorer.exe', 'CabinetWClass', 'Documents', 'C:\\Users\\Test\\Documents'))
+        self.assertIsNone(core.control_panel_verdict('explorer.exe', 'Shell_TrayWnd', 'Control Panel'))
+        self.assertIsNone(core.control_panel_verdict('notepad.exe', 'CabinetWClass', 'Control Panel'))
+
+    def test_control_panel_win32_and_unreadable_target(self):
+        api = core.Win32Targets.__new__(core.Win32Targets)
+        api.user = Mock()
+        api.user.GetClassNameW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'CabinetWClass')
+        api.user.GetWindowTextW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'Control Panel')
+        with patch.object(core, 'explorer_target', side_effect=RuntimeError('indisponible')):
+            self.assertIsNotNone(api.control_panel_reason(1, 'explorer.exe'))
+            api.user.GetWindowTextW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'Documents')
+            self.assertIsNone(api.control_panel_reason(1, 'explorer.exe'))
+        with patch.object(core, 'explorer_target', return_value='::{26EE0668-A00A-44D7-9371-BEB064C98683}\\0'):
+            self.assertIsNotNone(api.control_panel_reason(1, 'explorer.exe'))
+
+    def test_control_panel_blocks_pointer_and_keyboard(self):
+        api = self.api()
+        api.identity.return_value = (12, 'explorer.exe')
+        api.identity.side_effect = None
+        api.control_panel_reason.return_value = 'Panneau de configuration'
+        safety = core.DesktopSafety(api, own_pid=42)
+        with self.assertRaises(core.SensitiveTarget):
+            safety.check_pointer(10, 20)
+        with self.assertRaises(core.SensitiveTarget):
+            safety.check_keyboard()
 
     def test_hosted_windows(self):
         api = self.api()
