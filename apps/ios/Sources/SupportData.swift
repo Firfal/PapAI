@@ -206,7 +206,7 @@ final class AutomateLibrary {
             results[o.token] = err ?? ""
             if err == nil { for k in o.keys { results[k] = "" } }
         }
-        let covered = Set(orgs.flatMap(\.keys))
+        let covered = Set(orgs.filter { results[$0.token] == "" }.flatMap(\.keys))
         results.merge(await apply(e, to: people.filter { !covered.contains($0.key) })) { _, n in n }
         return results
     }
