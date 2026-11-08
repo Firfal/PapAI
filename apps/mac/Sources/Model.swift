@@ -87,6 +87,8 @@ final class AppModel {
         /// Arrêté avant Holo, sur l'accueil.
         var local = false
         var asked = false
+        /// Échec local hors ligne : `automation_failed` repart à la reconnexion pour ouvrir le ticket.
+        var unsent = false
     }
     var automationRun: AutomationRun?
     var canAskAutomationSupport: Bool {
@@ -287,6 +289,11 @@ final class AppModel {
             guard let self else { return }
             self.connected = ok
             if ok { Task { await self.refreshLessons() } }
+            if ok, let r = self.automationRun, r.unsent, r.ticket == nil {
+                self.automationRun?.unsent = false
+                self.client.send(["type": "automation_failed", "id": r.id, "step": r.step ?? 1,
+                                  "title": r.title, "detail": r.reason ?? ""])
+            }
             // Plus de connexion : la personne ne doit jamais rester bloquée.
             if !ok {
                 self.narration.context(assistance: self.sessionOpen, speakingAllowed: false)
@@ -1020,7 +1027,8 @@ final class AppModel {
     /// appeler personne. Le serveur ouvre un ticket qui garde l'étape.
     private func automationStopped(_ l: Lesson, step: Int, detail: String) {
         runStatus = nil
-        automationRun = AutomationRun(id: l.id, title: l.title, step: step, reason: detail, local: true)
+        automationRun = AutomationRun(id: l.id, title: l.title, step: step, reason: detail, local: true,
+                                      unsent: !connected)
         showNotice("« \(l.title) » s'est arrêté à l'étape \(step)\(detail.isEmpty ? "" : " : \(detail)").")
         client.send(["type": "automation_failed", "id": l.id, "step": step, "title": l.title, "detail": detail])
     }

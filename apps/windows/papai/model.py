@@ -322,6 +322,11 @@ class Model:
     def _connection(self, ok: bool) -> None:
         if ok:
             self._send_profile()
+            r = self.automation_run
+            if r and r.get("unsent") and not r.get("ticket"):
+                r["unsent"] = False
+                self._send({"type": "automation_failed", "id": r.get("id") or "", "step": r.get("step"),
+                            "title": r.get("title") or "", "detail": r.get("reason") or ""})
             threading.Thread(target=self.refresh_lessons, daemon=True).start()
         with self._lock:
             self.connected = ok
@@ -677,7 +682,8 @@ class Model:
         Le serveur ouvre un ticket qui garde l'étape."""
         title = str(lesson.get("title") or "")
         self.automation_run = {"id": lesson.get("id"), "title": title, "ticket": None, "number": None,
-                               "step": step, "reason": detail, "local": True, "asked": False}
+                               "step": step, "reason": detail, "local": True, "asked": False,
+                               "unsent": not self.connected}
         self.show_notice(f"« {title or 'Cet automate'} » s'est arrêté à l'étape {step}"
                          + (f" : {detail}" if detail else "."))
         self._send({"type": "automation_failed", "id": lesson.get("id") or "", "step": step,

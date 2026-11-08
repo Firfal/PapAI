@@ -438,6 +438,15 @@ def unit() -> None:
     m2._handle({"type": "support_requested", "ticket": "t1", "number": 3})
     check(m2.automation_run["asked"] and not m2.snapshot()["canAskAutomationSupport"],
           "assistance demandée une seule fois")
+    m2.connected = False
+    m2.bridge.sent.clear()
+    m2.automation_run = None
+    m2.run_shortcut("imp-000000000004")
+    check(wait_until(lambda: (m2.automation_run or {}).get("unsent"), 3), "échec hors ligne : à renvoyer")
+    m2._connection(True)
+    f = [x for x in m2.bridge.sent if x.get("type") == "automation_failed"]
+    check(len(f) == 2 and f[-1].get("step") == 1 and not m2.automation_run["unsent"],
+          "reconnexion : automation_failed renvoyé, le ticket pourra s'ouvrir")
 
 
 def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
