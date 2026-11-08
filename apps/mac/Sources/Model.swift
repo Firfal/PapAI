@@ -539,6 +539,9 @@ final class AppModel {
         if let (data, _) = try? await URLSession.shared.data(for: req),
            let list = try? JSONDecoder().decode([Lesson].self, from: data) {
             lessons = list
+            OfflineLessons.save(data)
+        } else if lessons.isEmpty {
+            lessons = OfflineLessons.load()  // pas de réseau : ceux qui n'ont pas besoin de Holo
         }
     }
 
