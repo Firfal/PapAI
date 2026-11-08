@@ -82,6 +82,8 @@ class Model:
         self.queued: dict | None = None
         # Demande qui a déjà son ticket : {kind: open|solved, ticket, number, task, status, rdv, solution}.
         self.existing: dict | None = None
+        self.ticket_plan: dict | None = None
+        self.ticket_live: dict | None = None
         self.pending_task = ""
         self.pending_automation: str | None = None
         self.pending_automation_ticket: str | None = None
@@ -181,6 +183,7 @@ class Model:
                 "requestsLoading": self.requests_loading, "requestsError": self.requests_error,
                 "helpers": list(self.helpers), "remoteRequest": self.remote_request, "queued": self.queued,
                 "existing": self.existing,
+                "ticketPlan": self.ticket_plan, "ticketLive": self.ticket_live,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
 
@@ -483,6 +486,48 @@ class Model:
         self.existing = None
         self.push()
 
+    def launch_ticket_plan(self) -> None:
+        plan, self.ticket_plan = self.ticket_plan, None
+        if not plan:
+            return
+        self.ask_help(plan["task"], ticket=plan["ticket"])
+        self.automation_run = {"id": "validated-plan", "title": plan["task"], "ticket": plan["ticket"],
+                               "number": plan["number"], "step": None, "reason": None,
+                               "local": False, "asked": False}
+        self.push()
+
+    def defer_ticket_plan(self) -> None:
+        if self.ticket_plan:
+            self.ticket_plan["show"] = False
+            self.push()
+
+    def open_ticket_plan(self) -> None:
+        if self.ticket_plan:
+            self.ticket_plan["show"] = True
+            self.push()
+
+    def choose_ticket_slot(self, at: int) -> None:
+        live = self.ticket_live
+        if not live or live.get("chosenAt"):
+            return
+        self._send({"type": "ticket_slot", "ticket": live["ticket"], "at": int(at)})
+
+    def ticket_slot_other(self) -> None:
+        live = self.ticket_live
+        if not live or live.get("chosenAt"):
+            return
+        self._send({"type": "ticket_slot", "ticket": live["ticket"], "other": True})
+
+    def close_ticket_live(self) -> None:
+        if self.ticket_live:
+            self.ticket_live["show"] = False
+            self.push()
+
+    def open_ticket_live(self) -> None:
+        if self.ticket_live:
+            self.ticket_live["show"] = True
+            self.push()
+
     def retry_existing(self) -> None:
         """Déjà réglée mais le problème est revenu : le même ticket est rouvert."""
         e, self.existing = self.existing, None
@@ -597,7 +642,7 @@ class Model:
         if kind == "status":
             self._apply_status(m)
         elif kind == "session":
-            if m.get("automation") and self.automation_run is not None:
+            if (m.get("automation") or m.get("validated_plan")) and self.automation_run is not None:
                 self.automation_run.update(ticket=m.get("ticket"), number=m.get("number"))
         elif kind == "automation_ticket":
             if self.automation_run is not None:
@@ -649,6 +694,30 @@ class Model:
             if m.get("req") is not None:
                 self._send({"type": "pair_decision", "req": m["req"], "accept": False})
             return
+        elif kind == "ticket_plan":
+            self.ticket_plan = {"ticket": str(m.get("ticket") or ""), "number": m.get("number"),
+                                "task": str(m.get("task") or ""), "steps": [str(x) for x in m.get("steps") or []],
+                                "by": str(m.get("by") or "Votre support"), "show": True}
+            self.ticket_live = None
+            self.state, self.screen = None, "home"
+            self._level()
+        elif kind == "ticket_live":
+            slots = [int(x) for x in m.get("slots") or [] if isinstance(x, (int, float))]
+            self.ticket_live = {"ticket": str(m.get("ticket") or ""), "number": m.get("number"),
+                                "task": str(m.get("task") or ""), "slots": slots,
+                                "by": str(m.get("by") or "Votre support"), "show": True,
+                                "chosenAt": None, "other": False}
+            self.ticket_plan = None
+            self.state, self.screen = None, "home"
+            self._level()
+        elif kind == "ticket_slot_asked":
+            if self.ticket_live and self.ticket_live["ticket"] == m.get("ticket"):
+                self.ticket_live.update(other=True, show=False)
+            self.show_notice(f"C’est envoyé à {self.helper_name} pour trouver un autre horaire.")
+        elif kind == "ticket_refused":
+            if self.ticket_live and (not m.get("ticket") or self.ticket_live["ticket"] == m.get("ticket")):
+                self.ticket_live["show"] = False
+            self.show_notice(str(m.get("reason") or "Ce créneau n'est plus disponible."))
         elif kind == "ticket_queued":
             # Aucun support disponible : la demande attend, on revient à l'accueil.
             suggestions = m.get("suggestions")
@@ -678,6 +747,8 @@ class Model:
         elif kind == "ticket_scheduled":
             if self.queued and self.queued["ticket"] == m.get("ticket"):
                 self.queued["rdv"] = m.get("at")
+            if self.ticket_live and self.ticket_live["ticket"] == m.get("ticket"):
+                self.ticket_live.update(chosenAt=m.get("at"), show=True)
         elif kind == "remote_request":
             if self.session_open:
                 return

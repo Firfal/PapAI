@@ -62,6 +62,10 @@ def unit() -> None:
     method("auto-1", "ticket-1")
     check(api._model.run_suggested_automation.call_args.args == ("auto-1", "ticket-1"),
           "l'API transmet l'automate et son ticket au modèle")
+    api.launch_ticket_plan()
+    api.choose_ticket_slot(123)
+    check(api._model.launch_ticket_plan.called and api._model.choose_ticket_slot.call_args.args == (123,),
+          "l'API transmet le lancement du plan et le choix du créneau")
 
     g = core.StopGate()
     check(not g.is_stopped, "verrou baissé au départ")
@@ -160,7 +164,7 @@ def unit() -> None:
           "aucun support disponible : la demande attend, retour à l'accueil")
     check(snap["queued"]["suggestions"] == suggestions and snap["queued"]["suggestion_lancee"] is None,
           "l'automate suggéré est transmis à l'écran d'attente")
-    with patch("papai.model.play_actions", return_value=(True, "")):
+    with patch("papai.model.play_actions", return_value=(True, "", 0)):
         t.run_suggested_automation("auto-1", "t1")
         fin = time.time() + 2
         while t.automation_running is not None and time.time() < fin:
@@ -215,6 +219,44 @@ def unit() -> None:
     t._handle({"type": "ticket_solved", "ticket": "t3", "number": 2, "task": "Imprimer", "solution": {}})
     t.close_existing()
     check(t.snapshot()["existing"] is None, "« c'est réglé, merci » : retour à l'accueil")
+
+    t._handle({"type": "ticket_plan", "ticket": "plan-1", "number": 11, "task": "Configurer le Wi-Fi",
+               "by": "Claire", "steps": ["Ouvrir les réglages réseau", "Choisir le Wi-Fi"]})
+    check(t.ticket_plan["show"] and t.snapshot()["ticketPlan"]["steps"][0] == "Ouvrir les réglages réseau",
+          "ticket_plan ouvre la marche à suivre validée")
+    t.defer_ticket_plan()
+    check(not t.ticket_plan["show"], "Plus tard garde le plan accessible depuis l'accueil")
+    t.open_ticket_plan()
+    t.launch_ticket_plan()
+    check(asks[-1] == ("Configurer le Wi-Fi", None, "plan-1")
+          and t.automation_run["ticket"] == "plan-1" and t.can_ask_automation_support,
+          "Lancer avec Holo rattache le ticket et active Demander une assistance")
+    t._handle({"type": "support_requested", "ticket": "plan-1", "number": 11})
+    check(t.automation_run["asked"] and "C’est envoyé à" in t.notice,
+          "confirmation d'assistance affichée")
+
+    t._handle({"type": "ticket_live", "ticket": "live-1", "number": 12, "task": "Partager l’écran",
+               "slots": [int(time.time()) + 3600, int(time.time()) + 7200]})
+    slots = list(t.ticket_live["slots"])
+    t.choose_ticket_slot(slots[0])
+    check(out[-1] == {"type": "ticket_slot", "ticket": "live-1", "at": slots[0]},
+          "un créneau proposé est transmis au serveur")
+    t._handle({"type": "ticket_scheduled", "ticket": "live-1", "at": slots[0]})
+    check(t.ticket_live["chosenAt"] == slots[0] and t.ticket_live["show"],
+          "ticket_scheduled affiche le rendez-vous choisi")
+    t.close_ticket_live()
+    check(not t.ticket_live["show"], "le rendez-vous reste dans la pastille de l'accueil")
+    t.open_ticket_live()
+    t._handle({"type": "ticket_live", "ticket": "live-2", "number": 13, "task": "Retrouver un fichier",
+               "slots": [int(time.time()) + 3600]})
+    t.ticket_slot_other()
+    check(out[-1] == {"type": "ticket_slot", "ticket": "live-2", "other": True},
+          "aucun créneau ne convient : la demande d'un autre horaire est transmise")
+    t._handle({"type": "ticket_slot_asked", "ticket": "live-2", "number": 13})
+    check(not t.ticket_live["show"] and "autre horaire" in t.notice,
+          "ticket_slot_asked affiche la confirmation")
+    t._handle({"type": "ticket_refused", "ticket": "live-2", "reason": "Ce créneau n'est plus disponible."})
+    check("n'est plus disponible" in t.notice, "ticket_refused affiche la raison")
 
     # Bridge sans serveur : exécutions refusées sans plan validé, puis après arrêt.
     sent = []

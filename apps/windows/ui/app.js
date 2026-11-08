@@ -68,6 +68,10 @@
     const busy = ui.dictating || ph !== 'idle';
     const wait = S.queued && !S.queued.show ? `<button class="pillChip chip-orange press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:0 18px;min-height:44px;${f(17, 6)}">
         ${icon('personWave', 20)}<span>Demande n° ${esc(S.queued.number)} ${S.queued.rdv ? '· rendez-vous ' + esc(rdvText(S.queued.rdv)) : 'en attente'}</span></button>` : '';
+    const planChip = S.ticketPlan && !S.ticketPlan.show ? `<button class="pillChip chip-blue press" data-act="openTicketPlan" style="align-self:flex-start;gap:8px;padding:0 18px;min-height:44px;${f(17, 6)}">
+        Plan validé · demande n° ${esc(S.ticketPlan.number)}</button>` : '';
+    const liveChip = S.ticketLive && !S.ticketLive.show ? `<button class="pillChip chip-violet press" data-act="openTicketLive" style="align-self:flex-start;gap:8px;padding:0 18px;min-height:44px;${f(17, 6)}">
+        ${S.ticketLive.chosenAt ? 'Rendez-vous ' + esc(rdvText(S.ticketLive.chosenAt)) : 'Assistance en direct · demande n° ' + esc(S.ticketLive.number)}</button>` : '';
     const warn = ui.warning ? `<div class="row homeWarn" style="gap:8px;${f(17, 6)}">${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '';
     const etat = ph === 'listening' ? 'Je vous écoute… Touchez le carré quand vous avez fini.'
       : ph === 'transcribing' || ph === 'starting' ? 'Je note…' : '';
@@ -83,7 +87,7 @@
       title: `<div class="hdrTitle" style="${f(34, 7)};letter-spacing:-0.6px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.firstName ? ' ' + esc(S.firstName) + ' !' : ''}</div>`,
       sub: hdSub('Que voulez-vous faire ?', 19),
       extra: field + (etat ? `<div class="hdrSub" style="padding-left:18px;${f(17, 6)}">${etat}</div>` : '')
-        + (warn || wait ? `<div class="row" style="gap:10px;flex-wrap:wrap">${warn}${wait}</div>` : ''),
+        + (warn || wait || planChip || liveChip ? `<div class="row" style="gap:10px;flex-wrap:wrap">${warn}${wait}${planChip}${liveChip}</div>` : ''),
     };
     return `<div class="homeCols">
       <section class="col homeLeft">${tutorials()}</section>
@@ -421,6 +425,37 @@
       `<div class="row" style="gap:14px;margin-top:18px">${pill("D'accord", 'closeQueued', { height: 78, grow: true })}</div>`;
   }
 
+  function ticketPlan() {
+    const p = S.ticketPlan;
+    hd = { chip: hdChip('personWave', `Demande n° ${esc(p.number)}`),
+      title: hdTitle('Votre support a validé la marche à suivre', 40) };
+    const steps = (p.steps || []).map((step, i) => `<div style="${f(21, 5)}">${i + 1}. ${esc(step)}</div>`).join('');
+    return mint(`${p.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(p.task)} »</div>` : ''}
+      ${lead(`Plan validé par ${p.by || 'votre support'} : Holo suit ces étapes avec vous.`)}
+      <div class="col" style="gap:10px">${steps}</div>`, 40, 22) +
+      `<div class="row" style="gap:14px;margin-top:18px">
+        ${pill('Lancer avec Holo', 'launchTicketPlan', { height: 72, grow: true, disabled: !S.connected })}
+        ${pill('Plus tard', 'deferTicketPlan', { filled: false, height: 72, grow: true })}
+      </div>`;
+  }
+
+  function liveTicket() {
+    const t = S.ticketLive;
+    hd = { chip: hdChip('personWave', `Demande n° ${esc(t.number)}`),
+      title: hdTitle('Votre support veut vous aider en direct', 40) };
+    const slots = (t.slots || []).map(at =>
+      `<button class="pill plain" data-act="chooseTicketSlot" data-arg="${esc(at)}" style="height:56px;padding:0 22px;${f(19, 6)}">${esc(rdvText(at))}</button>`).join('');
+    const chosen = t.chosenAt ? lead(`Rendez-vous choisi : ${rdvText(t.chosenAt)}.`)
+      : t.other ? lead(`C’est envoyé à ${S.helperName} pour trouver un autre horaire.`) : '';
+    return mint(`${t.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(t.task)} »</div>` : ''}
+      ${chosen || lead('Votre support propose ces créneaux pour vous aider sur l’ordinateur.')}
+      ${t.chosenAt || t.other ? '' : `<div class="row" style="gap:10px;flex-wrap:wrap">${slots}</div>`}
+      ${t.chosenAt || t.other ? '' : `<button class="pill plain" data-act="ticketSlotOther" style="height:56px;padding:0 22px;${f(19, 6)}">Aucun ne me convient</button>`}`, 40, 22) +
+      `<div class="row" style="gap:14px;margin-top:18px">
+        ${pill(t.chosenAt || t.other ? "D'accord" : 'Plus tard', 'closeTicketLive', { filled: !!(t.chosenAt || t.other), height: 72, grow: true })}
+      </div>`;
+  }
+
   // ------------------------------------- Demande qui a déjà son ticket
   function existing() {
     const e = S.existing, solved = e.kind === 'solved';
@@ -554,6 +589,8 @@
   // ------------------------------------------------------------------- rendu
   function body() {
     if (S.remoteRequest) return remote();
+    if (S.ticketPlan && S.ticketPlan.show) return ticketPlan();
+    if (S.ticketLive && S.ticketLive.show) return liveTicket();
     if (S.existing) return existing();
     if (S.queued && S.queued.show) return queued();
     if (S.screen === 'consent') return consent();
@@ -670,6 +707,13 @@
     retryExisting: () => call('retry_existing'),
     newRequest: () => call('new_request'),
     openQueued: () => { S.queued.show = true; render(); call('open_queued'); },
+    launchTicketPlan: () => call('launch_ticket_plan'),
+    deferTicketPlan: () => call('defer_ticket_plan'),
+    openTicketPlan: () => call('open_ticket_plan'),
+    chooseTicketSlot: at => call('choose_ticket_slot', Number(at)),
+    ticketSlotOther: () => call('ticket_slot_other'),
+    closeTicketLive: () => call('close_ticket_live'),
+    openTicketLive: () => call('open_ticket_live'),
     refuseRemote: () => call('refuse_remote'),
   };
 

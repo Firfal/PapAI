@@ -9,7 +9,7 @@ async function home(microPresent = true) {
   let state = { connected: true, screen: 'home', state: null,
     firstName: '', helperName: 'Claire', textScale: 1, textScales: [['Grande', 1], ['Très grande', 1.18]],
     orgName: '', orgConfigured: false, realtimeProtection: true, screenConsent: false,
-    lessons: [], notice: null, homeShortcuts: [], queued: null, microPresent,
+    lessons: [], notice: null, homeShortcuts: [], queued: null, ticketPlan: null, ticketLive: null, microPresent,
     dictation: { phase: 'idle', message: null } };
   const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [], actions = [], calls = [], automationCalls = [];
   const root = { innerHTML: '' }, sheet = { innerHTML: '' };
@@ -27,6 +27,13 @@ async function home(microPresent = true) {
     open_home_shortcut: id => { shortcuts.push(id); },
     remove_home_shortcut: id => { removed.push(id); },
     run_suggested_automation: (id, ticket) => { automationCalls.push([id, ticket]); },
+    launch_ticket_plan: () => calls.push(['launch_ticket_plan']),
+    defer_ticket_plan: () => calls.push(['defer_ticket_plan']),
+    open_ticket_plan: () => calls.push(['open_ticket_plan']),
+    choose_ticket_slot: at => calls.push(['choose_ticket_slot', at]),
+    ticket_slot_other: () => calls.push(['ticket_slot_other']),
+    close_ticket_live: () => calls.push(['close_ticket_live']),
+    open_ticket_live: () => calls.push(['open_ticket_live']),
     dismiss_alert: () => { actions.push('dismiss_alert'); },
     stop: () => { actions.push('stop'); },
     toggle_pause: () => { calls.push(['toggle_pause']); },
@@ -122,6 +129,45 @@ test("attente d'un support : automates proposés et lancement rattaché au ticke
   h.update({ queued: { ...queued, suggestion_lancee: 'auto-1' } });
   assert.match(h.root.innerHTML, />\s*Lancé<\/button>/);
   assert.match(h.root.innerHTML, /data-act="runSuggested"[^>]*disabled/);
+});
+
+test("plan validé : affichage, lancement avec Holo et retour à l'accueil", async () => {
+  const h = await home();
+  const plan = { ticket: 'ticket-plan', number: 8, task: 'Configurer le Wi-Fi',
+    steps: ['Ouvrir les réglages réseau', 'Choisir le Wi-Fi'], by: 'Claire', show: true };
+  h.update({ ticketPlan: plan });
+  assert.match(h.root.innerHTML, /Votre support a validé la marche à suivre/);
+  assert.match(h.root.innerHTML, /1\. Ouvrir les réglages réseau/);
+  h.click('launchTicketPlan');
+  assert.deepEqual(h.calls.at(-1), ['launch_ticket_plan']);
+  h.update({ ticketPlan: { ...plan, show: false } });
+  assert.match(h.root.innerHTML, /Plan validé · demande n° 8/);
+  h.click('openTicketPlan');
+  assert.deepEqual(h.calls.at(-1), ['open_ticket_plan']);
+  h.update({ ticketPlan: plan });
+  h.click('deferTicketPlan');
+  assert.deepEqual(h.calls.at(-1), ['defer_ticket_plan']);
+});
+
+test("assistance en direct : créneaux, horaire choisi et demande d'un autre", async () => {
+  const h = await home();
+  const live = { ticket: 'ticket-live', number: 9, task: 'Partager l’écran', show: true,
+    slots: [1794211200, 1794214800], chosenAt: null, other: false };
+  h.update({ ticketLive: live });
+  assert.match(h.root.innerHTML, /Votre support veut vous aider en direct/);
+  assert.match(h.root.innerHTML, /Aucun ne me convient/);
+  h.click('chooseTicketSlot', String(live.slots[0]));
+  assert.deepEqual(h.calls.at(-1), ['choose_ticket_slot', live.slots[0]]);
+  h.click('ticketSlotOther');
+  assert.deepEqual(h.calls.at(-1), ['ticket_slot_other']);
+  h.update({ ticketLive: { ...live, chosenAt: live.slots[0] } });
+  assert.match(h.root.innerHTML, /Rendez-vous choisi/);
+  h.click('closeTicketLive');
+  assert.deepEqual(h.calls.at(-1), ['close_ticket_live']);
+  h.update({ ticketLive: { ...live, show: false, chosenAt: live.slots[0] } });
+  assert.match(h.root.innerHTML, /data-act="openTicketLive"[\s\S]*Rendez-vous/);
+  h.click('openTicketLive');
+  assert.deepEqual(h.calls.at(-1), ['open_ticket_live']);
 });
 
 test("Réglages : « Mon support » en lecture seule, organisation en ligne ou non", async () => {
