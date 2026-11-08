@@ -834,13 +834,14 @@ def antivirus_scan(gate: "StopGate | None" = None) -> tuple[bool, str]:
     return False, f"Le scan antivirus n'a pas abouti (code {p.returncode})."
 
 
-def play_actions(lesson: dict, fetch: Callable[[str], bytes], gate: "StopGate") -> tuple[bool, str]:
+def play_actions(lesson: dict, fetch: Callable[[str], bytes], gate: "StopGate") -> tuple[bool, str, int]:
     """Joue, dans l'ordre, les actions locales d'un automate importé.
-    L'action `holo` (s'il y en a une) est confiée ensuite au serveur."""
+    L'action `holo` (s'il y en a une) est confiée ensuite au serveur.
+    Le troisième élément est le numéro (à partir de 1) de l'action qui a échoué."""
     detail = ""
-    for a in lesson.get("actions") or []:
+    for step, a in enumerate(lesson.get("actions") or [], 1):
         if gate.is_stopped:
-            return False, "Arrêté."
+            return False, "Arrêté.", step
         do = str(a.get("do") or "")
         if do == "open_folder":
             ok, detail = open_shortcut({"folder": a.get("folder"), "subfolder": a.get("subfolder")})
@@ -852,14 +853,14 @@ def play_actions(lesson: dict, fetch: Callable[[str], bytes], gate: "StopGate") 
             try:
                 files = [(n, fetch(n)) for n in a.get("files") or [] if template_name_ok(n)]
             except Exception as e:  # noqa: BLE001 — serveur injoignable
-                return False, f"Modèles introuvables : {e}"
+                return False, f"Modèles introuvables : {e}", step
             ok, detail = install_templates(files) if files else (False, "Aucun modèle valable.")
         elif do == "antivirus_scan":
             ok, detail = antivirus_scan(gate)
         elif do == "holo":
             continue
         else:
-            return False, f"Action inconnue : {do}"
+            return False, f"Action inconnue : {do}", step
         if not ok:
-            return False, detail
-    return True, detail
+            return False, detail, step
+    return True, detail, 0

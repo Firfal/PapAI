@@ -104,6 +104,12 @@ class Session:
     lesson: dict | None = None
     # Le ticket de cette demande (suivi par le support IT).
     ticket: str = ""
+    # Automate importé (id `imp-…`) : il se joue seul, sans support, sauf si
+    # l’utilisateur le demande (`support_request`).
+    automation: str = ""
+    support_requested: bool = False
+    # Où l'automate s'est arrêté faute de pouvoir continuer seul : {step, label, reason}.
+    blocked: dict | None = None
     # La même demande a déjà été réglée : ce qui avait été fait, pour Holo.
     reprise: str = ""
     journal: list[dict] = field(default_factory=list)
@@ -183,6 +189,17 @@ class Session:
         self.log("stop", by=by)
         self._resolve_reply(None)
         self._resolve_plan(None)
+
+    def block(self, reason: str) -> None:
+        """Automate sans support : Holo ne peut pas continuer seul. On note
+        l'étape (pour le ticket) et on s'arrête, sans rien tenter de plus."""
+        if self.state in TERMINAL_STATES:
+            return
+        n = self.plan_step if self.plan_step and self.plan else (1 if self.plan else None)
+        self.blocked = {"step": n, "label": self.plan[n - 1] if n else "",
+                        "reason": str(reason or "")[:300]}
+        self.log("automation_blocked", **self.blocked)
+        self.stop(by="blocage")
 
     def finish(self, message: str) -> None:
         self.require_open()
@@ -369,6 +386,9 @@ class Session:
             if self.plan_approved and self.state in (State.ACTIVE, State.AWAITING_HELPER)
             else None,
             "usage": self.usage,
+            "automation": self.automation or None,
+            "support_requested": self.support_requested,
+            "blocked": self.blocked,
         }
 
 
