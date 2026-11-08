@@ -1,0 +1,22 @@
+{
+  "papai": 1,
+  "title": "Se connecter au Wi-Fi",
+  "publisher": "Service IT Acme",
+  "description": "Ouvre la page Wi-Fi des Réglages. La personne choisit son réseau et tape elle-même la clé Wi-Fi : PapAI ne la garde jamais.",
+  "platforms": [
+    "windows",
+    "mac"
+  ],
+  "actions": [
+    {
+      "do": "open_settings",
+      "page": "wifi"
+    }
+  ],
+  "steps": [
+    "Vérifiez que le Wi-Fi est activé.",
+    "Cliquez sur le nom de votre réseau, écrit sur l'étiquette de votre box.",
+    "Tapez la clé Wi-Fi écrite sous la box, puis cliquez sur « Se connecter ».",
+    "Attendez « Connecté » à côté du nom du réseau."
+  ]
+}
