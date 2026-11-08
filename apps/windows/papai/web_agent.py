@@ -123,6 +123,7 @@ class WebAgentHost:
                 return
             exe = self._executable()
             self.starting = True
+            self._generation += 1
             gen = self._generation
         self._spawn(lambda: self._launch(exe, gen))
 
@@ -223,6 +224,7 @@ class WebAgentHost:
                 return
             holo, chrome, sid = self.holo, self.chrome, self.session_id
             self.holo = self.chrome = self.session_id = None
+            gen = self._generation
         if sid is not None and notify_server:
             self.on_change(None)
         if holo is not None and holo.poll() is None:
@@ -250,7 +252,10 @@ class WebAgentHost:
                 except Exception:  # noqa: BLE001
                     holo.kill()
             # Chrome a lâché ses fichiers : le profil de l'assistance est effacé.
+            # Un nouveau lancement efface lui-même le profil : on ne touche plus au sien.
             for _ in range(10):
+                if self._stale(gen):
+                    break
                 wipe_profile(profile)
                 if not profile.exists():
                     break
