@@ -81,9 +81,10 @@ enum Safety {
         return nil
     }
     static func keyboardReason(secureInput: Bool, front: Target?, papaiActive: Bool,
-                               ownPID: Int32, ownBundle: String?) -> String? {
+                               ownPID: Int32, ownBundle: String?, focused: Target? = nil) -> String? {
         if secureInput { return "un champ protégé attend une saisie confidentielle" }
         if papaiActive { return "PapAI est encore au premier plan" }
+        if let focused, let reason = reason(focused, ownPID: ownPID, ownBundle: ownBundle) { return reason }
         guard let front else { return "l’application au premier plan est inconnue" }
         return reason(front, ownPID: ownPID, ownBundle: ownBundle)
     }
@@ -92,6 +93,7 @@ enum Safety {
 #if !SAFETY_CLI
 import AppKit
 import Carbon
+import ApplicationServices
 
 @MainActor
 final class DesktopSafety {
@@ -116,6 +118,17 @@ final class DesktopSafety {
     }
     private func target(_ app: NSRunningApplication) -> Safety.Target {
         Safety.Target(pid: app.processIdentifier, name: app.localizedName ?? "", bundle: app.bundleIdentifier)
+    }
+    private func focusedTarget() -> Safety.Target? {
+        let system = AXUIElementCreateSystemWide()
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &value) == .success,
+              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        let element = value as! AXUIElement
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success, pid > 0 else { return nil }
+        if let app = NSRunningApplication(processIdentifier: pid) { return target(app) }
+        return Safety.Target(pid: pid, name: "", bundle: nil)
     }
     func checkPointer(_ point: CGPoint) throws {
         guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else {
@@ -149,7 +162,8 @@ final class DesktopSafety {
     func checkKeyboard() throws {
         if let reason = Safety.keyboardReason(secureInput: IsSecureEventInputEnabled(),
                                               front: NSWorkspace.shared.frontmostApplication.map(target),
-                                              papaiActive: NSApp.isActive, ownPID: ownPID, ownBundle: ownBundle) {
+                                              papaiActive: NSApp.isActive, ownPID: ownPID, ownBundle: ownBundle,
+                                              focused: focusedTarget()) {
             throw ActionError.sensitive(reason)
         }
     }

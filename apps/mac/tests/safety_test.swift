@@ -62,6 +62,21 @@ struct SafetyTest {
         for name in ["iTerm", "Script Editor", "Shortcuts"] {
             verifier(reason(.init(pid: 8, name: name, bundle: nil)) != nil, "nom anglais refusé : \(name)")
         }
+        func focusedKeyboard(_ focused: Safety.Target?, _ front: Safety.Target? = finder) -> String? {
+            Safety.keyboardReason(secureInput: false, front: front, papaiActive: false,
+                                  ownPID: ownPID, ownBundle: ownBundle, focused: focused)
+        }
+        for bundle in Safety.bundles {
+            verifier(focusedKeyboard(.init(pid: 9, name: "", bundle: bundle)) != nil,
+                     "focus AX sensible avec Finder devant : \(bundle)")
+        }
+        verifier(focusedKeyboard(auth) != nil, "focus AX refusé par nom du processus")
+        verifier(focusedKeyboard(.init(pid: ownPID, name: "", bundle: nil)) != nil, "focus AX PapAI refusé par PID")
+        verifier(focusedKeyboard(safari) == nil, "focus AX autorisé dans une app normale")
+        verifier(focusedKeyboard(nil) == nil, "focus AX illisible : Finder reste autorisé")
+        verifier(focusedKeyboard(nil, auth) != nil, "focus AX illisible : premier plan sensible reste refusé")
+        verifier(focusedKeyboard(finder, auth) != nil, "focus AX normal ne contourne pas le premier plan sensible")
+        verifier(focusedKeyboard(nil, nil) != nil, "focus AX illisible et premier plan inconnu restent refusés")
         let gate = StopGate()
         let pinned = gate.pin()
         verifier(!pinned.isStopped, "verrou initial ouvert")
