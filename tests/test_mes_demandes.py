@@ -28,6 +28,11 @@ def projections():
     attente = for_user({"id": "s", "task": "Imprimer", "status": "en_attente", "suggestion_lancee": "auto"}, [lesson])
     check("automate suggéré lancé, demande en attente : pas présenté comme solution",
           attente["solution"] is None and attente["relaunch"] is None)
+    clos = for_user({"status": "resolu", "suggestion_lancee": "auto", "solution": "Pilote réinstallé"}, [lesson])
+    check("automate suggéré puis clôture du support avec un mot : le mot du support est la solution",
+          clos["solution"] == {"kind": "answer", "text": "Pilote réinstallé", "sources": []} and clos["relaunch"] is None)
+    check("mot du support prioritaire sur la réponse validée",
+          for_user({"status": "resolu", "solution": "Fait", "linkup_answer": {"content": "Vieux"}}, [])["solution"]["text"] == "Fait")
     echec = for_user({"status": "a_reprendre", "automation": "auto"}, [lesson])
     check("automate interrompu : pas présenté comme solution", echec["solution"] is None and echec["relaunch"] is None)
     del t["automation"], t["suggestion_lancee"]
@@ -84,6 +89,7 @@ async def parcours(base):
         check(f"poste {index} : liste blanche sans capture ni secrets", all(set(r) == FIELDS for r in rows)
               and not any(word in json.dumps(data).lower() for word in
                           ("image", "png", "jpg", "data:", "screenshot", "note secr", "token", "linkup_query")))
+    check("en ligne, /requests sans clé refusé", http(f"{base}/requests")[0] == 404)
     check("clé inconnue refusée", http(f"{base}/k/inconnue/requests") == (404, {"error": "Lien invalide."}))
     _, support = http(f"{base}/o/{org['support_token']}/supports", {"name": "Alice"})
     _, spaces = http(f"{base}/o/{support['token']}/spaces")

@@ -212,7 +212,8 @@ async def parcours(base: str) -> None:
                   sess is not None and sess.get("ticket") == tid and len(tickets(base, key)) == 2
                   and t["status"] == "en_cours" and not t.get("closed_by")
                   and t["notes"][-1]["text"] == "Le problème est revenu."
-                  and "Réglé par téléphone" in t.get("reprise", ""))
+                  and "Réglé par téléphone" in t.get("reprise", "")
+                  and t.get("linkup_answer") is None and t.get("suggestion_lancee") is None)
             await wa.send(json.dumps({"type": "stop"}))
             await asyncio.sleep(0.5)
 

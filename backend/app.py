@@ -28,7 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.requests import HTTPConnection
 
 from . import (
-    automate_draft, automations, billing, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
+    automations, billing, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
     tickets as tickets_mod, voice,
 )
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
@@ -831,7 +831,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     # est rouvert, Holo repart de ce qui avait été fait.
                     reprise = _reprise(again)
                     S().tickets.note(again, S().family.senior or "L’utilisateur", "Le problème est revenu.")
-                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="", reprise=reprise)
+                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="", reprise=reprise,
+                                       linkup_answer=None, suggestion_lancee=None)
                     ticket, reopened = again, True
                 if ticket is None and not by and not msg.get("new") and "tidy" not in msg:
                     same = S().tickets.same(task)
@@ -2417,37 +2418,6 @@ async def remove_automation_keyed(fam: str, lesson_id: str):
     return await _remove_automation(lesson_id)
 
 
-async def _draft_automation(request: Request):
-    """Brouillon d'automate (document ou enregistrement) : appelle Holo, n'écrit rien."""
-    try:
-        body = await request.json()
-    except ValueError:
-        return JSONResponse({"error": "Requête illisible (JSON attendu)."}, status_code=400)
-    if not isinstance(body, dict):
-        return JSONResponse({"error": "Requête illisible (JSON attendu)."}, status_code=400)
-    try:
-        return await automate_draft.draft(body)
-    except automate_draft.DraftError as e:
-        return JSONResponse({"error": str(e)}, status_code=422)
-    except Exception as e:  # noqa: BLE001 — Holo injoignable, quota…
-        print(f"[automate] brouillon impossible : {type(e).__name__}")
-        return JSONResponse({"error": "Holo ne répond pas pour le moment. Réessayez."}, status_code=502)
-
-
-@app.post("/k/{fam}/automations/draft")
-async def draft_automation_keyed(fam: str, request: Request):
-    if not _key_ok(fam):
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    return await _draft_automation(request)
-
-
-@app.post("/automations/draft")
-async def draft_automation(request: Request):
-    if not _same_machine(request):
-        return JSONResponse({"error": "introuvable"}, status_code=404)
-    return await _draft_automation(request)
-
-
 @app.post("/automations")
 async def import_automation(request: Request):
     if not _same_machine(request):
@@ -2525,14 +2495,26 @@ def _sessions_journal():
 
 # --- Tickets : vus et traités par le support (page web, apps, organisation) ---
 
-@app.get("/k/{fam}/requests")
-async def user_requests(fam: str):
-    if not _key_ok(fam, support=False):
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+def _user_requests() -> dict:
     o = orgs.get(S().org) if getattr(S(), "org", "") else None
     lessons = (o.automations() if o else []) + list_lessons()
     items = sorted(S().tickets.all(), key=lambda t: t.get("created", 0), reverse=True)[:100]
     return {"requests": [tickets_mod.for_user(t, lessons) for t in items]}
+
+
+@app.get("/requests")
+async def user_requests_local(request: Request):
+    """Sans clé, seulement pour l'app de la machine du serveur ; sinon /k/{clé}/requests."""
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return _user_requests()
+
+
+@app.get("/k/{fam}/requests")
+async def user_requests(fam: str):
+    if not _key_ok(fam, support=False):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return _user_requests()
 
 async def _ticket_action(tid: str, body: dict):
     t = S().tickets.get(tid)

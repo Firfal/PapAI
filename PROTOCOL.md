@@ -675,15 +675,24 @@ d'organisation → HTTP 404 `{"error":"Lien invalide."}`. Aucun ticket d'un autr
 Réponse : `{"requests":[{"id":"…","number":1,"created":0,"updated":0,"task":"…",
 "status":"resolu","solution":null,"relaunch":null}]}` (100 plus récentes par `created`,
 d'abord les plus récentes ; liste vide si aucune). Statut brut conservé.
+En local, `GET /requests` sans clé répond la même chose, seulement à une app lancée sur la
+machine du serveur (comme `/lessons`) ; en ligne (`PAPAI_PUBLIC=1`) → 404.
 
 `solution`, par priorité :
 - `{"kind":"automate","lesson":"…","title":"…"}` si la demande est `resolu` et que `automation` (posé au lancement
-  `run_automation`) ou `suggestion_lancee` est renseigné. Titre du catalogue courant du poste
-  (automates locaux et organisation), sinon titre de la suggestion, sinon chaîne vide.
+  `run_automation`) est renseigné, ou `suggestion_lancee` sans mot du support à la clôture
+  (un automate suggéré seulement lancé ne vaut pas solution si le support a clos avec un texte).
+  Titre du catalogue courant du poste (automates locaux et organisation), sinon titre de la
+  suggestion, sinon chaîne vide.
+- `{"kind":"answer","text":"…","sources":[]}` : mot du support à la clôture (`solution`
+  du ticket, demande `resolu`).
 - `{"kind":"answer","text":"…","sources":[{"title":"…","url":"…"}]}` pour une
   `linkup_answer` validée par le support (jamais la requête ni l'auteur internes).
 - `{"kind":"plan","steps":["…"]}` seulement si `end == "done"` et plan texte non vide.
-- Sinon `null`. L'automate prime donc sur la réponse, qui prime sur le plan exécuté.
+- Sinon `null`. L'automate prime donc sur le mot du support, puis la réponse validée, puis le plan exécuté.
+
+Une demande réglée qu'on rouvre (`help_request` avec `reopen`) perd `linkup_answer` et
+`suggestion_lancee` : l'ancienne réponse ne s'affiche plus tant que la demande est ouverte.
 
 `relaunch` est l'id de l'automate seulement si le statut est `resolu`, la solution un
 automate et cet id existe encore dans le catalogue courant ; sinon `null`.
@@ -925,12 +934,3 @@ bureau reste le comportement par défaut.
 - Limite : `holo local browser` exige une clé H (`HAI_API_KEY`) sur le Mac de
   la personne aidée (`~/.config/hai/.env` ou variable d'environnement). Elle
   n'est jamais dans le dépôt ni dans les journaux.
-
-## Brouillon d'automate (support)
-
-`POST /automations/draft` (local) ou `/k/{clé}/automations/draft` : Holo prépare un brouillon, **rien n'est écrit**.
-- Document : `{"kind":"document","name":"tuto.pdf","text":"…"}` (texte extrait sur le poste du support, PDF compris ; 20 000 caractères au plus).
-- Enregistrement : `{"kind":"recording","frames":[{"b64":"…","mime":"image/jpeg"}],"narration":"…"}` (5 captures clés au plus, voix transcrite sur le poste du support).
-- Réponse : `{"title","description","goal","steps":["…"],"platforms":["mac"|"windows"],"warning"}`, ou `{"error"}` (422 source inexploitable, 502 Holo injoignable).
-
-Le support relit le brouillon, l'ajoute à « Mes automates » (bibliothèque gardée sur son poste), puis l'applique à qui il veut avec `POST /automations` : c'est cet import qui le valide.
