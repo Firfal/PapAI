@@ -90,6 +90,7 @@ class Session:
     plan: list[str] | None = None
     plan_mode: str | None = None
     plan_sites: list[str] = field(default_factory=list)
+    context: str = ""
     web_hosts: list[str] = field(default_factory=list)
     off_site: dict | None = None
     web_steps: list[int] = field(default_factory=list)

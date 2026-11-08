@@ -718,6 +718,13 @@ Relancer = `run_automation` existant (ou lancement local existant), pas de nouve
     le même ticket est rouvert (note « Le problème est revenu. »), puis attente ou session comme
     d'habitude ; Holo reçoit ce qui l'avait réglé (`session.reprise`).
 - `session` porte en plus `"ticket"` et `"number"`.
+
+**Pré-traitement de la demande** (`backend/clarify.py`)
+- Une app qui annonce `"clarify": true` dans `hello` peut recevoir `{"type":"clarify","question","options","round","max"}` avant l'ouverture du ticket. Le contrôle ne s'applique qu'à une demande de l'utilisateur sans `requested_by` ni `ticket`; la déduplication existante reste active.
+- Réponse : `{"type":"clarify_answer","text":"…"}` (300 caractères au plus) ou `{"type":"clarify_answer","skip":true}` (« Envoyer quand même »). `{"type":"clarify_cancel"}` ou `stop` abandonne la demande ; si la session a déjà commencé depuis cette demande, elle est arrêtée.
+- Deux questions au plus. Holo rédige ensuite l'objet formel, transmis comme `task` au flux habituel : déduplication, file d'attente avec suggestions ou session. Le ticket conserve `demande` et `precisions` seulement si le contexte de clarification n'est pas vide.
+- Holo reçoit l'objet, la demande d'origine et ses précisions pour le plan et l'exécution ; le Gardien les vérifie également. Une question en attente est reposée à la reconnexion ; une demande claire en attente est réévaluée.
+
 - App → `{"type":"ticket_schedule","ticket","at"}` (entre 1 min et 30 jours) →
   `{"type":"ticket_scheduled","ticket","number","at"}` ou `{"type":"ticket_refused","ticket","reason"}`.
   `ticket_scheduled` arrive aussi quand le support fixe le rendez-vous (avec `by`).

@@ -55,7 +55,21 @@ def reponse(corps: dict) -> dict:
         }]
     else:
         consigne = texte(messages)
-        if '"instruction"' in consigne:
+        if '"clair"' in consigne:
+            utilisateur = consigne[consigne.find("Demande : «"):]
+            demande = re.search(r"Demande : « (.*?) »", utilisateur, re.S)
+            demande = demande.group(1) if demande else ""
+            if ("→" not in utilisateur and "ne peux plus" not in utilisateur
+                    and re.search(r"besoin d.aide|marche pas", demande, re.I)):
+                message["content"] = json.dumps({
+                    "clair": False, "question": "Qu'est-ce qui ne marche pas ?",
+                    "options": ["L'imprimante", "Le Wi-Fi", "Un fichier"],
+                }, ensure_ascii=False)
+            elif "imprimante" in utilisateur.lower():
+                message["content"] = '{"clair": true, "objet": "Imprimante : impression impossible"}'
+            else:
+                message["content"] = json.dumps({"clair": True, "objet": demande[:80]}, ensure_ascii=False)
+        elif '"instruction"' in consigne:
             message["content"] = fiche()
         elif '"folder"' in consigne:
             message["content"] = '{"folder": "documents", "subfolder": "Comptabilité 2025"}'

@@ -25,6 +25,8 @@ struct SupportTicket: Identifiable {
     var categoryBy: String
     var resolved: Double?
     var person: Person
+    var demande = ""
+    var precisions: [(q: String, a: String)] = []
 
     var label: String { String(format: "T-%04d", number) }
     var isOpen: Bool { status != "resolu" }
@@ -53,6 +55,11 @@ struct SupportTicket: Identifiable {
         category = d["category"] as? String ?? "autre"
         categoryBy = d["category_by"] as? String ?? ""
         resolved = (d["resolved"] as? NSNumber)?.doubleValue
+        demande = d["demande"] as? String ?? ""
+        precisions = (d["precisions"] as? [[String: Any]] ?? []).compactMap { p in
+            guard let q = p["q"] as? String, let a = p["a"] as? String else { return nil }
+            return (q, a)
+        }
         self.person = person
     }
 }
@@ -177,6 +184,14 @@ struct SupportTickets: View {
                 }
                 Text(t.task.isEmpty ? "Demande sans texte" : "« \(t.task) »").font(rounded(18, .semibold))
                     .fixedSize(horizontal: false, vertical: true)
+                if !t.demande.isEmpty {
+                    Text("Demande d’origine : « \(t.demande) »").font(rounded(14)).foregroundStyle(T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(Array(t.precisions.enumerated()), id: \.offset) { _, p in
+                    Text("\(p.q) → \(p.a)").font(rounded(14)).foregroundStyle(T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let b = t.blocked {
                     Label(b, systemImage: "exclamationmark.circle").font(rounded(14, .medium))
                         .foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)

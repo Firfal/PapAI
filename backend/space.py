@@ -48,6 +48,8 @@ class Space:
         self.agent_task = None
         self.pending_alert: dict | None = None
         self.guard_vu: dict[str, float] = {}
+        self.intake: dict | None = None
+        self.intake_session = ""
 
 
 class Spaces:

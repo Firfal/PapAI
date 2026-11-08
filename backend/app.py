@@ -28,7 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.requests import HTTPConnection
 
 from . import (
-    automate_draft, automations, billing, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
+    automate_draft, automations, billing, clarify, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
     tickets as tickets_mod, voice,
 )
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
@@ -220,6 +220,7 @@ class BridgeLink:
         self.connected = True
         self.os = "windows"  # annoncé par le pont dans son message hello
         self.web_agent_available = False
+        self.clarify = False
         # Protection en temps réel, annoncée par l'app (None : app qui ne la connaît pas).
         self.protection: bool | None = None
         # Identifiant du navigateur servi par `holo local browser` sur la machine
@@ -735,6 +736,13 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if kind == "hello":
                     link.os = str(msg.get("os", "windows")).lower()[:20]
                     link.web_agent_available = msg.get("web_agent_available") is True
+                    link.clarify = msg.get("clarify") is True
+                    intake = S().intake
+                    if intake and link.clarify:
+                        if intake["question"]:
+                            await _send_clarify(link, intake)
+                        else:
+                            _later(_qualifier())
                     link.web_agent = None
                     print(f"[pont] système : {link.os}, navigateur : {'disponible' if link.web_agent_available else 'non'}")
                 if isinstance(msg.get("protection"), bool) and msg["protection"] != link.protection:
@@ -838,6 +846,15 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     if same is not None:
                         await _same_ticket(ws, same)
                         continue
+                if link.clarify and task and not by and ticket is None:
+                    S().intake = {
+                        "demande": task, "precisions": [], "question": "", "options": [],
+                        "force_new": bool(msg.get("new") or "tidy" in msg),
+                        "tidy": msg.get("tidy"),
+                    }
+                    S().intake_session = ""
+                    _later(_qualifier())
+                    continue
                 if (ticket is None or reopened) and not by and _support_expected() and not _support_available():
                     # Aucun support disponible : la demande attend, la personne
                     # sera reprévenue dès qu'un support est là (ou au rendez-vous).
@@ -982,6 +999,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "stop":
+                S().intake = None
+                S().intake_session = ""
                 for s in list(S().registry._by_id.values()):
                     if s.is_open:
                         s.stop(by="senior")
@@ -989,6 +1008,34 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if S().agent_task and not S().agent_task.done():
                     S().agent_task.cancel()
                 print("[pont] ARRÊT demandé par l’utilisateur")
+                continue
+
+            if kind == "clarify_answer":
+                intake = S().intake
+                if intake is None or not intake["question"]:
+                    continue
+                text = str(msg.get("text") or "").strip()[:clarify.MAX_ANSWER]
+                skip = msg.get("skip") is True
+                if not text and not skip:
+                    continue
+                if text:
+                    intake["precisions"].append({"q": intake["question"], "a": text})
+                intake["question"], intake["options"] = "", []
+                intake["force"] = intake.get("force", False) or skip
+                _later(_qualifier())
+                continue
+
+            if kind == "clarify_cancel":
+                if S().intake is not None:
+                    S().intake = None
+                else:
+                    session = S().registry.get(S().intake_session)
+                    if session is not None and session.is_open:
+                        session.stop(by="senior")
+                        await broadcast_helper(session.status())
+                        if S().agent_task and not S().agent_task.done():
+                            S().agent_task.cancel()
+                S().intake_session = ""
                 continue
 
     except (WebSocketDisconnect, RuntimeError, ValueError):
@@ -1148,6 +1195,82 @@ async def run_automation(session, link: "BridgeLink") -> None:
         raise
 
 
+async def _send_clarify(link: BridgeLink, intake: dict) -> None:
+    await link.send({
+        "type": "clarify", "question": intake["question"], "options": intake["options"],
+        "round": len(intake["precisions"]) + 1, "max": clarify.MAX_QUESTIONS,
+    })
+
+
+async def _qualifier() -> None:
+    intake = S().intake
+    if intake is None:
+        return
+    result = await clarify.evaluer(
+        intake["demande"], intake["precisions"], force=intake.get("force", False),
+    )
+    link = S().bridge
+    if S().intake is not intake:
+        return
+    if not result["clair"]:
+        intake["question"], intake["options"] = result["question"], result["options"]
+        if link is not None:
+            await _send_clarify(link, intake)
+        return
+    if link is None:
+        return
+    S().intake = None
+    await _start_request(
+        link, result["objet"][:MAX_TASK], intake["demande"], intake["precisions"],
+        force_new=intake.get("force_new", False), tidy=intake.get("tidy"),
+    )
+
+
+async def _start_request(link: BridgeLink, task: str, demande: str, precisions: list[dict],
+                         *, force_new: bool = False, tidy=None) -> None:
+    if not force_new:
+        same = S().tickets.same(task)
+        if same is not None:
+            await _same_ticket(link.ws, same)
+            return
+    if _support_expected() and not _support_available():
+        suggestions = _ticket_suggestions(task)
+        ticket = _open_ticket(
+            task, "personne", status="en_attente", by=S().family.senior,
+            suggestions=suggestions,
+        )
+        if clarify.contexte(task, demande, precisions):
+            S().tickets.update(ticket, demande=demande, precisions=precisions)
+        await link.send({
+            "type": "ticket_queued", "ticket": ticket["id"], "number": ticket["number"],
+            "task": task, "suggestions": suggestions,
+        })
+        await _tickets_changed()
+        return
+
+    session = S().registry.create(task)
+    session.context = clarify.contexte(task, demande, precisions)
+    S().intake_session = session.id
+    session.grant_consent()
+    ticket = _open_ticket(task, "personne", by=S().family.senior)
+    if session.context:
+        S().tickets.update(ticket, demande=demande, precisions=precisions)
+    session.ticket = ticket["id"]
+    S().tickets.update(ticket, session=session.id, status="en_cours", rdv=None)
+    await _tickets_changed()
+    await link.send({
+        "type": "session", "id": session.id, "helper_url": f"{PUBLIC_URL}/h/{session.helper_token}",
+        "ticket": ticket["id"], "number": ticket["number"],
+    })
+    await broadcast_helper(session.status())
+    if S().agent_task and not S().agent_task.done():
+        S().agent_task.cancel()
+    S().agent_task = asyncio.create_task(
+        rangement.run(session, link, broadcast_helper, check_request, tidy)
+        if tidy else run_session(session, link)
+    )
+
+
 async def run_session(session, link: "BridgeLink") -> None:
     """Plan d'abord, validé par l'aidant ; l'agent n'agit qu'ensuite."""
     notes: list[str] = []
@@ -1158,7 +1281,9 @@ async def run_session(session, link: "BridgeLink") -> None:
             await link.send(S().pending_alert["senior"])
             await broadcast_helper(S().pending_alert["helper"], to_bridge=False)
             return
-        if await check_request(session, session.task, "request"):
+        if await check_request(
+            session, "\n".join(filter(None, [session.task, session.context])), "request",
+        ):
             return
         while True:
             await broadcast_helper(session.status())
@@ -1181,7 +1306,7 @@ async def run_session(session, link: "BridgeLink") -> None:
                     await publish_guard(alerte, "plan", session)
                     return
             plan_text = "\n".join([
-                session.task, *notes, *steps,
+                session.task, session.context, *notes, *steps,
                 *(f"https://{site}" for site in session.plan_sites),
             ])
             if await check_request(session, plan_text, "plan"):

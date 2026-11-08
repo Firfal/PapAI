@@ -7,7 +7,8 @@
   let api = null;
   const ui = { request: '', warning: null, lessonId: null, lessonIndex: 0,
                sheet: null, lastDictMsg: null,
-               writing: false, dictating: false, lastDictation: null, submitting: false, editingShortcuts: false };
+               writing: false, dictating: false, lastDictation: null, submitting: false, editingShortcuts: false,
+               clarifyText: '' };
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -272,6 +273,29 @@
     return `<div class="card col" style="padding:24px;gap:16px">
       <div class="muted" style="${f(16, 6)}">Holo vous demande</div>
       <div style="${f(28, 5)}">${esc(S.question)}</div>${reply}</div>`;
+  }
+
+  function clarifyScreen() {
+    const c = S.clarify;
+    const options = (c.options || []).map((o) =>
+      `<button class="pill plain" data-act="clarifyOption" data-arg="${esc(o)}" style="height:56px;padding:0 22px;${f(20, 6)}">${esc(o)}</button>`).join('');
+    const reply = c.sent
+      ? `<div class="row accent" style="gap:10px">${icon('checkCircle', 22)}<span style="${f(20, 6)}">Merci, Holo prépare votre demande…</span></div>`
+      : `${options ? `<div class="row" style="gap:10px;flex-wrap:wrap">${options}</div>` : ''}
+        <div class="row" style="gap:12px">
+          <input id="clarifyReply" class="grow field" placeholder="Ou dites-le avec vos mots" value="${esc(ui.clarifyText || '')}"
+            style="${f(22, 5)};padding:16px 20px;border:0;border-radius:var(--r);width:auto">
+          ${pill('Répondre', 'clarifyReply', { height: 56, disabled: !(ui.clarifyText || '').trim() })}
+        </div>
+        <div class="muted" style="${f(15, 4)}">Ne donnez jamais de mot de passe ni de code : on ne vous les demandera pas.</div>`;
+    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Holo a besoin d'une précision${c.max > 1 ? ` · ${esc(c.round)}/${esc(c.max)}` : ''}</span></div>
+      <div style="${f(40, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(c.question)}</div>
+      ${S.task ? `<div class="muted" style="${f(19, 4)}">Votre demande : « ${esc(S.task)} »</div>` : ''}
+      <div class="card col" style="padding:24px;gap:16px">${reply}</div>`, 40, 22) +
+      `<div class="row" style="gap:14px;margin-top:18px">
+        ${pill('Annuler', 'cancelClarify', { filled: false, height: 78, grow: true })}
+        ${pill('Envoyer quand même', 'skipClarify', { height: 78, grow: true, disabled: !!c.sent })}
+      </div>`;
   }
 
   const endNote = (sym, text) => `<div class="row" style="gap:14px"><span class="accent" style="width:28px;display:flex;justify-content:center">${icon(sym, 22)}</span>
@@ -557,6 +581,7 @@
     if (S.existing) return existing();
     if (S.queued && S.queued.show) return queued();
     if (S.screen === 'consent') return consent();
+    if (S.screen === 'session' && S.clarify) return clarifyScreen();
     if (S.screen === 'session') return session();
     if (S.screen === 'lesson' && S.lesson) return lesson();
     return home();
@@ -651,6 +676,15 @@
     askAssist: () => call('ask_automation_support'),
     expand: () => call('expand_window'),
     seniorOption: (o) => acts.seniorReply(o),
+    clarifyOption: (o) => acts.clarifyReply(o),
+    clarifyReply: (o) => {
+      const t = String(o || ui.clarifyText || '').trim();
+      if (!t || !S.clarify || S.clarify.sent) return;
+      ui.clarifyText = '';
+      call('answer_clarify', t);
+    },
+    skipClarify: () => { ui.clarifyText = ''; call('skip_clarify'); },
+    cancelClarify: () => { ui.clarifyText = ''; call('cancel_clarify'); },
     seniorReply: (o) => {
       const t = String(o || ui.seniorText || '').trim();
       if (!t || !S.question) return;
@@ -682,6 +716,11 @@
   document.addEventListener('input', (e) => {
     const t = e.target;
     if (t.id === 'req') { ui.request = t.value; autosize(t); }
+    else if (t.id === 'clarifyReply') {
+      const was = !(ui.clarifyText || '').trim(), now = !t.value.trim();
+      ui.clarifyText = t.value;
+      if (was !== now) render();
+    }
     else if (t.id === 'seniorReply') {
       const was = !(ui.seniorText || '').trim(), now = !t.value.trim();
       ui.seniorText = t.value;
@@ -694,6 +733,7 @@
     const t = e.target;
     if (S.alert && (e.key === 'Enter' || e.key === 'Escape')) { e.preventDefault(); return; }
     if (e.key === 'Escape') {
+      if (S.clarify) return acts.cancelClarify();
       if (S.screen === 'session' && S.sessionOpen) { ui.sheet = null; return acts.stop(); }
       if (ui.sheet) { acts.closeSheet(); return; }
       if (S.remoteRequest) return acts.refuseRemote();
@@ -704,6 +744,7 @@
     if (e.key !== 'Enter' || e.shiftKey || ui.sheet) return;
     if (t && t.tagName === 'BUTTON') return;
     if (t && t.id === 'req') { e.preventDefault(); submit(); return; }
+    if (t && t.id === 'clarifyReply') { e.preventDefault(); acts.clarifyReply(); return; }
     if (t && t.id === 'seniorReply') { e.preventDefault(); acts.seniorReply(); return; }
     if (S.remoteRequest) return;
     if (S.screen === 'consent' && S.connected) acts.share();

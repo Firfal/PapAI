@@ -80,6 +80,7 @@ class Model:
         self.remote_request: dict | None = None
         # Demande partie en ticket sans support disponible : {ticket, number, task, rdv, show}.
         self.queued: dict | None = None
+        self.clarify: dict | None = None
         # Demande qui a déjà son ticket : {kind: open|solved, ticket, number, task, status, rdv, solution}.
         self.existing: dict | None = None
         self.pending_task = ""
@@ -180,6 +181,7 @@ class Model:
                              for r in self.requests],
                 "requestsLoading": self.requests_loading, "requestsError": self.requests_error,
                 "helpers": list(self.helpers), "remoteRequest": self.remote_request, "queued": self.queued,
+                "clarify": self.clarify,
                 "existing": self.existing,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
@@ -223,6 +225,31 @@ class Model:
         t = str(text or "").strip()[:300]
         if t and self.bridge is not None:
             self.bridge.send({"type": "senior_answer", "text": t})
+
+    def answer_clarify(self, text: str) -> None:
+        t = str(text or "").strip()[:300]
+        with self._lock:
+            if not t or not self.clarify or self.clarify.get("sent") or self.bridge is None:
+                return
+            self.clarify["sent"] = True
+        self.bridge.send({"type": "clarify_answer", "text": t})
+        self.push()
+
+    def skip_clarify(self) -> None:
+        with self._lock:
+            if not self.clarify or self.clarify.get("sent") or self.bridge is None:
+                return
+            self.clarify["sent"] = True
+        self.bridge.send({"type": "clarify_answer", "skip": True})
+        self.push()
+
+    def cancel_clarify(self) -> None:
+        if self.bridge is not None and self.clarify is not None:
+            self.bridge.send({"type": "clarify_cancel"})
+        with self._lock:
+            self.clarify, self.state, self.screen, self.task = None, None, "home", ""
+        self._level()
+        self.push()
 
     def send_dictation(self, text: str, final: bool = False) -> None:
         """La dictée part aussi chez l'aidant, qui voit ce qu'elle a dit."""
@@ -547,6 +574,7 @@ class Model:
         with self._lock:
             self.task = str(task or "")
             self.pending_task = ""
+            self.clarify = None
             self.plan, self.plan_step, self.question = [], None, None
             self.question_for_me, self.question_options, self.paused = False, [], False
             self.session_helper = None
@@ -566,6 +594,9 @@ class Model:
 
     def stop(self) -> None:
         """Le verrou local passe d'abord, puis le serveur est prévenu."""
+        if self.clarify is not None:
+            self.cancel_clarify()
+            return
         self.gate.raise_stop()
         if self.bridge is not None:
             self.bridge.stop()
@@ -594,6 +625,23 @@ class Model:
 
     def _handle(self, m: dict) -> None:
         kind = m.get("type")
+        if kind in ("status", "session", "ticket_queued", "ticket_exists", "ticket_solved"):
+            self.clarify = None
+        if kind == "clarify":
+            opts = m.get("options") if isinstance(m.get("options"), list) else []
+            n, mx = m.get("round"), m.get("max")
+            with self._lock:
+                self.clarify = {
+                    "question": str(m.get("question") or "")[:300],
+                    "options": [str(o)[:80] for o in opts[:4] if str(o).strip()],
+                    "round": n if isinstance(n, int) else 1,
+                    "max": mx if isinstance(mx, int) else 2,
+                    "sent": False,
+                }
+                self.state, self.screen = "clarify", "session"
+            self._level()
+            self.push()
+            return
         if kind == "status":
             self._apply_status(m)
         elif kind == "session":

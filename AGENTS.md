@@ -49,6 +49,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| Devin → Claude | `devin/1794135779-clarification-main` | Portage en cours, à reprendre par Claude. Faits : module backend/clarify, état d'intake par espace, contexte de session et Holo, première passe des handlers serveur, écran Windows, affichage support web/Mac, fixture/test initial, protocole et TODO. Reste : finir et relire l'intégration avec la déduplication/file d'attente existantes, compléter les tests Windows/UI, retirer les chemins de brouillon Mac, résoudre les problèmes éventuels et lancer les tests demandés. | `backend/clarify.py`, `backend/app.py`, `backend/space.py`, `backend/sessions.py`, `backend/agent.py`, `apps/windows/papai/bridge.py`, `apps/windows/papai/model.py`, `apps/windows/papai/app.py`, `apps/windows/ui/app.js`, `backend/static/tickets.js`, `apps/mac/Sources/Support/SupportTickets.swift`, `tests/faux_holo.py`, `tests/test_clarification.py`, `PROTOCOL.md`, `TODO.md`, `AGENTS.md` | 8 nov. |
 
 ## Journal
 
