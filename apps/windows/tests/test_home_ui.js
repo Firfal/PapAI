@@ -109,7 +109,7 @@ test('bascule micro/texte à chaud, sans perdre le brouillon', async () => {
 
 test('aucun tutoriel vide, date ni ancien bouton', async () => {
   const h = await home(false);
-  assert.doesNotMatch(h.root.innerHTML, /Mes tutoriels|J'ai besoin d'aide|Mes applications/);
+  assert.doesNotMatch(h.root.innerHTML, /Mes tutoriels|J'ai besoin d'aide|Demander une assistance|Mes applications/);
   assert.match(h.root.innerHTML, /Mes raccourcis/);
   assert.match(h.root.innerHTML, /logotype-papai.svg/);
 });
@@ -212,5 +212,5 @@ test("encart pendant que Holo agit, et fin du gardien adaptée à l'aidé", asyn
   h.update(session({ state: 'stopped', sessionOpen: false, stoppedBy: 'gardien', guardAcknowledged: true }));
   assert.match(html(h), /cette démarche peut être une arnaque/);
   assert.match(html(h), /Appelez Claire à son numéro habituel\./);
-  assert.match(html(h), /Un proche a vu l'alerte et s'en occupe/);
+  assert.match(html(h), /Votre support a vu l'alerte et s'en occupe/);
 });

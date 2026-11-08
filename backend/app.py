@@ -865,7 +865,7 @@ async def handle_remote_request(msg: dict, ws: WebSocket) -> None:
     names = [h["name"] for h in family.helpers]
     who = str(msg.get("from", "")).strip()
     if who not in names:
-        who = names[0] if len(names) == 1 else "Votre proche"
+        who = names[0] if len(names) == 1 else "Votre support"
     task = str(msg.get("text", "")).strip()[:300]
     await bridge.send({"type": "remote_request", "from": who, "task": task})
     await ws.send_json({"type": "ack", "what": "remote_request"})
@@ -966,9 +966,9 @@ GUARD_ADVICE_TIMEOUT_S = 9
 
 def guard_contact() -> str:
     if not family.helpers:
-        return "votre proche"
+        return "votre support"
     h = next((h for h in family.helpers if h["id"] in _online_ids()), family.helpers[0])
-    relation = re.sub(r"^(mon|ma|mes|son|sa|ses|votre)\s+", "", h.get("relation", "").strip(), flags=re.I)
+    relation = re.sub(r"^(mon|ma|mes|son|sa|ses|votre|un|une|le|la)\s+", "", h.get("relation", "").strip(), flags=re.I)
     return f"votre {relation} {h['name']}" if relation else h["name"]
 
 
@@ -988,11 +988,11 @@ async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
                else "L'assistance est arrêtée.")
     senior = {**common, "title": "Attention, cette démarche peut être une arnaque.",
               "detail": senior_detail or detail}
-    who = family.senior or "Votre proche"
+    who = family.senior or "La personne aidée"
     detail = f"{who} a besoin de votre avis. {alerte.detail}"
     if session:
         detail += f"\nDemande : « {session.task} »"
-    detail += "\nPrenez contact avec votre proche avant de poursuivre. Choisissez « C'est normal » uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
+    detail += f"\nPrenez contact avec {family.senior or 'la personne aidée'} avant de poursuivre. Choisissez « C'est normal » uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
     helper = {**common, "title": f"Démarche à vérifier pour {who}", "detail": helper_detail or detail}
     pending_alert = {"senior": senior, "helper": helper}
     if bridge:
@@ -1051,7 +1051,7 @@ async def check_request(session, texte: str, source: str) -> bool:
             if type(avis.get("suspect")) is not bool:
                 raise ValueError("Avis manquant")
             if avis["suspect"]:
-                raison = str(avis.get("raison") or "Demande inhabituelle à vérifier avec votre proche.")[:500]
+                raison = str(avis.get("raison") or "Demande inhabituelle à vérifier avec votre support.")[:500]
                 alerte = guard.Alerte("attention", "Démarche à vérifier", raison, "avis_holo", False)
         except Exception:
             if session.is_open:

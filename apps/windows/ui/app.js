@@ -244,11 +244,11 @@
       </div>`;
     }
     if (guardStopped(st)) {
-      const who = (S.helpers[0] || {}).name || 'votre proche';
+      const who = (S.helpers[0] || {}).name || 'votre support';
       return `<div class="col" style="gap:20px;${f(23, 5)}">
         <div>Ne payez rien et ne donnez aucun code.</div>
         <div>Appelez ${esc(who)} à son numéro habituel.</div>
-        ${S.guardAcknowledged ? "<div>Un proche a vu l'alerte et s'en occupe</div>" : ''}</div>`;
+        ${S.guardAcknowledged ? "<div>Votre support a vu l'alerte et s'en occupe</div>" : ''}</div>`;
     }
     return '';
   }
@@ -351,8 +351,8 @@
 
   function onbWelcome() {
     return h1('Bienvenue sur PapAI', 52) +
-      lead("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Un proche est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.", 23) +
-      promise('hand', "Rien ne bouge sur votre écran sans l'accord de votre proche.", 20) +
+      lead("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.", 23) +
+      promise('hand', "Rien ne bouge sur votre écran sans l'accord de votre support.", 20) +
       promise('stopCircle', 'Vous pouvez tout arrêter à tout moment.', 20) +
       promise('lock', "Votre écran n'est partagé que quand vous le demandez.", 20);
   }
@@ -388,7 +388,7 @@
     return h1('Deux autorisations, déjà prêtes') +
       lead("Sur Windows, rien à cocher : PapAI peut voir l'écran et utiliser la souris, mais seulement quand vous le demandez.") +
       permissionRow('Voir mon écran', 'Pour que Holo voie ce que vous voyez. Jamais sans votre demande.') +
-      permissionRow('Utiliser la souris et le clavier', "Pour cliquer à votre place, uniquement après l'accord de votre proche.");
+      permissionRow('Utiliser la souris et le clavier', "Pour cliquer à votre place, uniquement après l'accord de votre support.");
   }
 
   // ------------------------------------------------------------ HelpersPanel
@@ -401,11 +401,11 @@
           style="width:36px;height:36px;background:var(--bg)">${icon('xmark', 16)}</button>`}
       </div>`).join('');
     const add = S.pairCode ? '' :
-      `<div>${pill(S.helpers.length ? 'Ajouter un autre proche' : 'Ajouter un proche', 'pair', { filled: !S.helpers.length, height: 60, disabled: !S.connected })}</div>
+      `<div>${pill(S.helpers.length ? 'Ajouter un autre support' : 'Ajouter un support', 'pair', { filled: !S.helpers.length, height: 60, disabled: !S.connected })}</div>
        ${S.connected ? '' : `<div class="muted" style="${f(16, 4)}">Connexion au serveur en cours…</div>`}`;
-    const added = S.pairAdded ? `<div class="row accent" style="gap:8px;${f(19, 6)}">${icon('checkCircle', 22)}${esc(S.pairAdded)} fait maintenant partie de vos proches.</div>` : '';
+    const added = S.pairAdded ? `<div class="row accent" style="gap:8px;${f(19, 6)}">${icon('checkCircle', 22)}${esc(S.pairAdded)} fait maintenant partie de votre support.</div>` : '';
     const code = S.pairCode ? `<div class="card col" style="padding:18px 22px;gap:8px;align-items:center;flex:none">
-        ${S.pairQR ? `<img src="${S.pairQR}" alt="QR code à scanner par votre proche" style="width:170px;height:170px;image-rendering:pixelated">` : ''}
+        ${S.pairQR ? `<img src="${S.pairQR}" alt="QR code à scanner par votre support" style="width:170px;height:170px;image-rendering:pixelated">` : ''}
         <div class="muted" style="${f(16, 4)}">ou le code</div>
         <div style="font-size:${38 * S.textScale}px;font-weight:600;letter-spacing:4px;font-variant-numeric:tabular-nums;user-select:text">${esc(S.pairCode.slice(0, 3))} ${esc(S.pairCode.slice(3))}</div>
         <div class="muted" style="${f(15, 4)}">${S.pairLong ? 'Valable 24 heures' : 'Valable 10 minutes'}</div>
@@ -416,7 +416,7 @@
       </div>` : '';
     return `<div class="row" style="align-items:flex-start;gap:28px">
       <div class="col grow" style="gap:20px">
-        <div style="${f(onb ? 44 : 34, 6)};letter-spacing:-0.6px;line-height:1.1">${onb ? 'Qui va vous aider ?' : 'Mes proches'}</div>
+        <div style="${f(onb ? 44 : 34, 6)};letter-spacing:-0.6px;line-height:1.1">${onb ? 'Qui va vous aider ?' : 'Mon support'}</div>
         <div class="muted" style="${f(20, 4)}">Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.</div>
         ${added}${rows}${add}
       </div>${code}</div>`;
@@ -449,7 +449,7 @@
       ${field('Serveur', 'setServer', ui.settings.server, 'ws://localhost:8000/ws/bridge')}
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Taille du texte</div><div class="seg">${seg}</div></div>
       <div class="row" style="gap:12px">
-        ${pill(`Mes proches (${S.helpers.length})`, 'openHelpers', { filled: false, height: 50 })}
+        ${pill(`Mon support (${S.helpers.length})`, 'openHelpers', { filled: false, height: 50 })}
         ${pill("Revoir l'accueil", 'replayOnboarding', { filled: false, height: 50 })}
         ${S.screenConsent ? pill("Retirer l'accord de partage", 'revokeConsent', { filled: false, height: 50 }) : ''}
       </div>
@@ -473,7 +473,7 @@
         <span style="${f(17, 6)}">${danger ? 'Attention' : 'Pour information'}</span></div>
       <div style="${f(30, 6)}">${esc(a.title)}</div>
       ${a.detail ? `<div class="muted" style="${f(19, 5)}">${esc(a.detail)}</div>` : ''}
-      ${a.acknowledged ? `<div style="${f(20, 6)}">Un proche a vu l'alerte et s'en occupe</div>` : ''}
+      ${a.acknowledged ? `<div style="${f(20, 6)}">Votre support a vu l'alerte et s'en occupe</div>` : ''}
       ${a.blocked ? '' : `<div class="row"><div class="spacer"></div>${pill("J'ai compris", 'dismissAlert', { height: 56 })}</div>`}</div>`;
   }
 

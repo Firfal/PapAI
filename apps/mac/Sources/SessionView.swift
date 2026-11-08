@@ -177,9 +177,9 @@ struct SessionView: View {
         case .stopped where guardStopped:
             VStack(alignment: .leading, spacing: 20) {
                 Text("Ne payez rien et ne donnez aucun code.")
-                Text("Appelez \(model.helpers.first?.name ?? "votre proche") à son numéro habituel.")
+                Text("Appelez \(model.helpers.first?.name ?? "votre support") à son numéro habituel.")
                 if model.guardAcknowledged {
-                    Text("Un proche a vu l'alerte et s'en occupe")
+                    Text("Votre support a vu l'alerte et s'en occupe")
                 }
                 if model.sessionWhere == "web" {
                     Text("Holo a fermé sa fenêtre Chrome.")
