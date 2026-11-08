@@ -45,6 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| Devin | `devin/1794129480-iphone-support-onglets` | iPhone aligné sur le support Mac : onglets Tickets / Utilisateurs / Mes automates, une seule palette (celle du Mac), code partagé | `apps/ios/Sources/{RootView,Theme,Mascotte,PapAIApp}.swift`, nouveaux `apps/ios/Sources/SupportData.swift` et `apps/ios/Sources/SupportTabs.swift`, `apps/shared/Palette.swift`, `apps/ios/Shared/HelpActivity.swift`, `apps/ios/project.yml` ; côté Mac, déplacement sans changement visuel : `apps/mac/Sources/Theme.swift` (palette), `Support/SupportTickets.swift`, `Support/SupportAutomates.swift` (données), `apps/mac/project.yml` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
