@@ -84,7 +84,7 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(question["to"], "helper")
                 self.assertEqual(question["question"],
                                  "Holo s'est arrêté devant une fenêtre protégée (réglages ou mots de passe). "
-                                 "Guidez la personne aidée par téléphone, puis répondez ici pour que Holo continue.")
+                                 "Guidez l’utilisateur par téléphone, puis répondez ici pour que Holo continue.")
 
     async def test_question_support_prenom_et_raison_non_technique(self):
         for name in ("Jeanne", ""):
@@ -94,7 +94,7 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
             question = [e for e in self.events if e.get("type") == "question"][-1]
             self.assertEqual(question["question"],
                              "Holo s'est arrêté devant une fenêtre protégée (réglages ou mots de passe). "
-                             f"Guidez {name or 'la personne aidée'} par téléphone, puis répondez ici pour que Holo continue.")
+                             f"Guidez {name or 'l’utilisateur'} par téléphone, puis répondez ici pour que Holo continue.")
             self.assertEqual(question["options"], [])
 
     async def test_holo_reessaie_dans_la_boucle(self):
@@ -154,7 +154,7 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(messages[0]["blocked"], "sensitive")
                         self.assertEqual(messages[0]["reason"],
                                          "Clic non effectué : cette fenêtre est protégée (réglages ou mots de passe). "
-                                         f"Guidez {name or 'la personne aidée'} par téléphone pour faire cette étape sur l'ordinateur.")
+                                         f"Guidez {name or 'l’utilisateur'} par téléphone pour faire cette étape sur l'ordinateur.")
                         self.assertTrue(any(e["kind"] == "sensitive_blocked" for e in session.journal))
 
     async def test_resultat_vide_erreur_et_refus_incomplet(self):

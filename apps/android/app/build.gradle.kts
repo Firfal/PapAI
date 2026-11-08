@@ -15,6 +15,16 @@ val signing = Properties().apply {
 }
 fun sign(key: String): String? = signing.getProperty(key) ?: System.getenv("PAPAI_" + key.uppercase())
 
+// Démo sans EMM : jeton support et serveur dans support.local.properties (ignoré par git,
+// voir support.local.properties.example). Absent : chaînes vides, l'app attend la
+// configuration gérée. Le jeton est alors inclus dans l'APK : ne pas le diffuser.
+val support = Properties().apply {
+    val f = rootProject.file("support.local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun supportField(key: String): String =
+    "\"" + (support.getProperty(key) ?: "").trim().replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 android {
     namespace = "com.quentin.papai.aidant"
     compileSdk = 35
@@ -25,6 +35,8 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        buildConfigField("String", "PAPAI_SUPPORT_TOKEN", supportField("supportToken"))
+        buildConfigField("String", "PAPAI_SERVER", supportField("server"))
     }
 
     signingConfigs {
@@ -73,5 +85,4 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 }

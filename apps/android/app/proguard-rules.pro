@@ -1,1 +1,1 @@
-# OkHttp et ZXing apportent leurs propres règles.
+# OkHttp apporte ses propres règles.

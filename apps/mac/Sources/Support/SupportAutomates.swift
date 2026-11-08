@@ -295,6 +295,8 @@ struct ApplyAutomateSheet: View {
 /// niveau, jamais de commande) et le pas à pas « Montrez-moi ».
 struct SupportCreateAutomate: View {
     let model: HelperModel
+    /// Brouillon venu d'une suggestion de l'onglet Tickets (title, description, goal).
+    var prefill: [String: String]? = nil
     var done: ([String: Any]?) -> Void
 
     enum Kind: String, CaseIterable { case holo, folder, settings, url }
@@ -387,7 +389,12 @@ struct SupportCreateAutomate: View {
                       allowedContentTypes: [.plainText, .pdf, UTType(filenameExtension: "md") ?? .plainText]) { r in
             if case .success(let url) = r { Task { await importDocument(url) } }
         }
-        .onAppear { recorder.onStop = { reviewing = true } }
+        .onAppear {
+            recorder.onStop = { reviewing = true }
+            if let p = prefill, title.isEmpty {
+                title = p["title"] ?? ""; detail = p["description"] ?? ""; goal = p["goal"] ?? ""; kind = .holo
+            }
+        }
     }
 
     // MARK: Sources (document, enregistrement)

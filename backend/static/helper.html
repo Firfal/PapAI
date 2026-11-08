@@ -42,7 +42,7 @@
 
   /* ------------------------------------------------------------- en-tête */
 
-  /* Bandeau bleu en dégradé, titre blanc ; la liste des utilisateurs le prolonge. */
+  /* Bandeau bleu en dégradé, titre blanc ; la liste des postes le prolonge. */
   header { display: flex; align-items: center; gap: 12px; color: #fff; background: var(--grad-head);
            box-shadow: 0 14px 28px -12px rgba(31,90,232,.45);
            padding: calc(14px + env(safe-area-inset-top)) 20px 14px; border-radius: 0 0 24px 24px; }
@@ -65,7 +65,7 @@
   .person .avatar { width: 32px; height: 32px; font-size: 15px; background: rgba(255,255,255,.22); color: #fff; }
   .person.here { background: #fff; color: var(--accent); box-shadow: 0 4px 12px rgba(10,30,90,.18); }
   .person.here .avatar { background: var(--sky); color: var(--accent); }
-  /* Un utilisateur qui demande de l'aide : pastille blanche cerclée de rouge, impossible à rater. */
+  /* Un poste qui demande de l'aide : pastille blanche cerclée de rouge, impossible à rater. */
   .person.asking { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 3px var(--danger), 0 4px 12px rgba(10,30,90,.18); }
   .person.asking .avatar { background: var(--danger-soft); color: var(--danger-ink); }
   .person.asking small { color: var(--danger-ink); opacity: 1; font-weight: 600; }
@@ -309,7 +309,7 @@
   <div class="round" aria-hidden="true"><svg class="i"><use href="#i-bell"/></svg></div>
 </header>
 
-<nav class="people" id="people" aria-label="Mes utilisateurs" hidden></nav>
+<nav class="people" id="people" aria-label="Postes" hidden></nav>
 
 <div id="lost" hidden role="status"><div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:#fff;width:16px;height:16px"></div><span>Connexion perdue</span><span>reconnexion…</span></div>
 
@@ -341,6 +341,8 @@
     </div>
     <div id="ticketsCard" class="stack" hidden>
       <h3 class="section-title">Tickets</h3>
+      <div id="ticketStats"></div>
+      <div id="ticketDraft" hidden></div>
       <div id="tickets"></div>
     </div>
     <h3 class="section-title">Derniers automates</h3>
@@ -366,6 +368,19 @@
       </button>
     </div>
     <div class="waiting" id="waiting"><div class="spinner"></div><span id="waitingText">Holo regarde l'écran…</span></div>
+    <button id="linkupOpen" type="button" hidden>Rechercher une réponse</button>
+    <div class="card stack" id="linkupCard" hidden>
+      <h3>Réponse proposée</h3>
+      <label>Question à rechercher <textarea id="linkupQuery" maxlength="1000"></textarea></label>
+      <button id="linkupSearch" type="button">Rechercher</button>
+      <p id="linkupMessage" role="status"></p>
+      <div id="linkupReview" hidden>
+        <label>Réponse proposée, modifiable <textarea id="linkupText" rows="8" maxlength="8000"></textarea></label>
+        <ul id="linkupSources"></ul>
+        <button class="capsule" id="linkupApprove" type="button">Valider</button>
+      </div>
+      <button id="linkupRefuse" type="button">Refuser</button>
+    </div>
     <div id="plan" hidden>
       <div class="planhead"><h3 class="section-title">Plan proposé par Holo</h3><span class="count" id="planCount"></span></div>
       <ol class="steps" id="planSteps"></ol>
@@ -495,6 +510,7 @@
 <div id="toast" role="alert"></div>
 
 <script src="/tickets.js"></script>
+<script src="/ticket_stats.js"></script>
 <script>
 const token = location.pathname.split('/').filter(Boolean).pop();
 const $ = id => document.getElementById(id);
@@ -520,46 +536,57 @@ let myName = '';
 try { myName = localStorage.getItem('papai_name') || ''; } catch (e) {}
 if (myName) { $('meName').textContent = myName; $('me').textContent = myName[0].toUpperCase(); }
 
-/* ------------------------------------------------- mes utilisateurs */
+/* ------------------------------------------------- postes de l'organisation */
 
-// Un support suit plusieurs personnes : chaque lien /a/<clé> déjà ouvert est
-// gardé dans ce navigateur, et un canal discret par personne dit qui demande
+// Le support entre par la page de son organisation (/o/<jeton support>) : tous les
+// postes inscrits y sont listés, sans liaison. Cette barre les reprend (liste du
+// serveur, relue toutes les 30 s) et un canal discret par poste dit lequel demande
 // une assistance, sans quitter la page en cours.
-const PEOPLE_KEY = 'papai_people';
 const herePath = location.pathname.replace(/\/+$/, '');
 const ASKING = ['waiting_consent', 'planning', 'awaiting_approval', 'awaiting_helper'];
-let people = [];
+const SAFE = /^[A-Za-z0-9_-]+$/;
+let orgToken = '';
 try {
-  people = JSON.parse(localStorage.getItem(PEOPLE_KEY) || '[]')
-    .filter(p => p && typeof p.path === 'string' && /^\/a\/[A-Za-z0-9_-]+$/.test(p.path));
-} catch (e) { people = []; }
+  const orgs = JSON.parse(localStorage.getItem('papai_orgs') || '[]');
+  if (Array.isArray(orgs) && typeof orgs[0] === 'string' && SAFE.test(orgs[0])) orgToken = orgs[0];
+} catch (e) {}
+let people = [];
 const watchers = {};
+let linkupVisible = false, linkupPending = false, linkupBusy = false, linkupId = '';
 
-function savePeople() {
-  try { localStorage.setItem(PEOPLE_KEY, JSON.stringify(people.slice(0, 200))); } catch (e) {}
+function renderLinkup() {
+  const approval = state === 'awaiting_approval';
+  $('linkupOpen').hidden = !approval || linkupVisible;
+  $('linkupCard').hidden = !approval || !linkupVisible;
+  $('plan').hidden = !approval || linkupVisible;
+  $('b-approval').hidden = !approval || linkupVisible;
+  $('linkupSearch').disabled = linkupBusy;
+  $('linkupRefuse').disabled = linkupBusy;
+  $('linkupRefuse').textContent = linkupPending ? 'Refuser' : 'Annuler';
+}
+
+function clearLinkup() {
+  linkupVisible = false; linkupPending = false; linkupBusy = false; linkupId = '';
+  $('linkupQuery').value = ''; $('linkupText').value = '';
+  $('linkupSources').replaceChildren(); $('linkupReview').hidden = true;
+  $('linkupMessage').textContent = '';
 }
 
 function rememberHere() {
-  if (!permanent || !/^\/a\/[A-Za-z0-9_-]+$/.test(herePath)) return;
-  const i = people.findIndex(p => p.path === herePath);
-  const name = seniorName || (i >= 0 ? people[i].name : '');
-  if (i >= 0) people[i].name = name; else people.push({ path: herePath, name });
-  savePeople();
-  watchPeople();
-}
-
-function forgetPerson(path) {
-  people = people.filter(p => p.path !== path);
-  savePeople();
-  const w = watchers[path];
-  if (w) { w.closed = true; if (w.ws) w.ws.close(); delete watchers[path]; }
+  const p = people.find(x => x.path === herePath);
+  if (p && seniorName) p.name = seniorName;
   renderPeople();
 }
 
 function watchPeople() {
+  for (const path of Object.keys(watchers)) {
+    if (people.some(p => p.path === path)) continue;
+    const w = watchers[path];
+    w.closed = true; if (w.ws) w.ws.close(); delete watchers[path];
+  }
   for (const p of people) {
     if (p.path === herePath || watchers[p.path]) continue;
-    const w = watchers[p.path] = { online: false, asking: false, closed: false, ws: null, wait: 2000 };
+    const w = watchers[p.path] = { online: p.online, asking: false, closed: false, ws: null, wait: 2000 };
     const open = () => {
       if (w.closed) return;
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -570,21 +597,20 @@ function watchPeople() {
         if (m.type === 'refused') { w.closed = true; ws.close(); }
         else if (m.type === 'hello') {
           w.online = !!m.bridge; w.asking = !!m.tickets_waiting;
-          if (m.senior && m.senior !== p.name) { p.name = m.senior; savePeople(); }
+          if (m.senior) p.name = m.senior;
         }
-        else if (m.type === 'senior' && m.name) { p.name = m.name; savePeople(); }
+        else if (m.type === 'senior' && m.name) { p.name = m.name; }
         else if (m.type === 'status') {
           const was = w.asking;
           w.asking = ASKING.includes(m.state);
           if (w.asking && !was) {
-            toast(`${p.name || 'Un utilisateur'} demande une assistance.`);
+            toast(`${p.name || 'Un poste'} demande une assistance.`);
             if (navigator.vibrate) navigator.vibrate(200);
           }
         }
         else if (m.type === 'alert_cleared') { w.asking = false; }
-        else if (m.type === 'helper_added') { toast(`${m.name} est maintenant support.`); }
-        else if (m.type === 'ticket_due') { w.asking = true; toast(`${p.name || 'Un utilisateur'} : rendez-vous`); }
-        else if (m.type === 'alert') { w.asking = true; toast(`${p.name || 'Un utilisateur'} : ${m.title || 'alerte'}`); }
+        else if (m.type === 'ticket_due') { w.asking = true; toast(`${p.name || 'Un poste'} : rendez-vous`); }
+        else if (m.type === 'alert') { w.asking = true; toast(`${p.name || 'Un poste'} : ${m.title || 'alerte'}`); }
         renderPeople();
       };
       ws.onclose = () => {
@@ -597,29 +623,26 @@ function watchPeople() {
   renderPeople();
 }
 
-// Organisations suivies (page /o/<jeton>) : les postes inscrits depuis la
-// dernière visite rejoignent la liste.
-async function refreshOrgs() {
-  let orgs = [];
-  try { orgs = JSON.parse(localStorage.getItem('papai_orgs') || '[]'); } catch (e) {}
-  for (const t of Array.isArray(orgs) ? orgs : []) {
-    try {
-      const r = await fetch(`/o/${encodeURIComponent(t)}/spaces`);
-      if (!r.ok) continue;
-      for (const s of (await r.json()).spaces || []) {
+// La liste du serveur fait foi : un poste retiré de l'organisation disparaît.
+async function refreshOrg() {
+  if (!permanent || !orgToken) { renderPeople(); return; }
+  try {
+    const r = await fetch(`/o/${encodeURIComponent(orgToken)}/spaces`);
+    if (r.ok) {
+      const old = Object.fromEntries(people.map(p => [p.path, p]));
+      people = ((await r.json()).spaces || []).filter(s => SAFE.test(s.key || '')).slice(0, 500).map(s => {
         const path = `/a/${s.key}`;
-        if (!people.some(p => p.path === path)) people.push({ path, name: s.name || '' });
-      }
-    } catch (e) {}
-  }
-  savePeople();
+        return { path, name: s.name || (old[path] && old[path].name) || '', label: s.label || '', online: !!s.online };
+      });
+    }
+  } catch (e) {}
   watchPeople();
 }
 
 function renderPeople() {
   const nav = $('people');
-  nav.hidden = !permanent;
-  if (!permanent) return;
+  nav.hidden = !permanent || !people.length;
+  if (nav.hidden) return;
   nav.replaceChildren();
   const others = people.filter(p => p.path !== herePath);
   const asking = others.filter(p => watchers[p.path] && watchers[p.path].asking).length;
@@ -630,30 +653,27 @@ function renderPeople() {
     const el = document.createElement(here ? 'span' : 'a');
     el.className = 'person' + (here ? ' here' : '') + (w && w.asking ? ' asking' : '');
     if (!here) el.href = p.path;
-    const name = p.name || 'Utilisateur';
+    const name = p.name || p.label || 'Poste';
     const av = document.createElement('span');
     av.className = 'avatar'; av.textContent = name[0].toUpperCase();
     const label = document.createElement('span');
-    label.textContent = name;
+    // « Christine · Comptabilité » : prénom de l'employé, puis le nom du poste s'il dit autre chose.
+    label.textContent = p.name && p.label && p.label !== p.name ? `${p.name} · ${p.label}` : name;
     el.append(av, label);
     if (!here) {
       const dot = document.createElement('span');
       dot.className = 'dot' + (w && w.online ? ' on' : '');
-      dot.title = w && w.online ? 'Ordinateur connecté' : 'Ordinateur hors ligne';
+      dot.title = w && w.online ? 'Poste en ligne' : 'Poste hors ligne';
       el.append(dot);
       if (w && w.asking) {
         const s = document.createElement('small'); s.textContent = 'demande une assistance'; el.append(s);
       }
-      el.oncontextmenu = e => {
-        e.preventDefault();
-        if (confirm(`Retirer ${name} de vos utilisateurs dans ce navigateur ?`)) forgetPerson(p.path);
-      };
     }
     nav.append(el);
   }
-  const add = document.createElement('a');
-  add.className = 'person add'; add.href = '/p'; add.textContent = '+ Ajouter une personne';
-  nav.append(add);
+  const all = document.createElement('a');
+  all.className = 'person add'; all.href = `/o/${encodeURIComponent(orgToken)}`; all.textContent = 'Tous les postes';
+  nav.append(all);
 }
 
 /* ------------------------------------------------------------- connexion */
@@ -661,12 +681,13 @@ function renderPeople() {
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}/ws/${permanent ? 'aidant' : 'helper'}/${token}`);
-  ws.onopen = () => { reconnectIn = 1000; connected = true; $('lost').hidden = true; };
+  ws.onopen = () => { reconnectIn = 1000; connected = true; linkupBusy = false; renderLinkup(); $('lost').hidden = true; };
   ws.onmessage = onMessage;
   // Un téléphone passe en veille, change de réseau, perd la 4G dans un couloir.
   // Sans reprise automatique, la page meurt silencieusement.
   ws.onclose = () => {
     connected = false;
+    linkupBusy = false; renderLinkup();
     $('lost').hidden = false;
     setTimeout(connect, reconnectIn);
     reconnectIn = Math.min(reconnectIn * 2, 8000);
@@ -692,7 +713,7 @@ function isOpen() { return ws && ws.readyState === WebSocket.OPEN; }
 function send(o) {
   if (isOpen()) {
     if (o.type !== 'helper_hello') $('sensitiveRefusal').hidden = true;
-    ws.send(JSON.stringify(o)); return true;
+    try { ws.send(JSON.stringify(o)); return true; } catch (e) { /* connexion coupée pendant l'envoi */ }
   }
   toast('Pas de connexion au serveur.');
   return false;
@@ -745,6 +766,7 @@ function render() {
   $('waiting').hidden = s === 'approval';
   $('waitingText').textContent = s === 'waiting' ? "En attente de l'autorisation de l’utilisateur" : "Holo regarde l'écran…";
   $('plan').hidden = s !== 'approval';
+  renderLinkup();
   $('thumb').hidden = !(s === 'approval' && frameSrc);
   tickSince();
 
@@ -805,6 +827,36 @@ async function loadTickets() {
       else if (action === 'take') toast("Proposition envoyée : la personne doit l'accepter sur son ordinateur.");
       loadTickets();
     });
+    loadTicketStats();
+  } catch (e) {}
+}
+
+// Statistiques par catégorie de la personne suivie, avec la suggestion d'automate.
+let ticketFocus = null;
+async function loadTicketStats() {
+  if (!window.PapaiStats) return;
+  try {
+    const r = await fetch(`/k/${encodeURIComponent(token)}/tickets/stats`);
+    if (!r.ok) return;
+    const st = await r.json();
+    const draw = () => PapaiStats.render($('ticketStats'), st, {
+      focus: ticketFocus,
+      onCategory: id => { ticketFocus = id; draw(); },
+      onExample: ex => {
+        const c = document.getElementById('tk-' + ex.id);
+        if (!c) { toast(`T-${String(ex.number).padStart(4, '0')} : « ${ex.task} »`); return; }
+        c.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        c.classList.add('tk-focus'); setTimeout(() => c.classList.remove('tk-focus'), 2500);
+      },
+      onSuggest: sug => PapaiStats.draftForm($('ticketDraft'), sug.draft, myName || 'Support', async pack => {
+        const x = await fetch(`/k/${encodeURIComponent(token)}/automations`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pack) });
+        const d = await x.json().catch(() => ({}));
+        if (x.ok) { toast(`« ${d.title || pack.title} » est disponible sur l'ordinateur.`); loadLessons(); }
+        return { ok: x.ok, error: d.error };
+      }),
+    });
+    draw();
   } catch (e) {}
 }
 
@@ -951,6 +1003,7 @@ function onMessage(ev) {
     if (m.task !== undefined) task = m.task || '';
     const nouvelle = m.session !== sessionId;
     if (nouvelle) {
+      clearLinkup();
       wasWebLive = false;
       sessionId = m.session; requestAt = Date.now();
     }
@@ -1030,7 +1083,6 @@ function onMessage(ev) {
 
   else if (m.type === 'question') { showQuestion(m); render(); }
 
-  else if (m.type === 'helper_added') { toast(`${m.name} est maintenant support.`); }
   else if (m.type === 'tickets_changed') { loadTickets(); }
 
   else if (m.type === 'ticket_due') {
@@ -1101,7 +1153,29 @@ function onMessage(ev) {
   else if (m.type === 'remote_refused') toast('L’utilisateur a refusé l’assistance pour le moment.');
   else if (m.type === 'remote_accepted') toast('L’utilisateur a accepté. Holo prépare un plan.');
 
-  else if (m.type === 'answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
+  else if (m.type === 'linkup_proposed' && m.session === sessionId) {
+    linkupVisible = true; linkupPending = true; linkupId = '';
+    $('linkupQuery').value = m.query || task;
+    $('linkupReview').hidden = true;
+    renderLinkup();
+  }
+  else if (m.type === 'linkup_result' && m.session === sessionId) {
+    linkupVisible = true; linkupBusy = false; linkupId = m.id || '';
+    $('linkupMessage').textContent = m.error === 'personal_data'
+      ? 'Retirez le mail, le numéro ou l’adresse de la question, puis relancez la recherche'
+      : m.error ? 'Recherche indisponible pour le moment' : '';
+    $('linkupText').value = m.summary || '';
+    $('linkupSources').replaceChildren();
+    for (const source of m.sources || []) {
+      if (!/^https?:\/\//.test(source.url || '')) continue;
+      const item = document.createElement('li'), a = document.createElement('a');
+      a.textContent = source.name || source.url; a.href = source.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      item.append(a); $('linkupSources').append(item);
+    }
+    $('linkupReview').hidden = !!m.error || !linkupId;
+    renderLinkup();
+  }
+  else if (m.type === 'answer' || m.type === 'linkup_answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
 
   else if (m.type === 'refused') {
     if (m.blocked === 'sensitive') {
@@ -1196,6 +1270,25 @@ function decide(o) {
 }
 
 $('planApprove').onclick = () => decide({ type: 'approve_plan' });
+$('linkupOpen').onclick = () => {
+  clearLinkup(); linkupVisible = true; $('linkupQuery').value = task; renderLinkup();
+};
+$('linkupSearch').onclick = () => {
+  const query = $('linkupQuery').value.trim();
+  if (!query || linkupBusy) return;
+  if (send({ type: 'linkup_search', session: sessionId, query })) {
+    linkupBusy = true; linkupId = ''; $('linkupReview').hidden = true;
+    $('linkupMessage').textContent = 'Recherche en cours…'; renderLinkup();
+  }
+};
+$('linkupApprove').onclick = () => {
+  const text = $('linkupText').value.trim();
+  if (linkupId && text) send({ type: 'linkup_approve', session: sessionId, id: linkupId, approved: true, text });
+};
+$('linkupRefuse').onclick = () => {
+  if (linkupPending) send({ type: 'linkup_approve', session: sessionId, approved: false });
+  else { clearLinkup(); renderLinkup(); }
+};
 $('planRefine').onclick = () => { $('refineSheet').hidden = false; $('refineText').focus(); };
 $('planRefuse').onclick = () => { $('refuseSheet').hidden = false; };
 $('refineText').addEventListener('input', () => $('refineSend').disabled = !$('refineText').value.trim());
@@ -1267,7 +1360,8 @@ $('remoteSend').onclick = () => {
 
 render();
 renderPeople();
-refreshOrgs();
+refreshOrg();
+setInterval(refreshOrg, 30000);
 watchPeople();
 connect();
 </script>
