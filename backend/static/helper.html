@@ -333,6 +333,10 @@
     <div class="draft" id="draft" hidden>
       <h3>Brouillon de l'automatisme</h3>
       <input type="text" id="lessonTitle" placeholder="Titre" aria-label="Titre de l'automatisme">
+      <div id="draftTarget" class="card" hidden>
+        <p id="draftTargetLabel"></p>
+        <label><input type="checkbox" id="noShortcut"> Ne pas ouvrir de dossier avec ce tutoriel</label>
+      </div>
       <div id="steps"></div>
       <button class="capsule" id="approve" type="button">Valider</button>
     </div>
@@ -800,6 +804,14 @@ function onMessage(ev) {
   else if (m.type === 'lesson_draft') {
     lessonBusy = false; hasDraft = true;
     $('lessonTitle').value = m.lesson.title || '';
+    const shortcut = m.lesson.shortcut;
+    const folderNames = {downloads:'Téléchargements', pictures:'Images', documents:'Documents',
+      desktop:'Bureau', videos:'Vidéos', music:'Musique'};
+    const root = shortcut && folderNames[String(shortcut.folder || '').toLowerCase()];
+    $('draftTarget').hidden = !root;
+    $('noShortcut').checked = false;
+    const sub = shortcut && String(shortcut.subfolder || '').trim();
+    $('draftTargetLabel').textContent = root ? 'Ouvrira : ' + root + (sub ? ' › ' + sub : '') : '';
     $('steps').innerHTML = '';
     (m.lesson.steps || []).forEach((s, i) => {
       const d = document.createElement('div');
@@ -917,7 +929,9 @@ $('confirm').onclick = () => {
 $('makeLesson').onclick = () => { if (send({ type: 'draft_lesson' })) { lessonBusy = true; render(); } };
 $('approve').onclick = () => {
   const steps = [...$('steps').querySelectorAll('textarea')].map(t => ({ instruction: t.value.trim() }));
-  send({ type: 'approve_lesson', lesson: { title: $('lessonTitle').value.trim(), steps } });
+  const lesson = { title: $('lessonTitle').value.trim(), steps };
+  if (!$('draftTarget').hidden && $('noShortcut').checked) lesson.shortcut = null;
+  send({ type: 'approve_lesson', lesson });
 };
 
 $('remoteSend').onclick = () => {
