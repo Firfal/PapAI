@@ -69,7 +69,8 @@ async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> l
     messages = [
         {"role": "system", "content": PLAN_PROMPT.format(os="Mac" if bridge.os == "macos" else "Windows")},
         {"role": "user", "content": f"Demande de la personne : « {session.task} »"
-            + (f"\nPrécision de son support : {note}" if note else "")},
+            + (f"\nPrécision de son support : {note}" if note else "")
+            + (f"\nCette demande avait déjà été réglée, le problème est revenu. {session.reprise}" if session.reprise else "")},
     ]
     if linkup.enabled():
         messages[0]["content"] += (

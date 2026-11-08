@@ -19,6 +19,9 @@ async function home(microPresent = true) {
     addEventListener: (name, fn) => { listeners[name] = fn; } };
   const window = { pywebview: { api: {
     ready: async () => state,
+    open_requests: () => { calls.push(['open_requests']); },
+    close_requests: () => { calls.push(['close_requests']); },
+    relaunch_request: id => { assert.equal(sheet.innerHTML, ''); calls.push(['relaunch_request', id]); },
     request_consent: task => { sent.push(task); },
     dictation_toggle: () => {},
     open_home_shortcut: id => { shortcuts.push(id); },
@@ -55,6 +58,45 @@ test('réponse documentaire et sources restent du texte brut', async () => {
   h.update({ answerSources: [] });
   assert.doesNotMatch(html(h), /https:\/\/example.org/);
 });
+
+test('Mes demandes : feuille lecture seule, états et relance seulement si automate présent', async () => {
+  const h = await home();
+  assert.match(h.root.innerHTML, /data-act="openRequests"[\s\S]*Mes demandes/);
+  h.click('openRequests');
+  assert.deepEqual(h.calls.at(-1), ['open_requests']);
+  assert.match(htmlSheet(h), /Aucune demande pour l'instant\./);
+  h.update({ requestsLoading: true });
+  assert.match(htmlSheet(h), /Chargement…/);
+  h.update({ requestsLoading: false, requestsError: true });
+  assert.match(htmlSheet(h), /Liste indisponible pour l'instant\./);
+  const requests = [
+    { id: 'r1', created: 1794132000, task: '<img src=x>', status: 'resolu', relaunch: 'a',
+      solution: { kind: 'automate', title: '<Titre>', lesson: 'a' } },
+    { id: 'r2', status: 'en_cours', solution: { kind: 'plan', steps: ['<Étape>'] } },
+    { id: 'r3', status: 'rdv', solution: { kind: 'answer', text: '<Réponse>', sources: [{ title: '<Source>', url: 'https://example.org' }] } },
+    ...['nouveau', 'en_attente', 'a_reprendre'].map((status, i) => ({ id: 'w' + i, status })),
+  ];
+  h.update({ requestsLoading: false, requestsError: false, requests, lessons: [] });
+  assert.doesNotMatch(h.sheet.innerHTML, /data-act="relaunchRequest"|<img|<a |<input|<textarea/);
+  h.click('relaunchRequest', 'r1');
+  assert.deepEqual(h.calls.at(-1), ['open_requests']);
+  for (const text of ['Réglée', 'En cours', 'Rendez-vous prévu', 'En attente', 'Interrompue',
+    'novembre 2026', "Réglée par l'automate", 'Plan exécuté', 'Réponse validée par le support', 'https://example.org']) {
+    assert.ok(htmlSheet(h).includes(text), text);
+  }
+  assert.match(h.sheet.innerHTML, /&lt;Étape&gt;|&lt;Réponse&gt;/);
+  h.update({ lessons: [{ id: 'a' }] });
+  assert.match(h.sheet.innerHTML, /data-act="relaunchRequest"[\s\S]*data-arg="r1"/);
+  h.click('relaunchRequest', 'r1');
+  assert.deepEqual(h.calls.slice(-2), [['close_requests'], ['relaunch_request', 'r1']]);
+  assert.equal(h.sheet.innerHTML, '');
+  h.click('openRequests');
+  h.key({ key: 'Escape', target: {}, preventDefault() {} });
+  assert.equal(h.sheet.innerHTML, '');
+  assert.deepEqual(h.calls.at(-1), ['close_requests']);
+});
+
+const htmlSheet = h => h.sheet.innerHTML.replace(/&#39;/g, "'");
 
 test("accueil direct : « Bonjour <nom Windows> », sans étapes d'accueil ni liaison", async () => {
   const h = await home();
