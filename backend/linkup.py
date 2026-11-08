@@ -21,12 +21,19 @@ _VOIE = (r"(?i:rue|avenue|av|boulevard|bd|blvd|chemin|allée|allee|impasse|quai|
 _VOIE_AMBIGUE = (r"(?i:passage|cours|square|villa|cité|cite|voie|traverse|montée)"
                  r"\s+(?:(?i:de|du|des|la|le|les)\s+){0,2}(?:(?i:d|l)['’])?[A-ZÀ-Ý]")
 _PERSONAL = re.compile(
-    r"(?i:\S+@\S+\.\S+|\bFR\d{2})|(?<!\w)\d(?:[\s./-]?\d){5,}"
+    r"(?i:\S+@\S+\.\S+|\bFR\d{2})"
     rf"|{_NUM}{_VOIE}|{_NUM}{_VOIE_AMBIGUE}")
+_NUMBER = re.compile(r"(?<!\w)\d(?:[\s./-]?\d){5,}")
+_PHONE = re.compile(r"(?<!\w)(?:0[1-9](?:[\s./-]?\d){8}|(?:\+|00)33[\s./-]?[1-9](?:[\s./-]?\d){8})(?!\d)")
+_VERSION = re.compile(
+    r"(?<![\w.])\d+(?:\.\d+)+(?![\w.])"
+    r"|\b(?i:version|windows|macos|ios|android|python|chrome|firefox|office|ubuntu|debian)\s+v?\d+\b")
 
 
 def personal(query: str) -> bool:
-    return bool(_PERSONAL.search(query))
+    if _PERSONAL.search(query) or _PHONE.search(query):
+        return True
+    return bool(_NUMBER.search(_VERSION.sub(" ", query)))
 
 
 def enabled() -> bool:

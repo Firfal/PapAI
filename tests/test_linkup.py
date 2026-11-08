@@ -56,7 +56,9 @@ class Client(unittest.IsolatedAsyncioTestCase):
                       "3 bis, avenue Foch", "8 av Foch", "8 passage des Lilas", "4 résidence les Pins",
                       "4 place de la Mairie", "5 place du marché", "12 rue de la paix",
                       "7 route du moulin", "2 allée des fleurs", "9 boulevard victor hugo",
-                      "4 impasse des roses", "8 chemin du lac", "6 quai des pêcheurs"]:
+                      "4 impasse des roses", "8 chemin du lac", "6 quai des pêcheurs",
+                      "+33 6 12 34 56 78", "06.12.34.56.78", "0033 6 12 34 56 78",
+                      "Windows 10.0.19045, téléphone 06 12 34 56 78", "version 0612345678"]:
                 with self.subTest(q=q):
                     self.assertEqual(await linkup.search(q), {"error": "personal_data"})
             client.assert_not_called()
@@ -64,7 +66,8 @@ class Client(unittest.IsolatedAsyncioTestCase):
     def test_general_questions_allowed(self):
         for q in ["Quels sont les 3 cours gratuits pour apprendre Python ?", "Réserver 2 places de cinéma en ligne",
                   "Les 5 routes les plus belles de France", "Imprimante HP 2710 hors ligne",
-                  "Erreur 0x80070005 Windows Update"]:
+                  "Erreur 0x80070005 Windows Update", "Windows 10.0.19045", "macOS 14.5",
+                  "Logiciel 1.2.345678", "version 190450", "Firefox 123456"]:
             with self.subTest(q=q):
                 self.assertFalse(linkup.personal(q))
 
