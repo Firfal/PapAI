@@ -9,19 +9,29 @@
 
   const css = document.createElement('style');
   css.textContent = `
-    .tk { background: var(--card, #fff); border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
-    .tk + .tk { margin-top: 10px; }
-    .tk-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
-    .tk-num { font-weight: 700; } .tk-task { font-weight: 600; }
-    .tk-st { font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 999px; background: var(--bg, #EEF0EE); }
-    .tk-st.en_attente, .tk-st.a_reprendre, .tk-st.nouveau { background: #FCE8E6; color: #B3261E; }
-    .tk-st.rdv { background: #FFF4D6; color: #7A5B00; } .tk-st.en_cours { background: var(--mint, #E2F2E7); color: var(--accent, #2E9E5B); }
-    .tk-meta { font-size: 14px; color: var(--muted, #7A807C); }
-    .tk-notes { font-size: 14px; margin: 0; padding-left: 18px; }
-    .tk-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
-    .tk-acts button { font: inherit; font-size: 14px; font-weight: 600; border: 0; border-radius: 999px; padding: 7px 14px;
-                      cursor: pointer; background: var(--mint, #E2F2E7); color: var(--accent, #2E9E5B); width: auto; min-height: 0; }
-    .tk-acts input { font: inherit; font-size: 14px; border-radius: 10px; border: 1px solid #ccc; padding: 5px 8px; }`;
+    .tk { background: var(--card, #fff); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px;
+          box-shadow: var(--shadow, 0 1px 2px rgba(25,45,110,.05), 0 8px 24px rgba(30,60,150,.07)); }
+    .tk + .tk { margin-top: 12px; }
+    .tk-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .tk-num { font-weight: 600; font-size: 14px; color: var(--muted, #5B6478); font-variant-numeric: tabular-nums; }
+    .tk-task { font-weight: 600; flex-basis: 100%; font-size: 17px; }
+    .tk-st { font-size: 13px; font-weight: 600; padding: 3px 9px; border-radius: 7px; background: #EEF0F5; color: #4A5263; }
+    .tk-st.nouveau { background: #E6EEFF; color: #1F4FD1; }
+    .tk-st.en_attente, .tk-st.a_reprendre { background: #FFF0DE; color: #9A4A00; }
+    .tk-st.rdv { background: #F1EBFF; color: #6236C9; }
+    .tk-st.en_cours { background: #E6EEFF; color: #1F4FD1; box-shadow: inset 0 0 0 1px rgba(31,79,209,.25); }
+    .tk-st.resolu { background: #E5F5EC; color: #1B7A43; }
+    .tk-meta { font-size: 14px; color: var(--muted, #5B6478); }
+    .tk-notes { font-size: 14px; margin: 0; padding: 8px 12px 8px 28px; border-radius: 12px; background: var(--field, #F1F3F9); }
+    .tk-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; padding-top: 12px;
+               border-top: 1px solid var(--line, rgba(20,40,100,.08)); }
+    .tk-acts button { font: inherit; font-size: 14px; font-weight: 600; border: 0; border-radius: 999px; padding: 0 16px;
+                      cursor: pointer; background: var(--sky, #EAF0FF); color: var(--accent, #1F5AE8); width: auto; min-height: 44px; }
+    /* Tickets ouverts : « Prendre » est l'action principale. */
+    .tk:has(.tk-st.nouveau, .tk-st.en_attente, .tk-st.rdv, .tk-st.a_reprendre) .tk-acts button:first-child { background: linear-gradient(180deg, #2B6BFF 0%, #1A52E0 100%); color: #fff;
+                                  box-shadow: 0 4px 12px rgba(31,90,232,.25); }
+    .tk-acts input { font: inherit; font-size: 15px; min-height: 44px; border-radius: 12px; border: 0; padding: 0 12px;
+                     background: var(--field, #F1F3F9); color: var(--ink, #141A2E); box-shadow: inset 0 0 0 1px var(--line, rgba(20,40,100,.08)); }`;
   document.head.appendChild(css);
 
   const when = s => new Date(s * 1000).toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });

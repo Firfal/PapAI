@@ -3,32 +3,45 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#EEF0EE">
+<meta name="theme-color" content="#2B6BFF">
 <title>PapAI · Organisation</title>
 <style>
-  /* Direction « Soin », comme helper.html. */
-  :root { --bg: #EEF0EE; --card: #FFFFFF; --ink: #111312; --muted: #7A807C; --accent: #2E9E5B; --mint: #E2F2E7; }
+  /* Direction « Ciel », comme helper.html. */
+  :root { --bg:#F3F5FD; --card:#fff; --ink:#141A2E; --muted:#5B6478; --line:rgba(20,40,100,.08);
+          --accent:#1F5AE8; --sky:#EAF0FF; --field:#F1F3F9; --mint:var(--sky); --err:#B3261E;
+          --grad: linear-gradient(180deg, #2B6BFF 0%, #1A52E0 100%);
+          --shadow: 0 1px 2px rgba(25,45,110,.05), 0 8px 24px rgba(30,60,150,.07);
+          --shadow-blue: 0 6px 16px rgba(31,90,232,.28); }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  html { background: var(--bg); }
-  body { margin: 0 auto; max-width: 640px; min-height: 100vh; color: var(--ink); padding: 24px 20px 80px;
-         font: 17px/1.4 ui-rounded, "SF Pro Rounded", -apple-system, system-ui, "Segoe UI", sans-serif; }
-  h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 28px 0 10px; }
+  html { min-height: 100%; background: #F3F5FD linear-gradient(180deg, #EDF2FF 0%, #F3F5FD 45%, #F4F1FD 100%) fixed; }
+  :focus-visible { outline: 3px solid rgba(43,107,255,.45); outline-offset: 2px; }
+  body { margin: 0 auto; max-width: 640px; min-height: 100vh; color: var(--ink); padding: 0 20px 80px; background: transparent;
+         font: 17px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  /* Bandeau bleu en dégradé : titre blanc. */
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: -.02em; margin: 0 -20px 16px; color: #fff;
+        padding: calc(24px + env(safe-area-inset-top)) 20px 22px; border-radius: 0 0 24px 24px;
+        background: linear-gradient(180deg, #2B6BFF 0%, #1F5AE8 100%); box-shadow: 0 14px 28px -12px rgba(31,90,232,.45); }
+  h2 { font-size: 19px; font-weight: 600; margin: 32px 0 12px; }
   p { margin: 0; } .muted { color: var(--muted); }
-  .card { background: var(--card); border-radius: 22px; padding: 6px 0; }
-  .row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; }
-  .row + .row { border-top: 1px solid var(--bg); }
+  .card { background: var(--card); border-radius: 20px; padding: 4px 0; box-shadow: var(--shadow); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; min-height: 64px; }
+  .row + .row { border-top: 1px solid var(--line); }
   .avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; display: flex; align-items: center;
-            justify-content: center; font-weight: 700; color: var(--accent); background: var(--mint); }
-  .grow { flex: 1; min-width: 0; } .grow small { display: block; color: var(--muted); font-size: 14px; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
-  .dot.on { background: var(--accent); }
-  a.btn, button { font: inherit; font-size: 15px; font-weight: 600; border: 0; border-radius: 999px; padding: 9px 16px;
-                  cursor: pointer; text-decoration: none; background: var(--ink); color: #fff; }
-  button.light { background: var(--mint); color: var(--accent); }
+            justify-content: center; font-weight: 600; color: var(--accent); background: var(--sky); }
+  .grow { flex: 1; min-width: 0; font-weight: 600; } .grow small { display: block; color: var(--muted); font-size: 14px; font-weight: 400; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #AEB6C8; flex: none; }
+  .dot.on { background: #22A565; box-shadow: 0 0 0 3px #E5F5EC; }
+  a.btn, button { font: inherit; font-size: 15px; font-weight: 600; border: 0; border-radius: 999px; padding: 0 18px;
+                  min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+                  cursor: pointer; text-decoration: none; background: var(--grad); color: #fff; box-shadow: var(--shadow-blue); }
+  button.light { background: var(--card); color: var(--accent); box-shadow: inset 0 0 0 1.5px rgba(31,90,232,.22); }
+  .card button.light { background: var(--sky); box-shadow: none; }
+  select { appearance: none; -webkit-appearance: none; min-height: 44px; padding: 0 40px 0 16px !important;
+           background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23141A2E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center / 16px; color: var(--ink); box-shadow: var(--shadow); }
   .empty { padding: 18px; color: var(--muted); }
   #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: #fff;
-           padding: 10px 18px; border-radius: 999px; font-size: 15px; }
+           padding: 12px 18px; border-radius: 999px; font-size: 15px; font-weight: 600; box-shadow: 0 10px 30px rgba(20,26,46,.25); }
 </style>
 </head>
 <body>
