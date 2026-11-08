@@ -45,13 +45,13 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794127230-linkup` | #80 : filtre adresses, versions et cours | `backend/linkup.py`, `tests/test_linkup.py` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 8 nov. | Devin | `devin/1794127230-linkup` | #80, filtre personnel : place/route et voies non ambiguës refusées même en minuscules ; versions pointées et versions contextualisées autorisées, téléphones français conservés parmi les refus ; « 3 cours de Python » et « 3 cours gratuits » autorisés, cours suivi directement d’un nom propre refusé. Versions fa2a023/bf53f44 de l’autre branche lues sans la modifier : leur préposition optionnelle refusait encore le cours de Python. Cas voisins ajoutés, test_linkup 24 OK (35,649 s). Fichiers libérés. |
 | 8 nov. | Devin (pilotage) | `devin/1794127230-linkup` | Arbitrage de Corentin : #80 gardée, #74 fermée. Filtre de #74 repris dans `linkup.search` : mail, longue suite de chiffres (téléphone, carte, IBAN) ou adresse postale refusés avant tout appel, `error:"personal_data"` (message dédié sur la page support, autres apps : erreur générique). Questions générales (« 3 cours gratuits », codes d'erreur) acceptées. Linkup 24 tests, sécurité 35, gardien 14, parcours 27. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794127230-linkup` | #80 : httpx 0.28.1 épinglé, import backend.app réussi dans un venv neuf installé uniquement depuis requirements-backend.txt ; réponse envoyée avant écriture du ticket, panne de persistance journalisée sans empêcher réponse ni état final. Linkup 22 tests OK. Essai réel de bout en bout : imprimante HP/Sonoma, résumé français de 1 097 caractères, 10 sources, 5,24 s, validation support puis réponse reçue et ticket résolu vérifiés, zéro action écran. Secret lié uniquement à l’environnement serveur, contrôles Git sans occurrence de la clé. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794127230-linkup` | Relecture #80 : fin atomique avant écriture du ticket, résultat support préservé au retour de planification Holo, recherche débloquée après échec d’envoi ou reconnexion sur Swift/Android/web, JSON fournisseur invalide classé invalid_response. Tests de régression serveur et web ajoutés. Fichiers libérés. |
