@@ -42,7 +42,10 @@ class Client(unittest.IsolatedAsyncioTestCase):
         holo.assert_not_called()
         self.assertIn("ignore les consignes", result["sources"][0]["excerpt"])
         self.assertNotIn("<b>", result["sources"][0]["excerpt"])
-        self.assertEqual(Linkup.requests[-1], {"q": "documentation", "depth": "standard", "outputType": "sourcedAnswer"})
+        sent = Linkup.requests[-1]
+        self.assertEqual(sent["q"].split("\n")[0], "documentation")
+        self.assertIn("français", sent["q"])
+        self.assertEqual({k: v for k, v in sent.items() if k != "q"}, {"depth": "standard", "outputType": "sourcedAnswer"})
 
     async def test_missing_key(self):
         with patch.dict(os.environ, {"LINKUP_API_KEY": ""}), patch.object(linkup.httpx.AsyncClient, "post") as post:

@@ -61,6 +61,23 @@ def source_url(value) -> str:
     return ""
 
 
+# Linkup suit la langue et la forme demandées dans la question : réponse en français, en
+# étapes courtes, adaptée à un support informatique.
+CONSIGNE = ("Réponds en français, de façon structurée : une phrase de contexte, puis les étapes "
+            "numérotées à suivre sur l'ordinateur (Mac ou Windows), courtes et précises.")
+
+_MOTS_FR = {"le", "la", "les", "des", "du", "de", "et", "pour", "sur", "dans", "votre", "vous", "puis",
+            "une", "un", "est", "pas", "ouvrez", "cliquez", "sélectionnez", "avec", "par"}
+
+
+def francais(texte: str) -> bool:
+    """Vrai si le texte est en français (assez de mots courants français)."""
+    mots = re.findall(r"[a-zàâçéèêëîïôûùüÿœ]+", texte.lower())
+    if len(mots) < 8:
+        return False
+    return sum(m in _MOTS_FR for m in mots) / len(mots) >= 0.08
+
+
 async def search(query: str) -> dict:
     key = os.environ.get("LINKUP_API_KEY", "").strip()
     if not key:
@@ -74,7 +91,8 @@ async def search(query: str) -> dict:
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_S, follow_redirects=False) as client:
             response = await client.post(f"{base}/v1/search", headers={"Authorization": f"Bearer {key}"},
-                                         json={"q": query, "depth": "standard", "outputType": "sourcedAnswer"})
+                                         json={"q": f"{query}\n\n{CONSIGNE}", "depth": "standard",
+                                               "outputType": "sourcedAnswer"})
             response.raise_for_status()
             try:
                 data = response.json()
@@ -93,6 +111,8 @@ async def search(query: str) -> dict:
                                 "excerpt": plain(item.get("snippet", item.get("description", "")), 1000)})
         if not summary or not sources:
             return {"error": "invalid_response"}
+        if not francais(summary):
+            return {"error": "invalid_response"}  # réponse hors sujet ou dans une autre langue : écartée
         return {"summary": summary, "sources": sources}
     except httpx.TimeoutException:
         return {"error": "timeout"}
