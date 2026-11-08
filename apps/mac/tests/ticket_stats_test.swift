@@ -31,6 +31,11 @@ struct TicketStatsTest {
                         {"id": "imprimante", "count": 1, "month_people": 1, "examples": []}]}
         """, key: "k2")
         let m = TicketStats.merge([a, b], resolutions: ["": [600, 600, 7200], "wifi": [600, 600, 7200]])
+        var a2 = a, b2 = b
+        a2.categories[0].durations = [600, 600]; b2.categories[0].durations = [7200]
+        let md = TicketStats.merge([a2, b2])
+        precondition(md.categories[0].medianResolution == 600 && md.medianResolution == 600,
+                     "médiane fusionnée à partir des durées envoyées par le serveur")
         precondition(m.count == 7 && m.resolved == 3 && m.byAutomate == 1, "totaux additionnés")
         precondition(abs(m.automateShare - 1.0 / 3) < 1e-9, "part réglée par un automate")
         precondition(m.weeks.map(\.start) == ["2026-10-26", "2026-11-02"] && m.weeks[1].total == 6

@@ -34,6 +34,7 @@ struct TicketStats {
         var examples: [Example]
         var phrase: String
         var draft: [String: String]?
+        var durations: [Double] = []   // `resolution_s` du serveur, pour la médiane fusionnée
     }
     struct Week: Identifiable {
         var start: String
@@ -99,7 +100,8 @@ struct TicketStats {
             return Category(id: id, label: c["label"] as? String ?? TicketCategory.label(id), count: int(c["count"]),
                             resolved: int(c["resolved"]), byAutomate: int(c["by_automate"]),
                             monthPeople: int(c["month_people"]), medianResolution: dbl(c["median_resolution_s"]),
-                            examples: ex, phrase: c["phrase"] as? String ?? "", draft: draft)
+                            examples: ex, phrase: c["phrase"] as? String ?? "", draft: draft,
+                            durations: ((c["resolution_s"] as? [Any]) ?? []).compactMap { dbl($0) })
         }
         count = int(tot["count"]); resolved = int(tot["resolved"]); byAutomate = int(tot["by_automate"])
         medianResolution = dbl(tot["median_resolution_s"])
@@ -113,9 +115,17 @@ struct TicketStats {
 
     /// Additionne les statistiques de plusieurs utilisateurs. Une médiane ne
     /// s'additionne pas : avec plusieurs parts, elle est recalculée à partir des
-    /// durées de résolution (`resolutions[catégorie]`, toutes catégories sous "").
-    static func merge(_ parts: [TicketStats], resolutions: [String: [Double]] = [:]) -> TicketStats {
+    /// durées de résolution (`resolutions[catégorie]`, toutes catégories sous ""),
+    /// par défaut celles envoyées par le serveur pour chaque catégorie.
+    static func merge(_ parts: [TicketStats], resolutions given: [String: [Double]] = [:]) -> TicketStats {
         if parts.count == 1 { return parts[0] }
+        var resolutions = given
+        if resolutions.isEmpty {
+            for c in parts.flatMap(\.categories) where !c.durations.isEmpty {
+                resolutions[c.id, default: []] += c.durations
+                resolutions["", default: []] += c.durations
+            }
+        }
         var out = TicketStats(since: parts.map(\.since).filter { !$0.isEmpty }.min() ?? "")
         var weeks: [String: Week] = [:]
         var cats: [String: Category] = [:]
@@ -131,6 +141,7 @@ struct TicketStats {
                 guard var m = cats[c.id] else { cats[c.id] = c; continue }
                 m.count += c.count; m.resolved += c.resolved; m.byAutomate += c.byAutomate
                 m.monthPeople += c.monthPeople
+                m.durations += c.durations
                 m.examples = Array((m.examples + c.examples).sorted { $0.created > $1.created }.prefix(examplesMax))
                 if m.draft == nil { m.draft = c.draft }
                 if m.phrase.isEmpty { m.phrase = c.phrase }

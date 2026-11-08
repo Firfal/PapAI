@@ -245,20 +245,7 @@ struct SupportTickets: View {
         }
         tickets = all.sorted { $0.updated > $1.updated }
         errors = errs
-        stats = parts.isEmpty ? nil : TicketStats.merge(parts, resolutions: resolutions(all, since: parts.map(\.since).min() ?? ""))
-    }
-
-    /// Durées de résolution par catégorie (et toutes sous ""), pour la médiane de plusieurs utilisateurs.
-    private func resolutions(_ all: [SupportTicket], since: String) -> [String: [Double]] {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = TimeZone(identifier: "UTC")
-        let start = f.date(from: since)?.timeIntervalSince1970 ?? 0
-        var out: [String: [Double]] = [:]
-        for t in all where t.created >= start {
-            guard let r = t.resolved, r >= t.created else { continue }
-            out[t.category, default: []].append(r - t.created)
-            out["", default: []].append(r - t.created)
-        }
-        return out
+        stats = parts.isEmpty ? nil : TicketStats.merge(parts)
     }
 
     private func act(_ t: SupportTicket, _ action: String, _ extra: [String: String] = [:]) async {
