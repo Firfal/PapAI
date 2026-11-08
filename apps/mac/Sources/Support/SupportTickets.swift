@@ -50,6 +50,9 @@ struct SupportTickets: View {
                 ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 10) {
+                        if let stats {
+                            TicketWeekCard(week: stats.thisWeek, suggest: { suggestion = $0 })
+                        }
                         if let stats, stats.count > 0 {
                             TicketStatsPanel(stats: stats, focus: $focus,
                                              openExample: { ex in
@@ -201,6 +204,63 @@ struct SupportTickets: View {
     }
 }
 
+/// Carte « Cette semaine » en tête de l'accueil support : demandes reçues,
+/// réglées, part réglée par un automate, temps moyen, catégories en tête,
+/// automate le plus utile et suggestion d'automate. Rien n'est envoyé par mail.
+struct TicketWeekCard: View {
+    let week: TicketStats.WeekSummary
+    var suggest: (TicketStats.Suggestion) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Cette semaine").font(rounded(20, .bold))
+            if week.isEmpty {
+                Text("Aucune demande ces 7 derniers jours.").font(rounded(15)).foregroundStyle(T.muted)
+            } else {
+                HStack(spacing: 10) {
+                    kpi("\(week.count)", "demandes reçues")
+                    kpi("\(week.resolved)", "réglées")
+                    kpi("\(Int((week.automateShare * 100).rounded())) %", "réglées par un automate")
+                    kpi(TicketStatsPanel.duration(week.meanResolution), "temps moyen")
+                }
+                if !week.top.isEmpty {
+                    line("En tête", week.top.map { "\($0.label) (\($0.count))" }.joined(separator: ", "))
+                }
+                line("Automate le plus utile", week.automate.map {
+                    "« \($0.title) », \($0.count) demande\($0.count > 1 ? "s" : "") réglée\($0.count > 1 ? "s" : "")"
+                } ?? "aucun cette semaine")
+            }
+            if let s = week.suggestion {
+                HStack(spacing: 12) {
+                    Label(s.text, systemImage: "sparkles").font(rounded(16, .semibold))
+                    Spacer(minLength: 0)
+                    if SupportAutomates.creationActive {
+                        Button("Créer l’automate") { suggest(s) }.buttonStyle(PillStyle(height: 38))
+                    }
+                }
+                .padding(12).background(T.mint, in: RoundedRectangle(cornerRadius: 14))
+            }
+        }
+        .padding(16).frame(maxWidth: .infinity, alignment: .leading).carte()
+        .accessibilityElement(children: .contain)
+    }
+
+    private func kpi(_ v: String, _ l: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(v).font(rounded(22, .bold)).monospacedDigit()
+            Text(l).font(rounded(12)).foregroundStyle(T.muted).lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(T.line))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func line(_ title: String, _ value: String) -> some View {
+        (Text(title + " : ").font(rounded(15, .semibold)) + Text(value).font(rounded(15)))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 /// Statistiques en tête de l'onglet Tickets : chiffres clés, suggestion
 /// d'automate, tickets par semaine et catégories, avec des demandes réelles.
 struct TicketStatsPanel: View {
@@ -230,7 +290,7 @@ struct TicketStatsPanel: View {
                 kpi(Self.duration(stats.medianResolution), "temps de résolution (médian)")
                 kpi("\(Int((stats.automateShare * 100).rounded())) %", "réglés par un automate")
             }
-            ForEach(stats.suggestions) { s in
+            ForEach(stats.panelSuggestions) { s in
                 HStack(spacing: 12) {
                     Label(s.text, systemImage: "sparkles").font(rounded(16, .semibold))
                     Spacer(minLength: 0)
