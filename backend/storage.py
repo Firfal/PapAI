@@ -154,7 +154,16 @@ class FirestoreStore(Store):
             value["gcs"] = name
         else:
             value["data"] = data
-        doc.set(value)
+        new_blob = value.get("gcs") if (binary or oversized) and self.bucket is not None else None
+        try:
+            doc.set(value)
+        except Exception:
+            if new_blob is not None:
+                try:
+                    self.bucket.blob(new_blob).delete()
+                except Exception:
+                    pass
+            raise
         if old.get("gcs"):
             self.bucket.blob(old["gcs"]).delete()
 
