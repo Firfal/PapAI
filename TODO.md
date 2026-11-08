@@ -40,7 +40,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Session proposée à distance par le proche, que la personne aidée accepte ou refuse sur le Mac (`remote_request`).
 - [x] 3. Demande : gros bouton, dictée (celle de l'équipe, Gladia) ou clavier.
   - [x] Accueil Mac voix d'abord : grand micro, écriture discrète, détection du micro, tutoriels masqués si vides, logotype et taille du texte dans l'encart.
-  - [x] Mes raccourcis sur Mac : applications utilisées, dossiers et groupes de photos, nouveau message Mail, albums ajoutés à la main ; ajout/retrait local, dossiers validés et ouverts dans le Finder explicitement (#16). Retirés de l'accueil Mac le 8 nov. (simplification : barre de recherche, micro, AutoMates).
+  - [x] Mes raccourcis sur Mac : applications utilisées, dossiers et groupes de photos, nouveau message Mail, albums ajoutés à la main ; ajout/retrait local, dossiers validés et ouverts dans le Finder explicitement (#16). Retirés de l'accueil Mac le 8 nov. (simplification : barre de recherche, micro, automates).
 - [x] 4. Consentement : écran dédié « PapAI va regarder votre écran » à la place de la case à cocher.
 - [x] Accord de partage d'écran demandé une seule fois (Mac et Windows), gardé ensuite ; « Retirer l'accord de partage » dans Réglages.
 - [x] 5. Holo explique chaque action en phrase simple, avec l'historique et le plan validé.
