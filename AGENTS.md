@@ -17,7 +17,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | 8 nov. | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces (`backend/space.py`) : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), Windows et Mac créent leur espace au premier lancement. |
-| Devin | `devin/1794096823-tickets` | Tickets : chaque demande d'assistance suivie, attente d'un support, rendez-vous | `backend/tickets.py`, `backend/app.py`, `backend/space.py`, `backend/sessions.py`, `backend/static/helper.html`, `backend/static/org.html`, `apps/windows/`, `apps/mac/Sources/`, `tests/test_tickets.py`, `PROTOCOL.md` | 8 nov. |
+| _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
@@ -86,3 +86,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 - 2026-11-07 Devin (`devin/1794089487-windows-parite-mac`) : App Windows au niveau du Mac pendant l'aide : Pause/Reprendre, question de Holo à la personne (`senior_answer`), avancement en 3 étapes, encart pendant que Holo agit, fin du gardien adaptée à l'aidé, dictée transmise à l'aidant. Tests Windows (Python + node). Pas essayé sur un vrai Windows.
 - 2026-11-07 Devin (`devin/1794094247-mes-personnes-aidees`) : Apps du support : « Mes personnes aidées » (page web, Android, iPhone), une liaison par ordinateur, demandes et alertes des autres personnes signalées, appairer ajoute une personne. Tests Android (JVM) et page web (CDP). Swift non compilé, pas essayé sur un vrai téléphone.
 - 2026-11-07 Devin (`devin/1794095002-organisation-it`) : Organisations IT : `POST /orgs`, inscription des postes par jeton (Windows, Mac), jeton support qui liste tous les postes (page web, Android, iPhone), automatismes partagés copiés sur chaque poste. Tests serveur, Windows, Android. Swift non compilé.
+| 8 nov. | Devin | `devin/1794096823-tickets` | Tickets : chaque demande suivie (`backend/tickets.py`, `tickets.json` par espace), attente quand aucun support n'est connecté, reproposition dès qu'un support arrive, rendez-vous et rappel ; Windows et Mac (écran « Votre demande est partie »), page du support et onglet Tickets de l'organisation (filtres, CSV). Test `tests/test_tickets.py` (23 contrôles). |

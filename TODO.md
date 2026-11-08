@@ -100,3 +100,5 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Gardien anti-arnaque (logique et 14 contrôles), banc d'essai du protocole (13 contrôles avec `tests/faux_holo.py`), parcours de bout en bout (`tests/test_parcours.py`, 26 contrôles), route de dictée (`tests/test_transcribe.py`), faux Mac.
 - [x] Design « Soin », logo (logotype C) et mascotte papaye Pastel en icône des deux apps.
 - [x] Notion du hackathon avec la base Features, mise à jour le 7 novembre à 18 h 30 selon l'état réel.
+- [x] Tickets : chaque demande d'assistance suivie (numéro, statut, plan, fin), demande en attente quand aucun support n'est là, personne reprévenue dès qu'un support arrive, rendez-vous et rappel ; onglet Tickets de l'organisation (filtres, CSV) et liste sur la page du support (`tests/test_tickets.py`).
+- [ ] Tickets dans les apps Android et iPhone du support (aujourd'hui : page web seulement).
