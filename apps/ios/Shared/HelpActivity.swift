@@ -31,19 +31,16 @@ struct HelpActivityAttributes: ActivityAttributes {
     }
 }
 
-/// Mêmes couleurs que `Soin` dans l'app (le widget ne voit pas `Theme.swift`).
+/// Couleurs du widget, tirées de la palette commune (`apps/shared/Palette.swift`).
 enum PapColors {
     /// Encre bleu nuit : fond de la carte urgente.
-    static let ink = Color(red: 0x11/255, green: 0x1A/255, blue: 0x2E/255)
-    static let accent = Color(red: 0x1F/255, green: 0x5B/255, blue: 0xFF/255)
+    static let ink = T.ink
+    static let accent = T.accent
     /// Bleu clair lisible sur l'encre (Dynamic Island, points).
-    static let accentBright = Color(red: 0x7A/255, green: 0xA4/255, blue: 0xFF/255)
-    static let card = Color.white
-    static let secondary = Color(red: 0x55/255, green: 0x60/255, blue: 0x74/255)
-    /// Dégradé du bouton principal : texte blanc à 4,5:1 et 6,3:1 aux deux bouts.
-    static let primary = LinearGradient(colors: [Color(red: 0x2E/255, green: 0x6B/255, blue: 0xFF/255),
-                                                 Color(red: 0x1A/255, green: 0x4F/255, blue: 0xE6/255)],
-                                        startPoint: .top, endPoint: .bottom)
+    static let accentBright = Color(hex: 0x7AA4FF)
+    static let card = T.card
+    static let secondary = T.muted
+    static let primary = T.primary
 }
 
 extension HelpActivityAttributes.ContentState {
