@@ -37,5 +37,13 @@ mkdir -p "$APP/Contents/Resources/automates"
 for f in ../../automations/*.papai; do cat "$f" > "$APP/Contents/Resources/automates/$(basename "$f")"; done
 
 xattr -cr "$APP"
-codesign --force --deep --sign - "$APP"
+# Signature stable si le certificat local existe (scripts/creer-certificat-dev.sh) :
+# macOS garde alors les autorisations d'un build à l'autre. Sinon, ad hoc.
+if security find-certificate -c "PapAI Dev" >/dev/null 2>&1 \
+   && codesign --force --deep --sign "PapAI Dev" "$APP" 2>/dev/null; then
+  echo "signé avec « PapAI Dev » (autorisations conservées)"
+else
+  codesign --force --deep --sign - "$APP"
+  echo "signature ad hoc : macOS redemandera les autorisations après chaque build (lancez scripts/creer-certificat-dev.sh une fois)"
+fi
 echo "construit : $ROOT/$APP"
