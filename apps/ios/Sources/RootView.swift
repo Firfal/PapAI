@@ -344,7 +344,7 @@ struct RequestCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                Text("J").font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
+                Text(String(model.senior.prefix(1)).uppercased()).font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
                     .frame(width: 48, height: 48).background(Soin.primary, in: Circle())
                 VStack(alignment: .leading, spacing: 1) {
                     TimelineView(.periodic(from: .now, by: 20)) { _ in
