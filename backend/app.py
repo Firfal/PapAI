@@ -1143,6 +1143,14 @@ async def lesson_file_keyed(fam: str, lesson_id: str, filename: str):
     return _serve_lesson_file(lesson_id, filename)
 
 
+@app.websocket("/k/{fam}/transcribe/live")
+async def transcribe_live_keyed(ws: WebSocket, fam: str) -> None:
+    if not _key_ok(fam):
+        await ws.close(code=4403)
+        return
+    await voice.relay_live(ws)
+
+
 @app.post("/k/{fam}/transcribe")
 async def transcribe_keyed(fam: str, request: Request):
     """Dictée de la demande : audio brut en entrée, {"text": "..."} en sortie."""
