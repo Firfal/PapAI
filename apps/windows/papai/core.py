@@ -63,6 +63,188 @@ class UnknownKey(Exception):
     pass
 
 
+class SensitiveTarget(Exception):
+    pass
+
+
+SENSITIVE_PROCESSES = frozenset({
+    "consent", "credentialuibroker", "systemsettings", "logonui", "sechealthui",
+    "useraccountcontrolsettings", "1password", "bitwarden", "dashlane", "lastpass",
+    "keepass", "keepassxc", "enpass", "keeper", "nordpass", "roboform",
+})
+
+
+def process_name(name: str | None) -> str:
+    return str(name or "").replace("\\", "/").rsplit("/", 1)[-1].lower().removesuffix(".exe")
+
+
+def pointer_verdict(pid: int, name: str | None, own_pid: int | None = None) -> str | None:
+    if pid == (os.getpid() if own_pid is None else own_pid):
+        return "PapAI ne peut pas se manipuler elle-même"
+    if not pid or not process_name(name):
+        return "l’application visée ne peut pas être vérifiée"
+    if process_name(name) in SENSITIVE_PROCESSES:
+        return "cette application contient des réglages ou des informations sensibles"
+    return None
+
+
+def keyboard_verdict(pid: int, name: str | None, own_pid: int | None = None) -> str | None:
+    return pointer_verdict(pid, name, own_pid)
+
+
+class Win32Targets:
+    def __init__(self):
+        from ctypes import wintypes as w
+
+        self.user = ctypes.WinDLL("user32", use_last_error=True)
+        self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.callback = ctypes.WINFUNCTYPE(w.BOOL, w.HWND, w.LPARAM)
+        signatures = [
+            (self.user.WindowFromPoint, [w.POINT], w.HWND),
+            (self.user.GetAncestor, [w.HWND, w.UINT], w.HWND),
+            (self.user.GetWindowThreadProcessId, [w.HWND, ctypes.POINTER(w.DWORD)], w.DWORD),
+            (self.user.GetForegroundWindow, [], w.HWND),
+            (self.user.SetForegroundWindow, [w.HWND], w.BOOL),
+            (self.user.GetWindow, [w.HWND, w.UINT], w.HWND),
+            (self.user.IsWindowVisible, [w.HWND], w.BOOL),
+            (self.user.GetClassNameW, [w.HWND, w.LPWSTR, ctypes.c_int], ctypes.c_int),
+            (self.user.EnumChildWindows, [w.HWND, self.callback, w.LPARAM], w.BOOL),
+            (self.kernel.OpenProcess, [w.DWORD, w.BOOL, w.DWORD], w.HANDLE),
+            (self.kernel.QueryFullProcessImageNameW,
+             [w.HANDLE, w.DWORD, w.LPWSTR, ctypes.POINTER(w.DWORD)], w.BOOL),
+            (self.kernel.CloseHandle, [w.HANDLE], w.BOOL),
+        ]
+        for function, args, result in signatures:
+            function.argtypes, function.restype = args, result
+
+    def root(self, hwnd):
+        return self.user.GetAncestor(hwnd, 2) or hwnd
+
+    def at_point(self, x, y):
+        from ctypes.wintypes import POINT
+        return self.root(self.user.WindowFromPoint(POINT(x, y)))
+
+    def foreground(self):
+        return self.root(self.user.GetForegroundWindow())
+
+    def identity(self, hwnd):
+        from ctypes.wintypes import DWORD
+        pid = DWORD()
+        self.user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        handle = self.kernel.OpenProcess(0x1000, False, pid.value)
+        if not handle:
+            return pid.value, None
+        try:
+            size = DWORD(32768)
+            name = ctypes.create_unicode_buffer(size.value)
+            if self.kernel.QueryFullProcessImageNameW(handle, 0, name, ctypes.byref(size)):
+                return pid.value, name.value
+            return pid.value, None
+        finally:
+            self.kernel.CloseHandle(handle)
+
+    def children(self, hwnd):
+        children = []
+
+        @self.callback
+        def collect(child, _):
+            name = ctypes.create_unicode_buffer(256)
+            self.user.GetClassNameW(child, name, len(name))
+            if name.value == "Windows.UI.Core.CoreWindow":
+                children.append(child)
+            return True
+
+        self.user.EnumChildWindows(hwnd, collect, 0)
+        return children
+
+    def next_visible(self, hwnd):
+        seen = set()
+        while hwnd and hwnd not in seen:
+            seen.add(hwnd)
+            hwnd = self.user.GetWindow(hwnd, 2)
+            if hwnd and self.user.IsWindowVisible(hwnd):
+                yield hwnd
+
+    def activate(self, hwnd):
+        self.user.SetForegroundWindow(hwnd)
+
+
+class DesktopSafety:
+    def __init__(self, api=None, own_pid=None, sleep=time.sleep):
+        self.api = api
+        self.own_pid = os.getpid() if own_pid is None else own_pid
+        self.sleep = sleep
+        self.previous = None
+
+    def window_reason(self, hwnd):
+        pid, name = self.api.identity(hwnd)
+        reason = pointer_verdict(pid, name, self.own_pid)
+        if reason:
+            return reason
+        if process_name(name) == "applicationframehost":
+            children = self.api.children(hwnd)
+            if not children:
+                return "l’application hébergée ne peut pas être vérifiée"
+            for child in children:
+                child_pid, child_name = self.api.identity(child)
+                if process_name(child_name) == "applicationframehost":
+                    return "l’application hébergée ne peut pas être vérifiée"
+                reason = pointer_verdict(child_pid, child_name, self.own_pid)
+                if reason:
+                    return reason
+        return None
+
+    def remember_foreground(self):
+        hwnd = self.api.foreground()
+        pid, _ = self.api.identity(hwnd)
+        if hwnd and pid and pid != self.own_pid:
+            self.previous = hwnd
+
+    def check_pointer(self, x, y):
+        if self.api is None:
+            return
+        self.remember_foreground()
+        reason = self.window_reason(self.api.at_point(x, y))
+        if reason:
+            raise SensitiveTarget(reason)
+
+    def check_keyboard(self):
+        if self.api is None:
+            return
+        self.remember_foreground()
+        reason = self.window_reason(self.api.foreground())
+        if reason:
+            raise SensitiveTarget(reason)
+
+    def prepare_keyboard(self):
+        if self.api is None:
+            return
+        hwnd = self.api.foreground()
+        pid, _ = self.api.identity(hwnd)
+        if pid == self.own_pid:
+            candidates = ([self.previous] if self.previous else [])
+            candidates.extend(self.api.next_visible(hwnd))
+            for candidate in candidates:
+                candidate_pid, name = self.api.identity(candidate)
+                if candidate_pid and candidate_pid != self.own_pid and name:
+                    self.api.activate(candidate)
+                    self.sleep(0.2)
+                    break
+        self.check_keyboard()
+
+
+desktop_safety = DesktopSafety(Win32Targets() if WINDOWS else None)
+
+
+if WINDOWS:
+    def _watch_foreground():
+        while True:
+            desktop_safety.remember_foreground()
+            time.sleep(0.1)
+
+    threading.Thread(target=_watch_foreground, daemon=True, name="papai-focus").start()
+
+
 # ------------------------------------------------------------------ l'écran
 
 
@@ -174,9 +356,10 @@ def _type_unicode(ch: str) -> None:
 
 
 def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
-               protected: tuple | None = None) -> str:
+               protected: tuple | None = None, safety=None) -> str:
     """Joue une action. Le verrou est relu juste avant chaque geste."""
     gate = gate.pin()
+    safety = desktop_safety if safety is None else safety
     if gate.is_stopped:
         raise Stopped()
     import pyautogui
@@ -190,6 +373,7 @@ def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
             a, b, c, d = protected
             if a <= px <= c and b <= py <= d:
                 raise ProtectedZone()
+        safety.check_pointer(px, py)
         return px, py
 
     if name in ("click", "double_click"):
@@ -198,14 +382,17 @@ def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
         time.sleep(0.2)
         if gate.is_stopped:
             raise Stopped()
+        safety.check_pointer(px, py)
         pyautogui.click(px, py, clicks=2 if name == "double_click" else 1, interval=0.08)
         return f"{name} à ({px}, {py}) sur « {args.get('element') or ''} »"
 
     if name == "type_text":
+        safety.prepare_keyboard()
         text = str(args.get("text") or "")
         for ch in text:
             if gate.is_stopped:
                 raise Stopped()
+            safety.check_keyboard()
             if ch == "\n":
                 pyautogui.press("enter")
             elif WINDOWS:
@@ -216,6 +403,7 @@ def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
         return f"texte tapé : {text}"
 
     if name == "press_key":
+        safety.prepare_keyboard()
         spec = str(args.get("keys") or "")
         keys = parse_keys(spec)
         if gate.is_stopped:

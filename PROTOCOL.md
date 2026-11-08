@@ -37,7 +37,7 @@ Envoie :
 - `{"type":"help_request","task":"…"}` quand elle appuie sur « J'ai besoin d'aide ».
 - `{"type":"stop"}` bouton Arrêter. **Le verrou local passe d'abord** : plus aucune action exécutée, même hors ligne.
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
-- `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt ou absence de plan validé (état requis : `active` ou `awaiting_helper`). Sur Mac, un refus local d'action sensible ajoute `"blocked":"sensitive"` avec `refused:false` : la session reste ouverte, le texte demande à Holo de ne pas réessayer et d'appeler `ask_helper`.
+- `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt, alerte du gardien affichée ou absence de plan validé (état requis : `active` ou `awaiting_helper`). Sur Mac et Windows, un refus local d'action sensible ajoute `"blocked":"sensitive"` avec `refused:false` : la session reste ouverte, le texte demande à Holo de ne pas réessayer et d'appeler `ask_helper`.
 - `{"type":"automation_failed","title":"…","detail":"…"}` quand un automatisme ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
 - `{"type":"pair_start"}` pour ajouter un proche (QR, 10 min) ; `{"type":"pair_start","long":true}` pour une **invitation à envoyer** par SMS, WhatsApp, Mail… (24 h). Le serveur répond `pair_code`.
 - `{"type":"remove_helper","id":"…"}` retire un proche.
