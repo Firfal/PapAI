@@ -35,88 +35,100 @@
        <div style="${f(size, 5)}">${esc(text)}</div></div>`;
 
   // ------------------------------------------------------------------ Header
+  // Chaque écran pose son titre dans l'en-tête bleu (hd), comme la maquette :
+  // pastille, titre blanc, sous-titre, puis le champ de demande s'il existe.
+  let hd = null;
+  const hdTitle = (text, size, w) => `<div class="hdrTitle" style="${f(size || 40, w || 6)};letter-spacing:-0.6px;line-height:1.1">${text}</div>`;
+  const hdSub = (text, size) => `<div class="hdrSub" style="${f(size || 20, 5)}">${text}</div>`;
+  const hdChip = (sym, text) => `<div class="pillChip chip-blue" style="align-self:flex-start;gap:8px;padding:8px 16px;${f(16, 6)}">${sym ? icon(sym, 20) : ''}<span>${text}</span></div>`;
   function header() {
-    return `<div class="hdr">
+    const h = hd || {};
+    return `<div class="hdr${h.tone === 'danger' ? ' danger' : ''}${h.home ? ' hdrHome' : ''}">
+      <div class="row hdrTop">
       <img class="logotype" src="logotype-papai.svg" alt="papai">
       <div class="spacer"></div>
-      ${S.connected ? '' : `<div class="pillChip" style="gap:10px;padding:11px 18px">
-        <span class="dot" style="background:rgba(122,128,124,.5)"></span>
+      ${S.connected ? '' : `<div class="pillChip chip-gray" style="gap:10px;padding:11px 18px">
+        <span class="dot" style="background:#7A8296"></span>
         <span style="${f(16, 5)}">Pas de connexion pour le moment</span>
       </div>`}
       <button class="circle press" data-act="openSettings" aria-label="Réglages"
-        style="width:42px;height:42px;background:var(--card)">${icon('gear', 19)}</button>
+        style="width:44px;height:44px">${icon('gear', 20)}</button>
+      </div>
+      ${h.title ? `<div class="col hdrBody">${h.chip || ''}${h.title}${h.sub || ''}${h.extra || ''}</div>` : ''}
     </div>`;
   }
 
   // -------------------------------------------------------------------- Home
+  // Accueil du Mac (HomeView.swift) : en-tête bleu avec salutation et barre de
+  // demande (petit micro intégré), puis deux colonnes 60/40, automates et raccourcis.
   function home() {
-    return `<div class="row" style="align-items:stretch;gap:24px;flex:1;min-height:0">
-      ${helpCard()}
-      <div class="scroll" style="width:400px;flex:none">
-        <div class="col" style="gap:16px;padding-bottom:8px">${tutorials()}${appsGrid()}</div>
-      </div></div>`;
-  }
-
-  function helpCard() {
     const mic = S.microPresent;
-    const busy = ui.dictating || S.dictation.phase !== 'idle';
-    const wait = S.queued && !S.queued.show ? `<button class="pillChip press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
+    const ph = S.dictation.phase;
+    const busy = ui.dictating || ph !== 'idle';
+    const wait = S.queued && !S.queued.show ? `<button class="pillChip chip-orange press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:0 18px;min-height:44px;${f(17, 6)}">
         ${icon('personWave', 20)}<span>Demande n° ${esc(S.queued.number)} ${S.queued.rdv ? '· rendez-vous ' + esc(rdvText(S.queued.rdv)) : 'en attente'}</span></button>` : '';
-    const warn = (ui.warning ? `<div class="pillChip" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
-        ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '') + wait;
-    return `<div class="mintCard homeCard" style="padding:32px;gap:16px">
-      <div style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.firstName ? ' ' + esc(S.firstName) : ''}</div>
-      <div class="muted" style="${f(18, 5)}">Un souci sur l'ordinateur ? ${mic ? 'Dites-le simplement' : 'Écrivez ce dont vous avez besoin'}, un message part tout de suite à ${esc(S.helperName)}.</div>
-      <div class="spacer"></div>
-      ${mic ? micButton() : ''}
-      ${ui.writing || !mic ? `<div class="requestRow">
-        <textarea id="req" rows="1" placeholder="Écrivez votre demande" aria-label="Écrivez votre demande"
+    const warn = ui.warning ? `<div class="row homeWarn" style="gap:8px;${f(17, 6)}">${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '';
+    const etat = ph === 'listening' ? 'Je vous écoute… Touchez le carré quand vous avez fini.'
+      : ph === 'transcribing' || ph === 'starting' ? 'Je note…' : '';
+    const field = `<div class="requestRow homeBar">
+        <span class="fieldIcon">${icon('compose', 18)}</span>
+        <textarea id="req" rows="1" placeholder="${mic ? 'Écrivez ou dites ce que vous voulez faire' : 'Écrivez ce que vous voulez faire'}" aria-label="Ma demande"
           style="${f(18, 5)};line-height:1.3">${esc(ui.request)}</textarea>
-        <button class="pill filled" data-act="submit" ${busy || ui.submitting ? 'disabled' : ''} style="height:44px;padding:0 18px;${f(15, 6)}">Envoyer</button>
-      </div>` : S.dictation.phase === 'idle' ? `<button class="pillChip press writeButton" data-act="write" style="${f(15, 6)}">Écrire</button>` : ''}
-      ${warn}<div class="spacer"></div></div>`;
+        ${mic ? micButton() : ''}
+        <button class="pill filled" data-act="submit" ${busy || ui.submitting ? 'disabled' : ''} style="height:44px;padding:0 18px;${f(16, 6)}">Envoyer</button>
+      </div>`;
+    hd = {
+      home: true,
+      title: `<div class="hdrTitle" style="${f(34, 7)};letter-spacing:-0.6px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.firstName ? ' ' + esc(S.firstName) + ' !' : ''}</div>`,
+      sub: hdSub('Que voulez-vous faire ?', 19),
+      extra: field + (etat ? `<div class="hdrSub" style="padding-left:18px;${f(17, 6)}">${etat}</div>` : '')
+        + (warn || wait ? `<div class="row" style="gap:10px;flex-wrap:wrap">${warn}${wait}</div>` : ''),
+    };
+    return `<div class="homeCols">
+      <section class="col homeLeft">${tutorials()}</section>
+      <section class="col homeRight">${appsGrid()}</section></div>`;
   }
 
+  // Titre de section, le même dans les deux colonnes pour qu'ils tombent sur la même ligne.
+  const sectionTitle = (sym, text, extra) => `<div class="row sectionTitle" style="gap:10px;min-height:44px">
+      <span class="accent" style="width:26px;display:flex;justify-content:center" aria-hidden="true">${icon(sym, 22)}</span>
+      <h2 class="grow" style="margin:0;${f(22, 7)}">${text}</h2>${extra || ''}</div>`;
+
+  // Petit micro dans la barre : la même dictée qu'avant, juste plus discrète.
   function micButton() {
     const ph = S.dictation.phase;
     const listening = ph === 'listening';
-    const inner = ph === 'transcribing' ? '<div class="spinner"></div>'
-      : icon(listening ? 'stop' : 'mic', 48, listening ? '#fff' : 'var(--ink)');
-    const label = listening ? 'Je vous écoute…' : ph === 'transcribing' || ph === 'starting' ? 'Je note…' : 'Parler à PapAI';
-    return `<div class="col" style="align-items:center;gap:12px">
-      <button class="press" data-act="mic" ${ph === 'transcribing' || ph === 'starting' ? 'disabled' : ''}
-        aria-label="${listening ? 'Arrêter la dictée' : 'Dicter ma demande'}"
-        style="flex:none">
-      <span class="microFrame" style="position:relative;width:180px;height:180px;display:flex;align-items:center;justify-content:center">
-        ${listening ? '<span class="micRing"></span>' : ''}
-        <span class="circle microDisc" style="position:relative;width:148px;height:148px;background:${listening ? 'var(--accent)' : '#fff'}">${inner}</span>
-      </span></button><span style="${f(20, 6)}">${label}</span>
-      ${ui.request && !ui.writing ? `<span style="${f(18, 5)}">${esc(ui.request)}</span>` : ''}</div>`;
+    const inner = ph === 'transcribing' || ph === 'starting' ? '<div class="spinner small"></div>'
+      : icon(listening ? 'stop' : 'mic', 16, listening ? '#fff' : 'var(--accent)');
+    return `<button class="press micMini" data-act="mic" ${ph === 'transcribing' || ph === 'starting' ? 'disabled' : ''}
+        aria-label="${listening ? 'Arrêter la dictée' : 'Dicter ma demande'}" title="${listening ? 'Arrêter la dictée' : 'Dicter ma demande'}">
+        ${listening ? '<span class="micRing"></span>' : ''}<span class="circle microDisc${listening ? ' on' : ''}">${inner}</span></button>`;
   }
 
   const folderIcon = (folder) => ({ pictures: 'photo', documents: 'doc', downloads: 'download',
     desktop: 'desktop', videos: 'film', music: 'music' }[String(folder || '').toLowerCase()] || 'list');
 
   function tutorials() {
-    const notice = S.notice ? `<div style="background:var(--mint);border-radius:var(--r);padding:18px;${f(17, 5)}">${esc(S.notice)}</div>` : '';
+    const notice = S.notice ? `<div class="row accent" style="gap:10px;background:var(--mint);border-radius:var(--r);padding:18px;${f(17, 5)}">${icon('exclam', 20)}<span>${esc(S.notice)}</span></div>` : '';
     const tiles = S.lessons.map((l) => {
       const steps = (l.steps || []).length;
-      return `<div class="card row" style="padding:12px;gap:10px">
-        <button class="row press grow" data-act="shortcut" data-arg="${esc(l.id)}" aria-label="${esc(l.title)}" style="gap:10px;text-align:left;min-height:36px">
-          <span class="circle" style="width:36px;height:36px;background:var(--mint);color:var(--accent)">${icon(folderIcon((l.shortcut || {}).folder), 19)}</span>
-          <span class="col" style="gap:2px"><span style="${f(18, 6)}">${esc(l.title)}</span>${l.publisher ? `<span class="muted" style="${f(14, 4)}">${esc('Fourni par ' + l.publisher)}</span>` : ''}</span>
+      return `<div class="row lessonRow" style="padding:10px 14px;gap:10px">
+        <button class="row press grow" data-act="shortcut" data-arg="${esc(l.id)}" aria-label="${esc(l.title)}" style="gap:12px;text-align:left;min-height:44px">
+          <span class="circle" style="width:40px;height:40px;background:var(--mint);color:var(--accentIcon)">${icon(folderIcon((l.shortcut || {}).folder), 20)}</span>
+          <span class="col" style="gap:3px"><span style="${f(18, 6)}">${esc(l.title)}</span>${l.publisher ? `<span class="muted" style="${f(14, 4)}">${esc('Fourni par ' + l.publisher)}</span>` : ''}</span>
         </button>
-        ${steps ? `<button class="press accent" data-act="lesson" data-arg="${esc(l.id)}"
-          style="white-space:nowrap;min-height:44px;padding:5px 10px;border-radius:999px;background:var(--mint);${f(15, 6)}">Montrez-moi</button>` : ''}
+        ${steps ? `<button class="press accent softChip" data-act="lesson" data-arg="${esc(l.id)}" style="${f(15, 6)}">Montrez-moi</button>` : ''}
       </div>`;
     }).join('');
     const running = S.automationRunning ? `<div class="card row" style="padding:18px;gap:14px;align-items:center">
         <span class="grow" style="${f(18, 6)}">En cours : ${esc(S.automationRunning)}</span>
-        <button class="row press" data-act="stop" aria-label="Arrêter l'automate (Échap)"
-          style="gap:10px;height:52px;padding:0 20px;border-radius:999px;background:var(--ink);color:#fff">
+        <button class="row press stopBtn" data-act="stop" aria-label="Arrêter l'automate (Échap)"
+          style="gap:10px;height:52px;padding:0 20px;border-radius:999px">
           ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
-    if (!S.lessons.length && !notice && !running) return '';
-    return `<div class="col" style="gap:14px">${running}${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes automates</div>` : ''}${tiles}</div>`;
+    const list = S.lessons.length ? `<div class="card listCard">${tiles}</div>`
+      : `<div class="card col" style="padding:20px;gap:6px"><div style="${f(18, 6)}">Aucun automate pour l'instant.</div>
+          <div class="muted" style="${f(17, 4)}">Un automate est une tâche toute prête. Quand ${esc(S.helperName)} en enregistre un pour vous, il apparaît ici et se lance d'un clic.</div></div>`;
+    return `${sectionTitle('list', 'Mes automates')}${running}${notice}${list}`;
   }
 
   const APP_STYLE = {
@@ -130,26 +142,24 @@
 
   function appsGrid() {
     const items = (S.homeShortcuts || []).map((a) => {
-      const img = a.icon && a.icon.startsWith('data:image/png;base64,') ? `<img src="${esc(a.icon)}" alt="" width="36" height="36">`
-        : icon(a.symbol || (APP_STYLE[a.label] || ['app'])[0], 24, 'var(--accent)');
+      const img = a.icon && a.icon.startsWith('data:image/png;base64,') ? `<img src="${esc(a.icon)}" alt="" width="48" height="48">`
+        : icon(a.symbol || (APP_STYLE[a.label] || ['app'])[0], 30, 'var(--accentIcon)');
       return `<div class="col" style="position:relative"><button class="col press" data-act="homeShortcut" data-arg="${esc(a.id)}" aria-label="Ouvrir ${esc(a.label)}"
-          style="gap:4px;align-items:center">
-        <span class="circle" style="width:54px;height:54px;background:var(--card)">${img}</span>
-        <span style="${f(15, 5)};min-height:24px;text-align:center">${esc(a.label)}</span></button>
+          style="gap:8px;align-items:center">
+        <span class="tileIcon">${img}</span>
+        <span class="tileLabel" style="${f(16, 5)}">${esc(a.label)}</span></button>
         ${a.personal && ui.editingShortcuts ? `<button class="removeShortcut" data-act="removeShortcut" data-arg="${esc(a.id)}" aria-label="Retirer ${esc(a.label)}" style="${f(15, 6)}">Retirer</button>` : ''}</div>`;
     }).join('');
-    return `<div class="col" style="gap:12px"><div class="row" style="gap:10px;justify-content:space-between">
-      <div style="${f(21, 7)}">Mes raccourcis</div>
-      ${(S.homeShortcuts || []).some(a => a.personal) ? `<button class="press" data-act="editShortcuts" aria-pressed="${ui.editingShortcuts}" style="min-height:44px;${f(15, 6)}">${ui.editingShortcuts ? 'Terminer' : 'Modifier'}</button>` : ''}
-      </div><div class="grid3 homeGrid">${items}
-      <button class="col press" data-act="addShortcut" style="gap:4px;align-items:center">
-        <span class="circle" style="width:54px;height:54px;background:var(--card)">${icon('plus', 24, 'var(--muted)')}</span>
-        <span style="${f(15, 5)};min-height:24px">Ajouter</span></button></div></div>`;
+    const edit = (S.homeShortcuts || []).some(a => a.personal) ? `<button class="press accent" data-act="editShortcuts" aria-pressed="${ui.editingShortcuts}" style="min-height:44px;${f(15, 6)}">${ui.editingShortcuts ? 'Terminer' : 'Modifier'}</button>` : '';
+    return `${sectionTitle('app', 'Mes raccourcis', edit)}<div class="card listCard"><div class="grid3 homeGrid">${items}
+      <button class="col press" data-act="addShortcut" style="gap:8px;align-items:center">
+        <span class="tileIcon">${icon('plus', 30, 'var(--accentIcon)')}</span>
+        <span class="tileLabel" style="${f(16, 5)}">Ajouter</span></button></div></div>`;
   }
 
   function addShortcutSheet() {
     return `<div class="sheet card col" style="width:540px;padding:32px;gap:20px">
-      <div style="${f(26, 6)}">Ajouter un raccourci</div>
+      <div class="sheetHead" style="${f(26, 6)}">Ajouter un raccourci</div>
       <div style="${f(16, 5)}">Jusqu'à 4 raccourcis personnels, gardés sur cet ordinateur.</div>
       ${pill('Un dossier', 'chooseFolder', { filled: false, height: 50 })}
       ${ui.warning ? `<div role="status" style="${f(17, 5)}">${esc(ui.warning)}</div>` : ''}
@@ -158,10 +168,11 @@
 
   // ----------------------------------------------------------------- Consent
   function consent() {
+    hd = { title: hdTitle('PapAI va regarder votre écran', 44) };
     return mint(`
       <div class="accent" style="${f(18, 6)}">Votre demande</div>
       <div style="${f(30, 6)}">« ${esc(S.pendingTask)} »</div>
-      <div style="${f(44, 6)};letter-spacing:-0.6px;line-height:1.12">PapAI va regarder votre écran</div>
+      <div class="sep"></div>
       ${promise('eye', 'Holo voit votre écran pour comprendre le problème.', 21)}
       ${promise('hand', `Rien ne bouge avant l'accord de ${S.helperName}.`, 21)}
       ${promise('stopCircle', 'Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.', 21)}
@@ -201,9 +212,9 @@
     }
     return st === 'done' ? 1 : 0;
   }
-  const bar = (st, h) => `<div style="height:${h}px;border-radius:999px;background:var(--card);overflow:hidden" role="progressbar"
+  const bar = (st, h) => `<div class="track" style="height:${h}px;border-radius:999px;overflow:hidden" role="progressbar"
       aria-label="Avancement" aria-valuenow="${Math.round(fraction(st) * 100)}" aria-valuemin="0" aria-valuemax="100">
-      <div style="height:100%;width:max(${h}px, ${fraction(st) * 100}%);border-radius:999px;background:var(--accent);transition:width .6s"></div></div>`;
+      <div class="fill" style="height:100%;width:max(${h}px, ${fraction(st) * 100}%);border-radius:999px;transition:width .6s"></div></div>`;
   function progress(st, phase) {
     const steps = ['Holo regarde votre écran et prépare la suite', `${S.HelperName} vérifie et donne son accord`,
       `${S.carer} s'en occupe, avec Holo`];
@@ -213,7 +224,7 @@
         <span style="color:${done || now ? 'var(--accent)' : 'var(--muted)'}">${icon(done ? 'checkCircle' : now ? 'circleDotted' : 'circle', 24)}</span>
         <span style="${f(21, now ? 6 : 4)};color:${done ? 'var(--muted)' : 'var(--ink)'}">${esc(text)}</span></div>`;
     }).join('');
-    return `<div class="col" style="gap:18px;padding:24px;border-radius:var(--r);background:rgba(255,255,255,.55)">${bar(st, 18)}${rows}</div>`;
+    return `<div class="col progressBox" style="gap:18px;padding:24px;border-radius:var(--r)">${bar(st, 18)}${rows}</div>`;
   }
 
   // Une question que Holo pose à l’utilisateur, pour ce que lui seul sait.
@@ -225,8 +236,8 @@
       ? `<div class="row accent" style="gap:10px">${icon('checkCircle', 22)}<span style="${f(20, 6)}">Merci, c'est noté.</span></div>`
       : `${options ? `<div class="row" style="gap:10px;flex-wrap:wrap">${options}</div>` : ''}
         <div class="row" style="gap:12px">
-          <input id="seniorReply" class="grow" placeholder="Votre réponse" value="${esc(ui.seniorText || '')}"
-            style="${f(22, 5)};padding:16px 20px;border:0;border-radius:var(--r);background:var(--bg)">
+          <input id="seniorReply" class="grow field" placeholder="Votre réponse" value="${esc(ui.seniorText || '')}"
+            style="${f(22, 5)};padding:16px 20px;border:0;border-radius:var(--r);width:auto">
           ${pill('Répondre', 'seniorReply', { height: 56, disabled: !(ui.seniorText || '').trim() })}
         </div>
         <div class="muted" style="${f(15, 4)}">Ne donnez jamais de mot de passe ni de code : on ne vous les demandera pas.</div>`;
@@ -262,33 +273,35 @@
 
   const canPause = (st) => st === 'active' || st === 'awaiting_helper' || S.paused;
   function pauseButton(height, size) {
-    return `<button class="row press" data-act="pause" aria-label="${S.paused ? "Reprendre l'aide" : "Mettre l'aide en pause"}"
-        style="justify-content:center;gap:12px;height:${height}px;border-radius:999px;background:var(--card);color:var(--ink);flex:1">
+    return `<button class="row press softBtn" data-act="pause" aria-label="${S.paused ? "Reprendre l'aide" : "Mettre l'aide en pause"}"
+        style="justify-content:center;gap:12px;height:${height}px;border-radius:999px;flex:1">
         ${icon(S.paused ? 'play' : 'pause', size - 4)}<span style="${f(size, 6)}">${S.paused ? 'Reprendre' : 'Pause'}</span></button>`;
   }
   function stopButton(height, size) {
-    return `<button class="row press" data-act="stop" aria-label="Arrêter l'assistance (Échap)"
-        style="justify-content:center;gap:14px;height:${height}px;border-radius:999px;background:var(--ink);color:#fff;flex:1">
+    return `<button class="row press stopBtn" data-act="stop" aria-label="Arrêter l'assistance (Échap)"
+        style="justify-content:center;gap:14px;height:${height}px;border-radius:999px;flex:1">
         ${icon('stop', size - 4, '#fff')}<span style="${f(size, 6)}">Arrêter</span></button>`;
   }
 
   function session() {
     const st = S.state || 'planning';
     const sub = sessionSubtitle(st);
-    const banner = S.sessionOpen ? `<div class="pillChip" style="align-self:flex-start;gap:10px;padding:10px 18px;${f(16, 6)}">
-      <span class="dot" style="background:var(--accent)"></span>Écran partagé</div>` : '';
+    const banner = S.sessionOpen ? `<div class="pillChip chip-green" style="align-self:flex-start;gap:10px;padding:10px 18px;${f(16, 6)}">
+      <span class="dot" style="background:#1F8A4C"></span>Écran partagé</div>` : '';
     const footer = (S.task && st !== 'stopped' && st !== 'awaiting_approval' && !(st === 'awaiting_helper' && S.questionForMe))
       ? `<div class="muted" style="${f(16, 4)};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">Votre demande : ${esc(S.task)}</div>` : '';
     const bottom = S.sessionOpen
       ? `<div class="row" style="gap:14px;width:100%">${canPause(st) ? pauseButton(70, 26) : ''}${stopButton(70, 26)}</div>`
       : pill("Retour à l'accueil", 'home', { height: 70, grow: true });
-    const inner = `${banner}
-      <div style="${f(guardStopped(st) ? 34 : 40, 6)};letter-spacing:-0.6px;line-height:1.12">${esc(sessionTitle(st))}</div>
-      ${sub ? `<div class="fade" style="${f(24, 5)};color:${st === 'active' ? 'var(--ink)' : 'var(--muted)'}">${esc(sub)}</div>` : ''}
-      <div class="scroll">${sessionContent(st)}</div>
+    hd = { chip: banner, title: hdTitle(esc(sessionTitle(st)), guardStopped(st) ? 34 : 40),
+      sub: sub ? `<div class="hdrSub fade" style="${f(22, 5)}">${esc(sub)}</div>` : '',
+      tone: guardStopped(st) ? 'danger' : null };
+    const content = sessionContent(st);
+    if (!content && !footer) return `<div class="spacer"></div><div class="row" style="margin-top:18px">${bottom}</div>`;
+    const inner = `<div class="scroll">${content}</div>
       <div class="spacer"></div>${footer}`;
     const card = guardStopped(st)
-      ? `<div class="col" style="padding:34px;gap:18px;border-radius:var(--rBig);background:var(--card);flex:1;min-height:0">${inner}</div>`
+      ? `<div class="col guardCard" style="padding:40px 34px 34px;gap:18px;border-radius:var(--rBig);background:var(--card);flex:1;min-height:0">${inner}</div>`
       : mint(inner, 34, 18);
     return card + `<div class="row" style="margin-top:18px">${bottom}</div>`;
   }
@@ -301,14 +314,14 @@
       awaiting_approval: `${S.HelperName} vérifie`, active: `${S.carer} s'en occupe`,
       awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !" }[st] || 'PapAI');
     return `<div class="col mini" style="gap:10px;padding:14px 16px">
-      <div class="row" style="gap:10px">
-        <span class="dot" style="background:${S.sessionOpen && !S.paused ? 'var(--accent)' : 'var(--muted)'}"></span>
+      <div class="row miniHead" style="gap:10px">
+        <span class="dot" style="background:${S.sessionOpen && !S.paused ? '#fff' : 'rgba(255,255,255,.55)'}"></span>
         <span class="grow" style="${f(17, 6)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</span>
-        <button class="circle press" data-act="expand" aria-label="Ouvrir PapAI en grand"
-          style="width:30px;height:30px;background:var(--bg)">${icon('expand', 14)}</button>
+        <button class="circle press softBtn" data-act="expand" aria-label="Ouvrir PapAI en grand"
+          style="width:44px;height:44px;color:var(--accent)">${icon('expand', 16)}</button>
       </div>
       ${bar(st, 8)}
-      <div class="row" style="gap:8px">${canPause(st) ? pauseButton(40, 15) : ''}${stopButton(40, 15)}</div>
+      <div class="row" style="gap:8px">${canPause(st) ? pauseButton(44, 16) : ''}${stopButton(44, 16)}</div>
     </div>`;
   }
 
@@ -325,13 +338,13 @@
       const s = steps[i];
       const img = s.image ? `<img alt="" src="${esc(S.httpBase)}/lessons/${encodeURIComponent(l.id)}/${encodeURIComponent(s.image)}"
           style="flex:1;min-height:0;max-width:100%;object-fit:contain;border-radius:var(--r)">` : '<div class="spacer"></div>';
-      body = `<div class="accent" style="${f(18, 6)}">Étape ${i + 1} sur ${steps.length}</div>
-        <div style="${f(36, 6)};letter-spacing:-0.4px;line-height:1.15">${esc(s.instruction || '')}</div>
+      body = `<div style="${f(36, 6)};letter-spacing:-0.4px;line-height:1.15">${esc(s.instruction || '')}</div>
         ${s.checkpoint ? `<div class="card" style="padding:18px;${f(19, 4)}">Vous devriez voir : ${esc(s.checkpoint)}</div>` : ''}
         ${img}`;
     }
     const last = i >= steps.length - 1;
-    return mint(`<div class="muted" style="${f(18, 6)}">${esc(l.title)}</div>${body}`, 40, 20) +
+    hd = { chip: steps.length ? hdChip('book', `Étape ${i + 1} sur ${steps.length}`) : '', title: hdTitle(esc(l.title), 30) };
+    return mint(body, 40, 20) +
       `<div class="row" style="gap:14px;margin-top:18px">
         ${pill('Fermer', 'closeLesson', { filled: false, height: 72 })}
         ${i > 0 ? pill('Précédent', 'prevStep', { filled: false, height: 72 }) : ''}
@@ -349,9 +362,8 @@
   function queued() {
     const q = S.queued;
     const slots = [['Dans 1 heure', '1h'], ['Demain à 9 h', 'demain9'], ['Demain à 14 h', 'demain14']];
-    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Demande n° ${esc(q.number)}</span></div>
-      <div style="${f(44, 6)};letter-spacing:-0.7px;line-height:1.1">Votre demande est partie</div>
-      ${q.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(q.task)} »</div>` : ''}
+    hd = { chip: hdChip('personWave', `Demande n° ${esc(q.number)}`), title: hdTitle('Votre demande est partie', 44) };
+    return mint(`${q.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(q.task)} »</div>` : ''}
       ${q.rdv ? lead(`Rendez-vous ${esc(rdvText(q.rdv))}. PapAI vous préviendra à l'heure dite.`)
         : lead(`Personne n'est disponible pour l'instant. PapAI vous préviendra dès que ${esc(S.helperName)} sera là. Vous pouvez aussi fixer un rendez-vous.`)}
       ${q.rdv ? '' : `<div class="row" style="gap:10px;flex-wrap:wrap">${slots.map(([label, v]) =>
@@ -362,9 +374,9 @@
   // ----------------------------------------------------------- RemoteRequest
   function remote() {
     const r = S.remoteRequest;
-    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">${r.rdv ? "C'est l'heure de votre rendez-vous" : r.ticket ? 'Votre demande en attente' : "Proposition d'aide"}</span></div>
-      <div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.from)} ${r.ticket ? 'est disponible pour vous aider' : 'propose de vous aider'}</div>
-      ${r.task ? `<div class="card" style="padding:24px;${f(26, 5)}">« ${esc(r.task)} »</div>` : ''}
+    hd = { chip: hdChip('personWave', r.rdv ? "C'est l'heure de votre rendez-vous" : r.ticket ? 'Votre demande en attente' : "Proposition d'aide"),
+      title: hdTitle(`${esc(r.from)} ${r.ticket ? 'est disponible pour vous aider' : 'propose de vous aider'}`, 44) };
+    return mint(`${r.task ? `<div class="card" style="padding:24px;${f(26, 5)}">« ${esc(r.task)} »</div>` : ''}
       ${lead(`Si vous acceptez, PapAI va regarder votre écran. Rien ne bouge avant l'accord de ${r.from}, et vous pouvez arrêter à tout moment.`)}`, 40, 22) +
       `<div class="row" style="gap:14px;margin-top:18px">
         ${pill('Non merci', 'refuseRemote', { filled: false, height: 78, grow: true })}
@@ -394,8 +406,8 @@
   function settingsSheet() {
     const seg = S.textScales.map(([label, v]) =>
       `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
-    return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--bg)">
-      <div style="${f(30, 6)}">Réglages</div>
+    return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--card)">
+      <div class="sheetHead" style="${f(30, 6)}">Réglages</div>
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Mon support</div>${supportInfo()}</div>
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Taille du texte</div><div class="seg">${seg}</div></div>
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Protection en temps réel</div>
@@ -413,11 +425,11 @@
   // Alerte du gardien (PROTOCOL.md) : elle passe devant tout.
   function alertSheet() {
     const a = S.alert, danger = a.level === 'danger';
-    const tint = danger ? '#C8442F' : 'var(--accent)';
-    return `<div class="sheet col" style="width:620px;padding:36px;gap:18px;background:var(--card)">
-      <div class="row" style="gap:14px;color:${tint}">${icon('exclam', 30, tint)}
+    return `<div class="sheet col ${danger ? 'alertDanger' : 'alertInfo'}" style="width:620px;padding:36px;gap:18px;background:var(--card)">
+      <div class="sheetHead col" style="gap:12px">
+        <div class="row" style="gap:14px">${icon('exclam', 30, '#fff')}
         <span style="${f(17, 6)}">${danger ? 'Attention' : 'Pour information'}</span></div>
-      <div style="${f(30, 6)}">${esc(a.title)}</div>
+        <div style="${f(30, 6)}">${esc(a.title)}</div></div>
       ${a.detail ? `<div class="muted" style="${f(19, 5)}">${esc(a.detail)}</div>` : ''}
       ${a.acknowledged ? `<div style="${f(20, 6)}">Votre support a vu l'alerte et s'en occupe</div>` : ''}
       ${a.blocked ? '' : `<div class="row"><div class="spacer"></div>${pill("J'ai compris", 'dismissAlert', { height: 56 })}</div>`}</div>`;
@@ -447,7 +459,9 @@
     const sel = focusId && a.setSelectionRange ? [a.selectionStart, a.selectionEnd] : null;
     const compact = S.compact && S.screen === 'session' && !S.remoteRequest;
     if (document.body) document.body.classList.toggle('compact', compact);
-    document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${body()}</div>`;
+    hd = null;
+    const main = compact ? '' : body();
+    document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${main}</div>`;
     document.getElementById('sheet').innerHTML =
       S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
         : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
@@ -486,7 +500,6 @@
       ui.warning = null; ui.dictating = true; render();
       Promise.resolve(call('dictation_toggle')).catch(() => { ui.dictating = false; render(); });
     },
-    write: () => { ui.writing = true; render(); focus('req'); },
     homeShortcut: (id) => call('open_home_shortcut', id),
     editShortcuts: () => { ui.editingShortcuts = !ui.editingShortcuts; render(); },
     removeShortcut: (id) => call('remove_home_shortcut', id),
@@ -625,6 +638,7 @@
         if (q.get('dictation')) snap.dictation = { phase: q.get('dictation'), message: null };
         if (q.get('request')) ui.request = q.get('request');
         if (q.get('connected') === '0') snap.connected = false;
+        if (q.get('ts')) snap.textScale = parseFloat(q.get('ts'));
         window.PapAI.update(snap);
       });
     }

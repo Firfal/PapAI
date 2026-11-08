@@ -1,51 +1,114 @@
-/* Design « Soin » : recopie de apps/mac/Sources/Theme.swift.
+/* Design PapAI : fond clair bleuté, en-tête en dégradé bleu, cartes blanches
+   à ombre douce, pastilles pâles, bouton principal en pilule bleue.
    Les tailles sont celles de SwiftUI, en points = px CSS à 100 %.
-   Police : Nunito (OFL), l'arrondie la plus proche de SF Rounded. */
+   Contrastes vérifiés AA : --accent sur blanc 6,3:1, blanc sur le bleu du
+   bouton (#2F6CF6 au plus clair) 4,5:1, --muted sur blanc 6:1. */
 @font-face {
   font-family: "Nunito";
   src: url("fonts/Nunito.ttf") format("truetype");
   font-weight: 200 1000;
 }
 :root {
-  --bg: #EEF0EE; --card: #FFFFFF; --ink: #111312; --muted: #7A807C;
-  --accent: #2E9E5B; --mint: #E2F2E7;
-  --r: 28px; --rBig: 36px;
+  /* Palette du Mac (Theme.swift) : --accent est le bleu de texte (« leaf »),
+     --accentIcon le bleu vif des icônes et des barres. */
+  --bg: #F1F4FD; --card: #FFFFFF; --ink: #141A33; --muted: #5A6178;
+  --accent: #1D4FD7; --accentIcon: #2F6EF7; --mint: #EAF1FF; --field: #F2F4FA; --line: #E3E7F2;
+  --blue: linear-gradient(135deg, #2F6EF7 0%, #1A56E0 100%);
+  --header: linear-gradient(90deg, #1F5FF0 0%, #3D7FFF 100%);
+  --blueShadow: 0 4px 8px rgba(47,110,247,.3);
+  --soft: 0 6px 18px rgba(42,63,143,.08);
+  --danger: #C8442F;
+  --r: 18px; --rBig: 24px;
   --ts: 1;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  background: var(--bg); color: var(--ink);
-  font-family: "Nunito", "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg) linear-gradient(180deg, #EDF2FE 0%, #F2EFFC 100%) fixed;
+  color: var(--ink);
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   font-weight: 500; line-height: 1.2; -webkit-font-smoothing: antialiased; overflow: hidden;
   user-select: none;
 }
 button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
 button:disabled { opacity: .45; cursor: default; }
-button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(46,158,91,.45); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(47,110,247,.45); outline-offset: 2px; }
 input, textarea { font: inherit; color: var(--ink); border: 0; outline: none; background: none; user-select: text; }
-input::placeholder, textarea::placeholder { color: rgba(17,19,18,.32); }
+input::placeholder, textarea::placeholder { color: #737B8F; }
 svg { display: block; flex: none; }
 
-#root { height: 100vh; display: flex; flex-direction: column; gap: 22px; padding: 0 28px 28px; }
-.hdr { display: flex; align-items: center; gap: 14px; padding-top: 56px; flex: none; }
-.logotype { width: 84px; height: 36px; object-fit: contain; }
-.mintCard.homeCard { overflow-y: auto; }
-.homeCard > .spacer { flex-basis: auto; }
-@media (max-width: 960px), (max-height: 680px) {
-  .homeCard { padding: 24px !important; gap: 12px !important; }
-  .homeCard > .spacer { display: none; }
-  .homeCard .microFrame { width: 148px !important; height: 148px !important; }
-  .homeCard .microDisc { width: 128px !important; height: 128px !important; }
+/* En-tête : bande bleue en dégradé, logotype en blanc */
+#root { height: 100vh; display: flex; flex-direction: column; gap: 24px; padding: 24px 28px 28px; }
+/* Dégradé de la maquette (#4C8DFF → #2B6BFF) en haut, assombri vers le bas
+   pour que le texte blanc reste au moins à 4,5:1 sous le titre. */
+.hdr { display: flex; flex-direction: column; gap: 18px; padding: 24px 28px 28px; flex: none;
+  background: var(--header); color: #fff;
+  border-radius: var(--rBig); box-shadow: 0 10px 20px rgba(47,110,247,.28); position: relative; overflow: hidden; }
+.hdr > * { position: relative; }
+.hdr.danger { background: linear-gradient(180deg, #C8442F 0%, #A9331F 100%); box-shadow: 0 12px 32px rgba(168,50,30,.3); }
+.hdrTop { gap: 14px; }
+.hdrBody { gap: 10px; max-width: 1100px; }
+.hdrTitle { color: #fff; text-wrap: balance; }
+.hdrSub { color: #fff; font-weight: 500; text-wrap: pretty; max-width: 1040px; }
+.hdr .logotype { filter: brightness(0) invert(1); }
+.hdr .circle { background: rgba(255,255,255,.18) !important; color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.32); }
+.hdr :focus-visible { outline-color: #fff; }
+/* Champ de demande dans l'en-tête : blanc plein, comme la recherche de la maquette */
+.hdr .requestRow { background: #fff; box-shadow: 0 4px 10px rgba(42,63,143,.18); margin-top: 6px; max-width: 900px; color: var(--ink); }
+.hdr .requestRow:focus-within { box-shadow: 0 0 0 3px #BFD5FF, 0 4px 10px rgba(42,63,143,.18); }
+.hdr .requestRow textarea:focus-visible { outline: none; }
+/* Accueil : barre à la largeur de la colonne gauche (60 %) */
+.hdrHome .homeBar { max-width: calc((100% + 56px - 24px) * .6 - 56px); min-width: min(100%, calc(540px * var(--ts))); padding: 4px 4px 4px 18px; min-height: 52px; }
+.homeWarn { background: #fff; color: var(--ink); border-radius: var(--r); padding: 12px 18px; }
+.micMini { position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; flex: none; }
+.micMini .microDisc { position: relative; width: 36px; height: 36px; box-shadow: none; }
+.spinner.small { width: 16px; height: 16px; border-width: 2px; }
+/* Deux colonnes 60/40 : titres en place, seules les listes défilent dans leur carte */
+.homeCols { display: flex; gap: 24px; flex: 1 1 0; min-height: 0; align-items: flex-start; }
+.homeLeft { flex: 0 0 calc((100% - 24px) * .6); min-width: calc(540px * var(--ts)); max-height: 100%; gap: 14px; }
+.homeRight { flex: 1 1 0; min-width: 0; max-height: 100%; gap: 14px; }
+.homeCols .card { flex: none; }
+.homeCols .listCard { flex: 0 1 auto; min-height: 0; overflow-y: auto; border-radius: var(--rBig); }
+.lessonRow + .lessonRow { box-shadow: inset 0 1px 0 var(--line); }
+.listCard > .lessonRow { margin: 0 0; }
+.listCard { padding: 6px 0; }
+.listCard > .homeGrid { padding: 12px 12px; }
+.softChip { white-space: nowrap; min-height: 44px; padding: 5px 14px; border-radius: 999px; background: var(--mint); }
+.tileIcon { width: 72px; height: 72px; border-radius: 20px; background: var(--field); display: flex; align-items: center; justify-content: center; }
+.tileLabel { text-align: center; line-height: 1.2; min-height: 2.4em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Fenêtre trop étroite : la droite passe dessous, tout défile ensemble */
+@media (max-width: 920px) {
+  .homeCols { flex-direction: column; overflow-y: auto; align-items: stretch; }
+  .homeLeft, .homeRight { flex: none; min-width: 0; max-height: none; }
+  .homeCols .listCard { overflow: visible; }
+  .hdrHome .homeBar { max-width: none; min-width: 0; }
 }
-.requestRow { display: flex; align-items: center; gap: 10px; padding: 18px; border-radius: 22px; background: var(--card); }
+.hdr .dots .d { box-shadow: none; }
+.logotype { width: 84px; height: 36px; object-fit: contain; }
+.main { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+
+/* Petite fenêtre : l'en-tête se resserre pour laisser la place à la carte
+   (questions de Holo, réponse, avancement) ; le texte reste au-dessus de 15 px. */
+@media (max-height: 720px) {
+  #root { gap: 14px; padding: 14px 20px 16px; }
+  .hdr { padding: 14px 24px 16px; gap: 8px; }
+  .hdrBody { gap: 6px; }
+  .hdrTitle { font-size: max(15px, calc(30px * var(--ts))) !important; }
+  .hdrSub { font-size: max(15px, calc(17px * var(--ts))) !important; }
+  .hdr .requestRow { margin-top: 2px; padding-top: 8px; padding-bottom: 8px; }
+  .mintCard { padding: 22px !important; gap: 14px !important; }
+  .main > .row[style*="margin-top:18px"] { margin-top: 12px !important; }
+}
+/* Champ de demande : gris très clair, arrondi, avec icône */
+.requestRow { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 18px; border-radius: 999px;
+  background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.requestRow > .fieldIcon { color: var(--muted); }
 .requestRow textarea { flex: 1; min-width: 0; width: 100%; resize: none; }
 .writeButton { align-self: center; min-height: 44px; padding: 10px 22px; }
 .homeGrid { row-gap: 8px; }
 .removeShortcut { align-self: center; min-height: 44px; color: var(--muted); }
 .spacer { flex: 1 1 0; min-width: 0; min-height: 0; }
 body.compact #root { padding: 0; gap: 0; }
-.main { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 
 .muted { color: var(--muted); }
 .accent { color: var(--accent); }
@@ -53,34 +116,59 @@ body.compact #root { padding: 0; gap: 0; }
 
 .col { display: flex; flex-direction: column; }
 .row { display: flex; align-items: center; }
-.card { background: var(--card); border-radius: var(--r); }
-.mintCard { background: var(--mint); border-radius: var(--rBig); flex: 1 1 0; min-height: 0;
-  display: flex; flex-direction: column; overflow: hidden; }
+.card { background: var(--card); border-radius: var(--r); box-shadow: var(--soft); }
+/* Grande carte de chaque écran : blanche, ombre diffuse */
+.mintCard { background: var(--card); border-radius: var(--rBig); flex: 1 1 0; min-height: 0;
+  display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--soft); }
 .mintCard > * { flex-shrink: 0; }
 .mintCard > .scroll, .mintCard > .spacer { flex-shrink: 1; }
-.pillChip { background: var(--card); border-radius: 999px; display: inline-flex; align-items: center; }
+/* Cartes posées dans une carte blanche : ton gris bleuté et filet fin */
+.mintCard .card, .sheet .card { background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.progressBox { background: var(--field); box-shadow: inset 0 0 0 1px var(--line); }
+.track { background: #DDE4F4; }
+.fill { background: var(--blue); }
+
+/* Pastilles d'état pâles */
+.pillChip { background: var(--card); border-radius: 999px; display: inline-flex; align-items: center;
+  box-shadow: inset 0 0 0 1px var(--line); }
+.chip-blue { background: #E6EEFF; color: #1A47B8; box-shadow: none; }
+.chip-green { background: #E3F5EA; color: #13663A; box-shadow: none; }
+.chip-orange { background: #FFF0E0; color: #8F4300; box-shadow: none; }
+.chip-gray { background: #ECEEF3; color: #474F63; box-shadow: none; }
+.chip-violet { background: #EFEAFF; color: #5B3CC4; box-shadow: none; }
 .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .circle { border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .scroll { overflow-y: auto; min-height: 0; scrollbar-width: none; }
 .scroll::-webkit-scrollbar { display: none; }
+/* Dans une carte, une fine barre montre qu'il reste de quoi lire plus bas */
+.mintCard > .scroll { scrollbar-width: thin; scrollbar-color: #B9C6E6 transparent; }
+.mintCard > .scroll::-webkit-scrollbar { display: block; width: 8px; }
+.mintCard > .scroll::-webkit-scrollbar-thumb { background: #B9C6E6; border-radius: 8px; }
 
-/* PillStyle et PressStyle */
+/* Pilules : principale en dégradé bleu, secondaire blanche et discrète */
 .pill { border-radius: 999px; padding: 0 30px; font-weight: 600; display: inline-flex;
   align-items: center; justify-content: center; white-space: nowrap; flex: none;
-  transition: transform .25s cubic-bezier(.2,.8,.2,1); }
-.pill.filled { background: var(--ink); color: #fff; }
-.pill.plain { background: var(--card); color: var(--ink); }
-.press { transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+  transition: transform .16s cubic-bezier(.23,1,.32,1), box-shadow .16s; }
+.pill.filled { background: var(--blue); color: #fff; box-shadow: var(--blueShadow); }
+.pill.plain, .softBtn { background: var(--card); color: var(--ink);
+  box-shadow: inset 0 0 0 1px rgba(20,40,110,.12), 0 1px 2px rgba(20,40,110,.06); }
+.stopBtn { background: var(--ink); color: #fff; box-shadow: 0 6px 16px rgba(20,26,46,.25); }
+.press { transition: transform .16s cubic-bezier(.23,1,.32,1); }
 .pill:active:not(:disabled), .press:active:not(:disabled) { transform: scale(.97); }
 .grow { flex: 1 1 0; min-width: 0; }
 
-/* Micro : pulsation pendant l'écoute */
-.micRing { position: absolute; inset: 0; border-radius: 50%; background: rgba(46,158,91,.25);
+.field { background: var(--field); border-radius: var(--r); width: 100%; resize: none; display: block;
+  box-shadow: inset 0 0 0 1px var(--line); }
+
+/* Micro : disque bleu pâle au repos, bleu plein pendant l'écoute */
+.microDisc { background: var(--mint); box-shadow: inset 0 0 0 1px rgba(29,85,214,.14), 0 10px 28px rgba(30,60,150,.12); }
+.microDisc.on { background: var(--blue); box-shadow: var(--blueShadow); }
+.micRing { position: absolute; inset: 0; border-radius: 50%; background: rgba(47,108,246,.22);
   animation: pulse .9s ease-in-out infinite alternate; }
 @keyframes pulse { from { transform: scale(.9); } to { transform: scale(1.12); } }
 @media (prefers-reduced-motion: reduce) { .micRing { animation: none; } }
-.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(17,19,18,.15);
-  border-top-color: var(--muted); animation: spin .8s linear infinite; }
+.spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(20,26,46,.15);
+  border-top-color: var(--accent); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .fade { animation: fade .25s ease-in-out; }
@@ -91,13 +179,31 @@ body.compact #root { padding: 0; gap: 0; }
   justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 .appIcon img { width: 52px; height: 52px; }
 
-/* Feuilles (réglages, raccourcis), comme .sheet sur macOS */
+/* Arrêt par le gardien : la carte garde un bandeau rouge */
+.guardCard { box-shadow: inset 0 6px 0 var(--danger), var(--soft); }
+
+/* Feuilles (réglages, support, alerte) */
 #sheet:empty { display: none; }
-#sheet { position: fixed; inset: 0; background: rgba(17,19,18,.22); display: flex;
+#sheet { position: fixed; inset: 0; background: rgba(20,26,46,.28); display: flex;
   align-items: flex-start; justify-content: center; padding-top: 28px; animation: fade .2s; }
-.sheet { border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.25), 0 0 0 .5px rgba(0,0,0,.12);
+.sheet { border-radius: var(--rBig); box-shadow: 0 24px 60px rgba(20,30,80,.25), 0 0 0 .5px rgba(20,40,110,.12);
   max-height: calc(100vh - 56px); overflow: auto; }
-.seg { display: flex; background: rgba(17,19,18,.07); border-radius: 8px; padding: 2px; }
-.seg button { flex: 1; min-height: 30px; border-radius: 6px; font-size: 15px; font-weight: 500;
-  font-family: "Segoe UI", system-ui, sans-serif; }
-.seg button.on { background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+.sheet input { box-shadow: inset 0 0 0 1px var(--line); }
+/* Alerte du gardien : bandeau rouge épais, impossible à manquer */
+.alertDanger { box-shadow: 0 0 0 3px var(--danger), 0 24px 60px rgba(120,20,10,.3); }
+.alertInfo { box-shadow: 0 24px 60px rgba(20,30,80,.25); }
+/* Bandeau de tête des feuilles : bleu, rouge pour une alerte du gardien */
+.sheetHead { margin: -32px -32px 4px; padding: 26px 32px 22px; color: #fff;
+  background: linear-gradient(180deg, #2B6BFF 0%, #1E57E6 100%); }
+.sheet[style*="padding:36px"] > .sheetHead { margin: -36px -36px 4px; padding: 28px 36px 24px; }
+.alertDanger .sheetHead { background: linear-gradient(180deg, #C8442F 0%, #A9331F 100%); }
+/* Encart pendant l'aide : sa ligne de titre en bandeau bleu */
+.miniHead { margin: -14px -16px 0; padding: 10px 16px; color: #fff; background: linear-gradient(180deg, #2B6BFF 0%, #1E57E6 100%); }
+.miniHead .softBtn { box-shadow: none; }
+/* Filet fin entre deux blocs d'une carte */
+.sep { height: 1px; background: var(--line); margin: 4px 0; }
+.seg { display: flex; }
+.seg button { flex: 1; min-height: 46px; font-size: max(15px, calc(17px * var(--ts))); font-weight: 500; color: var(--muted); box-shadow: inset 0 -1px 0 var(--line); }
+.seg button.on { color: var(--accent); font-weight: 600; box-shadow: inset 0 -3px 0 var(--accentIcon); }
+.alertDanger .pill.filled { background: var(--danger); box-shadow: 0 6px 16px rgba(200,68,47,.3); }
+@media (prefers-reduced-motion: reduce) { .fade, #sheet { animation: none; } }
