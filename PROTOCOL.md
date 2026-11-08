@@ -355,7 +355,7 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
 ## Tickets (chaque demande d'assistance)
 
 Chaque demande devient un ticket, gardé dans `<espace>/tickets.json` (500 derniers, texte seulement :
-aucune capture). Numéro `number` par espace (affiché `T-0001`). Statuts : `nouveau`, `en_attente`
+aucune capture). Numéro `number` par espace, ou unique dans l’organisation (`orgs/<id>/tickets_seq`), affiché `T-0001`. Statuts : `nouveau`, `en_attente`
 (aucun support disponible), `rdv`, `en_cours`, `a_reprendre` (session arrêtée ou échouée), `resolu`.
 `source` : `personne`, `support` ou `automatisme`. Le ticket suit la session (`plan`, `steps_done`,
 `helper`, `stopped_by`, `tokens`) ; `assignee`, `closed_by`, `notes` [{t, by, text}], `rdv` (secondes Unix).

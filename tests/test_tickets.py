@@ -137,6 +137,15 @@ async def parcours(base: str) -> None:
             await asyncio.sleep(0.3)
 
         st, r = http(f"{base}/o/{o['support_token']}/tickets")
+        st2, b = http(f"{base}/spaces", {"org": o["enroll_token"], "name": "Poste accueil"})
+        async with websockets.connect(b["bridge_url"]) as wb2:
+            await wb2.send(json.dumps({"type": "hello", "os": "windows"}))
+            await drain(wb2, 0.3)
+            await wb2.send(json.dumps({"type": "help_request", "task": "Écran noir"}))
+            q2 = await attendre(wb2, "ticket_queued")
+        check("numéro unique dans toute l'organisation", q2 is not None and q2["number"] == 3)
+        st, r = http(f"{base}/o/{o['support_token']}/tickets")
+        r["tickets"] = [x for x in r.get("tickets", []) if x["space"] == key]
         check("le service IT voit les tickets de ses postes",
               st == 200 and len(r["tickets"]) == 2 and all(x["poste"] == "Poste compta" for x in r["tickets"]))
         st, r = http(f"{base}/o/{o['support_token']}/tickets/{key}/{tid}", {"action": "reopen", "by": "IT"})

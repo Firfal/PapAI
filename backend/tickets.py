@@ -50,10 +50,11 @@ class Tickets:
         tid = str(tid or "")
         return next((t for t in self._load() if t["id"] == tid), None) if tid else None
 
-    def open(self, task: str, source: str, status: str = "nouveau", by: str = "") -> dict:
+    def open(self, task: str, source: str, status: str = "nouveau", by: str = "", number: int | None = None) -> dict:
         items = self._load()
         now = int(time.time())
-        t = {"id": secrets.token_hex(6), "number": max((int(x.get("number", 0)) for x in items), default=0) + 1,
+        number = number or max((int(x.get("number", 0)) for x in items), default=0) + 1
+        t = {"id": secrets.token_hex(6), "number": number,
              "task": task, "source": source, "by": by[:40], "status": status, "created": now, "updated": now,
              "session": "", "plan": [], "steps_done": 0, "helper": "", "end": "", "stopped_by": "",
              "rdv": None, "rdv_notified": False, "offered": 0, "assignee": "", "notes": [], "tokens": 0}

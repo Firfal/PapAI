@@ -304,6 +304,11 @@ def _rdv_at(v) -> int | None:
     return int(at) if now + RDV_MIN_S <= at <= now + tickets_mod.RDV_MAX_S else None
 
 
+def _open_ticket(task: str, source: str, status: str = "nouveau", by: str = "") -> dict:
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    return S().tickets.open(task, source, status=status, by=by, number=o.next_ticket() if o else None)
+
+
 async def _tickets_changed() -> None:
     await broadcast_helper({"type": "tickets_changed"}, to_bridge=False)
 
@@ -543,7 +548,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if ticket is None and not by and _support_expected() and not _support_available():
                     # Aucun support disponible : la demande attend, la personne
                     # sera reprévenue dès qu'un support est là (ou au rendez-vous).
-                    ticket = S().tickets.open(task, "personne", status="en_attente", by=S().family.senior)
+                    ticket = _open_ticket(task, "personne", status="en_attente", by=S().family.senior)
                     await ws.send_json({"type": "ticket_queued", "ticket": ticket["id"],
                                         "number": ticket["number"], "task": task})
                     await _tickets_changed()
@@ -556,7 +561,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     session.log("remote_accepted", by=str(msg["requested_by"])[:40])
                     await broadcast_helper({"type": "remote_accepted"})
                 if ticket is None:
-                    ticket = S().tickets.open(task, "support" if by else "personne", by=by or S().family.senior)
+                    ticket = _open_ticket(task, "support" if by else "personne", by=by or S().family.senior)
                 session.ticket = ticket["id"]
                 S().tickets.update(ticket, session=session.id, status="en_cours", rdv=None)
                 await _tickets_changed()
@@ -586,7 +591,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 session.grant_consent()
                 session.preapprove_plan(steps, by=lesson.get("approved_by", ""))
                 session.log("automation", id=lesson["id"], title=lesson.get("title", ""))
-                ticket = S().tickets.open(lesson.get("title") or goal[:MAX_TASK], "automatisme",
+                ticket = _open_ticket(lesson.get("title") or goal[:MAX_TASK], "automatisme",
                                           status="en_cours", by=S().family.senior)
                 session.ticket = ticket["id"]
                 S().tickets.update(ticket, session=session.id)
