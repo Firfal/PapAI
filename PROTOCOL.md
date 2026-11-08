@@ -474,7 +474,8 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
   Jeton inconnu : 404. Aucun blocage des fonctions sans abonnement. `POST /stripe/webhook`
   vérifie le corps brut (256 Kio max) signé Stripe (tolérance ±300 s), puis conserve l'état
   dans `billing.json` par organisation, avec le dernier `created` appliqué : événement plus ancien
-  pour le même abonnement ignoré, autre abonnement ignoré tant que celui en cours n'est pas
+  pour le même abonnement ignoré (à date égale, un statut terminal prime sur un non terminal),
+  autre abonnement ignoré tant que celui en cours n'est pas
   `canceled` ou `incomplete_expired`. Signature invalide : 400 ; secret absent : 503.
 - `GET|POST /o/<support_token>/automations`, `DELETE /o/<support_token>/automations/<id>` : catalogue
   de l'organisation (même format `.papai` que `POST /k/<clé>/automations`). Un import est copié sur

@@ -195,8 +195,13 @@ def install(app, find_org, members, public_url, org_by_id, all_orgs):
         if org:
             state = read(org)
             subscription = obj.get("subscription") if kind == "checkout.session.completed" else obj.get("id")
+            status = ("active" if kind == "checkout.session.completed" else
+                      "canceled" if kind.endswith(".deleted") else obj.get("status", "inactif"))
             if subscription and subscription == state.get("subscription"):
                 if created < state.get("last_event_created", 0):
+                    return {"ok": True}
+                if (created == state.get("last_event_created", 0) and state.get("statut") in TERMINAL_STATUSES
+                        and status not in TERMINAL_STATUSES):
                     return {"ok": True}
             elif (kind.startswith("customer.subscription.") and state.get("subscription")
                   and state.get("statut") not in TERMINAL_STATUSES):
@@ -206,7 +211,6 @@ def install(app, find_org, members, public_url, org_by_id, all_orgs):
             if kind == "checkout.session.completed":
                 state.update(subscription=obj.get("subscription"), abonne=True, statut="active")
             else:
-                status = "canceled" if kind.endswith(".deleted") else obj.get("status", "inactif")
                 state.update(subscription=obj.get("id"), statut=status, abonne=status in {"active", "trialing"})
             state["last_event_created"] = created
             write(org, state)

@@ -253,6 +253,23 @@ console.log('OK : detail affiché pour billing, checkout et portail');})().catch
         self.assertEqual(self.event()[0], 503)
         self.assertFalse(billing.read(self.org).get("abonne", False))
 
+    def test_webhook_terminal_prioritaire_a_date_egale(self):
+        self.assertEqual(self.event(created=100)[0], 200)
+        self.assertEqual(self.event("customer.subscription.deleted", {"id": "sub_test"}, created=300)[0], 200)
+        for terminal in ("canceled", "incomplete_expired"):
+            state = billing.read(self.org)
+            state["statut"] = terminal
+            billing.write(self.org, state)
+            for kind in ("created", "updated"):
+                self.assertEqual(self.event("customer.subscription." + kind, {
+                    "id": "sub_test", "status": "active"}, created=300)[0], 200)
+                self.assertEqual(billing.read(self.org), state)
+            self.assertEqual(self.event(created=300)[0], 200)
+            self.assertEqual(billing.read(self.org), state)
+        self.assertEqual(self.event("customer.subscription.updated", {
+            "id": "sub_test", "status": "active"}, created=301)[0], 200)
+        self.assertTrue(billing.read(self.org)["abonne"])
+
     def test_inconnus_et_erreur_stripe(self):
         for suffix in ("/abonnement", "/billing", "/billing/checkout", "/billing/portal"):
             self.assertEqual(self.request("/o/inconnu" + suffix, b"" if suffix.endswith(("checkout", "portal")) else None)[0], 404)
