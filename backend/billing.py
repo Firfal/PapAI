@@ -167,7 +167,10 @@ def install(app, find_org, members, public_url, org_by_id, all_orgs):
             event = json.loads(raw)
             obj = event["data"]["object"]
             kind = event["type"]
+            created = event.get("created", 0)
             if not isinstance(obj, dict) or not isinstance(kind, str):
+                raise ValueError()
+            if type(created) is not int or created < 0:
                 raise ValueError()
         except (ValueError, TypeError, KeyError, StopIteration):
             raise HTTPException(400, "Signature ou événement invalide") from None
@@ -189,6 +192,13 @@ def install(app, find_org, members, public_url, org_by_id, all_orgs):
                     break
         if org:
             state = read(org)
+            subscription = obj.get("subscription") if kind == "checkout.session.completed" else obj.get("id")
+            if subscription and subscription == state.get("subscription"):
+                if created < state.get("last_event_created", 0):
+                    return {"ok": True}
+            elif (kind.startswith("customer.subscription.") and state.get("subscription")
+                  and state.get("statut") not in TERMINAL_STATUSES):
+                return {"ok": True}
             if obj.get("customer"):
                 state["customer"] = obj["customer"]
             if kind == "checkout.session.completed":
@@ -196,5 +206,6 @@ def install(app, find_org, members, public_url, org_by_id, all_orgs):
             else:
                 status = "canceled" if kind.endswith(".deleted") else obj.get("status", "inactif")
                 state.update(subscription=obj.get("id"), statut=status, abonne=status in {"active", "trialing"})
+            state["last_event_created"] = created
             write(org, state)
         return {"ok": True}

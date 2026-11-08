@@ -74,8 +74,9 @@ class Abonnement(unittest.TestCase):
                 pass
             return response.status, raw
 
-    def event(self, kind="checkout.session.completed", obj=None, timestamp=None, signature=None, live=False):
-        raw = json.dumps({"type": kind, "livemode": live, "data": {"object": obj if obj is not None else {
+    def event(self, kind="checkout.session.completed", obj=None, timestamp=None, signature=None, live=False, created=None):
+        raw = json.dumps({"type": kind, "created": int(time.time()) if created is None else created,
+                          "livemode": live, "data": {"object": obj if obj is not None else {
             "client_reference_id": self.org.id, "customer": "cus_test", "subscription": "sub_test"}}}).encode()
         t = str(int(time.time()) if timestamp is None else timestamp)
         sig = hmac.new(b"whsec_local", t.encode() + b"." + raw, hashlib.sha256).hexdigest()
@@ -184,8 +185,29 @@ console.log('OK : detail affiché pour billing, checkout et portail');})().catch
         self.assertEqual(self.event()[0], 200)
         self.assertTrue(billing.read(self.org)["abonne"])
         self.assertEqual(self.event("customer.subscription.updated", {
-            "id": "sub_autre", "customer": "cus_test", "status": "past_due"})[0], 200)
+            "id": "sub_test", "customer": "cus_test", "status": "past_due"})[0], 200)
         self.assertFalse(billing.read(self.org)["abonne"])
+
+    def test_webhook_evenements_hors_ordre(self):
+        self.assertEqual(self.event(created=100)[0], 200)
+        self.assertEqual(self.event("customer.subscription.deleted", {"id": "sub_test"}, created=300)[0], 200)
+        deleted = billing.read(self.org)
+        self.assertEqual(self.event("customer.subscription.updated", {
+            "id": "sub_test", "status": "active"}, created=200)[0], 200)
+        self.assertEqual(billing.read(self.org), deleted)
+        self.assertEqual(deleted["last_event_created"], 300)
+        self.assertFalse(deleted["abonne"])
+        self.assertEqual(self.event("customer.subscription.created", {
+            "id": "sub_new", "metadata": {"org": self.org.id}, "customer": "cus_test",
+            "status": "active"}, created=400)[0], 200)
+        current = billing.read(self.org)
+        for kind in ("deleted", "updated", "created"):
+            self.assertEqual(self.event("customer.subscription." + kind, {
+                "id": "sub_test", "metadata": {"org": self.org.id}, "customer": "cus_test",
+                "status": "past_due"}, created=500)[0], 200)
+            self.assertEqual(billing.read(self.org), current)
+        self.assertEqual(current["subscription"], "sub_new")
+        self.assertTrue(current["abonne"])
 
     def test_signatures_et_corps(self):
         self.assertEqual(self.event(signature=f"t={int(time.time())},v1=bad")[0], 400)
