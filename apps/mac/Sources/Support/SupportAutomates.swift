@@ -342,10 +342,10 @@ struct SupportCreateAutomate: View {
                     }
                     switch kind {
                     case .holo:
-                        field("Objectif donné à Holo", $goal, "Ouvrir le dossier des photos de Noël")
+                        field("Objectif donné à Holo", $goal, "Ouvrir le dossier de la comptabilité")
                     case .folder:
                         picker("Dossier", Self.folders, $folder)
-                        field("Sous-dossier (facultatif)", $subfolder, "Noël 2025")
+                        field("Sous-dossier (facultatif)", $subfolder, "Comptabilité 2025")
                     case .settings:
                         picker("Page", Self.pages, $page)
                     case .url:

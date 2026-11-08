@@ -269,9 +269,9 @@ test('question de Holo à la personne : réponse proposée ou écrite, une seule
   h.update({ state: 'awaiting_helper', questionForMe: true, question: 'Ordinateur ou clé USB ?' });
   assert.match(html(h), /data-act="seniorOption"/);
   h.update({ question: 'Et le dossier ?', questionOptions: [] });
-  h.listeners.input({ target: { id: 'seniorReply', value: 'Noël 2025' } });
+  h.listeners.input({ target: { id: 'seniorReply', value: 'Comptabilité 2025' } });
   h.listeners.keydown({ key: 'Enter', target: { id: 'seniorReply' }, preventDefault() {} });
-  assert.deepEqual(h.calls.at(-1), ['answer_senior', 'Noël 2025']);
+  assert.deepEqual(h.calls.at(-1), ['answer_senior', 'Comptabilité 2025']);
 });
 
 test("encart pendant que Holo agit, et fin du gardien adaptée à l’utilisateur", async () => {

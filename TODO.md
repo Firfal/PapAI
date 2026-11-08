@@ -20,7 +20,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 ## P0 — pour que la démo marche (ce soir)
 
 - [ ] **Réinstaller les apps Mac et iPhone depuis `main`** : celles des appareils datent d'avant les PR #1 à #4. Compilées sur macOS depuis, mais pas encore lancées.
-- [ ] **Répétition réelle sur le Mac** : demande → plan → précision → validation → Holo ouvre `Images/Noël 2025` → Arrêter. Trois fois de suite sans accroc.
+- [ ] **Répétition réelle sur le Mac** : demande → plan → précision → validation → Holo ouvre `Documents/Comptabilité 2025` → Arrêter. Trois fois de suite sans accroc.
   - [ ] Bloqué : Quentin doit cliquer « Autoriser » dans la fenêtre macOS « contourner le sélecteur de fenêtre privée » (enregistrement de l'écran de PapAI).
 - [ ] **Vrais clics CGEvent** de l'app Mac (`apps/mac/Sources/Bridge.swift`) : jamais exercés en réel.
 - [ ] **Bouton Arrêter** cliqué pendant une session active : vérifier qu'aucune action ne passe ensuite.

@@ -34,10 +34,10 @@ def texte(messages: list) -> str:
 def fiche() -> str:
     if FICHE == "casse":
         return "Désolé, je ne peux pas."
-    etapes = ["Ouvrez le Finder.", "Choisissez Images dans la colonne de gauche."]
+    etapes = ["Ouvrez le Finder.", "Choisissez Documents dans la colonne de gauche."]
     if FICHE == "objets":
         etapes = [{"instruction": e, "checkpoint": "", "frame": ""} for e in etapes]
-    return json.dumps({"title": "Retrouver mes photos", "steps": etapes}, ensure_ascii=False)
+    return json.dumps({"title": "Retrouver le dossier de la comptabilité", "steps": etapes}, ensure_ascii=False)
 
 
 def reponse(corps: dict) -> dict:
@@ -46,9 +46,9 @@ def reponse(corps: dict) -> dict:
     if corps.get("tools"):
         n = sum(1 for m in messages if m.get("role") == "assistant")
         if n < 2:
-            nom, args = "click", {"element": "dossier Noël 2025", "x": 530, "y": 245}
+            nom, args = "click", {"element": "dossier Comptabilité 2025", "x": 530, "y": 245}
         else:
-            nom, args = "answer", {"content": "Voici vos photos de Noël."}
+            nom, args = "answer", {"content": "Voici le dossier de la comptabilité."}
         message["tool_calls"] = [{
             "id": f"appel-{n}", "type": "function",
             "function": {"name": nom, "arguments": json.dumps(args, ensure_ascii=False)},
@@ -58,9 +58,9 @@ def reponse(corps: dict) -> dict:
         if '"instruction"' in consigne:
             message["content"] = fiche()
         elif '"folder"' in consigne:
-            message["content"] = '{"folder": "pictures", "subfolder": "Noël 2025"}'
+            message["content"] = '{"folder": "documents", "subfolder": "Comptabilité 2025"}'
         else:
-            etapes = ["Ouvrir le Finder", "Aller dans Images", "Ouvrir Noël 2025"]
+            etapes = ["Ouvrir le Finder", "Aller dans Documents", "Ouvrir Comptabilité 2025"]
             # Consigne « Étape N : remplacer « … » par « … » » de l'iPhone : appliquée.
             for n, _, nouveau in re.findall(r"Étape (\d+) : remplacer « (.+?) » par « (.+?) »", consigne):
                 if 1 <= int(n) <= len(etapes):

@@ -38,9 +38,9 @@ test('cible retirable et refus sensible persistant jusqu’à Compris ou au gest
     context.payload = JSON.stringify({ type: 'lesson_draft', lesson: { title: 'Photos', steps: [], shortcut } });
     vm.runInContext('onMessage({data: payload})', context);
   }
-  draft({ folder: 'pictures', subfolder: 'Noël 2025' });
+  draft({ folder: 'pictures', subfolder: 'Séminaire 2025' });
   assert.equal(get('draftTarget').hidden, false);
-  assert.equal(get('draftTargetLabel').textContent, 'Ouvrira : Images › Noël 2025');
+  assert.equal(get('draftTargetLabel').textContent, 'Ouvrira : Images › Séminaire 2025');
   get('approve').onclick();
   assert.equal(Object.hasOwn(sent.at(-1).lesson, 'shortcut'), false);
   get('noShortcut').checked = true;

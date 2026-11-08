@@ -48,7 +48,7 @@ struct SupportRefineSheet: View {
     var body: some View {
         SupportSheet(titre: "Préciser le plan",
                      sousTitre: "Dites ou écrivez à Holo ce qu’il doit changer. Il proposera un nouveau plan.") {
-            SupportDictationField(text: $text, placeholder: "Par exemple : les photos sont dans Images > Noël 2025",
+            SupportDictationField(text: $text, placeholder: "Par exemple : le dossier est dans Documents > Comptabilité 2025",
                                   dictation: dictation, httpBase: model.baseHTTP)
         } bas: {
             Spacer()

@@ -189,7 +189,7 @@ struct RefineSheet: View {
             Text("Préciser le plan").font(.system(size: 24, weight: .bold)).foregroundStyle(Soin.ink)
             Text("Dites ou écrivez à Holo ce qu’il doit changer. Il proposera un nouveau plan.")
                 .font(.system(size: 15)).foregroundStyle(Soin.secondary)
-            DictationField(text: $text, placeholder: "Par exemple : les photos sont dans Images > Noël 2025",
+            DictationField(text: $text, placeholder: "Par exemple : le dossier est dans Documents > Comptabilité 2025",
                            dictation: dictation, endpoint: model.transcribeURL, focused: $focused)
             Spacer(minLength: 0)
             Button("Envoyer à Holo") {
