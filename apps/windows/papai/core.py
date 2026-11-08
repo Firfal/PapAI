@@ -701,7 +701,7 @@ def browser_address(hwnd) -> str:
         cond = automation.CreatePropertyCondition(30003, 50004)  # ControlType = Edit
         edit = element.FindFirst(4, cond)  # TreeScope_Descendants
         value = str(edit.GetCurrentPropertyValue(30045) or "") if edit else ""  # Value
-        return value if re.match(r"^(?:https?://)?[\w.-]+\.[a-z]{2,}(?::\d+)?(?:[/?#]|$)|^(?:https?://)?\d{1,3}(?:\.\d{1,3}){3}",
+        return value if re.match(r"^(?:https?://)?[\w.-]+\.[a-z]{2,}(?::\d+)?(?:[/?#]|$)|^(?:https?://)?\d{1,3}(?:\.\d{1,3}){3}|^(?:https?://)?\[[0-9a-f:.]+\]",
                                  value.strip().lower()) else ""
     except Exception:  # noqa: BLE001 — navigateur absent, fermé ou sans barre lisible
         return ""
