@@ -91,7 +91,6 @@ struct PairSheet: View {
     @State private var name = ""
     @State private var relation = ""
     @State private var code = ""
-    @State private var confirmReplace = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -106,14 +105,6 @@ struct PairSheet: View {
         .presentationDetents([.large])
         .interactiveDismissDisabled(model.pairBusy)
         .onAppear { if name.isEmpty { name = model.helperName ?? "" } }
-        .alert("Remplacer la liaison ?", isPresented: $confirmReplace) {
-            Button("Remplacer", role: .destructive) {
-                Task { await model.submitPair(link, code: code, name: name, relation: relation, confirmedReplace: true) }
-            }
-            Button("Annuler", role: .cancel) {}
-        } message: {
-            Text("Ceci remplacera votre liaison \(model.connected ? "active " : "")avec \(model.senior). Les demandes de \(model.senior) n'arriveront plus sur ce téléphone.\n\nActuel : \(model.displayHost) · Nouveau : \(link.host)")
-        }
     }
 
     @ViewBuilder private var form: some View {
@@ -131,7 +122,7 @@ struct PairSheet: View {
         label("Votre prénom")
         TextField("Claire", text: $name)
             .textContentType(.givenName).font(.system(size: 17)).padding(16).soinCard(radius: 18)
-        label("Votre lien avec \(model.needsReplaceConfirmation(link) ? "la personne aidée" : model.senior)")
+        label("Votre lien avec la personne aidée")
         FlowLayout(spacing: 8) {
             ForEach(relations, id: \.value) { r in
                 Button { relation = relation == r.value ? "" : r.value } label: {
@@ -158,8 +149,7 @@ struct PairSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading).padding(18)
         .soinCard(link.isOfficial ? Soin.accentSoft : Soin.danger.opacity(0.1))
         Button {
-            if model.needsReplaceConfirmation(link) { confirmReplace = true }
-            else { Task { await model.submitPair(link, code: code, name: name, relation: relation) } }
+            Task { await model.submitPair(link, code: code, name: name, relation: relation) }
         } label: {
             if model.pairBusy { ProgressView().tint(.white) } else { Text("Rejoindre") }
         }

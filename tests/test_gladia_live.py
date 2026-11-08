@@ -46,7 +46,7 @@ class LiveTests(unittest.TestCase):
         self.fake.audio.clear()
         self.fake.configs.clear()
         self.patches = [patch.dict(os.environ, {"GLADIA_API_KEY": "cle-factice"}),
-                        patch.object(server, "AIDANT_KEY", "famille-test"),
+                        patch.object(server, "spaces", server.space.Spaces("famille-test")),
                         patch.object(voice, "LIVE", f"http://127.0.0.1:{self.port}/v2/live"),
                         patch.object(voice, "_live_url_ok", lambda url: url.startswith(f"ws://127.0.0.1:{self.port}/"))]
         for p in self.patches:
@@ -89,6 +89,18 @@ class LiveTests(unittest.TestCase):
             with self.connect("mauvaise"):
                 pass
         self.assertEqual(self.fake.configs, [])
+
+    def test_other_space_key_opens_live(self):
+        with tempfile.TemporaryDirectory() as folder:
+            other = server.space.Space("autre-famille-test", Path(folder))
+            with patch.dict(server.spaces._by_key, {other.key: other}), self.connect(other.key) as ws:
+                self.assertEqual(ws.receive_json(), {"type": "ready"})
+                ws.send_bytes(b"\x01\x00" * 1600)
+                self.assertEqual(ws.receive_json()["text"], "Bonjour")
+                ws.send_json({"type": "stop"})
+                self.assertTrue(ws.receive_json()["final"])
+                self.assertEqual(ws.receive_json()["text"], "Merci.")
+                self.assertEqual(ws.receive_json(), {"type": "done"})
 
     def test_missing_key_falls_back(self):
         with patch.dict(os.environ, {"GLADIA_API_KEY": ""}), self.connect() as ws:
