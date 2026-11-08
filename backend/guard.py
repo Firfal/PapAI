@@ -261,7 +261,7 @@ def evaluer_demande(texte: str, outils_declares=(), domaines_org=()) -> Alerte |
     t = _normaliser(texte)
     secret = re.search(_SECRET, t)
     tiers_demande = re.search(_TIERS, t) and re.search(_DEMANDE, t)
-    transmis = (re.search(_TRANSMETTRE + r"\s+(?:(?:a|au|aux)\s+(?:la\s+|l')?\S+(?:\s+\S+)?\s+)?"
+    transmis = (re.search(_TRANSMETTRE + r"\s+(?:(?:a|au|aux)\s+(?:\S+\s+){1,4}?)?"
                           r"(?:(?:le|la|les|mon|ma|mes|son|sa|ses|ce|cet|cette|un|une|des|du|de|d'|l')\s*){0,2}" + _SECRET, t)
                 or (secret and re.search(r"(?:\bl'|\ble |\bla |\bles |\blui )" + _TRANSMETTRE, t)))
     if transmis or (secret and tiers_demande and not re.search(_RENOUVELER, t)):
