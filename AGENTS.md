@@ -45,7 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794099687-liaison-accord` | Lot correctif PR #59, étape 1 serveur : liens sans clé, invitations opaques, limites et tests ; commits locaux sans push | backend/, PROTOCOL.md, tests/ | 8 nov. |
 
 ## Journal
 
