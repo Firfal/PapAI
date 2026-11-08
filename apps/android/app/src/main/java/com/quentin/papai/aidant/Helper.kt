@@ -117,6 +117,14 @@ object Helper {
     val webLive get() = sessionWhere == "web" && (state == "active" || state == "awaiting_helper")
     var task by mutableStateOf("")
     var plan by mutableStateOf<List<String>>(emptyList())
+    var linkupVisible by mutableStateOf(false)
+    var linkupPending by mutableStateOf(false)
+    var linkupQuery by mutableStateOf("")
+    var linkupText by mutableStateOf("")
+    var linkupId by mutableStateOf("")
+    var linkupSources by mutableStateOf<List<Pair<String, String>>>(emptyList())
+    var linkupError by mutableStateOf(false)
+    var linkupBusy by mutableStateOf(false)
     var planStep by mutableStateOf<Int?>(null)
     var doing by mutableStateOf<String?>(null)
     var question by mutableStateOf<Question?>(null)
@@ -347,6 +355,7 @@ object Helper {
     }
 
     private fun clearSession() {
+        clearLinkup()
         state = null; sessionWhere = null; sessionId = ""; task = ""; plan = emptyList(); planStep = null
         doing = null; question = null; questionToSenior = false; liveDictation = null
         frame = null; frameId = null; frameAt = null; aiming = false; target = null
@@ -702,6 +711,7 @@ object Helper {
                 val sid = m.text("session")
                 var wasWebLive = webLive
                 if (sid != sessionId) {
+                    clearLinkup()
                     wasWebLive = false
                     liveDictation = null
                     sessionId = sid; requestStart = System.currentTimeMillis(); iRefusedPlan = false
@@ -760,7 +770,21 @@ object Helper {
                 question = Question(it, strings(m.optJSONArray("options")))
             }
 
-            "answer" -> doneAnswer = m.text("content").ifEmpty { null }
+            "linkup_proposed" -> if (m.text("session") == sessionId) {
+                linkupVisible = true; linkupPending = true; linkupQuery = m.text("query")
+                linkupText = ""; linkupId = ""; linkupSources = emptyList(); linkupError = false
+            }
+            "linkup_result" -> if (m.text("session") == sessionId) {
+                linkupVisible = true; linkupBusy = false; linkupError = m.has("error")
+                linkupText = m.text("summary"); linkupId = m.text("id")
+                val sources = m.optJSONArray("sources")
+                linkupSources = (0 until (sources?.length() ?: 0)).mapNotNull { i ->
+                    val s = sources?.optJSONObject(i) ?: return@mapNotNull null
+                    val url = s.text("url")
+                    if (url.startsWith("https://") || url.startsWith("http://")) s.text("name") to url else null
+                }
+            }
+            "linkup_answer", "answer" -> doneAnswer = m.text("content").ifEmpty { null }
 
             "alert" -> {
                 val t = m.text("title").ifEmpty { "Alerte" }
@@ -775,7 +799,7 @@ object Helper {
                     sensitiveRefusal = m.text("reason").ifEmpty { "Cette fenêtre est protégée (réglages ou mots de passe)." }
                     toast = null
                 } else showToast(m.text("reason").ifEmpty { "Refusé" })
-                sending = false; planBusy = false; lessonBusy = false
+                sending = false; planBusy = false; lessonBusy = false; linkupBusy = false
             }
 
             "ack" -> when (m.text("what")) {
@@ -870,6 +894,21 @@ object Helper {
     // MARK: Actions
 
     fun approvePlan() { planBusy = true; send("type" to "approve_plan") }
+    fun clearLinkup() {
+        linkupVisible = false; linkupPending = false; linkupQuery = ""; linkupText = ""
+        linkupId = ""; linkupSources = emptyList(); linkupError = false; linkupBusy = false
+    }
+    fun openLinkup() { clearLinkup(); linkupVisible = true; linkupQuery = task }
+    fun searchLinkup() {
+        linkupBusy = true; linkupId = ""; linkupText = ""; linkupSources = emptyList(); linkupError = false
+        send("type" to "linkup_search", "session" to sessionId, "query" to linkupQuery)
+    }
+    fun approveLinkup() = send("type" to "linkup_approve", "session" to sessionId,
+        "id" to linkupId, "approved" to true, "text" to linkupText)
+    fun refuseLinkup() {
+        if (linkupPending) send("type" to "linkup_approve", "session" to sessionId, "approved" to false)
+        else clearLinkup()
+    }
     fun refinePlan(text: String) { planBusy = true; send("type" to "refine_plan", "text" to text) }
     fun refusePlan() { iRefusedPlan = true; send("type" to "refuse_plan") }
     fun answer(t: String) = send("type" to "answer", "text" to t)

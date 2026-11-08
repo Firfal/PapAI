@@ -61,6 +61,7 @@ final class AppModel {
     var questionForMe = false
     var questionOptions: [String] = []
     var answer: String?
+    var answerSources: [[String: String]] = []
     var currentAction: String?
     var lessons: [Lesson] = []
     var notice: String?
@@ -689,7 +690,7 @@ final class AppModel {
         homeTimer?.cancel()
         self.task = task
         pendingTask = ""
-        plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
+        plan = []; planStep = nil; question = nil; answer = nil; answerSources = []; currentAction = nil; actions = []
         sessionHelper = nil
         AppUsage.shared.noteRequest(task)
         webFronted = false
@@ -739,8 +740,12 @@ final class AppModel {
             if sessionOpen && !gate.isStopped { webHost.start() }
         case "web_agent_stop":
             webHost.stopLocal(notifyServer: false)
+        case "linkup_answer":
+            answer = m["content"] as? String
+            answerSources = m["sources"] as? [[String: String]] ?? []
         case "answer":
             answer = m["content"] as? String
+            answerSources = []
         case "helpers":
             let list = (m["helpers"] as? [[String: Any]]) ?? []
             helpers = list.compactMap { d in
@@ -981,7 +986,7 @@ final class AppModel {
             runStatus = nil
             homeTimer?.cancel()
             task = holo.goal ?? l.title
-            plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
+            plan = []; planStep = nil; question = nil; answer = nil; answerSources = []; currentAction = nil; actions = []
             sessionHelper = nil
             state = .planning
             screen = .session

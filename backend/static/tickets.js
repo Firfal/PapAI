@@ -65,6 +65,14 @@
       head.append(el('span', 'tk-num', num(t)), el('span', 'tk-st ' + t.status, STATUS[t.status] || t.status),
                   el('span', 'tk-task', t.task || '(sans texte)'));
       c.append(head, el('div', 'tk-meta', meta(t)));
+      if (t.linkup_answer) {
+        c.append(el('p', 'tk-meta', t.linkup_answer.content || ''));
+        for (const s of t.linkup_answer.sources || []) {
+          if (!/^https?:\/\//.test(s.url || '')) continue;
+          const a = el('a', 'tk-meta', s.name || s.url);
+          a.href = s.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; c.append(a);
+        }
+      }
       if (t.notes && t.notes.length) {
         const ul = el('ul', 'tk-notes');
         for (const n of t.notes.slice(-3)) ul.append(el('li', '', `${n.by ? n.by + ' : ' : ''}${n.text}`));

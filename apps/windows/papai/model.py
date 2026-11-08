@@ -78,6 +78,7 @@ class Model:
         self.user_expanded = False
         self._last_state: str | None = None
         self.answer: str | None = None
+        self.answer_sources: list[dict] = []
         self.current_action: str | None = None
         self.actions: list[str] = []
         self.lessons: list[dict] = []
@@ -180,7 +181,7 @@ class Model:
                 "stoppedBy": self.stopped_by,
                 "task": self.task, "pendingTask": self.pending_task, "screenConsent": self.screen_consent,
                 "plan": list(self.plan), "planStep": self.plan_step,
-                "question": self.question, "answer": self.answer,
+                "question": self.question, "answer": self.answer, "answerSources": list(self.answer_sources),
                 "questionForMe": self.question_for_me, "questionOptions": list(self.question_options),
                 "paused": self.paused, "guardAcknowledged": self.guard_acknowledged,
                 "carer": self.carer, "compact": self.compact,
@@ -577,6 +578,7 @@ class Model:
             self.question_for_me, self.question_options, self.paused = False, [], False
             self.session_helper = None
             self.answer, self.current_action, self.actions = None, None, []
+            self.answer_sources = []
             self.state = "planning"
             self.screen = "session"
         self._level()
@@ -618,8 +620,13 @@ class Model:
         kind = m.get("type")
         if kind == "status":
             self._apply_status(m)
+        elif kind == "linkup_answer":
+            self.answer = m.get("content")
+            self.answer_sources = [s for s in (m.get("sources") or []) if isinstance(s, dict)
+                                   and str(s.get("url", "")).startswith(("http://", "https://"))]
         elif kind == "answer":
             self.answer = m.get("content")
+            self.answer_sources = []
         elif kind == "helpers":
             lst = m.get("helpers") or []
             self.helpers = [{"id": str(d["id"]), "name": str(d["name"]),
@@ -821,6 +828,7 @@ class Model:
             self.task = str(goal or lesson.get("title") or "")
             self.plan, self.plan_step, self.question = [], None, None
             self.answer, self.current_action, self.actions = None, None, []
+            self.answer_sources = []
             self.state = "planning"
             self.screen = "session"
         self._level()

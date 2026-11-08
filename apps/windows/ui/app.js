@@ -246,6 +246,7 @@
     if (st === 'done') {
       return `<div class="col" style="gap:16px">
         <div class="card" style="padding:28px;${f(26, 5)}">${esc(S.answer || 'Voilà, c\'est fait.')}</div>
+        ${(S.answerSources || []).map(s => `<p style="${f(14)}">${esc(s.name || s.url)} · ${esc(s.url)}</p>`).join('')}
         ${endNote('lock', "Votre écran n'est plus partagé.")}
         ${endNote('book', `${S.HelperName} peut en faire un automate. Vous le retrouverez dans « Mes automates » pour le refaire sans aide.`)}
       </div>`;
