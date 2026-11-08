@@ -38,6 +38,7 @@ struct Lesson: Decodable, Identifiable {
     var actions: [Action]?
     var publisher: String?
     var platforms: [String]?
+    var description: String?
 }
 
 enum Shortcuts {

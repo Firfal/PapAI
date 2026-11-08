@@ -65,6 +65,8 @@ final class AppModel {
     var lessons: [Lesson] = []
     var notice: String?
     var lesson: Lesson?
+    /// La fiche d'automate ouverte par-dessus l'accueil.
+    var docLesson: Lesson?
     var screenOK = Permissions.screenOK
     var axOK = Permissions.accessibilityOK
     var permissionsDismissed = false

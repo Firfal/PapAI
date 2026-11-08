@@ -299,7 +299,7 @@ struct HomeView: View {
 
     private func tuile(_ l: Lesson) -> some View {
         HStack(spacing: 10) {
-            Button { model.runShortcut(l) } label: {
+            Button { withAnimation(.easeOut(duration: 0.18)) { model.docLesson = l } } label: {
                 HStack(spacing: 12) {
                     Circle().fill(T.mint).frame(width: 40, height: 40)
                         .overlay(Image(systemName: l.shortcut == nil && !(l.actions ?? []).isEmpty ? "wand.and.stars" : Shortcuts.symbol(for: l.shortcut?.folder))
@@ -317,18 +317,18 @@ struct HomeView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(PressStyle())
-            .accessibilityLabel("Lancer \(l.title)")
-            if !(l.steps ?? []).isEmpty {
-                Button { model.openLesson(l) } label: {
-                    Text("Montrez-moi").font(rounded(15, .semibold)).foregroundStyle(T.leaf)
-                        .lineLimit(1).fixedSize(horizontal: true, vertical: false)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 5).frame(minHeight: 44)
-                        .background(Capsule().fill(T.mint))
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(PressStyle())
+            .accessibilityLabel("Voir la fiche de \(l.title)")
+            // Le lancement ne se fait que par ce bouton ; la ligne ouvre la fiche.
+            Button { model.runShortcut(l) } label: {
+                Text("Exécuter").font(rounded(15, .semibold)).foregroundStyle(T.leaf)
+                    .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 5).frame(minHeight: 44)
+                    .background(Capsule().fill(T.mint))
+                    .contentShape(Capsule())
             }
+            .buttonStyle(PressStyle())
+            .accessibilityLabel("Exécuter \(l.title)")
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .frame(maxWidth: .infinity)
