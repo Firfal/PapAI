@@ -7,16 +7,6 @@ import UniformTypeIdentifiers
 
 // MARK: - Verrou d'arrêt
 
-/// Le verrou d'arrêt. Levé depuis l'interface AVANT d'envoyer `stop` au serveur,
-/// lu avant chaque action : il ne dépend d'aucun réseau.
-final class StopGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var stopped = false
-    func raise() { lock.lock(); stopped = true; lock.unlock() }
-    func reset() { lock.lock(); stopped = false; lock.unlock() }
-    var isStopped: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
-}
-
 // MARK: - Automatismes
 
 struct Lesson: Decodable, Identifiable {
@@ -170,6 +160,7 @@ enum ScreenGrabber {
 enum ActionError: Error {
     case stopped
     case protectedZone
+    case sensitive(String)
     case noAccessibility
     case unknownKey(String)
 }
@@ -180,7 +171,9 @@ enum Actuator {
     static let marker: Int64 = 0x5041_5041_49
     /// Exécute une action. `protected` : cadre de la fenêtre PapAI, en points
     /// écran (origine en haut à gauche), que l'agent n'a pas le droit de viser.
+    @MainActor
     static func run(name: String, args: [String: Any], gate: StopGate, protected: CGRect?) async throws -> String {
+        let gate = gate.pin()
         if gate.isStopped { throw ActionError.stopped }
         let source = CGEventSource(stateID: .hidSystemState)
 
@@ -193,6 +186,8 @@ enum Actuator {
             if gate.isStopped { throw ActionError.stopped }
             let count = name == "double_click" ? 2 : 1
             for i in 1...count {
+                if gate.isStopped { throw ActionError.stopped }
+                try DesktopSafety.shared.checkPointer(p)
                 for type in [CGEventType.leftMouseDown, .leftMouseUp] {
                     let e = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: p, mouseButton: .left)
                     e?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
@@ -202,10 +197,12 @@ enum Actuator {
             return "\(name) à (\(Int(p.x)), \(Int(p.y))) sur « \(args["element"] as? String ?? "") »"
 
         case "type_text":
+            try await DesktopSafety.shared.prepareKeyboard()
             guard AXIsProcessTrusted() else { throw ActionError.noAccessibility }
             let text = args["text"] as? String ?? ""
             for ch in text {
                 if gate.isStopped { throw ActionError.stopped }
+                try DesktopSafety.shared.checkKeyboard()
                 if ch == "\n" {
                     key(36, [], source)
                 } else {
@@ -222,6 +219,8 @@ enum Actuator {
             return "texte tapé : \(text)"
 
         case "press_key":
+            try await DesktopSafety.shared.prepareKeyboard()
+            if gate.isStopped { throw ActionError.stopped }
             guard AXIsProcessTrusted() else { throw ActionError.noAccessibility }
             let spec = args["keys"] as? String ?? ""
             let (code, flags) = try parseKeys(spec)
@@ -266,12 +265,14 @@ enum Actuator {
     }
 
     /// [0,1000] -> points de l'écran principal, avec refus sur la fenêtre PapAI.
+    @MainActor
     private static func point(_ args: [String: Any], protected: CGRect?) throws -> CGPoint {
         func num(_ v: Any?) -> Double { (v as? NSNumber)?.doubleValue ?? 0 }
         let b = CGDisplayBounds(CGMainDisplayID())
         let p = CGPoint(x: b.minX + (num(args["x"]) / 1000 * b.width).rounded(),
                         y: b.minY + (num(args["y"]) / 1000 * b.height).rounded())
         if let r = protected, r.contains(p) { throw ActionError.protectedZone }
+        try DesktopSafety.shared.checkPointer(p)
         return p
     }
 
