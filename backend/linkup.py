@@ -16,9 +16,9 @@ TIMEOUT_S = 12.0
 _NUM = r"\b\d{1,4}\s*(?i:bis|ter)?\s*,?\s*"
 # Types de voie sans autre sens courant : le numéro suffit.
 _VOIE = (r"(?i:rue|avenue|av|boulevard|bd|blvd|chemin|allée|allee|impasse|quai|résidence|residence"
-         r"|hameau|lieu-dit|faubourg|fbg|sentier|esplanade|parvis|rond-point|lotissement)\b")
+         r"|hameau|lieu-dit|faubourg|fbg|sentier|esplanade|parvis|rond-point|lotissement|place|route|rte)\b")
 # Mots qui ont aussi un autre sens (« 3 cours gratuits ») : il faut un nom propre après.
-_VOIE_AMBIGUE = (r"(?i:place|route|rte|passage|cours|square|villa|cité|cite|voie|traverse|montée)"
+_VOIE_AMBIGUE = (r"(?i:passage|cours|square|villa|cité|cite|voie|traverse|montée)"
                  r"\s+(?:(?i:de|du|des|la|le|les)\s+){0,2}(?:(?i:d|l)['’])?[A-ZÀ-Ý]")
 _PERSONAL = re.compile(
     r"(?i:\S+@\S+\.\S+|\bFR\d{2})|(?<!\w)\d(?:[\s./-]?\d){5,}"

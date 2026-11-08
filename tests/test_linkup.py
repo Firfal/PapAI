@@ -54,7 +54,9 @@ class Client(unittest.IsolatedAsyncioTestCase):
             for q in ["écrire à jeanne.dupont@gmail.com", "rappeler le 06 12 34 56 78", "rappeler le 06/12/34/56/78",
                       "carte 4970 1012 3456 7890", "virement FR76 3000 6000", "livraison au 12 rue de la Paix",
                       "3 bis, avenue Foch", "8 av Foch", "8 passage des Lilas", "4 résidence les Pins",
-                      "4 place de la Mairie"]:
+                      "4 place de la Mairie", "5 place du marché", "12 rue de la paix",
+                      "7 route du moulin", "2 allée des fleurs", "9 boulevard victor hugo",
+                      "4 impasse des roses", "8 chemin du lac", "6 quai des pêcheurs"]:
                 with self.subTest(q=q):
                     self.assertEqual(await linkup.search(q), {"error": "personal_data"})
             client.assert_not_called()
