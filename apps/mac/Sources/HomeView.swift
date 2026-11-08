@@ -317,7 +317,7 @@ struct HomeView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(PressStyle())
-            .accessibilityLabel("Voir la fiche de \(l.title)")
+            .accessibilityLabel("Voir l'automate \(l.title)")
             // Le lancement ne se fait que par ce bouton ; la ligne ouvre la fiche.
             // Après un lancement, le résultat (« C'est fait ») prend sa place sur la ligne.
             if let st = model.runStatus, st.id == l.id {
