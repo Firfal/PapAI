@@ -15,6 +15,8 @@ struct UserTickets: View {
                 Image(systemName: "tray.full").font(rounded(22, .semibold)).foregroundStyle(T.accent)
                 Text("Mes demandes en cours").font(rounded(26, .bold))
             }
+            // La carte reste en place ; seule la liste défile quand elle dépasse.
+            Defilant(actif: true) {
             VStack(spacing: 0) {
                 if failed {
                     note("Impossible de récupérer vos demandes pour le moment.")
@@ -28,6 +30,7 @@ struct UserTickets: View {
                 }
             }
             .padding(.vertical, 6)
+            }
             .carte(T.rBig)
         }
         .task {
@@ -63,7 +66,7 @@ struct UserTickets: View {
         case "en_attente": ("En attente du support", .orange)
         case "rdv": ("Rendez-vous prévu", .violet)
         case "en_cours": ("En cours", .vert)
-        case "a_reprendre": ("À reprendre", .orange)
+        case "a_reprendre": ("En cours", .vert)
         default: (s, .gris)
         }
     }

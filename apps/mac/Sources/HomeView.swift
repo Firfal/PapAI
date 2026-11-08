@@ -28,7 +28,7 @@ struct HomeView: View {
                 // L'encadré bleu (bonjour + demande) reste sur l'onglet Accueil seulement.
                 if model.homeTab == 0 { enTete(barre: deux ? gauche - Self.marge : nil) }
                 if model.homeTab == 2 {
-                    UserTickets().frame(maxHeight: .infinity, alignment: .top)
+                    UserTickets().padding(.bottom, 24).frame(maxHeight: .infinity, alignment: .top)
                 } else if model.homeTab == 1 {
                     automates(titre: false, tous: true).padding(.bottom, 24)
                         .frame(maxHeight: .infinity, alignment: .top)
@@ -455,7 +455,7 @@ enum Greeting {
 
 /// Une liste qui défile à l'intérieur de sa carte quand la place manque ; sinon
 /// la carte épouse son contenu. La carte elle-même ne bouge jamais.
-private struct Defilant<Contenu: View>: View {
+struct Defilant<Contenu: View>: View {
     var actif: Bool
     @ViewBuilder var contenu: Contenu
     var body: some View {
