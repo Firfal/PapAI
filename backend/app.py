@@ -31,6 +31,7 @@ from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
 from .caremamory import lessons_dir, approve_and_save, draft_lesson, list_lessons
 from .sessions import Frame, Owner, Refused, Registry, State
+from . import rangement
 
 STATIC = Path(__file__).parent / "static"
 
@@ -618,7 +619,10 @@ async def _ws_bridge(ws: WebSocket) -> None:
 
                 if S().agent_task and not S().agent_task.done():
                     S().agent_task.cancel()
-                S().agent_task = asyncio.create_task(run_session(session, link))
+                # Rangement guidé : noms de fichiers seulement, plan validé par le support.
+                S().agent_task = asyncio.create_task(
+                    rangement.run(session, link, broadcast_helper, check_request, msg["tidy"])
+                    if "tidy" in msg else run_session(session, link))
                 continue
 
             if kind == "run_automation":
