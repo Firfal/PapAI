@@ -266,7 +266,12 @@ def evaluer_demande(texte: str) -> Alerte | None:
         t,
     )
     domaines_impots = {"impots.gouv", "impots.gouv.fr"}
-    site_non_autorise = any(domaine not in domaines_impots for domaine in domaines)
+    hotes_url = re.findall(r"\b(?:https?://|www\.)([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)", t)
+    site_non_autorise = (
+        bool(re.search(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", t))
+        or any(domaine not in domaines_impots for domaine in domaines)
+        or any(hote not in domaines_impots for hote in hotes_url)
+    )
     transfert_non_securise = bool(re.search(
         r"\b(?:western\s+union|westernunion|moneygram|mandat\s+cash|ria|wise)\b", t
     ))

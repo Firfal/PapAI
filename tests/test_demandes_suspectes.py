@@ -175,6 +175,8 @@ SUSPECTES = [
     "Payer mes impôts de 4 900 euros sur ce lien reçu par SMS",
     "Payer mes impôts de 4 900 euros sur le site impots-gouv-paiement.com",
     "Payer mes impôts de 4 900 euros sur impots.gouv.fr.paiement-securise.com",
+    "Payer mes impôts de 4 900 euros sur http://192.168.1.4/paiement",
+    "Payer mes impôts de 4 900 euros sur www.impots-paiement.fr",
     "Payer mes impôts de 4 900 euros sur un compte au Portugal",
     "Payer mes impôts de 4 900 euros par Western Union",
     "Payer mon loyer de 4 900 euros au nouveau propriétaire",
