@@ -317,7 +317,6 @@ struct SupportSettings: View {
     @State private var server = ""
     @State private var key = ""
     @State private var org = ""
-    @State private var confirmRole = false
 
     var body: some View {
         SupportSheet(titre: "Réglages", sousTitre: model.helperName.map { "Support : \($0)" }, width: 640, height: 640) {
@@ -371,14 +370,6 @@ struct SupportSettings: View {
                 }
             }
         } bas: {
-            Button("Changer de rôle") { confirmRole = true }
-                .buttonStyle(.plain).font(rounded(15, .medium)).foregroundStyle(T.muted)
-                .confirmationDialog("Changer de rôle ?", isPresented: $confirmRole) {
-                    Button("Changer et relancer PapAI") { AppRole.forgetAndRelaunch() }
-                    Button("Annuler", role: .cancel) {}
-                } message: {
-                    Text("PapAI se relance et vous demande si vous vous faites aider ou si vous aidez quelqu'un. Vos liaisons sont gardées.")
-                }
             Spacer()
             Button("Fermer") { dismiss() }.buttonStyle(PillStyle(height: 50)).keyboardShortcut(.cancelAction)
         }

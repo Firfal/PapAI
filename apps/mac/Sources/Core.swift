@@ -326,7 +326,7 @@ enum Actuator {
 }
 
 
-/// Automates importés par un support (service IT, proche). Le serveur a
+/// Automates importés par un support (service informatique). Le serveur a
 /// vérifié chaque action à l'import ; on revérifie ici avant de la jouer.
 enum Automations {
     static let templateExt = [".dotx", ".potx", ".xltx"]

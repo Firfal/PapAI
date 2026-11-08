@@ -451,7 +451,11 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
 - `POST /orgs` `{"name"}` → `{"id","name","enroll_token","support_token","server","support_url","app_url"}`.
   3 créations par heure et par adresse IP (429). Les deux jetons ne sont donnés qu'ici.
   - `enroll_token` (`ins-…`) : déposé sur les postes. Windows : `apps\windows\organisation.txt`
-    (ignoré par git) ou `PAPAI_ORG`. Mac : préférence `orgToken` (`defaults write`, profil MDM) ou `PAPAI_ORG`.
+    (ignoré par git) ou `PAPAI_ORG`. Mac : préférence gérée `orgToken` (profil MDM, ou
+    `defaults write com.quentin.papai orgToken ins-…`) ou `PAPAI_ORG`. Préférence `server` facultative
+    (adresse du serveur, ex. `https://…` ou `http://localhost:8071`) : le Mac y fait `POST /spaces` et
+    garde le pont reçu dans `bridgeURL` (recalé sur l'adresse configurée). Sans `server`, serveur officiel.
+    Le Mac n'a plus de liaison manuelle : un `pair_confirm` reçu est refusé aussitôt (`pair_decision` false).
   - `support_token` (`sup-…`) : donné aux supports (personnes ou support IA). `support_url` =
     `<server>/o/<jeton>` (page web), `app_url` = `papai://org?u=<server>&t=<jeton>` (Android, iPhone).
 - `POST /spaces` `{"org": "<enroll_token>", "name": "<utilisateur · poste>"}` : le poste s'inscrit
