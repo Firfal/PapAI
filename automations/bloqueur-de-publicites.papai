@@ -1,0 +1,23 @@
+{
+  "papai": 1,
+  "title": "Installer un bloqueur de publicités",
+  "publisher": "Service IT Acme",
+  "description": "Holo ajoute uBlock Origin Lite à Chrome ou à Edge, depuis la boutique officielle du navigateur. Moins de publicités, donc moins de fausses alertes et de pièges.",
+  "platforms": [
+    "windows",
+    "mac"
+  ],
+  "actions": [
+    {
+      "do": "holo",
+      "goal": "Ajouter l'extension uBlock Origin Lite au navigateur habituel (Google Chrome ou Microsoft Edge), depuis sa boutique officielle.",
+      "steps": [
+        "Ouvrir le navigateur habituel",
+        "Aller sur la boutique officielle des extensions : chromewebstore.google.com pour Chrome, microsoftedge.microsoft.com/addons pour Edge",
+        "Chercher « uBlock Origin Lite » et vérifier que l'éditeur est Raymond Hill",
+        "Cliquer sur « Ajouter à Chrome » ou « Obtenir », puis confirmer l'ajout de l'extension",
+        "Vérifier que l'icône de uBlock Origin Lite apparaît à côté de la barre d'adresse"
+      ]
+    }
+  ]
+}
