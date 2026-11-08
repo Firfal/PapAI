@@ -259,6 +259,11 @@ object AutomateLibrary {
 
     private fun save() {
         val f = file ?: return
-        try { f.writeText(JSONArray(entries.map { it.toJson() }).toString()) } catch (_: Exception) {}
+        // Fichier temporaire puis renommage : un arrêt pendant l'écriture ne laisse jamais un fichier tronqué.
+        try {
+            val tmp = File(f.parentFile, f.name + ".tmp")
+            tmp.writeText(JSONArray(entries.map { it.toJson() }).toString())
+            if (!tmp.renameTo(f)) { f.delete(); tmp.renameTo(f) }
+        } catch (_: Exception) {}
     }
 }
