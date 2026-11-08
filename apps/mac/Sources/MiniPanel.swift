@@ -66,7 +66,9 @@ private struct MiniView: View {
             HStack(spacing: 10) {
                 Mascotte(humeur: model.paused || !model.sessionOpen ? .calme : .joyeuse, anime: false)
                     .frame(width: Mascotte.Taille.encart, height: Mascotte.Taille.encart)
-                Text(title).font(rounded(17, .semibold)).foregroundStyle(T.ink).lineLimit(1)
+                Text(model.state == .active && !model.paused ? model.currentAction ?? title : title)
+                    .font(rounded(17, .semibold)).foregroundStyle(T.ink).lineLimit(1)
+                    .help(model.currentAction ?? title)
                 Spacer(minLength: 0)
                 Button { model.expandWindow() } label: {
                     Image(systemName: "arrow.up.left.and.arrow.down.right")

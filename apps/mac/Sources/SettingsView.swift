@@ -20,6 +20,11 @@ struct SettingsView: View {
             .background(T.header)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    Toggle("Lire à voix haute", isOn: Binding(
+                        get: { model.narration.enabled }, set: { model.narration.enabled = $0 }))
+                        .font(rounded(22, .semibold)).toggleStyle(.switch).tint(T.accent)
+                    Text("Holo décrit ses actions avec la voix française de cet ordinateur. La lecture se coupe pendant la dictée.")
+                        .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                     VStack(alignment: .leading, spacing: 8) {
                         Toggle(isOn: Binding(get: { model.realtimeProtection }, set: { model.setRealtimeProtection($0) })) {
                             Text("Protection en temps réel").font(rounded(22, .semibold))

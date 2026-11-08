@@ -298,7 +298,9 @@
       tone: guardStopped(st) ? 'danger' : null };
     const content = sessionContent(st);
     if (!content && !footer) return `<div class="spacer"></div><div class="row" style="margin-top:18px">${bottom}</div>`;
-    const inner = `<div class="scroll">${content}</div>
+    const action = st === 'active' && !S.paused && S.currentAction
+      ? `<div style="${f(24, 5)}">${esc(S.currentAction)}</div>` : '';
+    const inner = `<div class="scroll">${action}${content}</div>
       <div class="spacer"></div>${footer}`;
     const card = guardStopped(st)
       ? `<div class="col guardCard" style="padding:40px 34px 34px;gap:18px;border-radius:var(--rBig);background:var(--card);flex:1;min-height:0">${inner}</div>`
@@ -316,7 +318,7 @@
     return `<div class="col mini" style="gap:10px;padding:14px 16px">
       <div class="row miniHead" style="gap:10px">
         <span class="dot" style="background:${S.sessionOpen && !S.paused ? '#fff' : 'rgba(255,255,255,.55)'}"></span>
-        <span class="grow" style="${f(17, 6)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</span>
+        <span class="grow" style="${f(17, 6)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(st === 'active' && !S.paused ? S.currentAction || title : title)}</span>
         <button class="circle press softBtn" data-act="expand" aria-label="Ouvrir PapAI en grand"
           style="width:44px;height:44px;color:var(--accent)">${icon('expand', 16)}</button>
       </div>
@@ -419,6 +421,8 @@
     return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--card)">
       <div class="sheetHead" style="${f(30, 6)}">Réglages</div>
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Mon support</div>${supportInfo()}</div>
+      <label class="row" style="gap:12px;${f(20, 6)}"><input type="checkbox" data-act="readAloud" ${window.PapAINarration?.enabled !== false ? 'checked' : ''}>Lire à voix haute</label>
+      <div class="muted" style="${f(15, 4)}">Voix française locale uniquement. La lecture se coupe pendant la dictée.</div>
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Taille du texte</div><div class="seg">${seg}</div></div>
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Protection en temps réel</div>
         <div class="seg"><button class="${S.realtimeProtection ? 'on' : ''}" data-act="protection" data-arg="1">Activée</button><button class="${S.realtimeProtection ? '' : 'on'}" data-act="protection" data-arg="0">Coupée</button></div>
@@ -504,11 +508,13 @@
   }
 
   const acts = {
+    readAloud: () => { window.PapAINarration?.setEnabled(!window.PapAINarration.enabled); render(); },
     submit, mic: () => {
       if (!S.microPresent || S.dictation.phase === 'starting' || S.dictation.phase === 'transcribing') return;
       if (S.dictation.phase === 'idle' && ui.dictating) return;
       ui.warning = null; ui.dictating = true; render();
-      Promise.resolve(call('dictation_toggle')).catch(() => { ui.dictating = false; render(); });
+      window.PapAINarration?.setDictating(true);
+      Promise.resolve(call('dictation_toggle')).catch(() => { ui.dictating = false; window.PapAINarration?.setDictating(false); render(); });
     },
     homeShortcut: (id) => call('open_home_shortcut', id),
     editShortcuts: () => { ui.editingShortcuts = !ui.editingShortcuts; render(); },
@@ -530,8 +536,8 @@
     cancelConsent: () => call('cancel_consent'),
     share: () => call('give_consent'),
     revokeConsent: () => { S.screenConsent = false; render(); call('revoke_consent'); },
-    stop: () => call('stop'),
-    pause: () => call('toggle_pause'),
+    stop: () => { window.PapAINarration?.cancel(); call('stop'); },
+    pause: () => { window.PapAINarration?.cancel(); call('toggle_pause'); },
     expand: () => call('expand_window'),
     seniorOption: (o) => acts.seniorReply(o),
     seniorReply: (o) => {
@@ -595,6 +601,7 @@
     update(snap) {
       const was = S && S.screen;
       S = snap;
+      window.PapAINarration?.update(snap);
       if (!(S.homeShortcuts || []).some(a => a.personal)) ui.editingShortcuts = false;
       const m = S.dictation && S.dictation.message;
       if (m && m !== ui.lastDictMsg) ui.warning = m;

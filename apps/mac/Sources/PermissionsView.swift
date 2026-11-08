@@ -57,4 +57,3 @@ struct PermissionRow: View {
         .champ(T.r)
     }
 }
-
