@@ -1011,6 +1011,9 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
 
     if result is None:
         raise Refused("Le PC a refusé l'action.")
+    if isinstance(result, SensitiveBlocked):
+        session.log("sensitive_blocked", tool="click", source="helper", reason=result.reason)
+        raise Refused(f"Clic non effectué : PapAI a bloqué une zone sensible ({result.reason}). Intervenez directement sur l'ordinateur.")
 
     await ws.send_json({"type": "ack", "what": "click", "result": result})
     session.answer_from_helper("J'ai cliqué moi-même sur l'écran. Reprends à partir de là.")

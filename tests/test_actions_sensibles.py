@@ -42,7 +42,7 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
                 self.session.answer_from_helper("Je m'en occupe, vous pouvez continuer.")
 
         self.runner = agent.AgentRunner(self.session, self.link, broadcast)
-        for p in (patch.object(app, "pending_alert", None), patch.object(agent, "MIN_SECONDS_PER_STEP", 0)):
+        for p in (patch.object(app.S(), "pending_alert", None), patch.object(agent, "MIN_SECONDS_PER_STEP", 0)):
             p.start()
             self.addCleanup(p.stop)
 
@@ -111,6 +111,33 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.session.state, State.STOPPED)
         self.assertEqual(self.session.stopped_by, "pont")
         self.assertFalse(any(e["kind"] == "sensitive_blocked" for e in self.session.journal))
+
+    async def test_clic_support_refuse_ne_reprend_pas_holo(self):
+        for result in (agent.SensitiveBlocked(TEXT), None, "fait"):
+            with self.subTest(result=result):
+                session = Registry().create("Mes photos")
+                session.grant_consent()
+                session.state = State.ACTIVE
+                session.plan_approved = True
+                session.last_frame = Frame("capture", "aW1hZ2U=", 1, 1)
+                reply = session.ask_helper("Pouvez-vous vous en occuper ?")
+                ws = SimpleNamespace(send_json=AsyncMock())
+                link = SimpleNamespace(execute=AsyncMock(return_value=result))
+                with patch.object(app.S(), "bridge", link), patch.object(app, "broadcast_helper", AsyncMock()):
+                    await app.handle_helper_msg(session, {"type": "click", "frame_id": "capture", "x": 0.5, "y": 0.5}, ws)
+                messages = [call.args[0] for call in ws.send_json.await_args_list]
+                if result == "fait":
+                    self.assertTrue(reply.done())
+                    self.assertEqual(session.state, State.ACTIVE)
+                    self.assertTrue(any(m.get("type") == "ack" for m in messages))
+                else:
+                    self.assertFalse(reply.done())
+                    self.assertEqual(session.state, State.AWAITING_HELPER)
+                    self.assertTrue(any(m.get("type") == "refused" for m in messages))
+                    self.assertFalse(any(m.get("type") == "ack" for m in messages))
+                    if isinstance(result, agent.SensitiveBlocked):
+                        self.assertIn("Clic non effectué", messages[0]["reason"])
+                        self.assertTrue(any(e["kind"] == "sensitive_blocked" for e in session.journal))
 
     async def test_resultat_vide_erreur_et_refus_incomplet(self):
         self.link._request.return_value = {"result": "", "refused": False}
