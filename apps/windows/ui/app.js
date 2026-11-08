@@ -51,6 +51,7 @@
         <span class="dot" style="background:#7A8296"></span>
         <span style="${f(16, 5)}">Pas de connexion pour le moment</span>
       </div>`}
+      ${h.home ? `<button class="pillChip chip-blue press" data-act="openRequests" style="padding:10px 16px;min-height:44px;${f(16, 6)}">Mes demandes</button>` : ''}
       <button class="circle press" data-act="openSettings" aria-label="Réglages"
         style="width:44px;height:44px">${icon('gear', 20)}</button>
       </div>
@@ -125,10 +126,11 @@
         <button class="row press stopBtn" data-act="stop" aria-label="Arrêter l'automate (Échap)"
           style="gap:10px;height:52px;padding:0 20px;border-radius:999px">
           ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
+    const assist = S.automationRun && S.automationRun.local ? assistButton() : '';
     const list = S.lessons.length ? `<div class="card listCard">${tiles}</div>`
       : `<div class="card col" style="padding:20px;gap:6px"><div style="${f(18, 6)}">Aucun automate pour l'instant.</div>
           <div class="muted" style="${f(17, 4)}">Un automate est une tâche toute prête. Quand ${esc(S.helperName)} en enregistre un pour vous, il apparaît ici et se lance d'un clic.</div></div>`;
-    return `${sectionTitle('list', 'Mes automates')}${running}${notice}${list}`;
+    return `${sectionTitle('list', 'Mes automates')}${assist ? `<div class="row" style="justify-content:flex-end">${assist}</div>` : ''}${running}${notice}${list}`;
   }
 
   const APP_STYLE = {
@@ -183,11 +185,32 @@
       </div>`;
   }
 
+  // « Demander une assistance », discret, en haut à droite d’un automate : le support
+  // n’est prévenu que sur ce geste, avec l’étape où l’automate s’est arrêté.
+  function assistButton() {
+    if (S.automationRun && S.automationRun.asked) {
+      return `<span class="row muted" style="gap:8px;padding:8px 14px;${f(15, 6)}">${icon('checkCircle', 16)}Assistance demandée</span>`;
+    }
+    if (!S.canAskAutomationSupport) return '';
+    return `<button class="row press" data-act="askAssist" aria-label="Demander une assistance : votre support reçoit l’étape où l’automate s’est arrêté"
+        style="gap:8px;min-height:36px;padding:0 14px;border-radius:999px;border:1.2px solid var(--line);background:transparent;color:var(--muted);${f(15, 6)}">
+        ${icon('personWave', 16)}<span>Demander une assistance</span></button>`;
+  }
+
   // ----------------------------------------------------------------- Session
   const guardStopped = (st) => st === 'stopped' && S.stoppedBy === 'gardien';
+  // Automate lancé depuis la liste : il se joue seul, sans support.
+  const automate = () => (S.automationRun && !S.automationRun.local ? S.automationRun : null);
+  const blocked = (st) => st === 'stopped' && S.stoppedBy === 'blocage';
   function sessionTitle(st) {
     if (S.paused && S.sessionOpen) return "L'aide est en pause";
     if (guardStopped(st)) return 'PapAI a arrêté : cette démarche peut être une arnaque';
+    const a = automate();
+    if (a) {
+      return { planning: `Holo prépare « ${a.title} »…`, awaiting_approval: `Holo prépare « ${a.title} »…`,
+        active: `Holo s’occupe de « ${a.title} »`, awaiting_helper: a.asked ? `${S.HelperName} vous aide` : 'Holo a une question',
+        done: "C'est fait !", stopped: blocked(st) ? 'L’automate s’est arrêté' : 'L’automate est arrêté.' }[st];
+    }
     return { planning: 'Holo regarde votre écran…', awaiting_approval: `${S.HelperName} vérifie votre demande`,
       active: `${S.carer} s'en occupe`, awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !",
       stopped: "L'assistance est arrêtée." }[st];
@@ -195,6 +218,10 @@
   function sessionSubtitle(st) {
     if (S.paused && S.sessionOpen) return 'Vous pouvez utiliser votre ordinateur. Appuyez sur Reprendre quand vous voulez.';
     if (guardStopped(st)) return null;
+    const a = automate();
+    if (a && blocked(st)) {
+      return `Holo n’a pas pu continuer seul ${a.step ? `à l’étape ${a.step}` : 'en route'}${a.reason ? ` : ${a.reason}` : '.'}`;
+    }
     return { planning: "Un instant, je prépare ce qu'il faut faire.",
       awaiting_approval: 'Rien ne se passera sur votre écran avant son accord.',
       active: "Pendant l'aide, laissez la souris et le clavier à Holo. Pause ou Arrêter restent toujours possibles.",
@@ -216,8 +243,9 @@
       aria-label="Avancement" aria-valuenow="${Math.round(fraction(st) * 100)}" aria-valuemin="0" aria-valuemax="100">
       <div class="fill" style="height:100%;width:max(${h}px, ${fraction(st) * 100}%);border-radius:999px;transition:width .6s"></div></div>`;
   function progress(st, phase) {
-    const steps = ['Holo regarde votre écran et prépare la suite', `${S.HelperName} vérifie et donne son accord`,
-      `${S.carer} s'en occupe, avec Holo`];
+    const steps = automate() ? ['Holo regarde votre écran', 'L’automate est déjà validé', 'Holo s’en occupe, seul']
+      : ['Holo regarde votre écran et prépare la suite', `${S.HelperName} vérifie et donne son accord`,
+        `${S.carer} s'en occupe, avec Holo`];
     const rows = steps.map((text, i) => {
       const done = i < phase, now = i === phase;
       return `<div class="row" style="gap:14px" aria-label="${esc(done ? 'Fait : ' + text : now ? 'En cours : ' + text : text)}">
@@ -269,6 +297,12 @@
         <div>Appelez ${esc(who)} à son numéro habituel.</div>
         ${S.guardAcknowledged ? "<div>Votre support a vu l'alerte et s'en occupe</div>" : ''}</div>`;
     }
+    const a = automate();
+    if (st === 'stopped' && a) {
+      const n = a.number ? ` n° ${a.number}` : '';
+      return endNote('book', a.asked ? `${S.HelperName} a reçu la demande${n}, avec l’étape où l’automate s’est arrêté.`
+        : `L’étape est notée${a.number ? ` sur la demande n° ${a.number}` : ''}. Rien n’est envoyé à ${S.helperName} sans votre accord.`);
+    }
     return '';
   }
 
@@ -287,8 +321,10 @@
   function session() {
     const st = S.state || 'planning';
     const sub = sessionSubtitle(st);
-    const banner = S.sessionOpen ? `<div class="pillChip chip-green" style="align-self:flex-start;gap:10px;padding:10px 18px;${f(16, 6)}">
+    const shared = S.sessionOpen ? `<div class="pillChip chip-green" style="gap:10px;padding:10px 18px;${f(16, 6)}">
       <span class="dot" style="background:#1F8A4C"></span>Écran partagé</div>` : '';
+    const assist = automate() ? assistButton() : '';
+    const banner = shared || assist ? `<div class="row" style="gap:12px;align-items:center">${shared}<div class="spacer"></div>${assist}</div>` : '';
     const footer = (S.task && st !== 'stopped' && st !== 'awaiting_approval' && !(st === 'awaiting_helper' && S.questionForMe))
       ? `<div class="muted" style="${f(16, 4)};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">Votre demande : ${esc(S.task)}</div>` : '';
     const bottom = S.sessionOpen
@@ -313,8 +349,9 @@
   // en bas à droite pour qu'on voie ce qu'il fait ; Pause et Arrêter restent là.
   function mini() {
     const st = S.state || 'planning';
+    const a = automate();
     const title = S.paused && S.sessionOpen ? "L'aide est en pause" : ({ planning: 'Holo prépare la suite…',
-      awaiting_approval: `${S.HelperName} vérifie`, active: `${S.carer} s'en occupe`,
+      awaiting_approval: `${S.HelperName} vérifie`, active: a ? 'Holo s’occupe de l’automate' : `${S.carer} s'en occupe`,
       awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !" }[st] || 'PapAI');
     return `<div class="col mini" style="gap:10px;padding:14px 16px">
       <div class="row miniHead" style="gap:10px">
@@ -384,6 +421,40 @@
       `<div class="row" style="gap:14px;margin-top:18px">${pill("D'accord", 'closeQueued', { height: 78, grow: true })}</div>`;
   }
 
+  // ------------------------------------- Demande qui a déjà son ticket
+  function existing() {
+    const e = S.existing, solved = e.kind === 'solved';
+    const task = e.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(e.task)} »</div>` : '';
+    if (!solved) {
+      const live = e.status === 'en_cours';
+      const text = live ? `Une assistance est déjà en cours sur cette demande.`
+        : e.status === 'rdv' && e.rdv ? `Rendez-vous ${rdvText(e.rdv)}. PapAI vous préviendra à l’heure dite.`
+        : e.status === 'a_reprendre' ? `L’assistance s’est arrêtée avant la fin. ${S.helperName} a votre demande et va la reprendre.`
+        : `Elle attend un support. PapAI vous préviendra dès que ${S.helperName} sera là.`;
+      return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Demande n° ${esc(e.number)}</span></div>
+        <div style="${f(44, 6)};letter-spacing:-0.7px;line-height:1.1">${live ? 'Cette demande est déjà en cours' : 'Vous avez déjà fait cette demande'}</div>
+        ${task}${lead(text + ' Inutile de la refaire.')}`, 40, 22) +
+        `<div class="row" style="gap:14px;margin-top:18px">
+          ${pill('C’est une autre demande', 'newRequest', { filled: false, height: 78, grow: true, disabled: !S.connected })}
+          ${pill('D’accord', 'closeExisting', { height: 78, grow: true })}
+        </div>`;
+    }
+    const who = e.by || 'Votre support';
+    const note = e.note ? `<div class="card" style="padding:24px;${f(22, 5)}"><div class="muted" style="${f(16, 6)}">${esc(who)} a noté</div>« ${esc(e.note)} »</div>` : '';
+    const steps = e.steps.length ? `<div class="col" style="gap:8px"><div class="muted" style="${f(16, 6)}">Ce qui l’avait réglée</div>
+      ${e.steps.map((st, i) => `<div style="${f(21, 5)}">${i + 1}. ${esc(st)}</div>`).join('')}</div>` : '';
+    const when = e.at ? ` le ${esc(new Date(e.at * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }))}` : '';
+    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Demande n° ${esc(e.number)} · réglée${when}</span></div>
+      <div style="${f(44, 6)};letter-spacing:-0.7px;line-height:1.1">Cette demande a déjà été réglée</div>
+      ${task}${note}${steps}
+      ${lead('Si le problème est revenu, Holo peut refaire la même chose avec vous.')}`, 40, 22) +
+      `<div class="row" style="gap:14px;margin-top:18px">
+        ${pill('Ce n’est pas la même demande', 'newRequest', { filled: false, height: 78, grow: true, disabled: !S.connected })}
+        ${pill('Refaire avec Holo', 'retryExisting', { filled: false, height: 78, grow: true, disabled: !S.connected })}
+        ${pill('C’est réglé, merci', 'closeExisting', { height: 78, grow: true })}
+      </div>`;
+  }
+
   // ----------------------------------------------------------- RemoteRequest
   function remote() {
     const r = S.remoteRequest;
@@ -414,6 +485,36 @@
         <div class="row muted" style="gap:8px;${f(15, 5)}"><span class="dot" style="background:${online ? 'var(--accent)' : 'rgba(122,128,124,.5)'}"></span>${esc(status)}</div>
       </div></div>
       <div class="muted" style="${f(15, 4)}">Réglé par votre service informatique : rien à faire sur cet ordinateur.</div>`;
+  }
+
+  function requestsSheet() {
+    const states = { nouveau: 'En attente', en_attente: 'En attente', rdv: 'Rendez-vous prévu',
+      en_cours: 'En cours', a_reprendre: 'Interrompue', resolu: 'Réglée' };
+    const rows = (S.requests || []).map(r => {
+      const date = new Date(Number(r.created) * 1000);
+      const dateText = Number(r.created) > 0 && !Number.isNaN(date.getTime())
+        ? date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+      const s = r.solution;
+      let solution = '';
+      if (s?.kind === 'automate') solution = `<div>Réglée par l'automate « ${esc(s.title || 'Automate')} »</div>`;
+      if (s?.kind === 'plan') solution = `<div>Plan exécuté</div><ol>${(s.steps || []).map(t => `<li>${esc(t)}</li>`).join('')}</ol>`;
+      if (s?.kind === 'answer') solution = `<div>Réponse validée par le support</div><div class="requestText">${esc(s.text)}</div>
+        ${(s.sources || []).map(source => `<div class="muted">${esc(source.title)}${source.url ? ' · ' + esc(source.url) : ''}</div>`).join('')}`;
+      const canRelaunch = r.relaunch && (S.lessons || []).some(l => l.id === r.relaunch);
+      return `<article class="card col requestItem" style="padding:20px;gap:10px;${f(17, 5)}">
+        <div class="row" style="gap:12px;flex-wrap:wrap"><span class="muted">${esc(dateText)}</span><span class="spacer"></span>
+          <span style="color:var(--leaf);${f(16, 6)}">${esc(states[r.status] || 'En attente')}</span></div>
+        <div class="requestText" style="${f(20, 6)}">${esc(r.task)}</div>
+        ${solution ? `<div class="col" style="gap:8px">${solution}</div>` : ''}
+        ${canRelaunch ? pill('Relancer', 'relaunchRequest', { arg: r.id, height: 44 }) : ''}</article>`;
+    }).join('');
+    const content = S.requestsLoading ? 'Chargement…' : S.requestsError ? "Liste indisponible pour l'instant."
+      : !(S.requests || []).length ? "Aucune demande pour l'instant." : null;
+    return `<section class="sheet col requestsSheet" role="dialog" aria-modal="true" aria-label="Mes demandes"
+      style="width:720px;max-width:calc(100vw - 32px);padding:32px;gap:18px;background:var(--card)">
+      <div class="sheetHead row" style="gap:16px"><span style="${f(28, 6)}">Mes demandes</span><span class="spacer"></span>
+        <button class="pillChip chip-blue press" data-act="closeSheet" style="padding:10px 16px;${f(16, 6)}">Fermer</button></div>
+      ${content ? `<div style="${f(20, 5)}">${esc(content)}</div>` : rows}</section>`;
   }
 
   function settingsSheet() {
@@ -453,6 +554,7 @@
   // ------------------------------------------------------------------- rendu
   function body() {
     if (S.remoteRequest) return remote();
+    if (S.existing) return existing();
     if (S.queued && S.queued.show) return queued();
     if (S.screen === 'consent') return consent();
     if (S.screen === 'session') return session();
@@ -479,6 +581,7 @@
     document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${main}</div>`;
     document.getElementById('sheet').innerHTML =
       S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
+        : ui.sheet === 'requests' ? requestsSheet()
         : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
     const req = document.getElementById('req');
     if (req) autosize(req);
@@ -528,7 +631,13 @@
       render();
     },
     openSettings: () => { ui.sheet = 'settings'; render(); },
-    closeSheet: () => { ui.sheet = null; render(); },
+    openRequests: () => { ui.sheet = 'requests'; call('open_requests'); render(); },
+    relaunchRequest: (id) => {
+      const r = (S.requests || []).find(r => r.id === id);
+      if (!r?.relaunch || !(S.lessons || []).some(l => l.id === r.relaunch)) return;
+      ui.sheet = null; render(); call('close_requests'); call('relaunch_request', id);
+    },
+    closeSheet: () => { if (ui.sheet === 'requests') call('close_requests'); ui.sheet = null; render(); },
     dismissAlert: () => { if (!S.alert?.blocked) { S.alert = null; render(); call('dismiss_alert'); } },
     scale: (v) => { S.textScale = parseFloat(v); render(); call('set_text_scale', parseFloat(v)); },
     protection: (v) => { S.realtimeProtection = v === '1'; render(); call('set_realtime_protection', S.realtimeProtection); },
@@ -539,6 +648,7 @@
     revokeConsent: () => { S.screenConsent = false; render(); call('revoke_consent'); },
     stop: () => { window.PapAINarration?.cancel(); call('stop'); },
     pause: () => { window.PapAINarration?.cancel(); call('toggle_pause'); },
+    askAssist: () => call('ask_automation_support'),
     expand: () => call('expand_window'),
     seniorOption: (o) => acts.seniorReply(o),
     seniorReply: (o) => {
@@ -556,6 +666,9 @@
     scheduleTicket: (slot) => call('schedule_ticket', slot),
     runSuggested: (id, ticket) => call('run_suggested_automation', id, ticket),
     closeQueued: () => call('close_queued'),
+    closeExisting: () => call('close_existing'),
+    retryExisting: () => call('retry_existing'),
+    newRequest: () => call('new_request'),
     openQueued: () => { S.queued.show = true; render(); call('open_queued'); },
     refuseRemote: () => call('refuse_remote'),
   };
@@ -654,6 +767,7 @@
     if (q.has('demo')) {
       fetch('state.json?' + q.toString()).then((r) => r.json()).then((snap) => {
         if (q.get('sheet')) ui.sheet = q.get('sheet');
+        else if (q.get('demo') === 'requests') ui.sheet = 'requests';
         if (q.get('dictation')) snap.dictation = { phase: q.get('dictation'), message: null };
         if (q.get('request')) ui.request = q.get('request');
         if (q.get('connected') === '0') snap.connected = false;

@@ -69,6 +69,10 @@ class Model:
         self.current_action: str | None = None
         self.actions: list[str] = []
         self.lessons: list[dict] = []
+        self.requests: list[dict] = []
+        self.requests_open = False
+        self.requests_loading = False
+        self.requests_error = False
         self.lesson: dict | None = None
         self.notice: str | None = None
         self.alert: dict | None = None
@@ -76,10 +80,15 @@ class Model:
         self.remote_request: dict | None = None
         # Demande partie en ticket sans support disponible : {ticket, number, task, rdv, show}.
         self.queued: dict | None = None
+        # Demande qui a déjà son ticket : {kind: open|solved, ticket, number, task, status, rdv, solution}.
+        self.existing: dict | None = None
         self.pending_task = ""
         self.pending_automation: str | None = None
         self.pending_automation_ticket: str | None = None
         self.automation_running: str | None = None
+        # L'automate en cours ou arrêté : {id, title, ticket, number, step, reason, local, asked}.
+        # Il se joue seul ; le support n'est prévenu que sur « Demander une assistance ».
+        self.automation_run: dict | None = None
         self.apps: list[dict] = []
         self.dictation = {"phase": "idle", "message": None}
         # Nom du compte Windows (ou stratégie DisplayName) : rien à saisir.
@@ -164,8 +173,14 @@ class Model:
                 "paused": self.paused, "guardAcknowledged": self.guard_acknowledged,
                 "carer": self.carer, "compact": self.compact,
                 "currentAction": self.current_action, "actions": list(self.actions),
-                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "notice": self.notice, "alert": self.alert,
+                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running,
+                "automationRun": dict(self.automation_run) if self.automation_run else None,
+                "canAskAutomationSupport": self.can_ask_automation_support, "notice": self.notice, "alert": self.alert,
+                "requests": [{**r, "relaunch": r.get("relaunch") if self._find_lesson(r.get("relaunch")) else None}
+                             for r in self.requests],
+                "requestsLoading": self.requests_loading, "requestsError": self.requests_error,
                 "helpers": list(self.helpers), "remoteRequest": self.remote_request, "queued": self.queued,
+                "existing": self.existing,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
 
@@ -317,6 +332,11 @@ class Model:
     def _connection(self, ok: bool) -> None:
         if ok:
             self._send_profile()
+            r = self.automation_run
+            if r and r.get("unsent") and not r.get("ticket"):
+                r["unsent"] = False
+                self._send({"type": "automation_failed", "id": r.get("id") or "", "step": r.get("step"),
+                            "title": r.get("title") or "", "detail": r.get("reason") or ""})
             threading.Thread(target=self.refresh_lessons, daemon=True).start()
         with self._lock:
             self.connected = ok
@@ -361,6 +381,40 @@ class Model:
     def reconnect(self) -> None:
         if self.bridge is not None and not self.demo:
             self.bridge.reconnect(self.server_url)
+
+    def open_requests(self) -> None:
+        self.requests_open = True
+        if not self.demo:
+            self.requests_loading = True
+            self.requests_error = False
+            self.push()
+            threading.Thread(target=self.refresh_requests, daemon=True).start()
+
+    def close_requests(self) -> None:
+        self.requests_open = False
+
+    def refresh_requests(self) -> None:
+        if self.demo:
+            return
+        try:
+            with urllib.request.urlopen(self.http_base + "/requests", timeout=5) as response:
+                data = json.loads(response.read().decode())
+            if not isinstance(data, dict) or not isinstance(data.get("requests"), list):
+                raise ValueError("Invalid requests")
+            rows = [r for r in data["requests"] if isinstance(r, dict) and isinstance(r.get("id"), str)]
+        except Exception:
+            with self._lock:
+                self.requests, self.requests_error, self.requests_loading = [], True, False
+        else:
+            with self._lock:
+                self.requests, self.requests_error, self.requests_loading = rows, False, False
+        self.push()
+
+    def relaunch_request(self, request_id: str) -> None:
+        request = next((r for r in self.requests if r.get("id") == request_id), None)
+        lesson_id = request.get("relaunch") if request else None
+        if isinstance(lesson_id, str) and lesson_id and self._find_lesson(lesson_id):
+            self.run_automation(lesson_id)
 
     # ------------------------------------------------------------ réglages
 
@@ -423,6 +477,24 @@ class Model:
             self.queued["show"] = show
         self.push()
 
+    # ------------------------------------------------------ demande déjà connue
+
+    def close_existing(self) -> None:
+        self.existing = None
+        self.push()
+
+    def retry_existing(self) -> None:
+        """Déjà réglée mais le problème est revenu : le même ticket est rouvert."""
+        e, self.existing = self.existing, None
+        if e and e["kind"] == "solved":
+            self.ask_help(e["asked"] or e["task"], reopen=e["ticket"])
+
+    def new_request(self) -> None:
+        """Ce n'est pas la même demande : elle part avec son propre ticket."""
+        e, self.existing = self.existing, None
+        if e:
+            self.ask_help(e["asked"] or e["task"], new=True)
+
     # ------------------------------------------------------ demande d'aide
 
     @property
@@ -461,13 +533,16 @@ class Model:
         self.screen = "home"
         self.push()
 
-    def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None) -> None:
+    def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None,
+                 reopen: str | None = None, new: bool = False) -> None:
+        self.existing = None
         if self.queued:
             self.queued["show"] = False
             if ticket and self.queued["ticket"] == ticket:
                 self.queued = None
         self.gate.reset()
         self.stopped_by = None
+        self.automation_run = None
         self._cancel(self._home_timer)
         with self._lock:
             self.task = str(task or "")
@@ -481,7 +556,9 @@ class Model:
             self.screen = "session"
         self._level()
         if self.bridge is not None:
-            if ticket:
+            if reopen or new:
+                self.bridge.ask_help(self.task, requested_by, ticket, reopen=reopen, new=new)
+            elif ticket:
                 self.bridge.ask_help(self.task, requested_by, ticket)
             else:
                 self.bridge.ask_help(self.task, requested_by)
@@ -501,6 +578,7 @@ class Model:
     def back_home(self) -> None:
         self._cancel(self._home_timer)
         with self._lock:
+            self.automation_run = None
             self.screen = "home"
             self.state = None
         self._level()
@@ -518,6 +596,16 @@ class Model:
         kind = m.get("type")
         if kind == "status":
             self._apply_status(m)
+        elif kind == "session":
+            if m.get("automation") and self.automation_run is not None:
+                self.automation_run.update(ticket=m.get("ticket"), number=m.get("number"))
+        elif kind == "automation_ticket":
+            if self.automation_run is not None:
+                self.automation_run.update(ticket=m.get("ticket"), number=m.get("number"))
+        elif kind == "support_requested":
+            if self.automation_run is not None:
+                self.automation_run["asked"] = True
+            self.show_notice(f"C’est envoyé à {self.helper_name}, avec l’étape où l’automate s’est arrêté.")
         elif kind == "linkup_answer":
             self.answer = m.get("content")
             self.answer_sources = [s for s in (m.get("sources") or []) if isinstance(s, dict)
@@ -546,6 +634,9 @@ class Model:
         elif kind == "alert_cleared":
             if self.alert and m.get("alert_id") and m["alert_id"] == self.alert.get("id"):
                 self.alert = None
+        elif kind == "tickets_changed":
+            if self.requests_open:
+                threading.Thread(target=self.refresh_requests, daemon=True).start()
         elif kind == "lessons_changed":
             def go() -> None:
                 self.refresh_lessons()
@@ -571,6 +662,19 @@ class Model:
                                "suggestions": suggestions, "suggestion_lancee": None}
                 self.state, self.screen = None, "home"
             self._level()
+        elif kind in ("ticket_exists", "ticket_solved"):
+            # La demande a déjà son ticket : rien de nouveau n'est ouvert.
+            sol = m.get("solution") if isinstance(m.get("solution"), dict) else {}
+            with self._lock:
+                self.existing = {
+                    "kind": "open" if kind == "ticket_exists" else "solved",
+                    "ticket": str(m.get("ticket") or ""), "number": m.get("number"),
+                    "task": str(m.get("task") or self.task), "asked": self.task,
+                    "status": str(m.get("status") or ""), "rdv": m.get("rdv"),
+                    "note": str(sol.get("note") or ""), "by": str(sol.get("by") or ""),
+                    "at": sol.get("at"), "steps": [str(x) for x in sol.get("steps") or []]}
+                self.state, self.screen = None, "home"
+            self._level()
         elif kind == "ticket_scheduled":
             if self.queued and self.queued["ticket"] == m.get("ticket"):
                 self.queued["rdv"] = m.get("at")
@@ -587,6 +691,11 @@ class Model:
     def _apply_status(self, m: dict) -> None:
         with self._lock:
             self.stopped_by = m.get("stopped_by")
+            b = m.get("blocked")
+            if isinstance(b, dict) and self.automation_run is not None:
+                self.automation_run.update(step=b.get("step"), reason=b.get("reason"))
+            if m.get("support_requested") is True and self.automation_run is not None:
+                self.automation_run["asked"] = True
             if isinstance(m.get("guard_acknowledged"), bool):
                 self.guard_acknowledged = m["guard_acknowledged"]
             if self.screen != "session":
@@ -648,11 +757,29 @@ class Model:
         if ok:
             self.show_notice("C'est ouvert.")
         else:
-            hn = self.helper_name
-            self.show_notice(f"Je ne retrouve pas ce dossier. {hn[:1].upper() + hn[1:]} "
-                             "a reçu un message pour s'en occuper.")
-            self._send({"type": "automation_failed", "title": lesson.get("title") or "",
-                        "detail": detail})
+            self._automation_stopped(lesson, 1, detail)
+
+    def _automation_stopped(self, lesson: dict, step: int, detail: str) -> None:
+        """Une action locale a échoué : on s'arrête là, sans appeler personne.
+        Le serveur ouvre un ticket qui garde l'étape."""
+        title = str(lesson.get("title") or "")
+        self.automation_run = {"id": lesson.get("id"), "title": title, "ticket": None, "number": None,
+                               "step": step, "reason": detail, "local": True, "asked": False,
+                               "unsent": not self.connected}
+        self.show_notice(f"« {title or 'Cet automate'} » s'est arrêté à l'étape {step}"
+                         + (f" : {detail}" if detail else "."))
+        self._send({"type": "automation_failed", "id": lesson.get("id") or "", "step": step,
+                    "title": title, "detail": detail})
+
+    @property
+    def can_ask_automation_support(self) -> bool:
+        r = self.automation_run
+        return bool(r and r.get("ticket") and not r.get("asked") and not self.alert)
+
+    def ask_automation_support(self) -> None:
+        """Bouton discret, en haut à droite : seule façon de faire venir le support sur un automate."""
+        if self.can_ask_automation_support:
+            self._send({"type": "support_request", "ticket": self.automation_run["ticket"]})
 
     def run_suggested_automation(self, lesson_id: str, ticket_id: str) -> None:
         q = self.queued
@@ -692,6 +819,7 @@ class Model:
             if self.queued and self.queued.get("ticket") == ticket_id:
                 self.queued["suggestion_lancee"] = lesson_id
         self.gate.reset()
+        self.automation_run = None
         self.automation_running = str(lesson.get("title") or "Automate")
         self.show_notice(f"C'est parti : {lesson.get('title') or 'automate'}…")
         threading.Thread(target=self._play_automation, args=(lesson, holo), daemon=True).start()
@@ -705,18 +833,14 @@ class Model:
     def _play_automation(self, lesson: dict, holo: bool) -> None:
         gate = self.gate
         try:
-            ok, detail = play_actions(lesson, lambda n: self._fetch_lesson_file(lesson["id"], n), gate)
+            ok, detail, step = play_actions(lesson, lambda n: self._fetch_lesson_file(lesson["id"], n), gate)
         finally:
             self.automation_running = None
         if gate.is_stopped:
             self.show_notice("Arrêté. Rien d'autre ne sera fait.")
             return
         if not ok:
-            hn = self.helper_name
-            self.show_notice(f"« {lesson.get('title') or 'Cet automate'} » n'a pas pu aller au bout. "
-                             f"{hn[:1].upper() + hn[1:]} a reçu un message pour s'en occuper.")
-            self._send({"type": "automation_failed", "title": lesson.get("title") or "",
-                        "detail": detail})
+            self._automation_stopped(lesson, step, detail)
             return
         if not holo:
             self.show_notice(detail or "C'est fait.")
@@ -724,6 +848,8 @@ class Model:
         goal = next(a.get("goal") for a in lesson["actions"] if a.get("do") == "holo")
         self._cancel(self._home_timer)
         with self._lock:
+            self.automation_run = {"id": lesson["id"], "title": str(lesson.get("title") or ""), "ticket": None,
+                                   "number": None, "step": None, "reason": None, "local": False, "asked": False}
             self.task = str(goal or lesson.get("title") or "")
             self.plan, self.plan_step, self.question = [], None, None
             self.answer, self.current_action, self.actions = None, None, []
@@ -797,6 +923,21 @@ class Model:
              "steps": [{"instruction": "Ouvrez l'Explorateur de fichiers"}]},
             {"id": "b", "title": "Mes documents", "shortcut": {"folder": "documents"}},
         ]
+        if demo == "requests":
+            self.lessons.append({"id": "print", "title": "Configurer mon imprimante", "platforms": ["windows"],
+                                 "actions": [{"do": "open_settings", "page": "printers"}]})
+            self.requests = [
+                {"id": "r1", "created": 1794132000, "task": "Je voudrais imprimer un document", "status": "resolu",
+                 "solution": {"kind": "automate", "title": "Configurer mon imprimante", "lesson": "print"}, "relaunch": "print"},
+                {"id": "r2", "created": 1794045600, "task": "Retrouver mes documents", "status": "resolu",
+                 "solution": {"kind": "plan", "steps": ["Ouvrir l'Explorateur de fichiers", "Ouvrir le dossier Documents"]}, "relaunch": None},
+                {"id": "r3", "created": 1793959200, "task": "Comment changer la taille du texte ?", "status": "resolu",
+                 "solution": {"kind": "answer", "text": "Ouvrez les Réglages, puis choisissez Très grande.",
+                              "sources": [{"title": "Aide PapAI", "url": "https://example.org/aide"}]}, "relaunch": None},
+                {"id": "r4", "created": 1793872800, "task": "Mon casque ne fonctionne plus", "status": "en_attente",
+                 "solution": None, "relaunch": None},
+            ]
+            return
         if demo == "alert":
             self.alert = {"level": "danger", "title": "Attention : ce message est sans doute une arnaque",
                           "detail": "Un faux message d'alerte demande d'appeler un numéro. N'appelez pas. "

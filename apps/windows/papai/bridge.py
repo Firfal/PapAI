@@ -154,7 +154,8 @@ class Bridge:
 
     # ------------------------------------------------------------ demandes
 
-    def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None) -> None:
+    def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None,
+                 reopen: str | None = None, new: bool = False) -> None:
         self.gate.reset()
         self.last_status = {}
         msg = {"type": "help_request", "task": task}
@@ -162,6 +163,10 @@ class Bridge:
             msg["requested_by"] = requested_by
         if ticket:
             msg["ticket"] = ticket
+        if reopen:
+            msg["reopen"] = reopen
+        if new:
+            msg["new"] = True
         self.send(msg)
 
     def run_automation(self, lesson_id: str) -> None:

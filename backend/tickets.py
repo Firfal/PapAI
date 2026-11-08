@@ -8,15 +8,30 @@ rendez-vous. Rien que du texte : aucune capture d'écran n'est gardée.
 
 from __future__ import annotations
 
+import re
 import secrets
 import time
+import unicodedata
 from pathlib import Path
 
 from . import storage, ticket_stats
+
 OPEN = ("nouveau", "en_attente", "rdv", "en_cours", "a_reprendre")
 STATUSES = (*OPEN, "resolu")
 MAX = 500
 RDV_MAX_S = 30 * 86400
+
+SAME_MAX_AGE_S = 90 * 86400
+SAME_MIN_SCORE = 0.6
+REDEMANDE = "Demandé à nouveau par l’utilisateur."
+_MOTS_VIDES = set("""
+le la les un une des du de au aux et ou en dans sur sous pour par avec sans ce cet cette ces
+mon ma mes ton ta tes son sa ses notre nos votre vos leur leurs je tu il elle on nous vous ils
+elles me te se ne pas plus que qui quoi est sont suis ai as avons avez ont etre avoir moi toi lui
+ca cela ceci tout tous toute toutes tres bien encore deja aussi comment pourquoi quand faire fait
+veux voudrais voudrait peux peut pouvez arrive arriver marche marcher fonctionne fonctionner
+probleme problemes souci soucis aide aider besoin svp merci bonjour depuis toujours jamais rien
+""".split())
 
 _LIVE = {"waiting_consent", "planning", "awaiting_approval", "awaiting_helper", "active"}
 
@@ -58,7 +73,7 @@ class Tickets:
              "session": "", "plan": [], "steps_done": 0, "helper": "", "end": "", "stopped_by": "",
              "rdv": None, "rdv_notified": False, "offered": 0, "assignee": "", "notes": [], "tokens": 0,
              "suggestions": list(suggestions or []), "suggestion_lancee": None,
-             "category": category, "category_by": "regles" if sure else "doute", "resolved": None}
+             "category": category, "category_by": "regles" if sure else "doute", "resolved": None, "blocked": None}
         items.append(t)
         self._save()
         return t
@@ -94,6 +109,23 @@ class Tickets:
         self.update(t, category=category, category_by=by, category_who=who[:40] if by == "support" else "")
         return True
 
+    def same(self, task: str, now: float | None = None) -> dict | None:
+        """Un ticket qui porte déjà cette demande : ouvert d'abord, sinon réglé il y a moins de 90 jours.
+        Les tickets d'automates (titre de l'automate) ne comptent pas."""
+        now = time.time() if now is None else now
+        best, best_key = None, None
+        for t in self._load():
+            if t.get("source") == "automatisme":
+                continue
+            ouvert = t.get("status") in OPEN
+            if not ouvert and now - int(t.get("resolved") or t.get("updated") or 0) > SAME_MAX_AGE_S:
+                continue
+            score = similarity(task, t.get("task", ""))
+            key = (ouvert, score, int(t.get("updated") or 0))
+            if score >= SAME_MIN_SCORE and (best_key is None or key > best_key):
+                best, best_key = t, key
+        return best
+
     def waiting(self) -> list[dict]:
         return [t for t in self._load() if t.get("status") == "en_attente"]
 
@@ -110,7 +142,8 @@ class Tickets:
                "helper": st.get("helper_name") or t.get("helper", ""),
                "end": state if state in ("done", "stopped") else "",
                "stopped_by": st.get("stopped_by") or "",
-               "tokens": int((st.get("usage") or {}).get("total") or t.get("tokens") or 0)}
+               "tokens": int((st.get("usage") or {}).get("total") or t.get("tokens") or 0),
+               "blocked": st.get("blocked") or t.get("blocked")}
         if state == "done" and t.get("plan"):
             new["steps_done"] = len(new["plan"])
         if all(t.get(k) == v for k, v in new.items()):
@@ -119,5 +152,67 @@ class Tickets:
         return True
 
 
+def _mots(text: str) -> set[str]:
+    s = unicodedata.normalize("NFKD", str(text or "").lower())
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = re.sub(r"(?<=[a-z0-9])-(?=[a-z0-9])", "", s)
+    return {m[:5] for m in re.findall(r"[a-z0-9]+", s) if len(m) > 2 and m not in _MOTS_VIDES}
+
+
+def similarity(a: str, b: str) -> float:
+    """Même demande dite autrement : mots en commun (sans accents ni mots vides, radical de 5 lettres)."""
+    x, y = _mots(a), _mots(b)
+    if not x or not y:
+        return 0.0
+    common = len(x & y)
+    small, big = sorted((len(x), len(y)))
+    if common == small and big <= small + 2:
+        return 1.0
+    return 2 * common / (len(x) + len(y))
+
+
+def solution(t: dict) -> dict:
+    """Ce qui a réglé le ticket : le mot du support à la clôture, et les étapes si Holo est allé au bout."""
+    note = str(t.get("solution") or "")
+    by = t.get("closed_by") or ""
+    if not note and by:
+        # Ancien ticket : le texte de clôture est la note du support posée à la clôture même.
+        closed = int(t.get("resolved") or 0)
+        note = next((n.get("text", "") for n in reversed(t.get("notes") or [])
+                     if closed and n.get("by") == by and int(n.get("t") or 0) >= closed), "")
+    steps = list(t.get("plan") or []) if t.get("end") == "done" else []
+    return {"note": note, "steps": steps, "by": by or t.get("helper") or "", "at": int(t.get("resolved") or t.get("updated") or 0)}
+
+
 def public(t: dict) -> dict:
     return {k: v for k, v in ticket_stats.ensure(dict(t)).items() if k not in ("rdv_notified", "offered")}
+
+
+def for_user(t: dict, lessons: list[dict]) -> dict:
+    """Vue texte : automate (demande résolue seulement) prioritaire sur la réponse validée, puis le plan exécuté."""
+    def text(value):
+        return value if isinstance(value, str) else ""
+
+    result = {k: text(t.get(k)) for k in ("id", "task", "status")}
+    result.update({k: t.get(k) if type(t.get(k)) in (int, float) else 0
+                   for k in ("number", "created", "updated")})
+    solution, relaunch = None, None
+    lesson_id = text(t.get("automation")) or text(t.get("suggestion_lancee"))
+    if lesson_id and t.get("status") == "resolu":
+        lesson = next((a for a in lessons if a.get("id") == lesson_id), None)
+        title = text(lesson.get("title")) if lesson else next(
+            (text(a.get("title")) for a in t.get("suggestions", [])
+             if isinstance(a, dict) and a.get("id") == lesson_id), "")
+        solution = {"kind": "automate", "lesson": lesson_id, "title": title}
+        if lesson is not None:
+            relaunch = lesson_id
+    elif isinstance(t.get("linkup_answer"), dict):
+        answer = t["linkup_answer"]
+        solution = {"kind": "answer", "text": text(answer.get("content")),
+                    "sources": [{"title": text(s.get("title")), "url": text(s.get("url"))}
+                                for s in answer.get("sources", []) if isinstance(s, dict)]}
+    elif t.get("end") == "done":
+        steps = [s for s in t.get("plan", []) if isinstance(s, str) and s]
+        if steps:
+            solution = {"kind": "plan", "steps": steps}
+    return {**result, "solution": solution, "relaunch": relaunch}

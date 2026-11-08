@@ -23,7 +23,7 @@ import websockets
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import test_appairage_code as base_test  # noqa: E402
-from backend.tickets import Tickets  # noqa: E402
+from backend.tickets import Tickets, solution  # noqa: E402
 
 check, http = base_test.check, base_test.http
 
@@ -64,6 +64,26 @@ def stockage() -> None:
     Tickets(p).renumber(lambda: next(seq))
     check("le poste rejoint une organisation : ses tickets sont renumérotés",
           sorted(t["number"] for t in Tickets(p).all()) == [41, 42])
+
+    tk = Tickets(Path(tempfile.mkdtemp()) / "tickets.json")
+    wifi = tk.open("Le Wi-Fi ne marche plus", "personne")
+    check("même demande dite autrement : le ticket ouvert est retrouvé",
+          tk.same("Wi-Fi coupé depuis ce matin") is wifi)
+    check("demande différente : aucun ticket retrouvé", tk.same("Imprimer une photo") is None)
+    dossier = tk.open("Je ne retrouve plus le dossier de la comptabilité", "personne")
+    tk.update(dossier, status="resolu", end="done", plan=["Ouvrir Documents", "Ouvrir Comptabilité 2025"])
+    check("demande déjà réglée : retrouvée, avec ses étapes",
+          tk.same("Je n'arrive pas à retrouver le dossier comptabilité") is dossier
+          and solution(dossier)["steps"] == ["Ouvrir Documents", "Ouvrir Comptabilité 2025"])
+    tk.update(dossier, updated=int(time.time()) - 100 * 86400)
+    dossier["updated"] = dossier["resolved"] = int(time.time()) - 100 * 86400
+    check("réglée il y a plus de 90 jours : oubliée", tk.same("dossier de la comptabilité") is None)
+    tk.note(wifi, "Claire", "Vérifier le pilote")
+    wifi["notes"][-1]["t"] -= 60
+    tk.update(wifi, status="resolu", closed_by="Claire")
+    check("note de diagnostic avant la clôture : pas présentée comme la solution", solution(wifi)["note"] == "")
+    auto = tk.open("Imprimer une photo", "automatisme")
+    check("les tickets d'automates ne comptent pas", auto and tk.same("Imprimer une photo") is None)
 
 
 async def parcours(base: str) -> None:
@@ -167,7 +187,34 @@ async def parcours(base: str) -> None:
             check("support connecté : la session démarre tout de suite, avec son ticket",
                   sess is not None and len(lst) == 2 and lst[0]["number"] == 2 and lst[0]["status"] == "en_cours")
             await wa.send(json.dumps({"type": "stop"}))
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.5)
+            wifi = tickets(base, key)[0]
+
+            await wa.send(json.dumps({"type": "help_request", "task": "Wi-Fi coupé depuis ce matin"}))
+            ex = await attendre(wa, "ticket_exists")
+            lst = tickets(base, key)
+            check("même demande, ticket encore ouvert : signalée, sans nouveau ticket",
+                  ex is not None and ex["ticket"] == wifi["id"] and ex["number"] == 2
+                  and ex["status"] == "a_reprendre" and len(lst) == 2)
+            check("le support voit que la demande a été refaite",
+                  any(n["text"] == "Demandé à nouveau par l’utilisateur." for n in lst[0]["notes"]))
+
+            await wa.send(json.dumps({"type": "help_request", "task": "Je n'arrive plus à imprimer mon document"}))
+            sol = await attendre(wa, "ticket_solved")
+            check("même demande, ticket réglé : la solution est renvoyée, sans nouveau ticket",
+                  sol is not None and sol["ticket"] == tid and sol["solution"]["note"] == "Réglé par téléphone"
+                  and sol["solution"]["by"] == "Claire" and len(tickets(base, key)) == 2)
+
+            await wa.send(json.dumps({"type": "help_request", "task": "Imprimer un document", "reopen": tid}))
+            sess = await attendre(wa, "session")
+            t = next(x for x in tickets(base, key) if x["id"] == tid)
+            check("le problème est revenu : le même ticket est rouvert et suit la nouvelle assistance",
+                  sess is not None and sess.get("ticket") == tid and len(tickets(base, key)) == 2
+                  and t["status"] == "en_cours" and not t.get("closed_by")
+                  and t["notes"][-1]["text"] == "Le problème est revenu."
+                  and "Réglé par téléphone" in t.get("reprise", ""))
+            await wa.send(json.dumps({"type": "stop"}))
+            await asyncio.sleep(0.5)
 
         st, r = http(f"{base}/o/{o['support_token']}/tickets")
         st2, b = http(f"{base}/spaces", {"org": o["enroll_token"], "name": "Poste accueil"})
@@ -185,6 +232,11 @@ async def parcours(base: str) -> None:
         check("le service IT rouvre un ticket", st == 200 and r["ticket"]["status"] == "en_attente")
         st, _ = http(f"{base}/o/{o['enroll_token']}/tickets")
         check("le jeton d'inscription ne voit pas les tickets", st == 404)
+
+        await wa.send(json.dumps({"type": "help_request", "task": "Wi-Fi coupé depuis ce matin", "new": True}))
+        q = await attendre(wa, "ticket_queued")
+        check("« c'est une autre demande » : un nouveau ticket est ouvert",
+              q is not None and q["ticket"] != wifi["id"] and len(tickets(base, key)) == 3)
 
     st, seul = http(f"{base}/spaces", {})
     st, _ = http(f"{base}/o/{o['support_token']}/tickets/{seul['key']}/{tid}", {"action": "close"})

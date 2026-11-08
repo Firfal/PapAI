@@ -69,7 +69,8 @@ async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> l
     messages = [
         {"role": "system", "content": PLAN_PROMPT.format(os="Mac" if bridge.os == "macos" else "Windows")},
         {"role": "user", "content": f"Demande de la personne : « {session.task} »"
-            + (f"\nPrécision de son support : {note}" if note else "")},
+            + (f"\nPrécision de son support : {note}" if note else "")
+            + (f"\nCette demande avait déjà été réglée, le problème est revenu. {session.reprise}" if session.reprise else "")},
     ]
     if linkup.enabled():
         messages[0]["content"] += (
@@ -233,6 +234,11 @@ class AgentRunner:
             brief += "\nÀ chaque action, indique dans plan_step le numéro de l'étape du plan que tu exécutes."
         for n in self.notes:
             brief += f"\nPrécision du support : {n}"
+        if self.s.automation:
+            brief += ("\n\nC'est un automate : il se joue seul, aucun support n'est en ligne. "
+                      "Pour une information que seul l’utilisateur connaît, appelle ask_senior. "
+                      "Si tu ne peux pas continuer, appelle ask_helper avec la raison en une phrase : "
+                      "l'automate s'arrête et l'étape est notée.")
         system = system_prompt(self.bridge.os)
         tools = TOOLS
         if self.browser_handoff is not None:
@@ -357,6 +363,9 @@ class AgentRunner:
                 await asyncio.sleep(MIN_SECONDS_PER_STEP - elapsed)
 
         self.s.log("budget_exhausted")
+        if self.s.automation and not self.s.support_requested:
+            self.s.block("Holo n'a pas réussi à terminer cette étape.")
+            return
         self.s.finish("Je n'ai pas réussi à terminer. Je passe la main.")
 
     async def _open_browser(self, args: dict, plan_step=None) -> str | None:
@@ -425,6 +434,11 @@ class AgentRunner:
         if to == "helper" and self._sensitive_blocked is not None:
             question = protected_window_support_text()
             options = []
+        if to == "helper" and self.s.automation and not self.s.support_requested:
+            # Automate : personne n'est appelé. L'étape est notée sur le ticket ;
+            # l’utilisateur demandera une assistance s'il le souhaite.
+            self.s.block(question)
+            return None
         fut = self.s.ask_helper(question, options, to=to)
         await self.broadcast(self.s.status())
         await self.broadcast({"type": "question", "question": question, "options": options, "to": to})

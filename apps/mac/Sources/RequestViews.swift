@@ -114,3 +114,93 @@ struct QueuedView: View {
         }
     }
 }
+
+/// La demande a déjà son ticket : encore ouvert, on le dit ; réglé, on montre la solution.
+struct ExistingTicketView: View {
+    @Environment(AppModel.self) private var model
+    let ticket: ExistingTicket
+
+    private var statut: String {
+        switch ticket.status {
+        case "en_cours": return "Une assistance est déjà en cours sur cette demande."
+        case "rdv": return ticket.rdv.map { "Rendez-vous \(rdvText($0)). PapAI vous préviendra à l’heure dite." }
+            ?? "Un rendez-vous est prévu. PapAI vous préviendra à l’heure dite."
+        case "a_reprendre": return "L’assistance s’est arrêtée avant la fin. \(model.helperName) a votre demande et va la reprendre."
+        default: return "Elle attend un support. PapAI vous préviendra dès que \(model.helperName) sera là."
+        }
+    }
+
+    private var pastille: String {
+        guard ticket.solved else { return "Demande n° \(ticket.number)" }
+        guard let at = ticket.at else { return "Demande n° \(ticket.number) · réglée" }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "fr_FR")
+        f.dateFormat = "d MMMM"
+        return "Demande n° \(ticket.number) · réglée le \(f.string(from: at))"
+    }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Panneau {
+                VStack(alignment: .leading, spacing: 12) {
+                    Pastille(texte: pastille, icone: ticket.solved ? "checkmark.seal.fill" : "person.wave.2.fill",
+                             ton: ticket.solved ? .vert : .orange, taille: 17)
+                    Text(ticket.solved ? "Cette demande a déjà été réglée"
+                         : ticket.status == "en_cours" ? "Cette demande est déjà en cours" : "Vous avez déjà fait cette demande")
+                        .font(rounded(44, .bold)).tracking(-0.7)
+                }
+            } corps: {
+                VStack(alignment: .leading, spacing: 22) {
+                    if !ticket.task.isEmpty {
+                        Text("« \(ticket.task) »").font(rounded(24, .medium))
+                            .padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                            .champ(T.r)
+                    }
+                    if ticket.solved {
+                        if !ticket.note.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("\(ticket.by.isEmpty ? "Votre support" : ticket.by) a noté")
+                                    .font(rounded(16, .semibold)).foregroundStyle(T.muted)
+                                Text("« \(ticket.note) »").font(rounded(22))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        if !ticket.steps.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Ce qui l’avait réglée").font(rounded(16, .semibold)).foregroundStyle(T.muted)
+                                ForEach(Array(ticket.steps.enumerated()), id: \.offset) { i, step in
+                                    Text("\(i + 1). \(step)").font(rounded(21))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                        }
+                        Text("Si le problème est revenu, Holo peut refaire la même chose avec vous.")
+                            .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(statut + " Inutile de la refaire.")
+                            .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+
+            HStack(spacing: 14) {
+                Button { model.newRequest() } label: {
+                    Text(ticket.solved ? "Ce n’est pas la même demande" : "C’est une autre demande").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillStyle(filled: false, height: 78))
+                .disabled(!model.connected)
+                if ticket.solved {
+                    Button { model.retryExisting() } label: { Text("Refaire avec Holo").frame(maxWidth: .infinity) }
+                        .buttonStyle(PillStyle(filled: false, height: 78, icone: "arrow.clockwise"))
+                        .disabled(!model.connected)
+                }
+                Button { model.existing = nil } label: {
+                    Text(ticket.solved ? "C’est réglé, merci" : "D’accord").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillStyle(height: 78, icone: "checkmark.circle", plein: true))
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+}
