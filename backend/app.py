@@ -290,8 +290,16 @@ def _support_expected() -> bool:
     return bool(S().family.helpers) or bool(getattr(S(), "org", None))
 
 
+def _is_support(ws) -> bool:
+    """Socket d'un support de l'espace (pas un lien de session, limité à sa session)."""
+    return ws in S().helper_alert_scopes and S().helper_alert_scopes[ws] is None
+
+
 def _support_available() -> bool:
-    return bool(S().helper_sockets)
+    return any(_is_support(ws) for ws in S().helper_sockets)
+
+
+SUPPORT_ONLY = ("ticket_due", "tickets_changed")
 
 
 def _rdv_at(v) -> int | None:
@@ -321,6 +329,8 @@ async def _sync_ticket(st: dict) -> None:
     before = t["status"]
     if S().tickets.sync(t, st) and t["status"] != before:
         await _tickets_changed()
+        if t["status"] in ("resolu", "a_reprendre"):
+            _later(_offer_next(space.current()))
 
 
 async def _offer_waiting(who: str = "") -> bool:
@@ -338,7 +348,9 @@ async def _offer_waiting(who: str = "") -> bool:
         return False
     t = (due or waiting)[0]
     rdv = bool(due)
-    S().tickets.update(t, offered=int(now), **({"rdv_notified": True, "status": "en_attente"} if rdv else {}))
+    # Rendez-vous sans support en ligne : le prochain support qui arrive le repropose.
+    offered = int(now) if not rdv or _support_available() else 0
+    S().tickets.update(t, offered=offered, **({"rdv_notified": True, "status": "en_attente"} if rdv else {}))
     names = [h["name"] for h in S().family.helpers]
     who = who or t.get("assignee") or (names[0] if len(names) == 1 else "Votre support")
     await S().bridge.send({"type": "remote_request", "from": who, "task": t["task"],
@@ -358,6 +370,14 @@ async def _offer_soon(sp, ws) -> None:
     space.use(sp)
     if ws in sp.helper_sockets:
         await _offer_waiting(sp.helper_who.get(ws, {}).get("name", ""))
+
+
+async def _offer_next(sp) -> None:
+    # Une demande vient d'être refusée ou finie : la suivante en attente est proposée.
+    await asyncio.sleep(2)
+    space.use(sp)
+    if _support_available():
+        await _offer_waiting("")
 
 
 def _later(coro) -> None:
@@ -400,6 +420,8 @@ async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
     for ws in S().helper_sockets:
         scoped = payload.get("type") == "guard_advice" or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
         if scoped and not helper_can_access_alert(ws, payload):
+            continue
+        if payload.get("type") in SUPPORT_ONLY and not _is_support(ws):
             continue
         try:
             await ws.send_json(payload)
@@ -522,6 +544,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     if t is not None:
                         S().tickets.note(t, S().family.senior or "La personne aidée", "Pas disponible pour l'instant.")
                         await _tickets_changed()
+                        _later(_offer_next(space.current()))
                     await broadcast_helper({"type": "remote_refused"})
                     print("[pont] session à distance refusée")
                 continue
@@ -1186,6 +1209,7 @@ async def join_org(fam: str, request: Request):
     if not spaces.join(S(), o.id, _label(body)):
         return JSONResponse({"error": "Cet espace ne peut pas rejoindre une organisation."}, status_code=409)
     o.copy_automations(S().lessons_dir)
+    S().tickets.renumber(o.next_ticket)
     if S().bridge is not None:
         await S().bridge.send({"type": "lessons_changed", "title": ""})
     return {"org": o.name}
