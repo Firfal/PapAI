@@ -28,6 +28,11 @@ Un seul mot par notion, dans toutes les apps. Les identifiants internes (`senior
 | Le poste aidé, quand le texte vaut pour Mac et Windows | **l'ordinateur** | le Mac, le PC |
 | Les décisions sur le plan | **Valider**, **Préciser**, **Refuser** | Accepter, Approuver |
 
+## Décisions produit (arbitrées par Corentin)
+
+- **Surveillance continue du gardien** : elle est conservée, comme option à activer ou non, à la manière de la protection en temps réel d'un antivirus. Hors assistance, seuls partent des noms d'apps, le titre de la fenêtre et le nom du site, jamais d'image de l'écran.
+- **Aucun compte ni identifiant retenu par l'app** : pas d'import de cookies ni de mot de passe, même pour une liste de sites. Quand un site demande une connexion, la personne aidée reprend la main et se connecte elle-même, puis Holo continue.
+
 ## Branches gelées
 
 Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande explicite de Quentin.
