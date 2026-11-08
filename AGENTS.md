@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794097993-dictee-gladia-direct` | Dictée Gladia en direct, relais et repli Mac/iOS | `backend/voice.py`, `backend/app.py`, `apps/mac/Sources/Dictation.swift`, `apps/ios/Sources/Dictation.swift`, `apps/shared/GladiaLive.swift`, projets/scripts de build si nécessaire, `tests/faux_gladia.py`, `tests/test_gladia_live.py`, tests Swift dictée, `PROTOCOL.md`, `TODO.md` | 8 nov. |
 
 ## Journal
 
