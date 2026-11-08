@@ -10,10 +10,10 @@
           background: var(--ps-card); color: var(--ps-ink); border-radius: 20px; padding: 16px;
           box-shadow: var(--shadow, 0 1px 2px rgba(25,45,110,.05), 0 8px 24px rgba(30,60,150,.07));
           display: flex; flex-direction: column; gap: 16px; }
-    @media (prefers-color-scheme: dark) {
-      .ps { --ps-card: #171C2E; --ps-ink: #E9EDF8; --ps-muted: #A6AEC4; --ps-bar: #6E9BFF; --ps-bar-soft: #34446E;
-            --ps-track: #232A40; --ps-line: rgba(255,255,255,.08); }
-    }
+    /* Sombre quand la page l'est (data-theme="dark" ou color-scheme dark sur <html>) : les pages actuelles sont claires. */
+    :root[data-theme="dark"] .ps, .ps[data-theme="dark"] {
+      --ps-card: #171C2E; --ps-ink: #E9EDF8; --ps-muted: #A6AEC4; --ps-bar: #6E9BFF; --ps-bar-soft: #34446E;
+      --ps-track: #232A40; --ps-line: rgba(255,255,255,.08); }
     .ps h4 { margin: 0; font-size: 15px; font-weight: 600; color: var(--ps-muted); }
     .ps-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
     .ps-kpi { border-radius: 14px; padding: 10px 12px; box-shadow: inset 0 0 0 1px var(--ps-line); }

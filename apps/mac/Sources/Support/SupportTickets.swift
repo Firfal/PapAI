@@ -90,7 +90,11 @@ struct SupportTickets: View {
                             TicketStatsPanel(stats: stats, focus: $focus,
                                              openExample: { ex in
                                                  filter = 1; focus = nil; highlight = ex.id
-                                                 withAnimation { proxy.scrollTo(ex.id, anchor: .center) }
+                                                 // La liste « Tous » doit être affichée avant de défiler.
+                                                 Task { @MainActor in
+                                                     try? await Task.sleep(nanoseconds: 150_000_000)
+                                                     withAnimation { proxy.scrollTo(ex.id, anchor: .center) }
+                                                 }
                                              },
                                              suggest: { suggestion = $0 })
                         }
@@ -212,8 +216,9 @@ struct SupportTickets: View {
         var parts: [TicketStats] = []
         await withTaskGroup(of: TicketStats?.self) { g in
             for p in people {
+                let base = AutomateLibrary.base(p)
                 g.addTask {
-                    guard let url = URL(string: AutomateLibrary.base(p) + "/tickets/stats"),
+                    guard let url = URL(string: base + "/tickets/stats"),
                           let (d, r) = try? await URLSession.shared.data(from: url),
                           (r as? HTTPURLResponse)?.statusCode == 200,
                           let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
@@ -225,8 +230,9 @@ struct SupportTickets: View {
         }
         await withTaskGroup(of: ([SupportTicket], String?).self) { g in
             for p in people {
+                let base = AutomateLibrary.base(p)
                 g.addTask {
-                    guard let url = URL(string: AutomateLibrary.base(p) + "/tickets"),
+                    guard let url = URL(string: base + "/tickets"),
                           let (d, r) = try? await URLSession.shared.data(from: url),
                           (r as? HTTPURLResponse)?.statusCode == 200,
                           let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
@@ -312,7 +318,9 @@ struct TicketStatsPanel: View {
                 HStack(spacing: 12) {
                     Label(s.text, systemImage: "sparkles").font(rounded(16, .semibold))
                     Spacer(minLength: 0)
-                    Button("Créer l’automate") { suggest(s) }.buttonStyle(PillStyle(height: 38))
+                    if SupportAutomates.creationActive {
+                        Button("Créer l’automate") { suggest(s) }.buttonStyle(PillStyle(height: 38))
+                    }
                 }
                 .padding(12).background(T.mint, in: RoundedRectangle(cornerRadius: 14))
             }

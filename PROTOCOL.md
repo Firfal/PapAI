@@ -509,6 +509,33 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
 - `GET /tickets.js` : liste commune à la page du support et à celle de l'organisation (filtres, export CSV).
 - Test : `python tests/test_tickets.py`.
 
+**Catégories et statistiques (8 nov.)**
+- Champs ajoutés au ticket : `category` (`wifi`, `imprimante`, `comptes`, `logiciels`, `messagerie`,
+  `fichiers`, `securite`, `autre` ; libellés « Wi-Fi et réseau », « Imprimante », « Comptes et mots de passe »,
+  « Logiciels », « Messagerie », « Fichiers », « Sécurité », « Autre »), `category_by` (`regles`, `holo`,
+  `support`, `doute` = « autre » en attendant mieux), `category_who` (nom du support qui a corrigé),
+  `resolved` (secondes Unix, posé au passage à `resolu`, effacé à la réouverture). Un ancien ticket sans
+  catégorie la reçoit des règles à la lecture.
+- Choix : règles sur le texte à l'ouverture ; si elles hésitent, Holo choisit en arrière-plan dans la liste
+  fermée (texte borné à 500 caractères, donnée et jamais consigne, 8 s au plus) ; réponse hors liste,
+  illisible, erreur ou délai : le ticket reste `autre`/`doute`. Holo ne repasse jamais sur un choix du support.
+  Puis `tickets_changed`.
+- Action `category` sur `POST /k/<clé>/tickets/<id>` et `POST /o/<support_token>/tickets/<clé du poste>/<id>` :
+  `{"action":"category","category":"wifi","by"}` → `{"ticket"}` (`category_by` = `support`), 400 si inconnue.
+- `GET /k/<clé>/tickets/stats?weeks=8` et `GET /o/<support_token>/tickets/stats?weeks=8` (1 à 52 semaines,
+  lundi UTC) → `{"since","weeks":[{"start","total","by":{catégorie: n}}],"labels":[{"id","label"}],
+  "categories":[{"id","label","count","resolved","by_automate","month","month_people","median_resolution_s",
+  "phrase","draft"?,"examples":[{"id","number","task","status","created","space"?,"poste"?}]}],
+  "totals":{"count","resolved","by_automate","automate_share","median_resolution_s"},
+  "suggestions":[{"category","count","text","draft":{"title","goal","description","examples"}}]}`
+  (+ `"org"` côté organisation). Catégories les plus fréquentes d'abord, 3 exemples les plus récents.
+  Réglé par un automate = ticket résolu de `source` `automatisme`. Suggestion à partir de 5 demandes des
+  30 derniers jours hors automates (pas pour « autre ») : « 12 demandes Wi-Fi ce mois-ci : créer un
+  automate ? » ; `draft` préremplit la création d'automate, rien n'est créé sans le support.
+- `GET /ticket_stats.js` : graphiques SVG (page du support et organisation), sans bibliothèque.
+- Mac support : `TicketStats.merge` additionne les statistiques de tous les utilisateurs reliés.
+- Tests : `python tests/test_ticket_categories.py`, `apps/mac/tests/ticket_stats_test.swift`.
+
 ## Prénom et invitation (7 novembre au soir)
 
 - `pair_code` porte `expires_in` (600 ou 86400) et `long` (vrai pour une invitation opaque `/i/<jeton>`, `code:null`). `app_url` = `papai://pair?u=<url encodée>&n=<prénom encodé>` ; aucune clé dans ce lien.
