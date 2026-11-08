@@ -16,7 +16,8 @@ from pathlib import Path
 
 from . import storage, ticket_stats
 
-OPEN = ("nouveau", "en_attente", "rdv", "en_cours", "a_reprendre")
+OPEN = ("nouveau", "en_attente", "rdv", "en_cours", "a_reprendre", "plan_valide")
+MAX_SLOTS = 3
 STATUSES = (*OPEN, "resolu")
 MAX = 500
 RDV_MAX_S = 30 * 86400
@@ -73,7 +74,8 @@ class Tickets:
              "session": "", "plan": [], "steps_done": 0, "helper": "", "end": "", "stopped_by": "",
              "rdv": None, "rdv_notified": False, "offered": 0, "assignee": "", "notes": [], "tokens": 0,
              "suggestions": list(suggestions or []), "suggestion_lancee": None,
-             "category": category, "category_by": "regles" if sure else "doute", "resolved": None, "blocked": None}
+             "category": category, "category_by": "regles" if sure else "doute", "resolved": None, "blocked": None,
+             "proposal": None, "decision": None}
         items.append(t)
         self._save()
         return t
@@ -215,4 +217,20 @@ def for_user(t: dict, lessons: list[dict]) -> dict:
         steps = [s for s in t.get("plan", []) if isinstance(s, str) and s]
         if steps:
             solution = {"kind": "plan", "steps": steps}
-    return {**result, "solution": solution, "relaunch": relaunch}
+    return {**result, "solution": solution, "relaunch": relaunch, "decision": user_decision(t)}
+
+
+def user_decision(t: dict) -> dict | None:
+    """Ce que le support a décidé, tant que la demande est ouverte : plan validé
+    (lancé avec Holo) ou assistance en direct obligatoire (créneaux proposés)."""
+    d = t.get("decision") if isinstance(t.get("decision"), dict) else {}
+    by = d.get("by") if isinstance(d.get("by"), str) else ""
+    if d.get("kind") == "plan" and t.get("status") in ("plan_valide", "a_reprendre"):
+        return {"kind": "plan", "by": by, "steps": [s for s in d.get("steps", []) if isinstance(s, str)]}
+    if d.get("kind") == "live" and t.get("status") == "rdv":
+        result = {"kind": "live", "by": by, "slots": [s for s in d.get("slots", []) if isinstance(s, int)],
+                  "rdv": t.get("rdv") if isinstance(t.get("rdv"), int) else None}
+        if d.get("other"):
+            result["other"] = True
+        return result
+    return None

@@ -294,6 +294,123 @@ async def parcours(base: str) -> None:
           ])
     check("un automate enregistré sans actions n'est pas proposé dans ticket_queued",
           no_action_queued is not None and no_action_queued.get("suggestions") == [])
+    await decisions(base)
+
+
+async def decisions(base: str) -> None:
+    wsb = base.replace("http://", "ws://")
+    _, org = http(f"{base}/orgs", {"name": "Plans de ticket"})
+    _, space = http(f"{base}/spaces", {"org": org["enroll_token"], "name": "Poste plan"})
+    key = space["key"]
+    url = f"{base}/k/{key}/tickets"
+
+    async with websockets.connect(space["bridge_url"]) as wa:
+        await wa.send(json.dumps({"type": "hello", "os": "windows"}))
+        await drain(wa, 0.3)
+        await wa.send(json.dumps({"type": "help_request", "task": "Configurer le Wi-Fi"}))
+        queued = await attendre(wa, "ticket_queued")
+        tid = queued["ticket"]
+
+        st, _ = http(f"{url}/{tid}", {"action": "refine", "by": "Claire"})
+        check("Préciser sans texte est refusé", st == 400)
+        st, err = http(f"{url}/{tid}", {"action": "draft", "by": "Claire"})
+        check("Holo indisponible : Proposer un plan renvoie une erreur lisible",
+              st == 502 and isinstance(err.get("error"), str) and bool(err["error"]))
+        st, err = http(f"{url}/{tid}", {"action": "refine", "by": "Claire",
+                                        "text": "Utiliser les réglages réseau"})
+        check("Holo indisponible : Préciser renvoie une erreur lisible",
+              st == 502 and isinstance(err.get("error"), str) and bool(err["error"]))
+
+        steps = ["Ouvrir les réglages réseau", "Choisir le Wi-Fi", "Se connecter au réseau"]
+        st, result = http(f"{url}/{tid}", {"action": "validate", "by": "Claire", "steps": steps})
+        msg = await attendre(wa, "ticket_plan")
+        check("Valider : statut plan_valide et ticket_plan avec les étapes",
+              st == 200 and result["ticket"]["status"] == "plan_valide"
+              and msg is not None and msg["ticket"] == tid and msg["steps"] == steps)
+
+    async with websockets.connect(space["bridge_url"]) as bridge:
+        await bridge.send(json.dumps({"type": "hello", "os": "windows"}))
+        restored = await attendre(bridge, "ticket_plan")
+        check("reconnexion du bridge : ticket_plan est renvoyé",
+              restored is not None and restored["ticket"] == tid and restored["steps"] == steps)
+        st, requests = http(f"{base}/k/{key}/requests")
+        row = next((r for r in requests.get("requests", []) if r.get("id") == tid), {})
+        check("Mes demandes expose la décision plan", st == 200 and row.get("decision") == {
+            "kind": "plan", "by": "Claire", "steps": steps})
+
+        await bridge.send(json.dumps({"type": "help_request", "ticket": tid, "task": "Configurer le Wi-Fi"}))
+        session = await attendre(bridge, "session")
+        t = next(x for x in http(f"{url}")[1]["tickets"] if x["id"] == tid)
+        check("lancement du plan : session prévalidée et ticket en_cours",
+              session is not None and session.get("validated_plan") is True and t["status"] == "en_cours")
+        await bridge.send(json.dumps({"type": "stop"}))
+        for _ in range(30):
+            t = next(x for x in http(f"{url}")[1]["tickets"] if x["id"] == tid)
+            if t["status"] == "a_reprendre":
+                break
+            await asyncio.sleep(0.1)
+        check("Arrêter le plan lancé : ticket a_reprendre", t["status"] == "a_reprendre")
+        await bridge.send(json.dumps({"type": "support_request", "ticket": tid}))
+        requested = await attendre(bridge, "support_requested")
+        check("Demander une assistance sur le plan répond support_requested",
+              requested is not None and requested.get("ticket") == tid)
+
+    async with websockets.connect(space["bridge_url"]) as bridge:
+        await bridge.send(json.dumps({"type": "hello", "os": "windows"}))
+        await drain(bridge, 0.3)
+        for task, mode in (("Partage d'écran", "live"), ("Réserver une salle", "other"),
+                           ("Mise à jour logiciel", "invalid4"), ("Accès messagerie", "past")):
+            await bridge.send(json.dumps({"type": "help_request", "task": task, "new": True}))
+            queued = await attendre(bridge, "ticket_queued")
+            ticket = queued["ticket"]
+            if mode == "invalid4":
+                st, _ = http(f"{url}/{ticket}", {"action": "live", "slots": [
+                    int(time.time()) + 3600 * n for n in (1, 2, 3, 4)]})
+                check("quatre créneaux sont refusés", st == 400)
+                continue
+            if mode == "past":
+                st, _ = http(f"{url}/{ticket}", {"action": "live", "slots": [int(time.time()) - 60]})
+                check("un créneau passé est refusé", st == 400)
+                continue
+
+            slots = [int(time.time()) + 3600, int(time.time()) + 7200]
+            st, result = http(f"{url}/{ticket}", {"action": "live", "by": "Claire", "slots": slots})
+            live = await attendre(bridge, "ticket_live")
+            check("assistance en direct : deux créneaux publiés sur le ticket",
+                  st == 200 and result["ticket"]["status"] == "rdv" and result["ticket"]["rdv"] is None
+                  and live is not None and live["ticket"] == ticket and live["slots"] == slots)
+            st, requests = http(f"{base}/k/{key}/requests")
+            row = next((r for r in requests.get("requests", []) if r.get("id") == ticket), {})
+            check("Mes demandes expose la décision avec les créneaux",
+                  st == 200 and row.get("decision", {}).get("slots") == slots)
+
+            if mode == "live":
+                await bridge.send(json.dumps({"type": "help_request", "ticket": ticket, "task": task}))
+                refused = await attendre(bridge, "ticket_refused")
+                check("un ticket live ne peut pas démarrer sans support",
+                      refused is not None and "choisissez un créneau" in refused.get("reason", ""))
+                await bridge.send(json.dumps({"type": "ticket_slot", "ticket": ticket, "at": slots[0] + 1}))
+                refused = await attendre(bridge, "ticket_refused")
+                check("un créneau non proposé est refusé", refused is not None)
+                await bridge.send(json.dumps({"type": "ticket_slot", "ticket": ticket, "at": slots[0]}))
+                scheduled = await attendre(bridge, "ticket_scheduled")
+                t = next(x for x in http(f"{url}")[1]["tickets"] if x["id"] == ticket)
+                check("un créneau proposé est choisi et enregistré",
+                      scheduled is not None and scheduled.get("at") == slots[0]
+                      and t["status"] == "rdv" and t["rdv"] == slots[0])
+            else:
+                async with websockets.connect(f"{wsb}/k/{key}/ws/aidant/{key}") as helper:
+                    await attendre(helper, "helpers")
+                    await bridge.send(json.dumps({"type": "ticket_slot", "ticket": ticket, "other": True}))
+                    asked = await attendre(bridge, "ticket_slot_asked")
+                    due = await attendre(helper, "ticket_due")
+                    check("aucun créneau ne convient : demande transmise au support",
+                          asked is not None and asked.get("ticket") == ticket
+                          and due is not None and due.get("reason") == "slot_other")
+                    _, requests = http(f"{base}/k/{key}/requests")
+                    row = next((r for r in requests.get("requests", []) if r.get("id") == ticket), {})
+                    check("Mes demandes signale qu'aucun créneau ne convient",
+                          row.get("decision", {}).get("other") is True)
 
 
 if __name__ == "__main__":

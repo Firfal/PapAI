@@ -10,7 +10,7 @@ import test_appairage_code as base_test
 from backend.tickets import Tickets, for_user
 
 check, http = base_test.check, base_test.http
-FIELDS = {"id", "number", "created", "updated", "task", "status", "solution", "relaunch"}
+FIELDS = {"id", "number", "created", "updated", "task", "status", "solution", "relaunch", "decision"}
 
 
 def projections():

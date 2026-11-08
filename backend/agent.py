@@ -234,8 +234,8 @@ class AgentRunner:
             brief += "\nÀ chaque action, indique dans plan_step le numéro de l'étape du plan que tu exécutes."
         for n in self.notes:
             brief += f"\nPrécision du support : {n}"
-        if self.s.automation:
-            brief += ("\n\nC'est un automate : il se joue seul, aucun support n'est en ligne. "
+        if self.s.automation or self.s.validated_plan:
+            brief += ("\n\nC'est un automate (ou un plan validé par le support) : il se joue seul, aucun support n'est en ligne. "
                       "Pour une information que seul l’utilisateur connaît, appelle ask_senior. "
                       "Si tu ne peux pas continuer, appelle ask_helper avec la raison en une phrase : "
                       "l'automate s'arrête et l'étape est notée.")
@@ -363,7 +363,7 @@ class AgentRunner:
                 await asyncio.sleep(MIN_SECONDS_PER_STEP - elapsed)
 
         self.s.log("budget_exhausted")
-        if self.s.automation and not self.s.support_requested:
+        if (self.s.automation or self.s.validated_plan) and not self.s.support_requested:
             self.s.block("Holo n'a pas réussi à terminer cette étape.")
             return
         self.s.finish("Je n'ai pas réussi à terminer. Je passe la main.")
@@ -434,7 +434,7 @@ class AgentRunner:
         if to == "helper" and self._sensitive_blocked is not None:
             question = protected_window_support_text()
             options = []
-        if to == "helper" and self.s.automation and not self.s.support_requested:
+        if to == "helper" and (self.s.automation or self.s.validated_plan) and not self.s.support_requested:
             # Automate : personne n'est appelé. L'étape est notée sur le ticket ;
             # l’utilisateur demandera une assistance s'il le souhaite.
             self.s.block(question)

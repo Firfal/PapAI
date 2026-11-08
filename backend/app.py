@@ -451,6 +451,70 @@ async def _same_ticket(ws, t: dict) -> None:
         _later(_offer_next(space.current()))
 
 
+async def _draft_ticket(sp, tid: str, note: str = "") -> str:
+    """Holo rédige le plan d'un ticket à partir du texte seul (aucune capture).
+    Rien n'est lancé : le support valide, précise, ou demande une assistance en direct."""
+    space.use(sp)
+    t = sp.tickets.get(tid)
+    if t is None:
+        return "Ticket introuvable."
+    os_ = _os_family(sp.bridge.os) if sp.bridge is not None else ""
+    try:
+        plan = await asyncio.wait_for(
+            automate_draft.draft({"kind": "request", "text": t["task"], "note": note, "os": os_}), 90)
+    except automate_draft.DraftError as e:
+        return str(e)
+    except Exception as e:  # noqa: BLE001 — Holo injoignable, quota, délai…
+        print(f"[tickets] plan impossible : {type(e).__name__}")
+        return "Holo ne répond pas pour le moment. Réessayez."
+    space.use(sp)
+    sp.tickets.update(t, proposal={**plan, "note": note[:300]})
+    await _tickets_changed()
+    return ""
+
+
+def _decision_msg(t: dict) -> dict | None:
+    """Ce que le support a décidé, à montrer sur l'ordinateur (aussi renvoyé à la reconnexion)."""
+    d = tickets_mod.user_decision(t)
+    if d is None:
+        return None
+    head = {"ticket": t["id"], "number": t["number"], "task": t["task"], "by": d["by"]}
+    if d["kind"] == "plan" and t["status"] == "plan_valide":
+        return {"type": "ticket_plan", **head, "steps": d["steps"]}
+    slots = [s for s in d.get("slots") or [] if s > time.time()]
+    if d["kind"] == "live" and t.get("rdv") is None and slots:
+        return {"type": "ticket_live", **head, "slots": slots}
+    return None
+
+
+async def _send_decision(t: dict) -> None:
+    m = _decision_msg(t)
+    if m is not None and S().bridge is not None:
+        await S().bridge.send(m)
+
+
+async def _run_validated_plan(ws, link, t: dict) -> None:
+    """Plan validé par le support : Holo le suit avec l'utilisateur, sans support
+    en ligne. Arrêter et le gardien restent les mêmes."""
+    d = t["decision"]
+    session = S().registry.create(str(d.get("goal") or t["task"])[:MAX_TASK])
+    session.grant_consent()
+    session.preapprove_plan(list(d["steps"]), by=str(d.get("by") or ""))
+    session.validated_plan = True
+    session.ticket = t["id"]
+    session.reprise = t.get("reprise") or ""
+    session.log("validated_plan", ticket=t["id"], by=str(d.get("by") or ""))
+    S().tickets.update(t, session=session.id, status="en_cours", rdv=None, blocked=None)
+    await _tickets_changed()
+    await ws.send_json({"type": "session", "id": session.id, "helper_url": f"{PUBLIC_URL}/h/{session.helper_token}",
+                        "ticket": t["id"], "number": t["number"], "validated_plan": True})
+    print(f"[session {session.id}] plan validé du ticket n° {t['number']}")
+    await broadcast_helper(session.status())
+    if S().agent_task and not S().agent_task.done():
+        S().agent_task.cancel()
+    S().agent_task = asyncio.create_task(run_automation(session, link))
+
+
 async def _tickets_changed() -> None:
     await broadcast_helper({"type": "tickets_changed"}, to_bridge=False)
 
@@ -508,7 +572,8 @@ async def _support_request(tid: str) -> dict | None:
     le ticket (et l'étape où ça bloque) part au support."""
     s = current_session()
     t = S().tickets.get(tid or (s.ticket if s is not None else ""))
-    if t is None or t.get("source") != "automatisme" or t["status"] == "resolu":
+    plan = (t or {}).get("decision") and t["decision"].get("kind") == "plan"
+    if t is None or (t.get("source") != "automatisme" and not plan) or t["status"] == "resolu":
         return None
     who = S().family.senior or "L’utilisateur"
     live = s is not None and s.is_open and s.ticket == t["id"]
@@ -754,6 +819,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     await ws.send_json(S().pending_alert["senior"])
                 if _support_available():
                     await _offer_waiting("")
+                for m in [m for m in map(_decision_msg, S().tickets.all()) if m][:5]:
+                    await ws.send_json(m)
                 continue
 
             if kind == "pair_start":
@@ -798,6 +865,35 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 await _tickets_changed()
                 continue
 
+            if kind == "ticket_slot":
+                # Assistance en direct obligatoire : l'utilisateur choisit un des
+                # créneaux proposés par le support, ou en demande un autre.
+                t = S().tickets.get(str(msg.get("ticket") or ""))
+                d = tickets_mod.user_decision(t) if t is not None else None
+                who = S().family.senior or "L’utilisateur"
+                if (d is not None and d["kind"] == "live" and not t.get("rdv")
+                        and not d.get("rdv") and msg.get("other")):
+                    S().tickets.update(t, decision={**t["decision"], "slots": [], "other": True})
+                    S().tickets.note(t, who, "Aucun créneau ne convient : demande un autre horaire.")
+                    await broadcast_helper({"type": "ticket_due", "ticket": t["id"], "number": t["number"],
+                                            "task": t["task"], "reason": "slot_other"}, to_bridge=False)
+                    await ws.send_json({"type": "ticket_slot_asked", "ticket": t["id"], "number": t["number"]})
+                    await _tickets_changed()
+                    continue
+                try:
+                    at = int(msg.get("at"))
+                except (TypeError, ValueError):
+                    at = 0
+                if d is None or d["kind"] != "live" or d.get("rdv") or at not in d["slots"] or at < time.time():
+                    await ws.send_json({"type": "ticket_refused", "ticket": str(msg.get("ticket") or "")[:40],
+                                        "reason": "Ce créneau n'est plus disponible."})
+                    continue
+                S().tickets.update(t, rdv=at, rdv_notified=False, decision={**t["decision"], "slots": [at]})
+                S().tickets.note(t, who, "Créneau choisi : " + time.strftime("%d/%m à %H:%M", time.localtime(at)) + ".")
+                await ws.send_json({"type": "ticket_scheduled", "ticket": t["id"], "number": t["number"], "at": at})
+                await _tickets_changed()
+                continue
+
             if kind == "ticket_automate_launched":
                 t = S().tickets.get(str(msg.get("ticket") or ""))
                 lesson_id = str(msg.get("lesson") or "")
@@ -822,6 +918,14 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 ticket = S().tickets.get(str(msg.get("ticket") or ""))
                 if ticket is not None and ticket["status"] == "resolu":
                     ticket = None
+                decided = tickets_mod.user_decision(ticket) if ticket is not None and not by else None
+                if decided is not None and decided["kind"] == "live":
+                    await ws.send_json({"type": "ticket_refused", "ticket": ticket["id"],
+                                        "reason": "Votre support veut vous aider en direct : choisissez un créneau."})
+                    continue
+                if decided is not None and decided["kind"] == "plan" and decided["steps"]:
+                    await _run_validated_plan(ws, link, ticket)
+                    continue
                 reprise, reopened = "", False
                 again = S().tickets.get(str(msg.get("reopen") or ""))
                 if ticket is None and again is not None and again["status"] == "resolu":
@@ -852,6 +956,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                                         "number": ticket["number"], "task": task,
                                         "suggestions": suggestions})
                     await _tickets_changed()
+                    if not ticket.get("proposal"):
+                        _later(_draft_ticket(space.current(), ticket["id"]))
                     print(f"[tickets] demande n° {ticket['number']} en attente d'un support")
                     continue
                 session = S().registry.create(task)
@@ -2490,7 +2596,7 @@ async def _ticket_action(tid: str, body: dict):
     elif act == "reopen":
         if t["status"] == "en_cours":
             return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
-        S().tickets.update(t, status="en_attente", offered=0, rdv=None, closed_by="", solution="")
+        S().tickets.update(t, status="en_attente", offered=0, rdv=None, closed_by="", solution="", decision=None)
     elif act == "schedule":
         at = _rdv_at(body.get("at"))
         if at is None or t["status"] in ("en_cours", "resolu"):
@@ -2499,6 +2605,42 @@ async def _ticket_action(tid: str, body: dict):
         if S().bridge is not None:
             await S().bridge.send({"type": "ticket_scheduled", "ticket": t["id"], "number": t["number"],
                                    "at": at, "by": by})
+    elif act in ("draft", "refine"):
+        # Holo (re)propose le plan ; « Préciser » lui dit quoi faire.
+        if t["status"] in ("en_cours", "resolu"):
+            return JSONResponse({"error": "Ce ticket n'attend plus de plan."}, status_code=409)
+        if act == "refine" and not text:
+            return JSONResponse({"error": "Écrivez la précision à donner à Holo."}, status_code=400)
+        err = await _draft_ticket(space.current(), t["id"], text if act == "refine" else "")
+        if err:
+            return JSONResponse({"error": err}, status_code=502)
+        if act == "refine":
+            S().tickets.note(t, by, f"Précision pour Holo : {text[:300]}")
+    elif act == "validate":
+        # Le plan est validé : l'utilisateur le lance avec Holo, sans support en ligne.
+        p = t.get("proposal") or {}
+        raw = body.get("steps") if isinstance(body.get("steps"), list) else p.get("steps") or []
+        steps = [str(s).strip()[:300] for s in raw if str(s or "").strip()][:6]
+        if t["status"] in ("en_cours", "resolu") or not steps:
+            return JSONResponse({"error": "Aucun plan à valider."}, status_code=409)
+        S().tickets.update(t, status="plan_valide", rdv=None, assignee=by or t.get("assignee", ""),
+                           decision={"kind": "plan", "goal": str(p.get("goal") or t["task"])[:300],
+                                     "steps": steps, "by": by or "Votre support", "at": int(time.time())})
+        S().tickets.note(t, by, "Plan validé : l’utilisateur peut le lancer avec Holo.")
+        await _send_decision(t)
+    elif act == "live":
+        # Assistance en direct obligatoire : pas de lancement par l'utilisateur seul.
+        raw = body.get("slots") if isinstance(body.get("slots"), list) else []
+        slots = sorted({_rdv_at(x) for x in raw} - {None})
+        if not 1 <= len(slots) <= tickets_mod.MAX_SLOTS or len(slots) != len(raw):
+            return JSONResponse({"error": "Proposez 1 à 3 créneaux à venir."}, status_code=400)
+        if t["status"] in ("en_cours", "resolu"):
+            return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
+        S().tickets.update(t, status="rdv", rdv=None, rdv_notified=False, assignee=by or t.get("assignee", ""),
+                           decision={"kind": "live", "slots": slots, "by": by or "Votre support",
+                                     "at": int(time.time())})
+        S().tickets.note(t, by, "Assistance en direct obligatoire : créneaux proposés.")
+        await _send_decision(t)
     elif act == "category":
         if not S().tickets.categorize(t, str(body.get("category") or ""), "support", by):
             return JSONResponse({"error": "Catégorie inconnue."}, status_code=400)

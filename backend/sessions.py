@@ -108,6 +108,9 @@ class Session:
     # l’utilisateur le demande (`support_request`).
     automation: str = ""
     support_requested: bool = False
+    # Plan validé par le support sur le ticket : Holo le suit sans support en ligne,
+    # comme un automate (bloqué → arrêt, l'utilisateur peut demander une assistance).
+    validated_plan: bool = False
     # Où l'automate s'est arrêté faute de pouvoir continuer seul : {step, label, reason}.
     blocked: dict | None = None
     # La même demande a déjà été réglée : ce qui avait été fait, pour Holo.
@@ -388,6 +391,7 @@ class Session:
             "usage": self.usage,
             "automation": self.automation or None,
             "support_requested": self.support_requested,
+            "validated_plan": self.validated_plan,
             "blocked": self.blocked,
         }
 
