@@ -10,6 +10,8 @@ struct HomeView: View {
     @State private var dictation = Dictation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
+    /// 0 : Accueil, 1 : tous les automates.
+    @State private var onglet = 0
     private var micro: MicPresence { .shared }
     private var usage: AppUsage { .shared }
 
@@ -23,12 +25,16 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 24) {
                 // En-tête bleu sur toute la largeur ; la barre de demande garde la largeur de la colonne gauche.
                 enTete(barre: deux ? gauche - Self.marge : nil)
-                if deux {
+                Onglets(options: [("Accueil", 0), ("Automates", 1)], selection: $onglet).frame(maxWidth: 420)
+                if onglet == 1 {
+                    automates(titre: false, tous: true).padding(.bottom, 24)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                } else if deux {
                     // Les deux colonnes partent de la même ligne : titres de section alignés, contenu en haut.
                     HStack(alignment: .top, spacing: Self.ecart) {
                         // Seule la liste défile : le titre de section reste en place.
                         VStack(alignment: .leading, spacing: 14) {
-                            titreSection("sparkles", "Mes automates")
+                            titreSection("sparkles", "Derniers automates")
                             automates(titre: false).padding(.bottom, 24)
                         }
                         .frame(width: gauche)
@@ -258,9 +264,11 @@ struct HomeView: View {
     // MARK: Automates
 
     /// Les automates enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
-    private func automates(titre: Bool = true) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if titre { titreSection("sparkles", "Mes automates") }
+    private func automates(titre: Bool = true, tous: Bool = false) -> some View {
+        // Accueil : les 5 plus récents ; onglet Automates : tous.
+        let liste = tous ? model.lessons : Array(model.lessons.prefix(Self.derniers))
+        return VStack(alignment: .leading, spacing: 14) {
+            if titre { titreSection("sparkles", "Derniers automates") }
             if let n = model.notice {
                 Label(n, systemImage: "info.circle.fill").font(rounded(17, .medium))
                     .foregroundStyle(T.leaf)
@@ -280,11 +288,11 @@ struct HomeView: View {
                 } else {
                     // Deux colonnes : la carte blanche reste en place, seule la liste
                     // défile à l'intérieur et se coupe sur ses bords.
-                    Defilant(actif: !titre) {
+                    Defilant(actif: !titre || tous) {
                         VStack(spacing: 0) {
-                            ForEach(model.lessons) { l in
+                            ForEach(liste) { l in
                                 tuile(l)
-                                if l.id != model.lessons.last?.id {
+                                if l.id != liste.last?.id {
                                     Rectangle().fill(T.line).frame(height: 1).padding(.leading, 64)
                                 }
                             }
@@ -294,8 +302,14 @@ struct HomeView: View {
                 }
             }
             .carte(T.rBig)
+            if !tous && model.lessons.count > Self.derniers {
+                Button("Voir les \(model.lessons.count) automates") { onglet = 1 }
+                    .buttonStyle(.plain).font(rounded(16, .semibold)).foregroundStyle(T.leaf)
+            }
         }
     }
+
+    private static let derniers = 5
 
     private func tuile(_ l: Lesson) -> some View {
         HStack(spacing: 10) {
