@@ -231,11 +231,11 @@ class Bridge:
             await reply(STOPPED_TEXT, True)
         except ProtectedZone:
             await reply("Action refusée par PapAI : cette zone appartient à PapAI. "
-                        "Ne réessaie pas : appelle ask_helper pour que le proche s'en occupe.",
+                        "Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.",
                         False, "sensitive")
         except SensitiveTarget as e:
             await reply(f"Action refusée par PapAI : {e}. "
-                        "Ne réessaie pas : appelle ask_helper pour que le proche s'en occupe.",
+                        "Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.",
                         False, "sensitive")
         except UnknownKey as e:
             await reply(f"Touche inconnue : {e}", False)

@@ -164,7 +164,7 @@ class BridgeSafetyTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(message['refused'], False)
             self.assertTrue(message['result'].startswith('Action refusée par PapAI : '))
             self.assertTrue(message['result'].endswith(
-                ". Ne réessaie pas : appelle ask_helper pour que le proche s'en occupe."))
+                ". Ne réessaie pas : appelle ask_helper pour que le support s'en occupe."))
 
     async def test_model_alert_blocks_until_dismissed(self):
         model = Model(demo='home')

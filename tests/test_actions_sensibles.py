@@ -16,7 +16,7 @@ from backend.sessions import Frame, Registry, State
 from papai_tools import ACTUATING_TOOLS, system_prompt
 
 TEXT = ("Action refusée par PapAI : les réglages sont sensibles. "
-        "Ne réessaie pas : appelle ask_helper pour que le proche s'en occupe.")
+        "Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.")
 
 
 def response(name, args=None):
@@ -86,7 +86,7 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
 
     async def test_holo_reessaie_dans_la_boucle(self):
         await self.play([response("click"), response("type_text", {"text": "secret"}),
-                         response("answer", {"content": "Le proche s'en occupe."})])
+                         response("answer", {"content": "Le support s'en occupe."})])
         self.assertEqual(self.link._request.await_count, 1)
         self.assertEqual(self.session.state, State.DONE)
         self.assertEqual(len([e for e in self.events if e.get("type") == "question"]), 1)

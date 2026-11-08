@@ -41,7 +41,7 @@ class SensitiveBlocked(str):
     def __new__(cls, result: str):
         text = str(result or "Action refusée par PapAI : action sensible bloquée.")
         if "appelle ask_helper" not in text:
-            text += " Ne réessaie pas : appelle ask_helper pour que le proche s'en occupe."
+            text += " Ne réessaie pas : appelle ask_helper pour que le support s'en occupe."
         return super().__new__(cls, text)
 
     @property

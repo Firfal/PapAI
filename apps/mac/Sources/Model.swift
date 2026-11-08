@@ -831,9 +831,9 @@ final class AppModel {
         } catch ActionError.stopped {
             reply("Arrêt demandé par la personne aidée.", refused: true)
         } catch ActionError.protectedZone {
-            reply("Action refusée par PapAI : cette zone appartient à PapAI. Ne réessaie pas : appelle ask_helper pour que le proche s'en occupe.", refused: false, blocked: "sensitive")
+            reply("Action refusée par PapAI : cette zone appartient à PapAI. Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.", refused: false, blocked: "sensitive")
         } catch ActionError.sensitive(let reason) {
-            reply("Action refusée par PapAI : \(reason). Ne réessaie pas : appelle ask_helper pour que le proche s'en occupe.", refused: false, blocked: "sensitive")
+            reply("Action refusée par PapAI : \(reason). Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.", refused: false, blocked: "sensitive")
         } catch ActionError.noAccessibility {
             reply("Autorisation Accessibilité manquante sur cet ordinateur.", refused: true)
         } catch ActionError.unknownKey(let k) {
