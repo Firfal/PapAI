@@ -1,65 +1,81 @@
 package com.quentin.papai.aidant
 
+import org.json.JSONArray
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PeopleTest {
-    private val sophie = Person("https://papai.example/k/aaa", "aaa", "Sophie", "h1", "sa fille")
-    private val paul = Person("https://papai.example/k/bbb", "bbb", "Paul")
+    private val server = "https://papai.example"
 
     @Test
-    fun allerRetourJson() {
-        assertEquals(listOf(sophie, paul), People.decode(People.encode(listOf(sophie, paul))))
+    fun postesDuServeur() {
+        val spaces = JSONArray("""[
+            {"key":"aaa","name":"Christine","label":"Comptabilité","online":true},
+            {"key":"bbb","name":"","label":"Accueil"}
+        ]""")
+        assertEquals(listOf(
+            Person("$server/k/aaa", "aaa", "Christine", "Comptabilité"),
+            Person("$server/k/bbb", "bbb", "", "Accueil"),
+        ), People.fromSpaces(spaces, server, emptyList()))
     }
 
     @Test
-    fun jsonAbimeOuIncompletIgnore() {
-        assertEquals(emptyList<Person>(), People.decode("pas du json"))
-        assertEquals(emptyList<Person>(), People.decode(null))
-        assertEquals(listOf(paul), People.decode("""[{"server":"","key":"x"},{"server":"https://papai.example/k/bbb","key":"bbb","name":"Paul"}]"""))
+    fun clesInvalidesEtDoublonsIgnores() {
+        val spaces = JSONArray("""[
+            {"key":"ok-1_A"},{"key":"ok-1_A","name":"Autre"},{"key":""},{"key":"a/b"},{"key":"é"},
+            {"key":42},{"name":"sans clé"},null,"texte",{"key":"${"x".repeat(201)}"},{"key":"${"y".repeat(200)}"}
+        ]""")
+        assertEquals(listOf("ok-1_A", "y".repeat(200)), People.fromSpaces(spaces, server, emptyList()).map { it.key })
+        assertEquals(emptyList<Person>(), People.fromSpaces(null, server, emptyList()))
     }
 
     @Test
-    fun memeCleUneSeuleFois() {
-        val twice = People.encode(listOf(sophie, sophie.copy(name = "Autre")))
-        assertEquals(listOf(sophie), People.decode(twice))
+    fun cleDeriveeDuJetonPersonnel() {
+        // Avec un jeton personnel (#77), /o/<jeton>/spaces donne une clé dérivée de 54 caractères :
+        // sk + id du poste (12) + id du support (8) + sceau (32).
+        val derived = "sk" + "a1B2c3D4e5F6" + "s_9-ZyXw" + "Q".repeat(32)
+        assertEquals(54, derived.length)
+        val list = People.fromSpaces(JSONArray("""[{"key":"$derived","name":"Christine","label":"Comptabilité"}]"""), server, emptyList())
+        assertEquals(listOf(Person("$server/k/$derived", derived, "Christine", "Comptabilité")), list)
     }
 
     @Test
-    fun ajoutPuisMiseAJourSansEffacer() {
-        val list = People.upsert(listOf(sophie), paul)
-        assertEquals(listOf(sophie, paul), list)
-        val renamed = People.upsert(list, Person(sophie.server, "aaa", "", "", ""))
-        assertEquals(sophie, renamed[0])
-        assertEquals("Sophie M.", People.upsert(list, sophie.copy(name = "Sophie M."))[0].name)
+    fun ceQuOnSavaitNEstPasEffaceParDuVide() {
+        val known = listOf(Person("$server/k/aaa", "aaa", "Christine", "Compta", "h1"))
+        val list = People.fromSpaces(JSONArray("""[{"key":"aaa","name":"","label":null}]"""), server, known)
+        assertEquals(known, list)
+        val renamed = People.fromSpaces(JSONArray("""[{"key":"aaa","name":" Christine M. ","label":"RH"}]"""), server, known)
+        assertEquals(Person("$server/k/aaa", "aaa", "Christine M.", "RH", "h1"), renamed[0])
     }
 
     @Test
-    fun pasPlusDeCinquante() {
-        var list = emptyList<Person>()
-        repeat(People.MAX + 10) { list = People.upsert(list, Person("https://s/k/$it", "k$it")) }
-        assertEquals(People.MAX, list.size)
+    fun laListeDuServeurFaitFoi() {
+        val known = listOf(Person("$server/k/old", "old", "Paul"))
+        assertEquals(listOf("new"), People.fromSpaces(JSONArray("""[{"key":"new"}]"""), server, known).map { it.key })
+    }
+
+    @Test
+    fun pasPlusDeCinqCents() {
+        val spaces = JSONArray().apply { repeat(People.MAX + 10) { put(org.json.JSONObject().put("key", "k$it")) } }
+        assertEquals(People.MAX, People.fromSpaces(spaces, server, emptyList()).size)
+    }
+
+    @Test
+    fun prenomPuisService() {
+        assertEquals("Christine", People.title(Person(server, "a", "Christine", "Comptabilité")))
+        assertEquals("Comptabilité", People.detail(Person(server, "a", "Christine", "Comptabilité")))
+        assertEquals("Accueil", People.title(Person(server, "a", "", "Accueil")))
+        assertNull(People.detail(Person(server, "a", "", "Accueil")))
+        assertNull(People.detail(Person(server, "a", "Christine", "Christine")))
+        assertEquals("Poste", People.title(Person(server, "a")))
     }
 
     @Test
     fun demandeEnAttente() {
         listOf("waiting_consent", "planning", "awaiting_approval", "awaiting_helper").forEach { assertTrue(People.isAsking(it)) }
         listOf("active", "done", "stopped", null).forEach { assertFalse(People.isAsking(it)) }
-    }
-
-    @Test fun orgLinks() {
-        val host = "papai.example"
-        val t = "sup-abcdefghijklmnop"
-        assertEquals(Org("https://$host", t), Orgs.parse(t, host))
-        assertEquals(Org("https://srv.fr", t), Orgs.parse("https://srv.fr/o/$t", host))
-        assertEquals(Org("http://10.0.2.2:8000", t), Orgs.parse("http://10.0.2.2:8000/o/$t/", host))
-        assertEquals(Org("https://srv.fr", t), Orgs.parse("papai://org?u=https%3A%2F%2Fsrv.fr%2F&t=$t", host))
-        assertEquals(null, Orgs.parse("ins-abcdefghijklmnop", host))
-        assertEquals(null, Orgs.parse("https://srv.fr/a/$t", host))
-        assertEquals(null, Orgs.parse("papai://org?u=javascript:x&t=$t", host))
-        val list = listOf(Org("https://a", t, "Acme"), Org("https://b", t), Org("https://c", "bad"))
-        assertEquals(listOf(Org("https://a", t, "Acme")), Orgs.decode(Orgs.encode(list)))
     }
 }

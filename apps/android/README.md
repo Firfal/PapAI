@@ -3,12 +3,43 @@
 Même app que l'iPhone (`apps/ios`), en Kotlin + Jetpack Compose, distribuée en APK
 à installer hors Play Store (« sources inconnues »). Il n'y a pas d'app mobile pour l’utilisateur.
 
-Ce qu'elle fait : appairage (QR, code à 6 chiffres, lien `papai://pair?u=…&n=…`), demande et plan
+Version entreprise uniquement : le support est rattaché d'office à son organisation par le jeton
+support (`sup-…`) déposé par le service informatique. Il n'y a ni liaison poste par poste (QR code,
+code à 6 chiffres, lien d'invitation) ni réglage à la main : l'app lit la liste des postes de
+l'organisation (`GET <serveur>/o/<jeton>/spaces`, toutes les 30 s), suit un poste en détail et
+signale les demandes et alertes des autres. La version avec liaison est archivée dans la branche
+`archive/particuliers`.
+
+Ce qu'elle fait : postes de l'organisation (« prénom · service »), demande et plan
 (valider, préciser au clavier ou à la voix, refuser), écran en direct, pause, question de Holo,
 prise en main (viseur et loupe ×3, clic normalisé), dictée en direct de l’utilisateur, alertes,
-fin de session et automate (brouillon modifiable avec ses captures réelles).
-Une notification « Liaison » (service de premier plan) garde la connexion ouverte, et une
-notification forte arrive quand une demande ou une question attend l'aidant.
+fin de l'assistance et automate (brouillon modifiable avec ses captures réelles).
+Une notification « Connexion » (service de premier plan) garde la connexion ouverte, et une
+notification forte arrive quand une demande ou une question attend le support.
+
+## Configuration de l'organisation
+
+Rien ne se saisit dans l'app. Sans configuration, elle affiche « Aucune organisation configurée »
+et invite à contacter l'administrateur. Sources, dans l'ordre (la première qui porte un jeton valide
+l'emporte ; le serveur vient de la même source) :
+
+1. **Configuration gérée** (EMM / Android Enterprise ; restrictions déclarées dans
+   `app/src/main/res/xml/app_restrictions.xml`) :
+
+   | Clé | Valeur |
+   |---|---|
+   | `supportToken` | jeton support, `sup-…` (14 à 104 caractères `A-Z a-z 0-9 _ -`) : celui de l'organisation, ou le jeton personnel du support créé dans la console (#77, révocable) |
+   | `server` | facultatif : serveur PapAI `https://…` (ramené à son origine) ; absent ou invalide : serveur officiel `https://papai-450417131702.europe-west1.run.app` |
+   | `supportName` | facultatif : nom affiché aux employés ; absent : « Support IT · <organisation> » |
+
+   Une configuration poussée après coup est relue quand l'app revient au premier plan.
+   Jeton personnel révoqué par l'IT : la connexion se ferme (4401), l'app affiche « Accès retiré par
+   votre administrateur. » et ne réessaie pas en boucle.
+
+2. **Démo sans EMM** : copier `support.local.properties.example` en `support.local.properties`
+   (dans `apps/android/`, fichier local non suivi), y mettre `supportToken` (et `server` si besoin),
+   puis reconstruire l'APK. Les valeurs sont compilées dans `BuildConfig.PAPAI_SUPPORT_TOKEN` et
+   `BuildConfig.PAPAI_SERVER` : l'APK ainsi construit contient le jeton, ne pas le diffuser.
 
 ## Construire l'APK
 
@@ -40,6 +71,6 @@ Sans clé, l'APK de release est signé avec la clé de debug de la machine.
 
 1. Copier `app-release.apk` sur le téléphone (lien, mail, câble…), puis l'ouvrir.
 2. Android demande d'autoriser l'installation depuis cette source (navigateur, Fichiers…) : accepter.
-3. Ouvrir PapAI, autoriser les notifications, puis « Scanner le QR de l'ordinateur ».
+3. Ouvrir PapAI et autoriser les notifications : les postes de l'organisation apparaissent seuls.
 
 Ou par câble : `adb install -r app-release.apk`.

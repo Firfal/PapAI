@@ -28,6 +28,7 @@ import websockets
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_parcours as tp  # noqa: E402
+from backend import ticket_stats  # noqa: E402
 
 RACINE = tp.RACINE
 CLE = tp.CLE
@@ -46,7 +47,10 @@ class FauxHolo(BaseHTTPRequestHandler):
         holo_vu.append(req)
         msg: dict = {"role": "assistant", "content": ""}
         if not req.get("tools"):
-            msg["content"] = json.dumps({"steps": ["plan inattendu"]})
+            is_category = any(m.get("role") == "system" and m.get("content") == ticket_stats.PROMPT
+                              for m in req.get("messages", []))
+            msg["content"] = json.dumps({"category": "autre"} if is_category
+                                        else {"steps": ["plan inattendu"]})
         else:
             faits = sum(1 for m in req["messages"] if m.get("role") == "tool")
             nom, args = (("click", {"element": "Paramètres", "x": 500, "y": 500, "plan_step": 1})
@@ -210,8 +214,13 @@ async def parcours(base: str) -> None:
             await asyncio.sleep(0.2)
         check("Holo agit tout de suite : le plan a été validé à l'import", pc.actions == ["click"], pc.actions)
         vus = holo_vu[avant:]
-        check("aucun nouveau plan demandé à Holo", all(v.get("tools") for v in vus), len(vus))
-        brief = json.dumps(vus[0]["messages"], ensure_ascii=False) if vus else ""
+        classification = lambda v: any(
+            m.get("role") == "system" and m.get("content") == ticket_stats.PROMPT
+            for m in v.get("messages", [])
+        )
+        plans_inattendus = [v for v in vus if not v.get("tools") and not classification(v)]
+        check("aucun nouveau plan demandé à Holo", not plans_inattendus, len(vus))
+        brief = json.dumps(next((v["messages"] for v in vus if v.get("tools")), []), ensure_ascii=False)
         check("Holo reçoit le plan validé par le support", "Choisir Google comme moteur par défaut" in brief)
         sessions = json.loads(tp.get(f"{k}/sessions"))
         derniere = sessions[-1] if sessions else {}
