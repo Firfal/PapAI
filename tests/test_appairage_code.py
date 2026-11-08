@@ -29,6 +29,7 @@ import websockets
 RACINE = Path(__file__).resolve().parent.parent
 CLE = "cle-de-test-appairage"
 INVALIDE = "Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de la personne aidée."
+TEST_DATA_DIR: Path | None = None
 fails = 0
 
 
@@ -382,15 +383,17 @@ async def parcours(base: str) -> None:
 
 
 def main() -> None:
+    global TEST_DATA_DIR
     politique()
     tmp = Path(tempfile.mkdtemp(prefix="papai-code-"))
     shutil.copytree(RACINE / "backend", tmp / "backend", ignore=shutil.ignore_patterns("__pycache__", "family.json"))
     for module in RACINE.glob("*.py"):
         shutil.copy(module, tmp)
+    TEST_DATA_DIR = tmp / "data"
     port = port_libre()
     base = f"http://127.0.0.1:{port}"
     env = {**os.environ, "HAI_API_KEY": "faux", "PAPAI_PUBLIC": "1", "PAPAI_AIDANT_KEY": CLE,
-           "PAPAI_DATA_DIR": str(tmp / "data"),
+           "PAPAI_DATA_DIR": str(TEST_DATA_DIR),
            "PORT": str(port), "PAPAI_PUBLIC_URL": base, "PAPAI_PAIR_CONFIRM_S": "1.5"}
     env.pop("GLADIA_API_KEY", None)
     log = open(tmp / "serveur.log", "w")

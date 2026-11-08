@@ -207,17 +207,41 @@ async def parcours(base: str) -> None:
     })
     st, org_automations = http(f"{base}/o/{o2['support_token']}/automations")
     check("l'automate de test est importé dans l'espace, pas dans l'organisation",
-          st == 200 and local_automation.get("id")
+          st == 200 and local_automation.get("id", "").startswith("imp-") and local_automation.get("actions")
           and all(x.get("id") != local_automation["id"] for x in org_automations))
     async with websockets.connect(local_space["bridge_url"]) as ws:
         await ws.send(json.dumps({"type": "hello", "os": "windows"}))
         await drain(ws, 0.5)
         await ws.send(json.dumps({"type": "help_request", "task": "Imprimer le document du scanner"}))
         local_queued = await attendre(ws, "ticket_queued")
+        data_dir = base_test.TEST_DATA_DIR
+        assert data_dir is not None
+        manifest = next(
+            path for path in (data_dir / "spaces").glob("*/space.json")
+            if json.loads(path.read_text(encoding="utf-8")).get("key") == local_key
+        )
+        lesson_id = "lesson-ticket-no-actions"
+        lesson_dir = manifest.parent / "lessons" / lesson_id
+        lesson_dir.mkdir(parents=True, exist_ok=True)
+        (lesson_dir / "lesson.json").write_text(json.dumps({
+            "id": lesson_id,
+            "title": "Retrouver les paramètres du bureau",
+            "task": "Retrouver les paramètres du bureau",
+            "steps": [{"instruction": "Ouvrir les paramètres du bureau", "checkpoint": "", "frame": ""}],
+            "approved_by_helper": True,
+            "approved_at": time.time(),
+        }, ensure_ascii=False), encoding="utf-8")
+        st, saved_lessons = http(f"{base}/k/{local_key}/lessons")
+        check("l'automate enregistré sans actions est dans le catalogue de l'espace",
+              st == 200 and any(x.get("id") == lesson_id and not x.get("actions") for x in saved_lessons))
+        await ws.send(json.dumps({"type": "help_request", "task": "Retrouver les paramètres du bureau"}))
+        no_action_queued = await attendre(ws, "ticket_queued")
     check("un automate importé seulement dans l'espace est proposé au poste d'organisation",
           local_queued is not None and local_queued.get("suggestions") == [
               {"id": local_automation["id"], "title": local_automation["title"]}
           ])
+    check("un automate enregistré sans actions n'est pas proposé dans ticket_queued",
+          no_action_queued is not None and no_action_queued.get("suggestions") == [])
 
 
 if __name__ == "__main__":
