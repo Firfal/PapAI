@@ -24,11 +24,13 @@ from . import settings
 from . import offline_lessons
 from .bridge import Bridge
 from .core import StopGate, open_shortcut, play_actions
+from .web_agent import WebAgentHost
 
 OPEN_STATES = ("planning", "awaiting_approval", "active", "awaiting_helper")
 STATES = OPEN_STATES + ("done", "stopped")
 TEXT_SCALES = [("Grande", 1.0), ("Très grande", 1.18)]
 NOTICE_S = 7
+RUN_STATUS_S = 6
 HOME_AFTER_DONE_S = 90
 
 
@@ -37,7 +39,8 @@ class Model:
                  on_level: Callable[[bool], None] = lambda on: None,
                  on_remote: Callable[[], None] = lambda: None,
                  on_compact: Callable[[bool], None] = lambda on: None,
-                 demo: str | None = None, bridge_factory: Callable | None = None) -> None:
+                 demo: str | None = None, bridge_factory: Callable | None = None,
+                 web_host: WebAgentHost | None = None) -> None:
         self._push = push
         self._on_level = on_level
         self._on_remote = on_remote
@@ -59,6 +62,9 @@ class Model:
         self.question_options: list[str] = []
         self.paused = False
         self.guard_acknowledged = False
+        # `status.where` : "web" quand Holo travaille dans Chrome PapAI.
+        self.session_where: str | None = None
+        self._web_fronted = False
         self.session_helper: str | None = None
         # Pendant que Holo agit, la fenêtre devient un petit encart (MiniPanel du Mac).
         self.compact = False
@@ -78,6 +84,9 @@ class Model:
         self.pending_task = ""
         self.pending_automation: str | None = None
         self.automation_running: str | None = None
+        # Résultat d'un lancement, affiché sur la ligne de l'automate (RunStatus du Mac).
+        self.run_status: dict | None = None
+        self._run_timer: threading.Timer | None = None
         self.apps: list[dict] = []
         self.dictation = {"phase": "idle", "message": None}
         # Nom du compte Windows (ou stratégie DisplayName) : rien à saisir.
@@ -90,6 +99,8 @@ class Model:
         self._home_timer: threading.Timer | None = None
         self.bridge: Bridge | None = None
         self._bridge_factory = bridge_factory
+        self.web = web_host or WebAgentHost()
+        self.web.on_change = lambda sid: self._send({"type": "web_agent", "session_id": sid})
 
     # ------------------------------------------------------------ dérivés
 
@@ -162,8 +173,8 @@ class Model:
                 "paused": self.paused, "guardAcknowledged": self.guard_acknowledged,
                 "carer": self.carer, "compact": self.compact,
                 "currentAction": self.current_action, "actions": list(self.actions),
-                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "notice": self.notice, "alert": self.alert,
-                "helpers": list(self.helpers), "remoteRequest": self.remote_request, "queued": self.queued,
+                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "runStatus": self.run_status, "notice": self.notice, "alert": self.alert,
+                "helpers": list(self.helpers), "sessionWhere": self.session_where, "remoteRequest": self.remote_request, "queued": self.queued,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
 
@@ -228,6 +239,7 @@ class Model:
                               self._connection, self._action,
                               alert_visible=lambda: self.alert is not None, **bridge_kw)
         self.bridge.protection = lambda: self.realtime_protection
+        self.bridge.web_agent_available = self.web.available
         self.bridge.start()
         if settings.needs_space(self.prefs):
             threading.Thread(target=self._create_space, daemon=True).start()
@@ -313,6 +325,9 @@ class Model:
         self._send(msg)
 
     def _connection(self, ok: bool) -> None:
+        if not ok:
+            # Plus de connexion : Chrome PapAI ne reste jamais ouvert sans contrôle.
+            self.web.stop_local(notify_server=False)
         if ok:
             self._send_profile()
             threading.Thread(target=self.refresh_lessons, daemon=True).start()
@@ -428,14 +443,12 @@ class Model:
         return bool(self.prefs.get("screenConsent"))
 
     def request_consent(self, task: str) -> None:
-        """Étape 4 : la première fois, un écran qui dit ce qui va se passer.
-        Ensuite la demande part directement : l'accord est déjà donné."""
-        if self.screen_consent:
-            self.ask_help(str(task or "").strip())
-            return
-        self.pending_task = str(task or "").strip()
-        self.screen = "consent"
-        self.push()
+        """Comme sur le Mac (#71) : poste d'entreprise, l'accord de partage vaut dès
+        la demande ; l'écran « Votre écran va être partagé » reste pour un automate
+        qui passe la main à Holo."""
+        if not self.screen_consent:
+            self.save_prefs(screenConsent=True)
+        self.ask_help(str(task or "").strip())
 
     def give_consent(self) -> None:
         self.save_prefs(screenConsent=True)
@@ -471,6 +484,7 @@ class Model:
             self.plan, self.plan_step, self.question = [], None, None
             self.question_for_me, self.question_options, self.paused = False, [], False
             self.session_helper = None
+            self.session_where, self._web_fronted = None, False
             self.answer, self.current_action, self.actions = None, None, []
             self.state = "planning"
             self.screen = "session"
@@ -485,6 +499,7 @@ class Model:
     def stop(self) -> None:
         """Le verrou local passe d'abord, puis le serveur est prévenu."""
         self.gate.raise_stop()
+        self.web.stop_local(notify_server=False)
         if self.bridge is not None:
             self.bridge.stop()
         with self._lock:
@@ -504,6 +519,7 @@ class Model:
     def shutdown(self) -> None:
         """Fermeture de la fenêtre : même effet que le bouton Arrêter."""
         self.gate.raise_stop()
+        self.web.stop_local(notify_server=False)
         if self.session_open and self.bridge is not None:
             self.bridge.stop()
 
@@ -518,9 +534,17 @@ class Model:
         elif kind == "helpers":
             lst = m.get("helpers") or []
             self.helpers = [{"id": str(d["id"]), "name": str(d["name"]),
-                             "relation": str(d.get("relation") or "")}
+                             "relation": str(d.get("relation") or ""), "online": d.get("online") is True}
                             for d in lst if isinstance(d, dict) and d.get("id") and d.get("name")]
+        elif kind == "web_agent_start":
+            if self.session_open and not self.gate.is_stopped:
+                self.web.start()
+            return
+        elif kind == "web_agent_stop":
+            self.web.stop_local(notify_server=False)
+            return
         elif kind == "alert":
+            self.web.stop_local()
             self.guard_acknowledged = bool(m.get("acknowledged") or m.get("acknowledged_by"))
             if m.get("level") == "danger" or m.get("blocked"):
                 self.gate.raise_stop()
@@ -599,6 +623,16 @@ class Model:
                     self.session_helper = str(m["helper_name"])
                 if self.state != "active":
                     self.current_action = None
+                where = m.get("where")
+                self.session_where = where if where in ("desktop", "web") else None
+                if self.session_where != "web":
+                    self._web_fronted = False
+        if self.state in ("done", "stopped"):
+            self.web.stop_local()
+        elif (self.session_where == "web" and self.state in ("active", "awaiting_helper")
+              and not self._web_fronted):
+            self._web_fronted = True
+            self.web.bring_to_front()
         self._level()
 
     def _schedule_home(self) -> None:
@@ -630,8 +664,10 @@ class Model:
             return
         ok, detail = open_shortcut(lesson.get("shortcut"))
         if ok:
-            self.show_notice("C'est ouvert.")
+            self.show_run_status(lesson_id, "C'est ouvert")
         else:
+            if not self.automation_running:
+                self.run_status = None
             hn = self.helper_name
             self.show_notice(f"Je ne retrouve pas ce dossier. {hn[:1].upper() + hn[1:]} "
                              "a reçu un message pour s'en occuper.")
@@ -658,7 +694,7 @@ class Model:
             return
         self.gate.reset()
         self.automation_running = str(lesson.get("title") or "Automate")
-        self.show_notice(f"C'est parti : {lesson.get('title') or 'automate'}…")
+        self.show_run_status(lesson_id, "En cours…", running=True)
         threading.Thread(target=self._play_automation, args=(lesson, holo), daemon=True).start()
 
     def _fetch_lesson_file(self, lesson_id: str, name: str) -> bytes:
@@ -674,9 +710,10 @@ class Model:
         finally:
             self.automation_running = None
         if gate.is_stopped:
-            self.show_notice("Arrêté. Rien d'autre ne sera fait.")
+            self.show_run_status(lesson["id"], "Arrêté")
             return
         if not ok:
+            self.run_status = None
             hn = self.helper_name
             self.show_notice(f"« {lesson.get('title') or 'Cet automate'} » n'a pas pu aller au bout. "
                              f"{hn[:1].upper() + hn[1:]} a reçu un message pour s'en occuper.")
@@ -684,8 +721,11 @@ class Model:
                         "detail": detail})
             return
         if not holo:
-            self.show_notice(detail or "C'est fait.")
+            self.show_run_status(lesson["id"], "C'est fait")
+            if detail:
+                self.show_notice(detail)
             return
+        self.run_status = None
         goal = next(a.get("goal") for a in lesson["actions"] if a.get("do") == "holo")
         self._cancel(self._home_timer)
         with self._lock:
@@ -716,6 +756,23 @@ class Model:
         ok, _ = start_apps.launch(path)
         if not ok:
             self.show_notice("Cette application n'est pas disponible sur cet ordinateur.")
+
+    def show_run_status(self, lesson_id: str, text: str, running: bool = False) -> None:
+        # Un automate tourne : son « En cours… » et son bouton Arrêter restent affichés.
+        if not running and self.automation_running and (self.run_status or {}).get("running"):
+            return
+        self._cancel(self._run_timer)
+        self.run_status = {"id": lesson_id, "text": text, "running": running}
+        if not running:
+            def clear() -> None:
+                if self.run_status and self.run_status.get("id") == lesson_id and not self.run_status["running"]:
+                    self.run_status = None
+                    self.push()
+
+            self._run_timer = threading.Timer(RUN_STATUS_S, clear)
+            self._run_timer.daemon = True
+            self._run_timer.start()
+        self.push()
 
     def show_notice(self, text: str) -> None:
         self._cancel(self._notice_timer)
@@ -750,52 +807,60 @@ class Model:
         self._first_name = "Jeanne"
         if demo != "home_no_org":
             self.prefs["orgName"] = "Acme"
-        self.helpers = [{"id": "1", "name": "Marc", "relation": "Service informatique"}]
+        self.helpers = [{"id": "1", "name": "Marc", "relation": "Service informatique", "online": True}]
         self.apps = [{"label": n, "path": "", "icon": None}
                      for n in ("Mail", "Photos", "Internet", "Visio", "Explorateur", "Calendrier")]
         if demo == "remote":
             self.remote_request = {"from": "Marc", "task": "Mettre à jour votre ordinateur"}
             return
         self.lessons = [
-            {"id": "a", "title": "Mes photos de Noël", "shortcut": {"folder": "pictures"},
-             "steps": [{"instruction": "Ouvrez l'Explorateur de fichiers"}]},
-            {"id": "b", "title": "Mes documents", "shortcut": {"folder": "documents"}},
+            {"id": "a", "title": "Mes rapports", "shortcut": {"folder": "documents"},
+             "description": "Ouvre le dossier Documents, où sont rangés vos rapports.",
+             "steps": [{"instruction": "Ouvrez l'Explorateur de fichiers"},
+                       {"instruction": "Cliquez sur « Documents », à gauche"}]},
+            {"id": "b", "title": "Mes téléchargements", "shortcut": {"folder": "downloads"}},
+            {"id": "c", "title": "Remettre Google en page d'accueil", "publisher": "Acme",
+             "platforms": ["windows"], "actions": [{"do": "holo", "goal": "Remettre Google en page d'accueil"}]},
         ]
         if demo == "alert":
             self.alert = {"level": "danger", "title": "Attention : ce message est sans doute une arnaque",
                           "detail": "Un faux message d'alerte demande d'appeler un numéro. N'appelez pas. "
                                     "Votre support est prévenu."}
             return
-        if demo in ("home", "home_no_org"):
+        if demo in ("home", "home_no_org", "doc"):
             return
         if demo == "lesson":
-            self.lesson = {"id": "a", "title": "Mes photos de Noël", "steps": [
+            self.lesson = {"id": "a", "title": "Mes rapports", "steps": [
                 {"instruction": "Ouvrez l'Explorateur de fichiers",
                  "checkpoint": "une fenêtre avec vos dossiers à gauche"},
-                {"instruction": "Cliquez sur « Images »"}]}
+                {"instruction": "Cliquez sur « Documents »"}]}
             self.screen = "lesson"
             return
         if demo == "consent":
-            self.pending_task = "Je ne retrouve plus mes photos de Noël"
+            self.pending_task = "Je ne retrouve plus le rapport trimestriel"
             self.screen = "consent"
             return
+        web = demo.startswith("web_")
+        if web:
+            demo = demo[4:]
+            self.session_where = "web"
         state = {"senior_question": "awaiting_helper", "paused": "active",
                  "compact": "active", "gardien": "stopped"}.get(demo, demo)
         if state not in STATES:
             return
-        self.task = "Je ne retrouve plus mes photos de Noël"
-        self.plan = ["Ouvrir l'Explorateur de fichiers", "Aller dans le dossier Images",
-                     "Ouvrir le dossier « Noël 2025 »"]
+        self.task = "Je ne retrouve plus le rapport trimestriel"
+        self.plan = ["Ouvrir l'Explorateur de fichiers", "Aller dans le dossier Documents",
+                     "Ouvrir le dossier « Rapports 2026 »"]
         self.plan_step = 2
-        self.answer = "Vos photos de Noël sont ouvertes dans le dossier Images."
+        self.answer = "Le rapport trimestriel est ouvert dans le dossier Documents."
         self.current_action = "Je clique sur l'icône de l'Explorateur"
         self.actions = ["J'ouvre la recherche de Windows", "J'écris « Explorateur »",
                         "Je clique sur l'icône de l'Explorateur"]
-        self.question = "Je vois deux dossiers « Noël ». Lequel faut-il ouvrir ?"
+        self.question = "Je vois deux dossiers « Rapports ». Lequel faut-il ouvrir ?"
         if demo == "senior_question":
-            self.question = "Vos photos de Noël sont-elles sur cet ordinateur ou sur une clé USB ?"
+            self.question = "Le rapport est-il sur cet ordinateur ou sur le serveur de l'entreprise ?"
             self.question_for_me = True
-            self.question_options = ["Sur l'ordinateur", "Sur une clé USB"]
+            self.question_options = ["Sur l'ordinateur", "Sur le serveur"]
         self.paused = demo == "paused"
         if demo == "gardien":
             self.stopped_by, self.guard_acknowledged = "gardien", True

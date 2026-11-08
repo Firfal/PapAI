@@ -207,3 +207,18 @@ body.compact #root { padding: 0; gap: 0; }
 .seg button.on { color: var(--accent); font-weight: 600; box-shadow: inset 0 -3px 0 var(--accentIcon); }
 .alertDanger .pill.filled { background: var(--danger); box-shadow: 0 6px 16px rgba(200,68,47,.3); }
 @media (prefers-reduced-motion: reduce) { .fade, #sheet { animation: none; } }
+
+/* Réglages : interrupteur (Toggle .switch du Mac) et carte « Mon support » */
+.switch { width: 52px; height: 32px; border-radius: 999px; background: #D5DBE8; position: relative; flex: none;
+  transition: background .18s; }
+.switch span { position: absolute; top: 3px; left: 3px; width: 26px; height: 26px; border-radius: 50%; background: #fff;
+  box-shadow: 0 1px 3px rgba(20,26,46,.3); transition: transform .18s cubic-bezier(.23,1,.32,1); }
+.switch.on { background: var(--accentIcon); }
+.switch.on span { transform: translateX(20px); }
+.supportCard { background: var(--card); border-radius: 14px; box-shadow: inset 0 0 0 1px var(--line); }
+/* Fin d'assistance : la réponse de Holo sur fond pâle (T.peach du Mac) */
+.answerCard { background: #F1ECFF; border-radius: var(--r); }
+/* Automate ouvert : étapes numérotées */
+.docNum { width: 32px; height: 32px; border-radius: 9px; background: var(--mint); color: var(--accent);
+  display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.sheetHead.row { display: flex; }

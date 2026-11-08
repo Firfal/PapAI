@@ -56,19 +56,26 @@ test("accueil direct : « Bonjour <nom Windows> », sans étapes d'accueil ni li
 
 test("Réglages : « Mon support » en lecture seule, organisation en ligne ou non", async () => {
   const h = await home();
-  h.update({ orgName: '<Acme>', orgConfigured: true });
+  h.update({ orgName: '<Acme>', orgConfigured: true, helpers: [{ id: '1', name: 'Marc', online: true }] });
   h.click('openSettings');
+  assert.match(h.sheet.innerHTML, /Poste géré par &lt;Acme&gt;/);
+  assert.match(h.sheet.innerHTML, /role="switch" aria-checked="true"/);
   assert.match(h.sheet.innerHTML, /Mon support/);
   assert.match(h.sheet.innerHTML, /Support IT · &lt;Acme&gt;/);
-  assert.match(h.sheet.innerHTML, /En ligne/);
+  assert.match(h.sheet.innerHTML, />En ligne</);
+  assert.match(h.sheet.innerHTML, /Configuré par votre service informatique\./);
+  assert.doesNotMatch(h.sheet.innerHTML, /Taille du texte|data-act="(scale|revokeConsent)"|Retirer l'accord/);
   assert.doesNotMatch(h.sheet.innerHTML, /<input|Prénom|Serveur|Enregistrer|data-act="(pair|openHelpers|replayOnboarding)"/);
+  h.update({ helpers: [{ id: '1', name: 'Marc', online: false }] });
+  assert.match(h.sheet.innerHTML, /Aucun agent en ligne : votre demande sera mise en attente\./);
   h.update({ connected: false });
-  assert.match(h.sheet.innerHTML, /Hors ligne pour le moment/);
+  assert.match(h.sheet.innerHTML, /Hors connexion pour le moment\./);
   h.update({ orgName: '', orgConfigured: false, connected: true });
-  assert.match(h.sheet.innerHTML, /Aucune organisation configurée : contactez votre service informatique\./);
-  assert.doesNotMatch(h.sheet.innerHTML, /Support IT ·/);
+  assert.match(h.sheet.innerHTML, /Aucune organisation configurée/);
+  assert.match(h.sheet.innerHTML, /Contactez votre service informatique\./);
+  assert.doesNotMatch(h.sheet.innerHTML, /Support IT ·|Configuré par/);
   h.update({ orgConfigured: true });
-  assert.match(h.sheet.innerHTML, /Rattachement en cours/);
+  assert.match(h.sheet.innerHTML, /Rattachement à votre organisation en cours…/);
   h.key({ key: 'Escape', target: {}, preventDefault() {} });
   assert.equal(h.sheet.innerHTML, '');
 });
@@ -222,6 +229,7 @@ test('session comme sur Mac : avancement en 3 étapes, Pause puis Reprendre', as
   assert.match(html(h), /Claire s'en occupe/);
   assert.match(html(h), /role="progressbar"/);
   assert.match(html(h), /En cours : Claire s'en occupe, avec Holo/);
+  assert.match(html(h), /chip-blue[\s\S]*Écran partagé/);
   assert.match(html(h), /data-act="pause"[\s\S]*Pause/);
   h.click('pause');
   assert.deepEqual(h.calls.at(-1), ['toggle_pause']);
@@ -245,9 +253,9 @@ test('question de Holo à la personne : réponse proposée ou écrite, une seule
   h.update({ state: 'awaiting_helper', questionForMe: true, question: 'Ordinateur ou clé USB ?' });
   assert.match(html(h), /data-act="seniorOption"/);
   h.update({ question: 'Et le dossier ?', questionOptions: [] });
-  h.listeners.input({ target: { id: 'seniorReply', value: 'Noël 2025' } });
+  h.listeners.input({ target: { id: 'seniorReply', value: 'Rapports 2026' } });
   h.listeners.keydown({ key: 'Enter', target: { id: 'seniorReply' }, preventDefault() {} });
-  assert.deepEqual(h.calls.at(-1), ['answer_senior', 'Noël 2025']);
+  assert.deepEqual(h.calls.at(-1), ['answer_senior', 'Rapports 2026']);
 });
 
 test("encart pendant que Holo agit, et fin du gardien adaptée à l’utilisateur", async () => {
@@ -262,4 +270,52 @@ test("encart pendant que Holo agit, et fin du gardien adaptée à l’utilisateu
   assert.match(html(h), /cette démarche peut être une arnaque/);
   assert.match(html(h), /Appelez Claire à son numéro habituel\./);
   assert.match(html(h), /Votre support a vu l'alerte et s'en occupe/);
+});
+
+test('« Mes automates » comme sur le Mac : la ligne ouvre l\'automate, « Exécuter » le lance, le résultat prend sa place', async () => {
+  const h = await home();
+  const runs = [], opened = [];
+  h.window.pywebview.api.run_shortcut = id => { runs.push(id); };
+  h.window.pywebview.api.open_lesson = id => { opened.push(id); };
+  h.update({ lessons: [{ id: 'a', title: 'Mes photos', description: 'Ouvre <Images>.', shortcut: { folder: 'pictures' },
+    steps: [{ instruction: 'Ouvrez l\'Explorateur' }, { instruction: 'Cliquez sur Images' }] }] });
+  assert.match(html(h), /data-act="doc" data-arg="a" aria-label="Voir l'automate Mes photos"/);
+  assert.match(html(h), /data-act="run" data-arg="a" aria-label="Exécuter Mes photos"/);
+  h.click('doc', 'a');
+  assert.match(h.sheet.innerHTML, />Automate</);
+  assert.match(h.sheet.innerHTML, /Ouvre &lt;Images&gt;\./);
+  assert.match(h.sheet.innerHTML, /Les étapes[\s\S]*>1<[\s\S]*>2</);
+  assert.match(h.sheet.innerHTML, /Montrez-moi[\s\S]*Exécuter/);
+  h.click('docRun');
+  assert.equal(h.sheet.innerHTML, '');
+  assert.deepEqual(runs, ['a']);
+  h.click('doc', 'a'); h.click('docLesson');
+  assert.deepEqual(opened, ['a']);
+  h.update({ runStatus: { id: 'a', text: 'En cours…', running: true } });
+  assert.match(html(h), /role="status" aria-label="En cours…"/);
+  assert.match(html(h), /data-act="stop" aria-label="Arrêter l'automate/);
+  assert.doesNotMatch(html(h), /data-act="run"/);
+  h.update({ runStatus: { id: 'a', text: "C'est fait", running: false } });
+  assert.match(html(h), /chip-green[\s\S]*C'est fait/);
+  assert.doesNotMatch(html(h), /Arrêter l'automate/);
+});
+
+test('agent navigateur : l\'assistance et l\'encart disent que Holo travaille dans Chrome PapAI', async () => {
+  const h = await home();
+  h.update(session({ state: 'active', sessionWhere: 'web' }));
+  assert.match(html(h), /Holo travaille dans une fenêtre Chrome à part, sans vos comptes ni vos onglets\./);
+  h.update({ compact: true });
+  assert.match(html(h), /Holo travaille dans Chrome PapAI/);
+  h.update({ compact: false, sessionWhere: 'desktop' });
+  assert.doesNotMatch(html(h), /Chrome/);
+  h.update({ state: 'done', sessionOpen: false, sessionWhere: 'web' });
+  assert.match(html(h), /Holo a fermé sa fenêtre Chrome\./);
+  h.update({ state: 'stopped' });
+  assert.match(html(h), /Holo a fermé sa fenêtre Chrome\./);
+});
+
+test("accord de partage : il ne promet plus qu'on peut le retirer dans Réglages", async () => {
+  const js = fs.readFileSync(path.join(__dirname, '../ui/app.js'), 'utf8');
+  assert.match(js, /On ne vous le redemandera pas\./);
+  assert.doesNotMatch(js, /retirer cet accord|Retirer l'accord|data-act="scale"/);
 });

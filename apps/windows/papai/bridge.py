@@ -52,6 +52,8 @@ class Bridge:
         # Réglé par le modèle : la protection en temps réel est-elle activée ?
         self.protection: Callable[[], bool] = lambda: True
         self.connected = False
+        # Agent navigateur installé (holo + Chrome, Brave ou Edge) : annoncé dans `hello`.
+        self.web_agent_available: Callable[[], bool] = lambda: False
         self.last_status: dict = {}
         self._ws = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -96,7 +98,8 @@ class Bridge:
                 async with websockets.connect(self.url, max_size=MAX_SIZE, open_timeout=8) as ws:
                     self._ws = ws
                     await ws.send(json.dumps({"type": "hello", "os": "windows",
-                                              "protection": bool(self.protection())}))
+                                              "protection": bool(self.protection()),
+                                              "web_agent_available": bool(self.web_agent_available())}))
                     self._set_connected(True)
                     watch = asyncio.create_task(self._guard_loop(ws))
                     try:

@@ -43,7 +43,7 @@ struct ConsentView: View {
                 separateur
                 promise("stop.circle.fill", "Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.")
                 separateur
-                promise("checkmark.seal.fill", "On ne vous le redemandera pas. Vous pouvez retirer cet accord dans Réglages.")
+                promise("checkmark.seal.fill", "On ne vous le redemandera pas.")
             }
             .padding(.horizontal, 18).padding(.vertical, 4)
             .champ(T.r)
