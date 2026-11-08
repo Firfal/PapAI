@@ -90,6 +90,18 @@ test('cible retirable et refus sensible persistant jusqu’à Compris ou au gest
   get('linkupSearch').onclick();
   assert.equal(sent.at(-1).type, 'linkup_search');
   assert.equal(get('linkupSearch').disabled, true);
+  vm.runInContext('ws.readyState = 3; ws.onclose()', context);
+  assert.equal(get('linkupSearch').disabled, false);
+  assert.equal(get('linkupRefuse').disabled, false);
+  const beforeOffline = sent.length;
+  get('linkupSearch').onclick();
+  assert.equal(sent.length, beforeOffline);
+  assert.equal(get('linkupSearch').disabled, false);
+  vm.runInContext('ws.readyState = 1; ws.onopen()', context);
+  get('linkupSearch').onclick();
+  assert.equal(get('linkupSearch').disabled, true);
+  vm.runInContext('ws.onopen()', context);
+  assert.equal(get('linkupSearch').disabled, false);
   message({ type: 'linkup_proposed', session: 'linkup-test', query: 'Documentation' });
   message({ type: 'linkup_result', session: 'linkup-test', id: 'result-1', summary: '<script>texte brut</script>',
     sources: [{name: '<b>Source</b>', url: 'https://example.org'}, {name: 'Interdit', url: 'javascript:alert(1)'}] });

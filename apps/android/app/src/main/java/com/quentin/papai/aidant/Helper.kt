@@ -458,7 +458,7 @@ object Helper {
         generation++
         socket?.cancel(); socket = null
         retry?.let { main.removeCallbacks(it) }; retry = null
-        connected = false; keyRefused = false; linkError = null; retryAt = null; delay = 1
+        connected = false; keyRefused = false; linkError = null; retryAt = null; delay = 1; linkupBusy = false
         start()
     }
 
@@ -496,7 +496,7 @@ object Helper {
                             webSocket.close(1000, null)
                             return@post
                         }
-                        hello = true; connected = true; linkError = null; retryAt = null; delay = 1
+                        hello = true; connected = true; linkError = null; retryAt = null; delay = 1; linkupBusy = false
                         prefs.edit().putString("lastGoodServerURL", serverURL)
                             .putString("lastGoodHelperKey", helperKey).apply()
                         Log.i(TAG, "connecté à $host")
@@ -534,7 +534,7 @@ object Helper {
 
     private fun lost(gen: Int, error: String) {
         if (gen != generation) return
-        socket = null; connected = false
+        socket = null; connected = false; linkupBusy = false
         if (linkError == null || !keyRefused) linkError = error
         if (keyRefused) { retryAt = null; return }   // on attend « Vérifier les réglages » ou le premier plan
         val d = delay
@@ -642,11 +642,13 @@ object Helper {
     fun send(o: JSONObject) {
         val s = socket
         if (s == null || !connected) {
-            planBusy = false; sending = false
+            planBusy = false; sending = false; linkupBusy = false
             showToast("Pas de connexion au serveur."); return
         }
         if (o.text("type") != "helper_hello") sensitiveRefusal = null
-        s.send(o.toString())
+        if (!s.send(o.toString()) && o.text("type") == "linkup_search") {
+            linkupBusy = false; linkupError = true
+        }
     }
 
     private fun send(vararg kv: Pair<String, Any?>) = send(JSONObject().apply { kv.forEach { (k, v) -> put(k, v) } })

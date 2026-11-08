@@ -475,7 +475,7 @@ final class HelperModel {
 
     func reconnect() {
         runTask?.cancel(); socket?.cancel(with: .goingAway, reason: nil)
-        runTask = nil; connected = false; keyRefused = false; linkError = nil; retryAt = nil
+        runTask = nil; connected = false; keyRefused = false; linkError = nil; retryAt = nil; linkupBusy = false
         start()
     }
 
@@ -532,7 +532,7 @@ final class HelperModel {
                             t.cancel(with: .normalClosure, reason: nil)
                             break
                         }
-                        hello = true; connected = true; linkError = nil; retryAt = nil; delay = 1
+                        hello = true; connected = true; linkError = nil; retryAt = nil; delay = 1; linkupBusy = false
                         rememberGood()
                         log.info("connecté à \(host, privacy: .public)")
                     }
@@ -553,7 +553,7 @@ final class HelperModel {
             // Une tâche annulée par `reconnect()` finit après le départ de la suivante :
             // elle ne doit pas effacer l'état de la nouvelle connexion.
             if Task.isCancelled { return }
-            connected = false; socket = nil; seniorOnline = nil
+            connected = false; socket = nil; seniorOnline = nil; linkupBusy = false
             if keyRefused { retryAt = nil; return }   // on attend « Vérifier les réglages » ou le premier plan
             retryAt = Date().addingTimeInterval(delay)
             try? await Task.sleep(for: .seconds(delay))
@@ -694,11 +694,18 @@ final class HelperModel {
     func send(_ o: [String: Any]) {
         guard let socket, connected, let d = try? JSONSerialization.data(withJSONObject: o),
               let s = String(data: d, encoding: .utf8) else {
-            planBusy = false; sending = false
+            planBusy = false; sending = false; linkupBusy = false
             showToast("Pas de connexion au serveur."); return
         }
         if o["type"] as? String != "helper_hello" { sensitiveRefusal = nil }
-        socket.send(.string(s)) { _ in }
+        let searching = o["type"] as? String == "linkup_search"
+        socket.send(.string(s)) { [weak self] error in
+            guard error != nil && searching else { return }
+            Task { @MainActor [weak self] in
+                self?.linkupBusy = false
+                self?.linkupError = true
+            }
+        }
     }
 
     func loadLessons() async {
