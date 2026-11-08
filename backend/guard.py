@@ -214,7 +214,8 @@ def evaluer_demande(texte: str) -> Alerte | None:
     gros_montant |= bool(re.search(r"\b(mille|milliers?|million|dix mille|cent mille)\b", t))
     etranger = bool(re.search(r"\b(etranger|international|afrique|senegal|cote d'ivoire|benin|nigeria|maroc|ghana|cameroun|togo|mali|chine|hong kong|turquie|russie|dubai|thailande|etats.unis)\b", t))
     compte_vers_pays = bool(re.search(
-        r"\b(?:compte|banque)\s+(?:au|en|aux)\s+(?!france\b)[a-z]+\b|"
+        r"\b(?:compte|banque)\s+(?:au|en|aux)\s+"
+        r"(?!(?:banque|ligne|commun|cours|attente|france|euros?|direct|question|joint)\b)[a-z]+\b|"
         r"\ba\s+l'etranger\b", t
     ))
     iban = re.search(r"\b([a-z]{2})\s*\d{2}\s*(?:\d{4}|[a-z]{4}\s*\d{4})(?:\s*[a-z0-9]){6,26}\b", t)
@@ -254,14 +255,11 @@ def evaluer_demande(texte: str) -> Alerte | None:
     lien_sms_mail = bool(re.search(r"\b(?:liens?|sms|textos?|mails?|courriels?)\b", t))
     domaines = re.findall(
         r"(?<![\w-])[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
-        r"(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+",
+        r"(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,63}\b",
         t,
     )
     domaines_impots = {"impots.gouv", "impots.gouv.fr"}
     site_non_autorise = any(domaine not in domaines_impots for domaine in domaines)
-    site_non_autorise |= bool(re.search(r"\bsite\b", t)) and not any(
-        domaine in domaines_impots for domaine in domaines
-    )
     transfert_non_securise = bool(re.search(
         r"\b(?:western\s+union|westernunion|moneygram|mandat\s+cash|ria|wise)\b", t
     ))
