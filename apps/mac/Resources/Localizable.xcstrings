@@ -3311,6 +3311,66 @@
           }
         }
       }
+    },
+    "Holo ne répond pas pour le moment. Réessayez.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo isn't responding right now. Try again."
+          }
+        }
+      }
+    },
+    "Holo n'a pas renvoyé de brouillon lisible.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo didn't return a readable draft."
+          }
+        }
+      }
+    },
+    "Aucune étape exploitable dans la source.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No usable steps in the source."
+          }
+        }
+      }
+    },
+    "Demande vide.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empty request."
+          }
+        }
+      }
+    },
+    "Lien invalide.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invalid link."
+          }
+        }
+      }
+    },
+    "Requête illisible (JSON attendu).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unreadable request (JSON expected)."
+          }
+        }
+      }
     }
   }
 }

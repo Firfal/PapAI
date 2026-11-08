@@ -54,7 +54,7 @@ struct PropositionAutomate: Equatable {
     /// Demande le plan à Holo. Rien n'est enregistré à ce stade.
     static func preparer(_ demande: String, base: String) async -> Result<Self, Erreur> {
         guard let url = URL(string: base + "/automations/draft") else { return .failure(Erreur(texte: String(localized: "Serveur introuvable."))) }
-        switch await post(url, ["kind": "request", "text": demande, "os": "mac"], attente: 60) {
+        switch await post(url, ["kind": "request", "text": demande, "os": "mac", "lang": AppLangue.anglais ? "en" : "fr"], attente: 60) {
         case .success(let d): return .success(Self(demande: demande, brouillon: d))
         case .failure(let e): return .failure(e)
         }
@@ -132,7 +132,7 @@ struct ResultatsRecherche: View {
                     .padding(14).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.field))
                 if let erreur {
-                    Label(erreur, systemImage: "exclamationmark.circle").font(rounded(15, .semibold))
+                    Label(LocalizedStringKey(erreur), systemImage: "exclamationmark.circle").font(rounded(15, .semibold))
                         .foregroundStyle(T.danger).fixedSize(horizontal: false, vertical: true)
                 }
                 HStack(spacing: 12) {

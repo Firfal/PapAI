@@ -88,7 +88,7 @@ struct HomeView: View {
                         .padding(.leading, 18)
                 }
                 if let warning {
-                    Label(warning, systemImage: "exclamationmark.circle")
+                    Label(LocalizedStringKey(warning), systemImage: "exclamationmark.circle")
                         .font(rounded(17, .semibold)).foregroundStyle(T.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 18).padding(.vertical, 12)
