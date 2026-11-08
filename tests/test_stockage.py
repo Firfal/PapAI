@@ -179,7 +179,25 @@ class Firestore(Contrat, unittest.TestCase):
             store.write(key, b"x" * (storage.MAX_DOCUMENT + 1))
         self.assertEqual(len(store.read(key)), storage.MAX_DOCUMENT)
         with self.assertRaisesRegex(ValueError, "900 Ko"):
-            self.store.write("spaces/a/tickets.json", b"x" * (storage.MAX_DOCUMENT + 1))
+            store.write("spaces/a/tickets.json", b"x" * (storage.MAX_DOCUMENT + 1))
+
+    def test_json_volumineux_puis_petit(self):
+        key = "spaces/a/tickets.json"
+        tickets = [{"notes": "é" * storage.MAX_DOCUMENT}]
+        self.store.write_json(key, tickets)
+        data = self.store.read(key)
+        self.assertGreater(len(data), storage.MAX_DOCUMENT)
+        self.assertEqual(self.store.read_json(key), tickets)
+        document = self.store._doc(key).get().to_dict()
+        self.assertNotIn("data", document)
+        blob = document["gcs"]
+        self.assertEqual(self.bucket.values[blob], data)
+        self.store.write_json(key, [])
+        self.assertEqual(self.store.read_json(key), [])
+        document = self.store._doc(key).get().to_dict()
+        self.assertNotIn("gcs", document)
+        self.assertEqual(json.loads(document["data"]), [])
+        self.assertNotIn(blob, self.bucket.values)
 
     def test_erreurs_non_masquees(self):
         with patch.object(self.store.collection, "document", side_effect=RuntimeError("indisponible")):

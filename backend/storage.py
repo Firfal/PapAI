@@ -139,14 +139,15 @@ class FirestoreStore(Store):
 
         doc = self._doc(key)
         binary = Path(key).suffix.lower() not in (".json", "")
-        if len(data) > MAX_DOCUMENT and (not binary or self.bucket is None):
-            raise ValueError("Fichier trop volumineux pour Firestore (900 Ko) : configurez PAPAI_GCS_BUCKET pour les images")
+        oversized = len(data) > MAX_DOCUMENT
+        if oversized and self.bucket is None:
+            raise ValueError("Fichier trop volumineux pour Firestore (900 Ko) : configurez PAPAI_GCS_BUCKET")
         previous = doc.get()
         old = previous.to_dict() if previous.exists else {}
         if old.get("gcs") and self.bucket is None:
             raise ValueError("Le bucket Cloud Storage est requis pour ce fichier")
         value = {"key": key, "updated": datetime.now(timezone.utc)}
-        if binary and self.bucket is not None:
+        if (binary or oversized) and self.bucket is not None:
             import uuid
             name = self.collection.id + "/" + key + "/" + uuid.uuid4().hex
             self.bucket.blob(name).upload_from_string(data)
