@@ -404,14 +404,17 @@ extension HomeView {
                             RoundedRectangle(cornerRadius: 20, style: .continuous).fill(T.field)
                                 .frame(width: 72, height: 72)
                                 .overlay(Image(nsImage: icon(bundle)).resizable().frame(width: 48, height: 48))
+                            // Une seule ligne : le nom rétrécit un peu, puis se termine par « … » ;
+                            // le nom complet reste dans la bulle d'aide et pour VoiceOver.
                             Text(name).font(rounded(16, .medium))
-                                .lineLimit(2, reservesSpace: true).multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
+                                .lineLimit(1).minimumScaleFactor(0.8).truncationMode(.tail)
+                                .frame(maxWidth: .infinity)
                         }
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(PressStyle())
+                    .help(name)
                     .accessibilityLabel("Ouvrir \(name)")
                 }
             }
