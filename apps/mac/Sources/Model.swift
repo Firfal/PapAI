@@ -68,6 +68,7 @@ final class AppModel {
     var pairExpires = 600
     var remoteRequest: RemoteRequest?
     var showHelpers = false
+    var pairingWhenConnected = false
     var pendingTask = ""
     var pendingAutomation: Lesson?
     var actions: [String] = []
@@ -173,6 +174,7 @@ final class AppModel {
     }
 
     func startPairing(long: Bool = true) {
+        pairingWhenConnected = false
         pairAdded = nil
         client.send(long ? ["type": "pair_start", "long": true] : ["type": "pair_start"])
     }
@@ -185,10 +187,22 @@ final class AppModel {
     }
 
     func stopPairing() {
+        pairingWhenConnected = false
         pairCode = nil
         pairURL = nil
         pairAppURL = nil
         pairLong = false
+    }
+
+    func openSupportPairing() {
+        showHelpers = true
+        pairingWhenConnected = true
+        startPendingPairing()
+    }
+
+    func startPendingPairing() {
+        guard connected, showHelpers, pairingWhenConnected else { return }
+        startPairing()
     }
 
     /// `papai://pair?u=<url encodée>` : l'appareil photo de l'iPhone ouvre l'app, pas Safari.
@@ -246,6 +260,7 @@ final class AppModel {
                 InputLock.shared.set(false)
             }
             if ok { self.sendProfile() }
+            self.startPendingPairing()
             // Test : PAPAI_AUTOTASK lance une demande dès la connexion.
             if ok, !self.autoSent, let t = ProcessInfo.processInfo.environment["PAPAI_AUTOTASK"], !t.isEmpty {
                 self.autoSent = true
@@ -268,6 +283,19 @@ final class AppModel {
             if demo.hasPrefix("onboarding") { onboarded = false; return }
             onboarded = true
             helpers = [Helper(id: "1", name: "Claire", relation: "sa fille")]
+            if demo == "settings" || demo == "helpers_pair" {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    if demo == "settings" { self.showSettings = true }
+                    else {
+                        self.pairCode = "482913"
+                        self.pairURL = "https://papai.example/p/482913"
+                        self.pairAppURL = Self.appPairingURL(self.pairURL!)
+                        self.pairLong = true
+                        self.showHelpers = true
+                    }
+                }
+                return
+            }
             if demo == "remote" {
                 remoteRequest = RemoteRequest(from: "Claire", task: "Mettre à jour votre ordinateur")
                 return
@@ -525,7 +553,7 @@ final class AppModel {
         case "lessons_changed":
             Task {
                 await refreshLessons()
-                if let t = m["title"] as? String { showNotice("Nouveau tutoriel : « \(t) »") }
+                if let t = m["title"] as? String { showNotice("Nouvel automate : « \(t) »") }
             }
         case "pair_code":
             pairCode = m["code"] as? String
