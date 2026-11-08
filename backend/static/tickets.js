@@ -4,7 +4,7 @@
     nouveau: 'Nouveau', en_attente: "En attente d'un support", rdv: 'Rendez-vous',
     en_cours: 'En cours', a_reprendre: 'À reprendre', resolu: 'Résolu',
   };
-  const SOURCE = { personne: 'Demandé par la personne', support: 'Proposé par le support', automatisme: 'Automatisme' };
+  const SOURCE = { personne: 'Demandé par la personne', support: 'Proposé par le support', automatisme: 'Automate' };
   const OPEN = ['nouveau', 'en_attente', 'rdv', 'a_reprendre'];
 
   const css = document.createElement('style');

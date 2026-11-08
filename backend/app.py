@@ -1721,13 +1721,13 @@ async def _ticket_action(tid: str, body: dict):
         S().tickets.note(t, by, text)
     elif act == "close":
         if t["status"] == "en_cours":
-            return JSONResponse({"error": "Une session est en cours sur ce ticket."}, status_code=409)
+            return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
         S().tickets.update(t, status="resolu", closed_by=by or "Support", rdv=None)
         if text:
             S().tickets.note(t, by, text)
     elif act == "reopen":
         if t["status"] == "en_cours":
-            return JSONResponse({"error": "Une session est en cours sur ce ticket."}, status_code=409)
+            return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
         S().tickets.update(t, status="en_attente", offered=0, rdv=None, closed_by="")
     elif act == "schedule":
         at = _rdv_at(body.get("at"))
