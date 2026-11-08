@@ -90,24 +90,23 @@ struct SettingsView: View {
                     }
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Mon support").font(rounded(22, .semibold))
-                        Text("Reliez le téléphone de votre support à cet ordinateur : QR code, code à 6 chiffres ou lien à envoyer.")
-                            .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                        Button("Ajouter un support") {
-                            dismiss()
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.openSupportPairing() }
-                        }.buttonStyle(PillStyle(height: 54, icone: "plus.circle"))
-                        if !model.helpers.isEmpty {
-                            Button("Mon support (\(model.helpers.count))") {
+                        if model.helpers.isEmpty {
+                            Text("Reliez le téléphone de votre support à cet ordinateur : QR code, code à 6 chiffres ou lien à envoyer.")
+                                .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                            // Le bouton n'existe que tant qu'aucun support n'est relié : un seul à la fois.
+                            Button("Ajouter un support") {
+                                dismiss()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.openSupportPairing() }
+                            }.buttonStyle(PillStyle(height: 54, icone: "plus.circle"))
+                        } else {
+                            Text("Votre support est relié à cet ordinateur.")
+                                .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                            Button("Voir mon support") {
                                 dismiss()
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.showHelpers = true }
                             }.buttonStyle(PillStyle(filled: false, height: 50))
                         }
                     }
-                    Button("Revoir l'accueil") {
-                        UserDefaults.standard.set(false, forKey: "onboarded")
-                        model.onboarded = false
-                        dismiss()
-                    }.buttonStyle(PillStyle(filled: false, height: 50))
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
