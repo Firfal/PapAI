@@ -181,9 +181,7 @@ class WebAgentHost:
                 break
             self._sleep(0.25)
         else:
-            chrome.terminate()
-            with self._lock:
-                self.chrome = None
+            self.stop_local(notify_server=False)
             return
         sid = str(uuid.uuid4())
         try:
@@ -191,7 +189,7 @@ class WebAgentHost:
                                 "--debug-port", str(DEBUG_PORT)],
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=NO_WINDOW)
         except OSError:
-            self._abort_all(chrome)
+            self.stop_local(notify_server=False)
             return
         with self._lock:
             self.holo = holo
@@ -199,18 +197,13 @@ class WebAgentHost:
         if self._abort(gen, chrome, holo):
             return
         if holo.poll() is not None:
-            with self._lock:
-                self.holo = None
+            # holo n'a pas tenu : le serveur repasse au bureau, Chrome PapAI ne reste pas ouvert.
+            self.stop_local(notify_server=False)
             return
         with self._lock:
             self.session_id = sid
         self.on_change(sid)
         self._spawn(lambda: self._watch_holo(holo))
-
-    def _abort_all(self, chrome) -> None:
-        chrome.terminate()
-        with self._lock:
-            self.chrome = None
 
     def _watch_holo(self, holo) -> None:
         holo.wait()
