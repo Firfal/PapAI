@@ -99,6 +99,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Organisation IT : jeton d'inscription des postes (Windows `organisation.txt`, Mac `orgToken`), jeton support qui liste tous les postes (page `/o/<jeton>`, Android, iPhone), automatismes partagés. Tests : `tests/test_organisation.py`.
 - [ ] Essayer l'inscription d'un vrai poste Windows et d'un vrai Mac avec un jeton d'organisation.
 - [x] Support connecté d'office à l'organisation, liaison archivée : Mac (`supportToken`), iPhone (MDM, xcconfig local), Android (restrictions gérées), web (`/o/<jeton>`). Tests : `apps/mac/tests/support_org_test.swift`, `tests/test_helper_postes.js`.
+- [x] Android après le pivot (`devin/1794128283-android-pivot`, contient #72) : compilé, 26 tests JVM, jeton personnel du support (#77) et clé dérivée acceptés, accès retiré (4401/4403) sans reconnexion en boucle ; parcours joué sur émulateur contre un serveur local (postes, demande, plan à valider, en cours, fin, demande d'un autre poste).
 - [ ] Essayer le support sur un vrai iPhone avec une configuration MDM (ou le xcconfig local) et sur un vrai Android avec restrictions gérées.
 - [ ] Essayer « Mes personnes aidées » sur un vrai Android et un vrai iPhone (Swift non compilé ici).
 - [ ] Plusieurs aidants : plusieurs proches s'ajoutent déjà et reçoivent tous la demande. Reste à éprouver « le premier disponible valide » avec deux aidants connectés.

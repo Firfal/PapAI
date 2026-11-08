@@ -28,11 +28,13 @@ l'emporte ; le serveur vient de la même source) :
 
    | Clé | Valeur |
    |---|---|
-   | `supportToken` | jeton support de l'organisation, `sup-…` (14 à 104 caractères `A-Z a-z 0-9 _ -`) |
+   | `supportToken` | jeton support, `sup-…` (14 à 104 caractères `A-Z a-z 0-9 _ -`) : celui de l'organisation, ou le jeton personnel du support créé dans la console (#77, révocable) |
    | `server` | facultatif : serveur PapAI `https://…` (ramené à son origine) ; absent ou invalide : serveur officiel `https://papai-450417131702.europe-west1.run.app` |
    | `supportName` | facultatif : nom affiché aux employés ; absent : « Support IT · <organisation> » |
 
    Une configuration poussée après coup est relue quand l'app revient au premier plan.
+   Jeton personnel révoqué par l'IT : la connexion se ferme (4401), l'app affiche « Accès retiré par
+   votre administrateur. » et ne réessaie pas en boucle.
 
 2. **Démo sans EMM** : copier `support.local.properties.example` en `support.local.properties`
    (dans `apps/android/`, fichier local non suivi), y mettre `supportToken` (et `server` si besoin),
