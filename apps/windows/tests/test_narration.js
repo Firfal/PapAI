@@ -1,6 +1,9 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const Narration = require('../ui/narration.js');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
 
 const active = { screen: 'session', sessionOpen: true, connected: true, state: 'active',
   paused: false, alert: null, dictation: { phase: 'idle' } };
@@ -120,4 +123,54 @@ test('une erreur de synthèse ne bloque pas la phrase suivante', () => {
   h.n.enqueue('Première'); h.n.enqueue('Deuxième');
   h.spoken[0].onerror();
   assert.equal(h.spoken[1].text, 'Deuxième');
+});
+
+test('raccords de la vraie interface : réglage local, snapshots, micro, pause et arrêt', async () => {
+  const h = setup();
+  const listeners = {}, calls = [];
+  const root = { innerHTML: '' }, sheet = { innerHTML: '' };
+  const state = { connected: true, onboarded: true, screen: 'home', state: null,
+    firstName: '', storedFirstName: '', helperName: 'Support IT', textScale: 1, textScales: [],
+    lessons: [], notice: null, homeShortcuts: [], microPresent: true, helpers: [],
+    dictation: { phase: 'idle', message: null } };
+  const document = { documentElement: { style: { setProperty() {} } },
+    getElementById: id => ({ root, sheet }[id] || null),
+    addEventListener: (name, fn) => { listeners[name] = fn; } };
+  const window = { PapAINarration: h.n, addEventListener() {}, pywebview: { api: {
+    ready: async () => state,
+    dictation_toggle: () => { calls.push('dictation_toggle'); assert.equal(h.n.current, null); },
+    stop: () => calls.push('stop'), toggle_pause: () => calls.push('toggle_pause'),
+  } } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../ui/app.js'), 'utf8'), {
+    window, document, icon: () => '<svg></svg>', URLSearchParams, location: { search: '' }, setTimeout,
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  const click = act => listeners.click({ target: { closest: () => ({ dataset: { act } }) } });
+  const update = changes => window.PapAI.update({ ...state, ...changes });
+  click('openSettings');
+  assert.match(sheet.innerHTML, /Lire à voix haute/);
+  click('readAloud');
+  assert.equal(h.n.enabled, false);
+  assert.equal(h.prefs.get('papai.readAloud'), 'false');
+  assert.deepEqual(calls, []);
+  click('readAloud');
+  update({ ...active, compact: true, currentAction: 'Je clique ici' });
+  assert.match(root.innerHTML, /Je clique ici/);
+  assert.equal(h.spoken.at(-1).text, 'Je clique ici');
+  update({ ...active, currentAction: "J'ouvre le dossier" });
+  assert.match(root.innerHTML, /J&#39;ouvre le dossier/);
+  click('pause');
+  assert.equal(h.n.current, null);
+  assert.equal(calls.at(-1), 'toggle_pause');
+  update({ ...active, currentAction: 'Nouvelle action' });
+  click('stop');
+  assert.equal(h.n.current, null);
+  assert.equal(calls.at(-1), 'stop');
+  update({ ...active, currentAction: 'Action suivante' });
+  update({ ...active, screen: 'home' });
+  // Même si une lecture a été engagée juste avant le clic, elle s'arrête avant l'API micro.
+  h.n.update(active); h.n.enqueue('Avant le micro');
+  click('mic');
+  assert.equal(h.n.current, null);
+  assert.equal(calls.at(-1), 'dictation_toggle');
 });

@@ -88,7 +88,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
   - [x] Direct Gladia sur Mac/iPhone via relais WebSocket authentifié ; clé seulement serveur, Apple en secours, silence local et final HTTP conservés. Faux Gladia et client Swift testés (16 tests), builds Mac/iOS simulateur réussis ; affichage Mac vérifié avec audio synthétisé et final HTTP simulé, sans modifier l'accueil.
   - [ ] Essayer le direct avec la vraie clé Gladia (sur Cloud Run uniquement), le micro physique et le repli vers une reconnaissance Apple opérationnelle ; UI iPhone live non essayée.
   - [ ] Essayer la dictée sur le vrai Mac (autorisation du micro).
-  - [ ] Entendre ce que fait Holo (synthèse vocale) : rien n'est codé.
+  - [x] Entendre ce que fait Holo : narration locale française Mac (AVSpeechSynthesizer) et Windows (voix locale WebView), réglage « Lire à voix haute » activé par défaut, file sans doublons par assistance et coupure pendant dictée/pause/arrêt/alerte/déconnexion. PR #82 : logique Swift/Windows et compilation Mac réussies.
+    - [ ] Vérifier à l'écran et à l'écoute sur un Mac et sur Windows natif/WebView2 avec une voix française installée, ainsi que la coupure pendant une vraie dictée au micro.
 - [ ] Rangement guidé des dossiers : plan de rangement validé par l'aidant, rien supprimé, tout annulable.
 - [ ] Notification push quand l'app iPhone est fermée (APNs).
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).
