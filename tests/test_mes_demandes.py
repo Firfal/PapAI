@@ -15,7 +15,7 @@ FIELDS = {"id", "number", "created", "updated", "task", "status", "solution", "r
 
 def projections():
     lesson = {"id": "auto", "title": "Titre courant", "image": "capture.png"}
-    t = {"id": "t", "task": "Imprimer", "status": "resolu", "automate": "auto",
+    t = {"id": "t", "task": "Imprimer", "status": "resolu", "automation": "auto",
          "suggestion_lancee": "autre", "notes": ["interne"], "tokens": 123,
          "end": "done", "plan": ["Ouvrir", {"image": "capture.png"}],
          "linkup_answer": {"content": "Réponse", "query": "secret", "by": "IT",
@@ -28,9 +28,9 @@ def projections():
     attente = for_user({"id": "s", "task": "Imprimer", "status": "en_attente", "suggestion_lancee": "auto"}, [lesson])
     check("automate suggéré lancé, demande en attente : pas présenté comme solution",
           attente["solution"] is None and attente["relaunch"] is None)
-    echec = for_user({"status": "a_reprendre", "automate": "auto"}, [lesson])
+    echec = for_user({"status": "a_reprendre", "automation": "auto"}, [lesson])
     check("automate interrompu : pas présenté comme solution", echec["solution"] is None and echec["relaunch"] is None)
-    del t["automate"], t["suggestion_lancee"]
+    del t["automation"], t["suggestion_lancee"]
     r = for_user(t, [])
     check("réponse validée prioritaire sur plan, sources filtrées", r["solution"] == {
         "kind": "answer", "text": "Réponse", "sources": [{"title": "Source", "url": "https://example.org"}]})
@@ -62,7 +62,7 @@ async def parcours(base):
             store.update(t, created=n, notes=[{"text": "note secrète"}], tokens=900,
                          assignee="IT", screenshot="capture.png", linkup_query="secret")
             if n == 104:
-                store.update(t, automate=automate["id"], status="resolu")
+                store.update(t, automation=automate["id"], status="resolu")
             elif n == 103:
                 store.update(t, end="done", plan=["Ouvrir les réglages", {"image": "capture.png"}])
             elif n == 102:

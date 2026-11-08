@@ -625,7 +625,7 @@ Réponse : `{"requests":[{"id":"…","number":1,"created":0,"updated":0,"task":"
 d'abord les plus récentes ; liste vide si aucune). Statut brut conservé.
 
 `solution`, par priorité :
-- `{"kind":"automate","lesson":"…","title":"…"}` si la demande est `resolu` et que `automate` (posé au lancement
+- `{"kind":"automate","lesson":"…","title":"…"}` si la demande est `resolu` et que `automation` (posé au lancement
   `run_automation`) ou `suggestion_lancee` est renseigné. Titre du catalogue courant du poste
   (automates locaux et organisation), sinon titre de la suggestion, sinon chaîne vide.
 - `{"kind":"answer","text":"…","sources":[{"title":"…","url":"…"}]}` pour une

@@ -785,7 +785,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 ticket = _open_ticket(lesson.get("title") or goal[:MAX_TASK], "automatisme",
                                           status="en_cours", by=S().family.senior)
                 session.ticket = ticket["id"]
-                S().tickets.update(ticket, session=session.id, automate=lesson["id"])
+                S().tickets.update(ticket, session=session.id, automation=lesson["id"])
                 await _tickets_changed()
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
                 await ws.send_json({"type": "session", "id": session.id, "helper_url": url,

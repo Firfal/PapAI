@@ -132,7 +132,7 @@ def for_user(t: dict, lessons: list[dict]) -> dict:
     result.update({k: t.get(k) if type(t.get(k)) in (int, float) else 0
                    for k in ("number", "created", "updated")})
     solution, relaunch = None, None
-    lesson_id = text(t.get("automate")) or text(t.get("suggestion_lancee"))
+    lesson_id = text(t.get("automation")) or text(t.get("suggestion_lancee"))
     if lesson_id and t.get("status") == "resolu":
         lesson = next((a for a in lessons if a.get("id") == lesson_id), None)
         title = text(lesson.get("title")) if lesson else next(
