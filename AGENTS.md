@@ -40,7 +40,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794097993-dictee-gladia-direct` | Correction revue : mots Apple et arrêt prématuré | `apps/shared/GladiaLive.swift`, `apps/mac/Sources/Dictation.swift`, `apps/ios/Sources/Dictation.swift`, `apps/mac/tests/gladia_live_test.swift` | 8 nov. |
 
 ## Journal
 
