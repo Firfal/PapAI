@@ -51,7 +51,7 @@ class Raccourcis(unittest.IsolatedAsyncioTestCase):
         return {"id": "test", "title": "Mes photos", "steps": [], "shortcut": shortcut}
 
     def test_sauvegarde_revalidee(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(caremamory, "LESSONS_DIR", Path(directory)):
+        with tempfile.TemporaryDirectory() as directory, patch.object(caremamory, "lessons_dir", return_value=Path(directory)):
             for shortcut in ({"folder": "pictures", "subfolder": "Facture.app"},
                              {"folder": "ailleurs", "subfolder": ""}, None):
                 saved = caremamory.approve_and_save(self.lesson(shortcut), self.session)
@@ -67,7 +67,7 @@ class Raccourcis(unittest.IsolatedAsyncioTestCase):
             self.session.lesson = self.lesson(dict(original))
             ws = Mock(send_json=AsyncMock())
             with patch.object(app, "approve_and_save", side_effect=lambda lesson, session: lesson), \
-                    patch.object(app, "bridge", None):
+                    patch.object(app.S(), "bridge", None):
                 await app.handle_helper_msg(self.session, {"type": "approve_lesson", "lesson": edit}, ws)
             self.assertEqual(self.session.lesson["shortcut"], None if edit == {"shortcut": None} else original)
             self.assertEqual(ws.send_json.call_args.args[0]["type"], "lesson_saved")

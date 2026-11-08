@@ -121,7 +121,7 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
                 session.plan_approved = True
                 session.last_frame = Frame("capture", "aW1hZ2U=", 1, 1)
                 reply = session.ask_helper("Pouvez-vous vous en occuper ?")
-                ws = SimpleNamespace(send_json=AsyncMock())
+                ws = AsyncMock()
                 link = SimpleNamespace(execute=AsyncMock(return_value=result))
                 with patch.object(app.S(), "bridge", link), patch.object(app, "broadcast_helper", AsyncMock()):
                     await app.handle_helper_msg(session, {"type": "click", "frame_id": "capture", "x": 0.5, "y": 0.5}, ws)
