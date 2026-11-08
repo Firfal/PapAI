@@ -887,24 +887,13 @@ final class AppModel {
     func runShortcut(_ l: Lesson) {
         if !(l.actions ?? []).isEmpty { runAutomation(l); return }
         guard let sc = l.shortcut else { openLesson(l); return }
-<<<<<<< ours
         let r = Shortcuts.open(sc)
         if r.ok {
-            showNotice("C'est ouvert.")
+            showRunStatus(l.id, "C'est ouvert")
         } else {
+            runStatus = nil
             showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
             client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
-=======
-        Task {
-            let r = await Shortcuts.open(sc)
-            if r.ok {
-                showRunStatus(l.id, "C'est ouvert")
-            } else {
-                runStatus = nil
-                showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
-                client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
-            }
->>>>>>> theirs
         }
     }
 
