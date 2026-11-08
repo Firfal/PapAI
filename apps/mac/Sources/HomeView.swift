@@ -22,7 +22,8 @@ struct HomeView: View {
             let deux = droite >= Self.droiteMin
             VStack(alignment: .leading, spacing: 24) {
                 // En-tête bleu sur toute la largeur ; la barre de demande garde la largeur de la colonne gauche.
-                enTete(barre: deux ? gauche - Self.marge : nil)
+                // L'encadré bleu (bonjour + demande) reste sur l'onglet Accueil seulement.
+                if model.homeTab == 0 { enTete(barre: deux ? gauche - Self.marge : nil) }
                 if model.homeTab == 1 {
                     automates(titre: false, tous: true).padding(.bottom, 24)
                         .frame(maxHeight: .infinity, alignment: .top)
