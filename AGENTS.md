@@ -12,6 +12,14 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 6. Avant de pousser, `git fetch` puis remettre sa branche à jour sur `main` : un autre agent a peut-être touché aux mêmes fichiers.
 5. Le contrat entre le serveur et les apps est `PROTOCOL.md` : tout nouveau message y est décrit.
 
+## Branches gelées
+
+Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande explicite de Quentin.
+
+| Branche | Pourquoi |
+|---|---|
+| `devin/1794084917-extension-gardien` | Extension navigateur anti-arnaque retirée du produit (PR #32 fermée sans fusion). Code conservé tel quel. |
+
 ## En cours
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
@@ -80,3 +88,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 - 2026-11-07 Devin (`devin/1794086337-ios-dictee-suite`) : iPhone, suite de la dictée. Micro touché puis feuille fermée aussitôt : l'écoute ne démarre pas, rien n'est envoyé (un envoi en cours est interrompu). Clavier bloqué pendant l'écoute (le texte déjà écrit est gardé, la dictée s'y ajoute). Bouton « Annuler » dans Modifier, Préciser et la réponse à Holo. Au premier plan affiché, une seule fois, la 1re étape glisse et montre le crayon, texte d'indice mis en avant. Appairage non touché. Fichiers libérés.
 - 2026-11-07 Devin (`devin/1794082375-android-aidant`) : app Android de l'aidant (`apps/android/`, Kotlin + Compose), portage de l'app iPhone sur le même protocole ; APK de release signé hors dépôt (`keystore.properties` ignoré), installable en « sources inconnues ». Liaison gardée par un service de premier plan, notification forte à chaque plan ou question. Lancée sur un émulateur Android 14 ; parcours complet pas encore essayé sur un vrai téléphone. Fichiers libérés.
 | 7 nov. | Devin | `devin/1794088468-automatismes-importes` | Automatismes importés par un support (`.papai`, `backend/automations.py`) : actions de premier niveau, jamais de commande ni de script ; lancement en un clic (`run_automation`, plan pré-validé) ; page aidant « Importer » ; Mac et Windows jouent les actions ; envoi périodique du gardien retiré des apps. Tests : `test_automatismes.py` 40/40, parcours 27/27, sécurité 31/31, gardien 14/14, Windows 36. Swift non compilé. |
+| 7 nov. | Devin | `devin/1794089154-branche-extension-gelee` | Extension navigateur retirée du produit (PR #32 fermée sans fusion) : section « Branches gelées » ajoutée, `devin/1794084917-extension-gardien` à ne fusionner que sur demande explicite de Quentin. Aucun fichier réservé. |
