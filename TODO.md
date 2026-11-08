@@ -104,6 +104,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 ## Fait
 
+- [x] `main` au vert : `tests/test_appairage_code.py` (et donc organisation, tickets, protection qui l'importent) et `tests/test_actions_sensibles.py` attendaient encore « la personne aidée » ; alignés sur le lexique « utilisateur » du serveur.
 - [x] Serveur : plan proposé par Holo, puis précisé, validé ou refusé par l'aidant, avant toute action.
 - [x] Serveur en ligne sur Cloud Run, protégé par la clé famille, testé de bout en bout à distance. Révision `papai-00007` avec les PR #1 à #4 ; la PR #5 (`tests/test_parcours.py`, message après refus sur la page web) est dans `main` après ce déploiement.
 - [x] App Mac (SwiftUI) : connexion, capture sans sa propre fenêtre, plan affiché, Arrêter local, automatismes.
