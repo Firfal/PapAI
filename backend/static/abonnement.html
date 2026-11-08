@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2B6BFF"><title>PapAI · Abonnement</title>
+<style>
+:root { color:#141A2E; font:17px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:#F3F5FD linear-gradient(180deg,#EDF2FF,#F3F5FD 45%,#F4F1FD) fixed; }
+* { box-sizing:border-box; } [hidden] { display:none!important; }
+body { max-width:640px; margin:0 auto; padding:0 20px 60px; }
+h1 { font-size:28px; margin:0 -20px 24px; padding:24px 20px; color:white; border-radius:0 0 24px 24px; background:linear-gradient(180deg,#2B6BFF,#1F5AE8); }
+section { background:white; padding:24px; border-radius:20px; margin:20px 0; box-shadow:0 8px 24px rgba(30,60,150,.07); }
+a { color:#1F5AE8; } button { font:inherit; background:linear-gradient(180deg,#2B6BFF,#1A52E0); color:white; border:0; border-radius:999px; min-height:48px; padding:10px 22px; cursor:pointer; }
+button:disabled { opacity:.6; cursor:wait; } :focus-visible { outline:3px solid #2B6BFF; outline-offset:3px; }
+.muted { color:#5B6478; } #error { color:#B3261E; }
+</style>
+</head>
+<body>
+<h1>Abonnement</h1>
+<a id="back" href="#">Retour à la console</a>
+<section aria-live="polite">
+<h2 id="availability">Chargement…</h2>
+<div id="details" hidden><p id="price"></p><p id="seats"></p><p id="total"></p><p id="state"></p><button id="action">S'abonner</button></div>
+<p id="error" role="alert"></p>
+</section>
+<p class="muted">Mode test : aucun paiement réel</p>
+<script>
+const base=location.pathname.replace(/\/abonnement\/?$/, '');
+document.getElementById('back').href=base;
+let subscribed=false;
+const action=document.getElementById('action');
+async function load() {
+  try {
+    const r=await fetch(base+'/billing');
+    if(!r.ok) throw new Error('Impossible de charger l’abonnement.');
+    const d=await r.json();
+    document.getElementById('availability').textContent=d.disponible?'Votre abonnement':'Abonnement bientôt disponible';
+    if(!d.disponible) return;
+    const money=n=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:d.prix.currency}).format(n/100);
+    document.getElementById('price').textContent=money(d.prix.unit_amount)+' par poste et par mois';
+    document.getElementById('seats').textContent=d.postes+' postes inscrits';
+    document.getElementById('total').textContent='Total estimé : '+money(d.prix.unit_amount*Math.max(1,d.postes))+' par mois';
+    document.getElementById('state').textContent=d.abonne?'Abonné':'Non abonné';
+    subscribed=d.abonne;
+    action.textContent=subscribed?'Gérer l’abonnement':"S'abonner";
+    document.getElementById('details').hidden=false;
+  } catch(e) { document.getElementById('error').textContent=e.message; }
+}
+action.onclick=async()=>{
+  action.disabled=true;
+  document.getElementById('error').textContent='';
+  try {
+    const r=await fetch(base+'/billing/'+(subscribed?'portal':'checkout'),{method:'POST'});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||'Abonnement indisponible.');
+    location.assign(d.url);
+  } catch(e) { document.getElementById('error').textContent=e.message; action.disabled=false; }
+};
+load();
+</script>
+</body></html>

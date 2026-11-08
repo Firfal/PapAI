@@ -462,6 +462,13 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
 - `POST /k/<clé>/org` `{"org","name"}` : un poste déjà installé rejoint l'organisation → `{"org"}`.
   403 jeton inconnu, 409 si le poste appartient à une autre organisation ou si c'est l'espace historique.
 - `GET /o/<support_token>/spaces` → `{"org","server","spaces":[{"key","name","label","online"}]}`
+- Abonnement entreprise, mode test uniquement : `GET /o/<support_token>/abonnement` sert la page ;
+  `GET /o/<support_token>/billing` renvoie `disponible`, `postes`, `abonne`, `statut` et, si disponible,
+  `prix` (`unit_amount` en centimes, `currency`, `interval=month`). `POST …/billing/checkout`
+  et `POST …/billing/portal` renvoient `{"url"}` (503 si non configuré ; portail 409 sans client).
+  Jeton inconnu : 404. Aucun blocage des fonctions sans abonnement. `POST /stripe/webhook`
+  vérifie le corps brut (256 Kio max) signé Stripe (tolérance ±300 s), puis conserve l'état
+  dans `billing.json` par organisation. Signature invalide : 400 ; secret absent : 503.
   (`name` = prénom donné sur le poste, sinon `label`). Le support garde une liaison par `key`
   (`<server>/k/<key>`), comme après un appairage. Jeton inconnu → 404.
 - `GET|POST /o/<support_token>/automations`, `DELETE /o/<support_token>/automations/<id>` : catalogue

@@ -25,7 +25,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import automate_draft, automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
+from . import automate_draft, automations, billing, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
@@ -66,6 +66,7 @@ app = FastAPI(title="PapAI")
 AIDANT_KEY = os.environ.get("PAPAI_AIDANT_KEY") or secrets.token_urlsafe(9)
 spaces = space.setup(AIDANT_KEY)
 orgs = orgs_mod.Orgs()
+billing.install(app, orgs.by_support, lambda o: spaces.members(o.id), PUBLIC_URL)
 
 
 def S() -> space.Space:
