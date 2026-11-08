@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 os.environ["PAPAI_HOME"] = tempfile.mkdtemp()
 
 from papai import apps, core, settings  # noqa: E402
+from papai.app import Api  # noqa: E402
 from papai.bridge import Bridge, wait_until  # noqa: E402
 from papai.model import Model  # noqa: E402
 
@@ -54,6 +55,14 @@ class FakeScreen:
 
 
 def unit() -> None:
+    api = Api.__new__(Api)
+    api._model = Mock()
+    method = getattr(api, "run_suggested_automation", None)
+    check(callable(method), "l'API expose le lancement d'un automate suggéré")
+    method("auto-1", "ticket-1")
+    check(api._model.run_suggested_automation.call_args.args == ("auto-1", "ticket-1"),
+          "l'API transmet l'automate et son ticket au modèle")
+
     g = core.StopGate()
     check(not g.is_stopped, "verrou baissé au départ")
     g.raise_stop()
@@ -158,6 +167,18 @@ def unit() -> None:
     check(out[-1] == {"type": "ticket_automate_launched", "ticket": "t1", "lesson": "auto-1"}
           and t.queued["suggestion_lancee"] == "auto-1",
           "Lancer démarre l'automate et signale son ticket")
+
+    pending = Model(demo="", on_compact=lambda _c: None)
+    pending.prefs["screenConsent"] = False
+    pending.lessons = [{"id": "holo-1", "title": "Configurer l'imprimante", "platforms": ["windows"],
+                        "actions": [{"do": "holo", "goal": "Configurer l'imprimante"}]}]
+    pending._handle({"type": "ticket_queued", "ticket": "t-consent", "number": 5, "task": "Imprimer",
+                     "suggestions": [{"id": "holo-1", "title": "Configurer l'imprimante"}]})
+    pending.run_suggested_automation("holo-1", "t-consent")
+    check(pending.screen == "consent" and pending.queued and not pending.queued["show"]
+          and pending.pending_automation_ticket == "t-consent",
+          "l'attente se ferme au consentement et le ticket reste en attente de lancement")
+
     t.schedule_ticket("demain9")
     check(out[-1]["type"] == "ticket_schedule" and out[-1]["ticket"] == "t1" and out[-1]["at"] > time.time(),
           "rendez-vous demandé au serveur")

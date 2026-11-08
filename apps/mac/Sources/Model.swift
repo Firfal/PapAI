@@ -833,6 +833,7 @@ final class AppModel {
         guard queued?.ticket == ticket,
               queued?.suggestions.contains(where: { $0.id == suggestion.id }) == true,
               let lesson = lessons.first(where: { $0.id == suggestion.id }) else { return }
+        queuedShown = false
         runAutomation(lesson, ticket: ticket)
     }
 

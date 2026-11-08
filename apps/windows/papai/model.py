@@ -653,6 +653,7 @@ class Model:
             x.get("id") == lesson_id for x in q.get("suggestions", []) if isinstance(x, dict)
         ):
             return
+        q["show"] = False
         self.run_automation(lesson_id, ticket_id=ticket_id)
 
     def run_automation(self, lesson_id: str, ticket_id: str | None = None) -> None:
