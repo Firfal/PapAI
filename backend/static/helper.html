@@ -403,19 +403,6 @@
       <div class="spinner"></div>
       <div><strong id="workingTitle">Holo travaille sur l'ordinateur de l’utilisateur</strong><small id="workingTask"></small></div>
     </div>
-    <div class="card websearch" id="webSearch" hidden>
-      <h3 class="section-title">Question complexe ? Cherchez sur le web</h3>
-      <small>Linkup cherche la réponse. N'écrivez ni nom, ni adresse, ni numéro de l’utilisateur.</small>
-      <div class="reply">
-        <input type="text" id="wsQuestion" placeholder="Ex. : comment réinitialiser Chrome ?" autocomplete="off" aria-label="Question à chercher sur le web">
-        <button class="send" id="wsGo" type="button" aria-label="Chercher"><svg class="i"><use href="#i-up"/></svg></button>
-      </div>
-      <div id="wsResult" hidden aria-live="polite">
-        <small id="wsWho"></small>
-        <p id="wsAnswer"></p>
-        <ul id="wsSources"></ul>
-      </div>
-    </div>
     <div class="hand" id="hand" hidden>
       <button class="capsule" id="arm" type="button">Prendre la main</button>
       <p>Vous pouvez cliquer vous-même sur l'écran de l’utilisateur.</p>
@@ -429,6 +416,22 @@
       <div class="aimrow">
         <button class="capsule" id="confirm" type="button" disabled>Cliquer ici</button>
         <button class="capsule light" id="cancelAim" type="button">Annuler</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="stack" id="webSearchWrap">
+    <div class="card websearch" id="webSearch" hidden>
+      <h3 class="section-title">Question complexe ? Cherchez sur le web</h3>
+      <small>Linkup cherche la réponse. N'écrivez ni nom, ni adresse, ni numéro de l’utilisateur.</small>
+      <div class="reply">
+        <input type="text" id="wsQuestion" placeholder="Ex. : comment réinitialiser Chrome ?" autocomplete="off" aria-label="Question à chercher sur le web">
+        <button class="send" id="wsGo" type="button" aria-label="Chercher"><svg class="i"><use href="#i-up"/></svg></button>
+      </div>
+      <div id="wsResult" hidden aria-live="polite">
+        <small id="wsWho"></small>
+        <p id="wsAnswer"></p>
+        <ul id="wsSources"></ul>
       </div>
     </div>
   </section>
@@ -529,7 +532,7 @@ let ws = null, reconnectIn = 1000, connected = false, guardAlertId = null;
 let frameId = null, frameAt = 0, frameSrc = '', state = null, sessionWhere = null, task = '', stoppedBy = null, executionStarted = null;
 let armed = false, target = null, sending = false;
 let planBusy = false, refusedByMe = false, home = false, requestAt = 0;
-let sawStatus = false, sessionId = null;
+let sawStatus = false, sessionId = null, webSearchOn = false;
 let seniorName = '';
 let lessonBusy = false, savedTitle = null, hasDraft = false;
 
@@ -748,6 +751,7 @@ function render() {
   $('v-idle').hidden = s !== 'idle';
   $('v-request').hidden = !['waiting', 'planning', 'approval'].includes(s);
   $('v-live').hidden = !['active', 'helper'].includes(s);
+  $('webSearch').hidden = !webSearchOn || !['idle', 'active', 'helper'].includes(s);
   $('browserLabel').hidden = !isWebLive;
   $('browserTitle').textContent = browserTitle();
   $('thumbTitle').textContent = isWebLive ? browserTitle() : 'Son écran';
@@ -972,6 +976,7 @@ function onMessage(ev) {
     if (nouvelle) {
       wasWebLive = false;
       sessionId = m.session; requestAt = Date.now();
+      $('wsResult').hidden = true; $('wsAnswer').textContent = ''; $('wsSources').innerHTML = '';
     }
     if (!requestAt) requestAt = Date.now();
     if (webLive() && !wasWebLive) {
@@ -1049,6 +1054,7 @@ function onMessage(ev) {
 
   else if (m.type === 'question') { showQuestion(m); render(); }
 
+  else if (m.type === 'capabilities') { webSearchOn = !!m.web_search; render(); }
   else if (m.type === 'web_search_pending') { showWebSearch({ question: m.question, pending: true }); }
   else if (m.type === 'web_search') {
     showWebSearch(m);
@@ -1070,7 +1076,7 @@ function onMessage(ev) {
     if (!m.bridge) $('idleSub').textContent = "L'ordinateur de l’utilisateur n'est pas connecté pour le moment.";
     else $('idleSub').textContent = "Vous serez prévenu dès que l’utilisateur demande de l'aide.";
     showProtection(m.bridge ? m.protection : null);
-    $('webSearch').hidden = !m.web_search;
+    webSearchOn = !!m.web_search; render();
     loadLessons();
     loadTickets();
     if (m.tickets_waiting) toast(`${m.tickets_waiting} demande${m.tickets_waiting > 1 ? 's' : ''} en attente d'un support.`);
@@ -1198,7 +1204,8 @@ function onMessage(ev) {
 }
 
 function showWebSearch(r) {
-  $('webSearch').hidden = false;
+  if (r.session && sessionId && r.session !== sessionId) return;
+  webSearchOn = true; render();
   $('wsResult').hidden = false;
   $('wsWho').textContent = r.pending ? `Recherche en cours : « ${r.question || ''} »`
     : `${r.by === 'holo' ? 'Holo a cherché' : 'Vous avez cherché'} : « ${r.question || ''} »`;
