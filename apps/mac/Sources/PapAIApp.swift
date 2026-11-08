@@ -25,9 +25,7 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 22) {
             Header().padding(.top, 24)
             Group {
-                if let p = model.pairRequest {
-                    PairRequestView(request: p)
-                } else if !model.onboarded {
+                if !model.onboarded {
                     OnboardingView()
                 } else if let r = model.remoteRequest {
                     RemoteRequestView(request: r)
@@ -52,16 +50,28 @@ struct RootView: View {
         .disabled(model.guardAlert != nil)
         .overlay { if let a = model.guardAlert { GuardAlertView(alert: a) } }
         .id(model.textScale)
-        .sheet(isPresented: $model.showSettings) { SettingsView() }
-        .sheet(isPresented: $model.showHelpers) {
-            VStack(alignment: .trailing, spacing: 18) {
-                ScrollView { HelpersPanel() }
-                Button("Fermer") { model.stopPairing(); model.showHelpers = false }
-                    .buttonStyle(PillStyle(height: 54)).keyboardShortcut(.cancelAction)
+        .sheet(isPresented: Binding(
+            get: { model.showSettings || model.showHelpers || model.pairRequest != nil },
+            set: { if !$0 { model.showSettings = false; model.showHelpers = false } }
+        )) {
+            Group {
+                if let p = model.pairRequest {
+                    PairRequestView(request: p).padding(24)
+                        .frame(width: 820, height: 580).background(T.bg)
+                } else if model.showSettings {
+                    SettingsView()
+                } else {
+                    VStack(alignment: .trailing, spacing: 18) {
+                        ScrollView { HelpersPanel() }
+                        Button("Fermer") { model.stopPairing(); model.showHelpers = false }
+                            .buttonStyle(PillStyle(height: 54)).keyboardShortcut(.cancelAction)
+                    }
+                    .padding(24).frame(width: 820, height: 580).background(T.mint)
+                    .onDisappear { model.stopPairing() }
+                }
             }
-            .padding(24).frame(width: 820, height: 580).background(T.mint)
             .environment(model)
-            .onDisappear { model.stopPairing() }
+            .interactiveDismissDisabled(model.pairRequest != nil)
         }
     }
 }

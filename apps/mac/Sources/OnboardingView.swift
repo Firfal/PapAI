@@ -417,10 +417,10 @@ struct PairRequestView: View {
                     Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(T.accent)
                     Text("Nouveau support").font(rounded(20, .semibold)).foregroundStyle(T.accent)
                 }
-                Text("\(request.name) veut devenir votre support").font(rounded(48, .semibold)).tracking(-0.7)
+                Text(verbatim: "\(request.name) veut devenir votre support").font(rounded(48, .semibold)).tracking(-0.7)
                     .fixedSize(horizontal: false, vertical: true)
                 if !request.relation.isEmpty {
-                    Text(request.relation).font(rounded(26, .medium))
+                    Text(verbatim: request.relation).font(rounded(26, .medium))
                         .padding(24).frame(maxWidth: .infinity, alignment: .leading)
                         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 }

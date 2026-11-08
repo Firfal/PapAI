@@ -319,6 +319,7 @@ final class AppModel {
             self.connected = ok
             // Plus de connexion : la personne ne doit jamais rester bloquée.
             if !ok {
+                self.pairRequest = nil
                 self.webHost.stopLocal()
                 InputLock.shared.set(false)
             }
@@ -346,6 +347,10 @@ final class AppModel {
             if demo.hasPrefix("onboarding") { onboarded = false; return }
             onboarded = true
             helpers = [Helper(id: "1", name: "Claire", relation: "sa fille")]
+            if demo == "pair_request" {
+                pairRequest = PairRequest(req: "demo", name: "Marc", relation: "Service informatique")
+                return
+            }
             if demo == "settings" || demo == "helpers_pair" {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
                     if demo == "settings" { self.showSettings = true }
@@ -720,10 +725,15 @@ final class AppModel {
             if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
         case "pair_confirm":
             guard let req = (m["req"] as? String) ?? (m["req"] as? Int).map(String.init) else { return }
+            if pairRequest?.req == req { return }
+            answerPair(false)
             pairRequest = PairRequest(req: req, name: m["name"] as? String ?? "Quelqu'un",
                                       relation: m["relation"] as? String ?? "")
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
+        case "pair_confirm_closed":
+            guard let req = (m["req"] as? String) ?? (m["req"] as? Int).map(String.init) else { return }
+            if pairRequest?.req == req { pairRequest = nil }
         case "ticket_queued":
             // Aucun support disponible : la demande attend, retour à l'accueil.
             queued = QueuedTicket(ticket: m["ticket"] as? String ?? "", number: m["number"] as? Int ?? 0,
