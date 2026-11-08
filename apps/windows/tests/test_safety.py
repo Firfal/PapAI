@@ -110,8 +110,8 @@ class SafetyTests(unittest.TestCase):
         api.user.GetWindowTextW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'Control Panel')
         with patch.object(core, 'explorer_target', side_effect=RuntimeError('indisponible')):
             self.assertIsNotNone(api.control_panel_reason(1, 'explorer.exe'))
-        api.user.GetWindowTextW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'Noël 2025')
-        with patch.object(core, 'explorer_target', return_value='C:\\Users\\Test\\Images\\Noël 2025'):
+        api.user.GetWindowTextW.side_effect = lambda hwnd, buffer, size: setattr(buffer, 'value', 'Séminaire 2025')
+        with patch.object(core, 'explorer_target', return_value='C:\\Users\\Test\\Images\\Séminaire 2025'):
             self.assertIsNone(api.control_panel_reason(1, 'explorer.exe'))
         with patch.object(core, 'explorer_target', return_value='::{26EE0668-A00A-44D7-9371-BEB064C98683}\\0'):
             self.assertIsNotNone(api.control_panel_reason(1, 'explorer.exe'))
@@ -136,7 +136,7 @@ class SafetyTests(unittest.TestCase):
         client = SimpleNamespace(CreateObject=Mock(return_value=shell))
         with patch.dict(sys.modules, {'comtypes': com, 'comtypes.client': client}):
             self.assertEqual(core.explorer_target(1), '')
-            folder.Path = 'C:\\Users\\Test\\Images\\Noël 2025'
+            folder.Path = 'C:\\Users\\Test\\Images\\Séminaire 2025'
             self.assertEqual(core.explorer_target(1), folder.Path)
         self.assertEqual(com.CoInitialize.call_count, 2)
         self.assertEqual(com.CoUninitialize.call_count, 2)

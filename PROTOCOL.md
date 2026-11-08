@@ -92,7 +92,7 @@ Envoie :
 - `{"type":"pause"}` · `{"type":"refresh"}` · `{"type":"click","frame_id":"…","x":0..1,"y":0..1}` (seulement en `awaiting_helper`)
 - `{"type":"remote_request","text":"…","from":"Claire"}` proposer une session (seulement s'il n'y en a pas d'ouverte). Réponses : `ack` `remote_request`, puis `remote_refused` ou `remote_accepted`.
 - `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automate »
-  Le brouillon peut contenir `lesson.shortcut = {"folder":"pictures","subfolder":"Noël 2025"}`. L'aidant peut retirer cette cible avec `lesson.shortcut:null` dans `approve_lesson` ; toute autre valeur reçue est ignorée, jamais utilisée pour créer ou remplacer une cible. Le serveur revalide la cible avant l'enregistrement. `folder` est un dossier connu (`downloads`, `pictures`, `documents`, `desktop`, `videos`, `music`). Après suppression des espaces de bord, `subfolder` est vide (racine) ou contient 1 à 100 caractères Unicode : lettres, chiffres décimaux, espace et `- _ ' ’ ( ) , & +` uniquement. Aucun point, chemin ou accolade. Les apps vérifient le dossier réel avant de l'ouvrir explicitement dans le Finder ou l'Explorateur ; une cible hors du dossier connu est refusée, ainsi que les liens/jonctions sous Windows.
+  Le brouillon peut contenir `lesson.shortcut = {"folder":"documents","subfolder":"Comptabilité 2025"}`. L'aidant peut retirer cette cible avec `lesson.shortcut:null` dans `approve_lesson` ; toute autre valeur reçue est ignorée, jamais utilisée pour créer ou remplacer une cible. Le serveur revalide la cible avant l'enregistrement. `folder` est un dossier connu (`downloads`, `pictures`, `documents`, `desktop`, `videos`, `music`). Après suppression des espaces de bord, `subfolder` est vide (racine) ou contient 1 à 100 caractères Unicode : lettres, chiffres décimaux, espace et `- _ ' ’ ( ) , & +` uniquement. Aucun point, chemin ou accolade. Les apps vérifient le dossier réel avant de l'ouvrir explicitement dans le Finder ou l'Explorateur ; une cible hors du dossier connu est refusée, ainsi que les liens/jonctions sous Windows.
   Si Holo n'a pas pu rédiger l’automate, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
 
 ## Réponse documentaire Linkup (champs optionnels)
@@ -191,27 +191,61 @@ Tests sans clé : `tests/faux_gladia.py`,
 vrai client Swift/URLSession sur macOS). En DEBUG seulement, le Mac peut lire
 `PAPAI_DICTATION_FILE=/chemin/audio.wav` au rythme réel à la place du micro.
 
-## Gardien anti-arnaque
+## Gardien
+
+Le gardien ne s'occupe que de la sécurité de l'entreprise sur le poste de
+l'utilisateur : faux support (mot de passe, code de double authentification,
+notification de connexion à valider, outil de prise en main non déclaré),
+fausse alerte virus, hameçonnage web (faux site de connexion Microsoft, Google,
+Okta…, domaine qui imite celui de l'entreprise, adresse IP publique, caractères
+trompeurs). Rien sur la banque, les cartes cadeaux ou la cryptomonnaie.
+
+### Ce que l'organisation déclare
+
+Avec le jeton de l'organisation seulement (`GET` pour relire) :
+
+```
+POST /o/<jeton org>/security
+{"domains":["acme.fr"],"remote_tools":["teamviewer"],"channels":["01 23 45 67 89"]}
+→ {"org":"Acme","security":{"domains":[…],"remote_tools":[…],"channels":[…]}}
+```
+
+`domains` : domaines de l'entreprise (20 au plus) ; un domaine proche ou qui
+les contient est un faux site. `remote_tools` : outils de prise en main
+officiels de l'IT (20 au plus) ; ils ne déclenchent rien. `channels` : canaux
+officiels du support (texte, 10 au plus), gardés pour la suite. Valeurs
+invalides ignorées.
 
 ### Protection en temps réel
 
 Comme la protection en temps réel d'un antivirus, elle s'active ou se coupe
 dans les Réglages de l'ordinateur (Mac et Windows) ; elle est **activée par
-défaut** et l'état est gardé (`realtimeProtection`). Activée, l'app envoie
-toutes les 8 secondes **trois signaux textuels**, et rien d'autre. Jamais de
-capture, jamais d'appel au modèle à ce stade :
+défaut** et l'état est gardé (`realtimeProtection`). **Rien ne part tant que rien
+ne correspond aux règles.** À chaque `hello` du pont, le serveur envoie :
 
 ```json
-{"type":"guard",
- "processes":["Safari","AnyDesk"],
- "window":"Votre ordinateur est infecté",
- "url":"https://mabanque.exemple.fr"}
+{"type":"guard_rules","tools":["anydesk","…"],"titles":["virus d[ée]tect","…"],
+ "keywords":["acme","microsoft","okta","…"],"official":["acme.fr","microsoftonline.com","…"],
+ "domains":["acme.fr"]}
+```
+
+Toutes les 8 secondes, l'ordinateur compare lui-même : noms des applications
+ouvertes à `tools` (sans les outils déclarés), titre de la fenêtre active à
+`titles` (expressions, en minuscules), site du navigateur (Mac : Safari, Chrome,
+Edge, Brave, Arc ; Windows : Edge, Chrome et autres navigateurs Chromium par la
+barre d'adresse) à `keywords` et `official`. Le site part seulement s'il est une
+adresse IP, contient `xn--` ou un caractère non ASCII, ou, hors de `official`,
+contient un mot de `keywords` ou en est à deux lettres près. Seul ce qui
+correspond part :
+
+```json
+{"type":"guard","processes":["AnyDesk"],"window":"","url":"https://acmee.fr"}
 ```
 
 `url` ne garde que le site (schéma et hôte, sans chemin ni paramètres) ; le Mac
-ne le lit pas pendant une assistance, Windows l'envoie vide. **Coupée, rien ne
-part** ; le serveur ignore d'ailleurs tout `guard` d'un ordinateur qui a
-annoncé la protection coupée.
+ne le lit pas pendant une assistance. Sans `guard_rules` (ancien serveur),
+rien ne part. **Coupée, rien ne part** ; le serveur ignore d'ailleurs tout
+`guard` d'un ordinateur qui a annoncé la protection coupée.
 
 L'état voyage dans `hello` et dans `profile` (`"protection": true|false`,
 renvoyé dès qu'il change). Le serveur le relaie aux supports :
@@ -220,30 +254,43 @@ déconnecte), et le `hello` des supports porte
 `"protection": true|false|null` (`null` : ordinateur hors ligne ou app qui ne
 le connaît pas). La page du support l'affiche.
 
-Le serveur évalue (`backend/guard.py`) et ne répond que s'il reconnaît une
-situation. Une même situation ne resonne pas avant 5 minutes. Il répond par :
+Le serveur décide (`backend/guard.py`, avec la configuration de
+l'organisation) et ne répond que s'il reconnaît une situation. Une même
+situation ne resonne pas avant 5 minutes. Chaque alerte de la surveillance crée
+un ticket `source:"gardien"`, catégorie `securite`, avec le détail en note.
 
-```json
-{"type":"alert","level":"danger|attention|info","title":"…","detail":"…"}
-```
+- **Bloquante** (outil de prise en main non déclaré, faux site de connexion ou
+  de l'entreprise), ou toute alerte pendant une assistance : comme avant,
+  `alert` avec `alert_id` et `blocked:true`, assistance arrêtée, le support
+  répond « Je m'en occupe » ou « C'est normal ».
+- **Avertissement** hors assistance (fausse alerte virus, adresse IP,
+  caractères trompeurs) : l'ordinateur reçoit
+  `{"type":"alert","level":"danger|attention","source":"environment","blocked":false,"title":"…","detail":"…"}`
+  sans `alert_id` (« J'ai compris » le ferme), le support un `guard_advice`
+  `{"type":"guard_advice","level":"…","source":"environment","session":null,"title":"… · <prénom>","detail":"…"}`.
 
 ### Demandes suspectes (champs optionnels, anciens clients compatibles)
 
 Le serveur examine le texte de **chaque** `help_request` avant capture et
 planification, puis chaque plan (y compris après `refine_plan`). Les règles
 déterministes suffisent aux cas manifestes ; Holo ne donne qu'un avis textuel
-en cas d'hésitation. Si cet avis expire ou échoue, le serveur envoie seulement
+en cas d'hésitation (prise en main, outil de prise en main cité, lien ou mail
+suspect). Si cet avis expire ou échoue, le serveur envoie seulement
 au proche un `guard_advice` non bloquant (ni `alert_id`, ni `blocked`) :
 `{"type":"guard_advice","level":"attention","source":"avis_indisponible","session":"…","title":"Avis de sécurité indisponible","detail":"…"}`.
 Le proche de la famille et le jeton de cette session le reçoivent, jamais le
 pont aidé. La préparation continue et le plan attend toujours sa validation.
 Un verdict Holo réellement suspect ou une règle déterministe reste bloquant.
-Les achats de cartes cadeaux offerts à un proche ne déclenchent pas seuls le
-gardien ; transmettre leurs codes ou les utiliser comme moyen de paiement
-suspect reste signalé. Un virement explicitement adressé à un membre de la
-famille, ou une facture d'un fournisseur habituel (EDF, Engie, Orange, SFR,
-Free, Bouygues, impôts, eau, loyer) jusqu'à 1 500 € inclus, n'est pas bloqué
-pour son seul montant. La dispense facture ne vaut pas au-delà de 1 500 €.
+Sont bloqués : transmettre un mot de passe, des identifiants ou un code de
+sécurité, ou les donner parce qu'un tiers (support, technicien, « Microsoft »,
+quelqu'un au téléphone) le demande, sauf pour les changer ou les
+réinitialiser ; saisir ses identifiants sur un lien reçu ; valider une
+notification de connexion qu'on n'a pas lancée ou à la demande d'un tiers, ou
+en recevoir plein ; installer à la demande d'un tiers un outil de prise en main
+non déclaré ; rappeler le numéro d'une fausse alerte virus ; un site cité qui
+serait signalé par la surveillance. « J'ai oublié mon mot de passe », « je ne
+reçois pas le code par SMS » ou « configurer Authenticator » restent des
+demandes ordinaires.
 Étranger, urgence, compte/numéro nouveau ou inconnu, IBAN, code reçu ou support
 suspect annulent cette exception. Un proche annonçant un téléphone perdu ou
 un nouveau numéro ne bénéficie pas de la dispense familiale. Les montants
@@ -344,7 +391,7 @@ Consulter sa banque seule ne déclenche rien.
 ## Automates
 
 `GET /lessons` renvoie les automates validés. Chacun a `title`, `steps`
-(pas à pas, mode « Montre-moi ») et `shortcut` `{"folder":"pictures","subfolder":"Noël 2025"}`
+(pas à pas, mode « Montre-moi ») et `shortcut` `{"folder":"documents","subfolder":"Comptabilité 2025"}`
 que l'app rejoue **localement, sans modèle** : elle ouvre le dossier connu du système.
 Si le dossier n'existe plus, elle n'invente rien : `automation_failed`.
 `GET /lessons/{id}/{image}` sert les captures des étapes.

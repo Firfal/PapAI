@@ -35,7 +35,7 @@ class Bridge:
                  capture_mask: Callable[[], tuple | None] = lambda: None,
                  runner: Callable = run_action,
                  alert_visible: Callable[[], bool] | None = None,
-                 guard: Callable[[], dict | None] = guard_signals) -> None:
+                 guard: Callable[[], dict | None] | None = None) -> None:
         self.url = url
         self.gate = gate
         self._screen_factory = screen_factory
@@ -48,7 +48,9 @@ class Bridge:
         self.runner = runner
         self._alert: dict | None = None
         self.alert_visible = alert_visible or (lambda: self._alert is not None)
-        self.guard = guard
+        # Règles du gardien reçues du serveur (`guard_rules`) : sans elles, rien ne part.
+        self.guard_rules: dict | None = None
+        self.guard = guard or (lambda: guard_signals(self.guard_rules))
         # Réglé par le modèle : la protection en temps réel est-elle activée ?
         self.protection: Callable[[], bool] = lambda: True
         self.connected = False
@@ -125,7 +127,7 @@ class Bridge:
             await self._send_guard(ws)
 
     async def _send_guard(self, ws) -> None:
-        """Gardien anti-arnaque : trois signaux textuels, jamais l'écran. Rien si la protection est coupée."""
+        """Gardien : seulement ce qui correspond aux règles du serveur, jamais l'écran. Rien si la protection est coupée."""
         try:
             if not self.protection():
                 return
@@ -200,12 +202,16 @@ class Bridge:
             self._executions.add(task)
             task.add_done_callback(self._executions.discard)
             return
+        if kind == "guard_rules":
+            self.guard_rules = m
+            return
         if kind == "alert":
             self._alert = m
-            self.gate.raise_stop()
+            if m.get("blocked") is not False:  # un avertissement (blocked:false) n'arrête rien
+                self.gate.raise_stop()
         elif kind == "alert_cleared" and self._alert and m.get("alert_id") == self._alert.get("alert_id") and m.get("alert_id"):
             self._alert = None
-        if kind == "alert" and (m.get("level") == "danger" or m.get("blocked")):
+        if kind == "alert" and (m.get("blocked") or (m.get("level") == "danger" and m.get("blocked") is not False)):
             self.gate.raise_stop()
             for task in self._executions:
                 task.cancel()

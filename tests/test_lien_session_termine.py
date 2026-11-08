@@ -75,7 +75,7 @@ async def scenario(base, fin):
                 await support.envoyer({"type": "refuse_plan"})
             elif fin == "alerte":
                 await mac.envoyer({"type": "guard", "processes": [], "window": "",
-                                   "url": "https://www.paysafecard.com"})
+                                   "url": "https://microsoft-login-secure.com"})
                 alerte = await support.attendre("alert")
                 assert alerte, "alerte absente"
             elif fin == "déconnexion":
