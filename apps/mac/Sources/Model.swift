@@ -67,6 +67,10 @@ final class AppModel {
     var lesson: Lesson?
     /// La fiche d'automate ouverte par-dessus l'accueil.
     var docLesson: Lesson?
+    /// Où en est l'automate lancé depuis la liste : affiché à la place de « Exécuter », sur sa ligne.
+    struct RunStatus: Equatable { var id: String; var text: String; var enCours: Bool }
+    var runStatus: RunStatus?
+    private var runStatusTask: Task<Void, Never>?
     var screenOK = Permissions.screenOK
     var axOK = Permissions.accessibilityOK
     var permissionsDismissed = false
@@ -883,12 +887,24 @@ final class AppModel {
     func runShortcut(_ l: Lesson) {
         if !(l.actions ?? []).isEmpty { runAutomation(l); return }
         guard let sc = l.shortcut else { openLesson(l); return }
+<<<<<<< ours
         let r = Shortcuts.open(sc)
         if r.ok {
             showNotice("C'est ouvert.")
         } else {
             showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
             client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+=======
+        Task {
+            let r = await Shortcuts.open(sc)
+            if r.ok {
+                showRunStatus(l.id, "C'est ouvert")
+            } else {
+                runStatus = nil
+                showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
+                client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+            }
+>>>>>>> theirs
         }
     }
 
@@ -908,16 +924,22 @@ final class AppModel {
             return
         }
         gate.reset()
-        showNotice("C'est parti : \(l.title)…")
+        showRunStatus(l.id, "En cours…", enCours: true)
         Task {
             let r = await Automations.play(l, base: httpBase, gate: gate)
-            if gate.isStopped { showNotice("Arrêté. Rien d'autre ne sera fait."); return }
+            if gate.isStopped { showRunStatus(l.id, "Arrêté"); return }
             guard r.ok else {
+                runStatus = nil
                 showNotice("« \(l.title) » n'a pas pu aller au bout. \(HelperName) a reçu un message pour s'en occuper.")
                 client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
                 return
             }
-            guard let holo else { showNotice(r.detail.isEmpty ? "C'est fait." : r.detail); return }
+            guard let holo else {
+                showRunStatus(l.id, "C'est fait")
+                if !r.detail.isEmpty { showNotice(r.detail) }
+                return
+            }
+            runStatus = nil
             homeTimer?.cancel()
             task = holo.goal ?? l.title
             plan = []; planStep = nil; question = nil; answer = nil; currentAction = nil; actions = []
@@ -932,6 +954,16 @@ final class AppModel {
     func openLesson(_ l: Lesson) {
         lesson = l
         screen = .lesson
+    }
+
+    func showRunStatus(_ id: String, _ text: String, enCours: Bool = false) {
+        runStatus = RunStatus(id: id, text: text, enCours: enCours)
+        runStatusTask?.cancel()
+        guard !enCours else { return }
+        runStatusTask = Task {
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            if !Task.isCancelled { runStatus = nil }
+        }
     }
 
     func showNotice(_ text: String) {
