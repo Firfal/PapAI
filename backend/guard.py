@@ -326,8 +326,12 @@ def evaluer_demande(texte: str) -> Alerte | None:
                                       or compte_etranger or compte_inconnu or tiers_inconnu
                                       or (iban and iban[1] != "fr")):
         return _risque("Transfert d'argent important ou vers un compte à l'étranger.")
+    carte_marque_stricte = (
+        r"(?:google\s*play|play\s*store|steam|pcs|transcash|neosurf|paysafecard)"
+    )
+    carte_marque_grand_public = r"(?:amazon|apple|itunes)"
     carte_marque = (
-        r"(?:google\s*play|play\s*store|apple|itunes|steam|pcs|transcash|neosurf|amazon|paysafecard)"
+        r"(?:" + carte_marque_stricte + r"|" + carte_marque_grand_public + r")"
     )
     carte_cadeau_pattern = (
         r"\b(?:cartes?[- ]cadeaux?|gift\s+cards?|bons?\s+d'achat|"
@@ -362,10 +366,11 @@ def evaluer_demande(texte: str) -> Alerte | None:
         montant_carte_total = (
             sum((_montant(m) for m in montants_carte), Decimal(0)) * quantite_carte
         )
-        carte_a_risque = bool(re.search(carte_marque, segment)) or bool(re.search(
+        carte_a_risque = bool(re.search(carte_marque_stricte, segment)) or bool(re.search(
             r"\b(?:cartes?\s+prepay(?:e|ee|ees|es)|"
             r"recharges?\s+prepay(?:e|ee|ees|es))\b", segment
         ))
+        carte_grand_public = bool(re.search(carte_marque_grand_public, segment))
         montant_carte_100_en_mots = bool(re.search(
             r"\b(?:cent|mille|millier|milliers|million|millions)\b", segment
         ))
@@ -373,10 +378,8 @@ def evaluer_demande(texte: str) -> Alerte | None:
             r"\b(?:(?:cinq|six|sept|huit|neuf)\s+cents?|"
             r"mille|millier|milliers|million|millions)\b", segment
         ))
-        montant_carte_eleve = (
-            montant_carte_total >= (100 if carte_a_risque else 500)
-            or (montant_carte_100_en_mots if carte_a_risque else montant_carte_500_en_mots)
-        )
+        montant_carte_100 = montant_carte_total >= 100 or montant_carte_100_en_mots
+        montant_carte_500 = montant_carte_total >= 500 or montant_carte_500_en_mots
         cartes_multiples = bool(re.search(
             r"\bcartes\b|\brecharges\b|\b\d+\s+exemplaires?\b|"
             r"\b(?:2|[3-9]\d*|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|"
@@ -396,10 +399,18 @@ def evaluer_demande(texte: str) -> Alerte | None:
             segment,
         ))
         if carte_a_risque:
-            suspecte = montant_carte_eleve or cartes_multiples or payer_une_personne
+            suspecte = montant_carte_100 or cartes_multiples or payer_une_personne
+        elif carte_grand_public:
+            cadeau_public_autorise = (
+                contexte_cadeau and quantite_carte <= 5 and not payer_une_personne
+                and montant_carte_total < 500 and not montant_carte_500_en_mots
+            )
+            suspecte = not cadeau_public_autorise and (
+                montant_carte_100 or cartes_multiples or payer_une_personne
+            )
         else:
             suspecte = (
-                montant_carte_eleve or payer_une_personne
+                montant_carte_500 or payer_une_personne
                 or (cartes_multiples and (not contexte_cadeau or quantite_carte > 5))
             )
         if suspecte:

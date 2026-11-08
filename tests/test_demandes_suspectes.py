@@ -82,6 +82,11 @@ LEGITIMES = [
     "Offrir une carte cadeau Decathlon de 150 euros à mon fils",
     "Acheter une carte cadeau Fnac de 100 euros pour Noël",
     "Offrir deux cartes cadeaux de 20 euros à mes petits-enfants",
+    "Offrir deux cartes cadeaux Amazon de 20 euros à mes petits-enfants",
+    "Offrir trois cartes cadeaux Amazon de 30 euros à mes petits-enfants pour Noël",
+    "Offrir des cartes cadeaux Amazon à mes petits-enfants pour Noël",
+    "Offrir deux cartes cadeaux Apple de 25 euros à mes petits-enfants",
+    "Offrir une carte cadeau Amazon de 100 euros à mon petit-fils pour Noël",
 ]
 SUSPECTES = [
     "Je veux envoyer 10 000 euros sur un compte en Afrique",
@@ -189,6 +194,9 @@ SUSPECTES = [
     "Acheter une carte cadeau Fnac de 500 euros",
     "Acheter une carte cadeau Fnac de 100 euros pour payer le technicien",
     "Acheter trois cartes cadeaux de 50 euros",
+    "Acheter deux cartes Apple de 100 euros pour payer le technicien",
+    "Acheter une carte Amazon de 150 euros",
+    "Offrir six cartes cadeaux Amazon de 50 euros à mes petits-enfants",
     "Acheter dix cartes cadeaux Fnac de 400 € chacune pour Noël",
     "Offrir 8 cartes cadeaux Fnac de 30 euros à mes petits-enfants",
     "Offrir une carte Google Play de 150 euros à mon petit-fils",
