@@ -25,12 +25,8 @@ W, H = 1280, 800
 
 GARDIEN = {
     "anydesk": {"processes": ["Safari", "AnyDesk"], "window": "Bureau", "url": ""},
-    "banque": {"processes": ["AnyDesk"], "window": "Safari",
-               "url": "https://mabanque.bnpparibas/comptes"},
-    "virus": {"processes": [], "url": "",
-              "window": "VOTRE ORDINATEUR EST INFECTÉ — appelez le 01 23 45 67 89"},
-    "cadeau": {"processes": [], "window": "Safari",
-               "url": "https://transcash.fr/recharger"},
+    "phishing": {"processes": [], "window": "Safari",
+                 "url": "https://microsoft-login-secure.com"},
 }
 
 
@@ -39,11 +35,11 @@ def bureau(etape: int) -> str:
     d = ImageDraw.Draw(img)
     d.rectangle([60, 40, 1220, 740], fill=(246, 246, 248), outline=(200, 200, 205))
     d.rectangle([60, 40, 1220, 86], fill=(232, 233, 238))
-    d.text((80, 58), "Finder  —  Images" if etape else "Bureau", fill=(30, 30, 35))
+    d.text((80, 58), "Finder  —  Documents" if etape else "Bureau", fill=(30, 30, 35))
     d.rectangle([60, 86, 300, 740], fill=(238, 239, 243))
     for i, nom in enumerate(["Favoris", "Bureau", "Documents", "Images", "Téléchargements"]):
         d.text((84, 110 + i * 32), nom, fill=(50, 50, 60))
-    for nom, x in [("Photos", 360), ("Noël 2025", 600)]:
+    for nom, x in [("Factures", 360), ("Comptabilité 2025", 600)]:
         d.rectangle([x, 140, x + 170, 250], fill=(255, 214, 128), outline=(214, 170, 80))
         d.text((x + 10, 262), nom, fill=(30, 30, 35))
     d.rectangle([0, 756, W, H], fill=(20, 22, 26))
@@ -62,7 +58,7 @@ async def main() -> None:
             print(f"situations connues : {', '.join(GARDIEN)}")
             return
 
-    tache = "Je ne retrouve pas mes photos de Noël"
+    tache = "Je ne retrouve plus le dossier de la comptabilité"
     async with websockets.connect(f"{BASE}/ws/bridge", max_size=2**24) as ws:
         await ws.send(json.dumps({"type": "hello", "os": "macos"}))
 

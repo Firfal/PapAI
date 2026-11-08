@@ -21,6 +21,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import shutil
 import time
@@ -56,6 +57,28 @@ def parse_derived(key: str) -> tuple[str, str, str] | None:
     return sid, sup, seal
 
 
+_DOMAINE = re.compile(r"^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
+_OUTIL = re.compile(r"^[a-z0-9][a-z0-9 ._-]{1,39}$")
+
+
+def clean_security(raw: dict) -> dict:
+    """Domaines de l'entreprise, outils de prise en main et canaux officiels du support."""
+    def liste(key, keep, n):
+        vals = raw.get(key) if isinstance(raw.get(key), list) else []
+        out = []
+        for v in vals:
+            v = keep(str(v).strip())
+            if v and v not in out:
+                out.append(v)
+        return out[:n]
+    domaine = lambda v: v.lower().removeprefix("https://").removeprefix("http://").strip("/.") \
+        if _DOMAINE.match(v.lower().removeprefix("https://").removeprefix("http://").strip("/.")) else ""  # noqa: E731
+    outil = lambda v: v.lower() if _OUTIL.match(v.lower()) else ""  # noqa: E731
+    canal = lambda v: v[:200]  # noqa: E731
+    return {"domains": liste("domains", domaine, 20), "remote_tools": liste("remote_tools", outil, 20),
+            "channels": liste("channels", canal, 10)}
+
+
 class Org:
     def __init__(self, oid: str, data: dict) -> None:
         self.id = oid
@@ -66,16 +89,24 @@ class Org:
         sups = data.get("supports")
         self.supports: list[dict] = [d for d in sups if isinstance(d, dict) and d.get("id")] \
             if isinstance(sups, list) else []
+        sec = data.get("security")
+        # Ce que le gardien doit savoir de l'organisation (PROTOCOL.md, « Gardien »).
+        self.security: dict = clean_security(sec) if isinstance(sec, dict) else {}
         self.folder = ORGS_DIR / oid
         self.lessons_dir = self.folder / "lessons"
 
     def _save(self) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         data = {"name": self.name, "enroll": self.enroll, "support": self.support,
-                "created": self.created, "supports": self.supports}
+                "created": self.created, "supports": self.supports, "security": self.security}
         tmp = self.folder / "org.json.tmp"
         tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.folder / "org.json")
+
+    def set_security(self, raw: dict) -> dict:
+        self.security = clean_security(raw)
+        self._save()
+        return self.security
 
     # ------------------------------------------------------------ supports
 

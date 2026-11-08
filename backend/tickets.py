@@ -189,7 +189,9 @@ def public(t: dict) -> dict:
 
 
 def for_user(t: dict, lessons: list[dict]) -> dict:
-    """Vue texte : automate (demande résolue seulement) prioritaire sur la réponse validée, puis le plan exécuté."""
+    """Vue texte : automate (demande résolue seulement), puis mot du support à la clôture, réponse validée, plan exécuté.
+
+    Un automate suggéré seulement lancé ne compte pas si le support a clos la demande avec un mot."""
     def text(value):
         return value if isinstance(value, str) else ""
 
@@ -197,7 +199,8 @@ def for_user(t: dict, lessons: list[dict]) -> dict:
     result.update({k: t.get(k) if type(t.get(k)) in (int, float) else 0
                    for k in ("number", "created", "updated")})
     solution, relaunch = None, None
-    lesson_id = text(t.get("automation")) or text(t.get("suggestion_lancee"))
+    support_note = text(t.get("solution")).strip() if t.get("status") == "resolu" else ""
+    lesson_id = text(t.get("automation")) or ("" if support_note else text(t.get("suggestion_lancee")))
     if lesson_id and t.get("status") == "resolu":
         lesson = next((a for a in lessons if a.get("id") == lesson_id), None)
         title = text(lesson.get("title")) if lesson else next(
@@ -206,6 +209,8 @@ def for_user(t: dict, lessons: list[dict]) -> dict:
         solution = {"kind": "automate", "lesson": lesson_id, "title": title}
         if lesson is not None:
             relaunch = lesson_id
+    elif support_note:
+        solution = {"kind": "answer", "text": support_note, "sources": []}
     elif isinstance(t.get("linkup_answer"), dict):
         answer = t["linkup_answer"]
         solution = {"kind": "answer", "text": text(answer.get("content")),

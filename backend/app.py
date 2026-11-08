@@ -28,7 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.requests import HTTPConnection
 
 from . import (
-    automate_draft, automations, billing, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
+    automations, billing, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
     tickets as tickets_mod, voice,
 )
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
@@ -749,6 +749,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     await ws.send_json({"type": "helpers", "helpers": S().family.public(_online_ids())})
                 if kind == "profile":
                     continue
+                # Règles du gardien : l'ordinateur ne renvoie que ce qui y correspond.
+                await ws.send_json(guard.regles(**_guard_cfg()))
                 await ws.send_json({"type": "helpers", "helpers": S().family.public(_online_ids())})
                 if S().pending_alert:
                     await ws.send_json(S().pending_alert["senior"])
@@ -829,7 +831,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     # est rouvert, Holo repart de ce qui avait été fait.
                     reprise = _reprise(again)
                     S().tickets.note(again, S().family.senior or "L’utilisateur", "Le problème est revenu.")
-                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="", reprise=reprise)
+                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="", reprise=reprise,
+                                       linkup_answer=None, suggestion_lancee=None)
                     ticket, reopened = again, True
                 if ticket is None and not by and not msg.get("new") and "tidy" not in msg:
                     same = S().tickets.same(task)
@@ -1052,7 +1055,7 @@ async def browser_handoff(session, link: BridgeLink, notes: list[str],
         session.log("browser_handoff", goal=_safe_handoff_log_text(goal), result=result)
         return result
 
-    alerte = guard.evaluer([], "", url=url)
+    alerte = guard.evaluer([], "", url=url, domaines_org=_guard_cfg()["domaines_org"])
     if alerte:
         await publish_guard(alerte, "browser", session)
         session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
@@ -1174,7 +1177,7 @@ async def run_session(session, link: "BridgeLink") -> None:
                                         "query": session.linkup_query}, to_bridge=False)
                 return
             for site in session.plan_sites:
-                alerte = guard.evaluer([], "", url=f"https://{site}")
+                alerte = guard.evaluer([], "", url=f"https://{site}", domaines_org=_guard_cfg()["domaines_org"])
                 if alerte:
                     await publish_guard(alerte, "plan", session)
                     return
@@ -1847,6 +1850,37 @@ def _support_online(o: orgs_mod.Org, sid: str) -> bool:
     return bool(_support_sockets.get(f"{o.id}:{sid}"))
 
 
+@app.get("/o/{token}/security")
+async def org_security(token: str):
+    """Ce que le gardien sait de l'organisation. Seulement avec le jeton de l'organisation."""
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    return {"org": o.name, "security": o.security or orgs_mod.clean_security({})}
+
+
+@app.post("/o/{token}/security")
+async def org_set_security(token: str, request: Request):
+    """Domaines de l'entreprise, outils de prise en main et canaux officiels du support."""
+    o = orgs.by_org_token(token)
+    if o is None:
+        return JSONResponse({"error": "Réservé au jeton de l'organisation."}, status_code=403
+                            if orgs.by_support(token) else 404)
+    try:
+        body = await request.json()
+    except ValueError:
+        body = None
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "Configuration invalide."}, status_code=400)
+    sec = o.set_security(body)
+    regles = guard.regles(sec["remote_tools"], sec["domains"])
+    for sp in spaces.members(o.id):
+        if sp.bridge is not None:
+            await sp.bridge.send(regles)  # postes connectés : nouvelles règles tout de suite
+    return {"org": o.name, "security": sec}
+
+
 @app.get("/o/{token}/supports")
 async def org_supports(token: str):
     """Seulement avec le jeton de l'organisation : un support ne gère pas les autres."""
@@ -2110,6 +2144,34 @@ def guard_contact() -> str:
     return f"votre {relation} {h['name']}" if relation else h["name"]
 
 
+def _guard_cfg() -> dict:
+    """Ce que l'organisation a déclaré au gardien : ses domaines et ses outils de prise en main."""
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    sec = o.security if o else {}
+    return {"outils_declares": list(sec.get("remote_tools", [])), "domaines_org": list(sec.get("domains", []))}
+
+
+async def publish_guard_warning(alerte: guard.Alerte, source: str = "environment") -> None:
+    """Hors assistance : l'utilisateur est prévenu sans que son écran soit bloqué."""
+    if S().bridge:
+        await S().bridge.send({"type": "alert", "level": alerte.niveau, "source": source, "blocked": False,
+                               "title": alerte.titre, "detail": alerte.detail})
+    who = S().family.senior or "L’utilisateur"
+    await broadcast_helper({"type": "guard_advice", "level": alerte.niveau, "source": source, "session": None,
+                            "title": f"{alerte.titre} · {who}", "detail": alerte.detail}, to_bridge=False)
+
+
+async def _ticket_securite(alerte: guard.Alerte) -> None:
+    """Chaque alerte de la surveillance devient un ticket « Sécurité » pour le service informatique."""
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    # Pas de classement Holo en arrière-plan : la catégorie « Sécurité » est sûre.
+    t = S().tickets.open(f"Sécurité : {alerte.titre}"[:MAX_TASK], "gardien", by="Gardien",
+                         number=o.next_ticket() if o else None)
+    S().tickets.categorize(t, "securite", "regles")
+    S().tickets.note(t, "Gardien", alerte.detail)
+    await _tickets_changed()
+
+
 async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
                         senior_detail: str | None = None, helper_detail: str | None = None) -> None:
     for s in S().registry._by_id.values():
@@ -2171,7 +2233,7 @@ async def dismiss_guard(msg: dict, ws: WebSocket) -> None:
 
 
 async def check_request(session, texte: str, source: str) -> bool:
-    alerte = guard.evaluer_demande(texte)
+    alerte = guard.evaluer_demande(texte, **_guard_cfg())
     if alerte is None and guard.demande_incertaine(texte):
         from .agent import client
         from papai_tools import MODEL, TEMPERATURE
@@ -2215,6 +2277,7 @@ async def handle_guard(msg: dict) -> None:
         processus=[str(p)[:MAX_PROCESS_NAME] for p in procs[:MAX_PROCESSES]],
         fenetre=str(msg.get("window", ""))[:500],
         url=str(msg.get("url", ""))[:2000],
+        **_guard_cfg(),
     )
     if alerte is None:
         return
@@ -2226,7 +2289,11 @@ async def handle_guard(msg: dict) -> None:
 
     s = current_session()
     print(f"[gardien] {alerte.niveau} — {alerte.motif}", flush=True)
-    await publish_guard(alerte, "environment", s)
+    await _ticket_securite(alerte)
+    if alerte.bloquant or (s is not None and s.is_open):
+        await publish_guard(alerte, "environment", s)
+    else:
+        await publish_guard_warning(alerte)
 
 
 async def confirmer_par_le_modele(alerte) -> str:
@@ -2351,37 +2418,6 @@ async def remove_automation_keyed(fam: str, lesson_id: str):
     return await _remove_automation(lesson_id)
 
 
-async def _draft_automation(request: Request):
-    """Brouillon d'automate (document ou enregistrement) : appelle Holo, n'écrit rien."""
-    try:
-        body = await request.json()
-    except ValueError:
-        return JSONResponse({"error": "Requête illisible (JSON attendu)."}, status_code=400)
-    if not isinstance(body, dict):
-        return JSONResponse({"error": "Requête illisible (JSON attendu)."}, status_code=400)
-    try:
-        return await automate_draft.draft(body)
-    except automate_draft.DraftError as e:
-        return JSONResponse({"error": str(e)}, status_code=422)
-    except Exception as e:  # noqa: BLE001 — Holo injoignable, quota…
-        print(f"[automate] brouillon impossible : {type(e).__name__}")
-        return JSONResponse({"error": "Holo ne répond pas pour le moment. Réessayez."}, status_code=502)
-
-
-@app.post("/k/{fam}/automations/draft")
-async def draft_automation_keyed(fam: str, request: Request):
-    if not _key_ok(fam):
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    return await _draft_automation(request)
-
-
-@app.post("/automations/draft")
-async def draft_automation(request: Request):
-    if not _same_machine(request):
-        return JSONResponse({"error": "introuvable"}, status_code=404)
-    return await _draft_automation(request)
-
-
 @app.post("/automations")
 async def import_automation(request: Request):
     if not _same_machine(request):
@@ -2459,14 +2495,26 @@ def _sessions_journal():
 
 # --- Tickets : vus et traités par le support (page web, apps, organisation) ---
 
-@app.get("/k/{fam}/requests")
-async def user_requests(fam: str):
-    if not _key_ok(fam, support=False):
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+def _user_requests() -> dict:
     o = orgs.get(S().org) if getattr(S(), "org", "") else None
     lessons = (o.automations() if o else []) + list_lessons()
     items = sorted(S().tickets.all(), key=lambda t: t.get("created", 0), reverse=True)[:100]
     return {"requests": [tickets_mod.for_user(t, lessons) for t in items]}
+
+
+@app.get("/requests")
+async def user_requests_local(request: Request):
+    """Sans clé, seulement pour l'app de la machine du serveur ; sinon /k/{clé}/requests."""
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return _user_requests()
+
+
+@app.get("/k/{fam}/requests")
+async def user_requests(fam: str):
+    if not _key_ok(fam, support=False):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return _user_requests()
 
 async def _ticket_action(tid: str, body: dict):
     t = S().tickets.get(tid)

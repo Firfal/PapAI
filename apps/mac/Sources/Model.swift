@@ -332,13 +332,13 @@ final class AppModel {
         reconnect()
         Task { await refreshLessons() }
         if ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil {
-            // Protection en temps réel : trois signaux textuels toutes les 8 s, jamais l'écran.
+            // Protection en temps réel : comparée ici toutes les 8 s, seul ce qui correspond part.
             Task {
                 while true {
                     try? await Task.sleep(nanoseconds: GuardSignals.period)
                     guard connected, realtimeProtection else { continue }
-                    let signals = await GuardSignals.collect(withURL: !sessionOpen)
-                    if connected, realtimeProtection { client.send(signals) }
+                    if let signals = await GuardSignals.collect(withURL: !sessionOpen),
+                       connected, realtimeProtection { client.send(signals) }
                 }
             }
         }
@@ -364,7 +364,7 @@ final class AppModel {
                 remoteRequest = RemoteRequest(from: "Marc", task: "Mettre à jour votre ordinateur")
                 return
             }
-            let json = #"[{"id":"a","title":"Mes photos de Noël","shortcut":{"folder":"pictures"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes documents","shortcut":{"folder":"documents"}}]"#
+            let json = #"[{"id":"a","title":"Dossier comptabilité","shortcut":{"folder":"documents"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes téléchargements","shortcut":{"folder":"downloads"}}]"#
             lessons = (try? JSONDecoder().decode([Lesson].self, from: Data(json.utf8))) ?? []
             if demo == "requests" {
                 let automate = #"{"id":"print","title":"Configurer mon imprimante","platforms":["mac"],"actions":[{"do":"open_settings","page":"printers"}]}"#
@@ -381,15 +381,15 @@ final class AppModel {
                                         detail: "Le logiciel « anydesk » est en marche. Il permet à une personne à distance de voir votre écran et de cliquer à votre place. Est-ce bien quelqu'un que vous connaissez ?")
                 return
             }
-            if demo == "consent" { pendingTask = "Je ne retrouve plus mes photos de Noël"; screen = .consent; return }
+            if demo == "consent" { pendingTask = "Je ne retrouve plus le dossier de la comptabilité"; screen = .consent; return }
             guard let s = SessionState(rawValue: demo) else { return }
-            task = "Je ne retrouve plus mes photos de Noël"
-            plan = ["Ouvrir le Finder", "Aller dans le dossier Images", "Ouvrir le dossier « Noël 2025 »"]
+            task = "Je ne retrouve plus le dossier de la comptabilité"
+            plan = ["Ouvrir le Finder", "Aller dans le dossier Documents", "Ouvrir le dossier « Comptabilité 2025 »"]
             planStep = 2
-            answer = "Vos photos de Noël sont ouvertes dans le dossier Images."
+            answer = "Le dossier Comptabilité 2025 est ouvert dans Documents."
             currentAction = "Je clique sur l'icône du Finder"
             actions = ["J'ouvre la recherche du Mac", "J'écris « Finder »", "Je clique sur l'icône du Finder"]
-            question = "Je vois deux dossiers « Noël ». Lequel faut-il ouvrir ?"
+            question = "Je vois deux dossiers « Comptabilité ». Lequel faut-il ouvrir ?"
             state = s
             screen = .session
         }
@@ -812,11 +812,16 @@ final class AppModel {
                 await refreshLessons()
                 if let t = m["title"] as? String { showNotice("Nouvel automate : « \(t) »") }
             }
+        case "guard_rules":
+            GuardSignals.rules = m
         case "alert":
             narration.context(assistance: sessionOpen, speakingAllowed: false)
-            webHost.stopLocal()
             // Le gardien a reconnu une situation : le support est prévenu en même temps.
-            gate.raise()
+            // Un avertissement (`blocked:false`) n'arrête ni l'assistance ni un automate.
+            if (m["blocked"] as? Bool) ?? true {
+                webHost.stopLocal()
+                gate.raise()
+            }
             guardAlert = GuardAlert(level: m["level"] as? String ?? "attention",
                                     title: m["title"] as? String ?? "",
                                     detail: m["detail"] as? String ?? "",

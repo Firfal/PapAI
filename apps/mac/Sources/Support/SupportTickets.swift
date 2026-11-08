@@ -333,7 +333,7 @@ struct TicketWeekCard: View {
                 HStack(spacing: 12) {
                     Label(s.text, systemImage: "sparkles").font(rounded(16, .semibold))
                     Spacer(minLength: 0)
-                    if SupportAutomates.creationActive {
+                    if TicketStatsPanel.canCreate {
                         Button("Créer l’automate") { suggest(s) }.buttonStyle(PillStyle(height: 38))
                     }
                 }
@@ -368,6 +368,10 @@ struct TicketStatsPanel: View {
     var openExample: (TicketStats.Example) -> Void
     var suggest: (TicketStats.Suggestion) -> Void
 
+    /// Masqué tant que la suggestion compte toutes les demandes d'une catégorie
+    /// au lieu des tickets réglés sur un même sujet (voir TODO.md).
+    static let canCreate = false
+
     static func duration(_ s: Double?) -> String {
         guard let s else { return "—" }
         if s < 3600 { return "\(max(1, Int((s / 60).rounded()))) min" }
@@ -393,7 +397,7 @@ struct TicketStatsPanel: View {
                 HStack(spacing: 12) {
                     Label(s.text, systemImage: "sparkles").font(rounded(16, .semibold))
                     Spacer(minLength: 0)
-                    if SupportAutomates.creationActive {
+                    if Self.canCreate {
                         Button("Créer l’automate") { suggest(s) }.buttonStyle(PillStyle(height: 38))
                     }
                 }

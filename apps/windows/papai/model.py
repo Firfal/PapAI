@@ -620,7 +620,7 @@ class Model:
                             for d in lst if isinstance(d, dict) and d.get("id") and d.get("name")]
         elif kind == "alert":
             self.guard_acknowledged = bool(m.get("acknowledged") or m.get("acknowledged_by"))
-            if m.get("level") == "danger" or m.get("blocked"):
+            if m.get("blocked") or (m.get("level") == "danger" and m.get("blocked") is not False):
                 self.gate.raise_stop()
                 self.state = "stopped"
                 self.current_action = None
@@ -919,9 +919,9 @@ class Model:
             self.remote_request = {"from": "Marc", "task": "Mettre à jour votre ordinateur"}
             return
         self.lessons = [
-            {"id": "a", "title": "Mes photos de Noël", "shortcut": {"folder": "pictures"},
+            {"id": "a", "title": "Dossier comptabilité", "shortcut": {"folder": "documents"},
              "steps": [{"instruction": "Ouvrez l'Explorateur de fichiers"}]},
-            {"id": "b", "title": "Mes documents", "shortcut": {"folder": "documents"}},
+            {"id": "b", "title": "Mes téléchargements", "shortcut": {"folder": "downloads"}},
         ]
         if demo == "requests":
             self.lessons.append({"id": "print", "title": "Configurer mon imprimante", "platforms": ["windows"],
@@ -946,31 +946,31 @@ class Model:
         if demo in ("home", "home_no_org"):
             return
         if demo == "lesson":
-            self.lesson = {"id": "a", "title": "Mes photos de Noël", "steps": [
+            self.lesson = {"id": "a", "title": "Dossier comptabilité", "steps": [
                 {"instruction": "Ouvrez l'Explorateur de fichiers",
                  "checkpoint": "une fenêtre avec vos dossiers à gauche"},
-                {"instruction": "Cliquez sur « Images »"}]}
+                {"instruction": "Cliquez sur « Documents »"}]}
             self.screen = "lesson"
             return
         if demo == "consent":
-            self.pending_task = "Je ne retrouve plus mes photos de Noël"
+            self.pending_task = "Je ne retrouve plus le dossier de la comptabilité"
             self.screen = "consent"
             return
         state = {"senior_question": "awaiting_helper", "paused": "active",
                  "compact": "active", "gardien": "stopped"}.get(demo, demo)
         if state not in STATES:
             return
-        self.task = "Je ne retrouve plus mes photos de Noël"
-        self.plan = ["Ouvrir l'Explorateur de fichiers", "Aller dans le dossier Images",
-                     "Ouvrir le dossier « Noël 2025 »"]
+        self.task = "Je ne retrouve plus le dossier de la comptabilité"
+        self.plan = ["Ouvrir l'Explorateur de fichiers", "Aller dans le dossier Documents",
+                     "Ouvrir le dossier « Comptabilité 2025 »"]
         self.plan_step = 2
-        self.answer = "Vos photos de Noël sont ouvertes dans le dossier Images."
+        self.answer = "Le dossier Comptabilité 2025 est ouvert dans Documents."
         self.current_action = "Je clique sur l'icône de l'Explorateur"
         self.actions = ["J'ouvre la recherche de Windows", "J'écris « Explorateur »",
                         "Je clique sur l'icône de l'Explorateur"]
-        self.question = "Je vois deux dossiers « Noël ». Lequel faut-il ouvrir ?"
+        self.question = "Je vois deux dossiers « Comptabilité ». Lequel faut-il ouvrir ?"
         if demo == "senior_question":
-            self.question = "Vos photos de Noël sont-elles sur cet ordinateur ou sur une clé USB ?"
+            self.question = "Le dossier est-il sur cet ordinateur ou sur une clé USB ?"
             self.question_for_me = True
             self.question_options = ["Sur l'ordinateur", "Sur une clé USB"]
         self.paused = demo == "paused"
