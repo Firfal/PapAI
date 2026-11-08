@@ -35,7 +35,8 @@ class Abonnement(unittest.TestCase):
                                           "STRIPE_WEBHOOK_SECRET": "whsec_local", "STRIPE_API_BASE": self.fake.url})
         self.env.start()
         app = FastAPI()
-        billing.install(app, self.registry.by_support, lambda o: self.seats, "https://papai.test")
+        billing.install(app, self.registry.by_support, lambda o: self.seats, "https://papai.test",
+                        self.registry.get, lambda: self.registry._by_id.values())
         self.sock = socket.socket()
         self.sock.bind(("127.0.0.1", 0))
         self.base = "http://127.0.0.1:" + str(self.sock.getsockname()[1])
@@ -125,6 +126,14 @@ class Abonnement(unittest.TestCase):
             self.assertEqual(self.request(self.path + "/billing")[1]["abonne"], status in {"active", "trialing"})
         self.assertEqual(self.event("customer.subscription.deleted", {"id": "sub_test"})[0], 200)
         self.assertFalse(self.request(self.path + "/billing")[1]["abonne"])
+
+    def test_webhook_registre_en_memoire(self):
+        (self.org.folder / "org.json").unlink()
+        self.assertEqual(self.event()[0], 200)
+        self.assertTrue(billing.read(self.org)["abonne"])
+        self.assertEqual(self.event("customer.subscription.updated", {
+            "id": "sub_autre", "customer": "cus_test", "status": "past_due"})[0], 200)
+        self.assertFalse(billing.read(self.org)["abonne"])
 
     def test_signatures_et_corps(self):
         self.assertEqual(self.event(signature=f"t={int(time.time())},v1=bad")[0], 400)

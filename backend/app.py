@@ -66,7 +66,7 @@ app = FastAPI(title="PapAI")
 AIDANT_KEY = os.environ.get("PAPAI_AIDANT_KEY") or secrets.token_urlsafe(9)
 spaces = space.setup(AIDANT_KEY)
 orgs = orgs_mod.Orgs()
-billing.install(app, orgs.by_support, lambda o: spaces.members(o.id), PUBLIC_URL)
+billing.install(app, orgs.by_support, lambda o: spaces.members(o.id), PUBLIC_URL, orgs.get, lambda: orgs._by_id.values())
 
 
 def S() -> space.Space:

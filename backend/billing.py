@@ -21,9 +21,6 @@ from urllib.request import Request as URLRequest, urlopen
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse
 
-from . import orgs
-
-
 def config():
     key = os.environ.get("STRIPE_SECRET_KEY", "")
     price = os.environ.get("STRIPE_PRICE_ID", "")
@@ -68,7 +65,7 @@ def stripe(path, data=None):
         raise HTTPException(502, "Service d'abonnement temporairement indisponible") from None
 
 
-def install(app, find_org, members, public_url):
+def install(app, find_org, members, public_url, org_by_id, all_orgs):
     prices = {}
 
     def get_org(token):
@@ -163,13 +160,12 @@ def install(app, find_org, members, public_url):
         if kind not in {"checkout.session.completed", "customer.subscription.created",
                         "customer.subscription.updated", "customer.subscription.deleted"}:
             return {"ok": True}
-        registry = orgs.Orgs()
         metadata = obj.get("metadata") or {}
         oid = obj.get("client_reference_id") if kind == "checkout.session.completed" else None
         oid = oid or (metadata.get("org") if isinstance(metadata, dict) else None)
-        org = registry.get(oid) if isinstance(oid, str) else None
+        org = org_by_id(oid) if isinstance(oid, str) else None
         if org is None and not oid:
-            for candidate in registry._by_id.values():
+            for candidate in all_orgs():
                 state = read(candidate)
                 if (obj.get("id") and obj["id"] == state.get("subscription")) or (
                         obj.get("customer") and obj["customer"] == state.get("customer")):
