@@ -207,10 +207,11 @@ class Bridge:
             return
         if kind == "alert":
             self._alert = m
-            self.gate.raise_stop()
+            if m.get("blocked", True):
+                self.gate.raise_stop()
         elif kind == "alert_cleared" and self._alert and m.get("alert_id") == self._alert.get("alert_id") and m.get("alert_id"):
             self._alert = None
-        if kind == "alert" and (m.get("level") == "danger" or m.get("blocked")):
+        if kind == "alert" and m.get("blocked", True):
             self.gate.raise_stop()
             for task in self._executions:
                 task.cancel()

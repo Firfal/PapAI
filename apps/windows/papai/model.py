@@ -620,7 +620,7 @@ class Model:
                             for d in lst if isinstance(d, dict) and d.get("id") and d.get("name")]
         elif kind == "alert":
             self.guard_acknowledged = bool(m.get("acknowledged") or m.get("acknowledged_by"))
-            if m.get("level") == "danger" or m.get("blocked"):
+            if m.get("blocked", True):  # un avertissement (blocked:false) n'arrête rien
                 self.gate.raise_stop()
                 self.state = "stopped"
                 self.current_action = None

@@ -822,10 +822,13 @@ final class AppModel {
             GuardSignals.rules = m
         case "alert":
             narration.context(assistance: sessionOpen, speakingAllowed: false)
-            webHost.stopLocal()
             // Le gardien a reconnu une situation : le support est prévenu en même temps.
-            gate.raise()
-            InputLock.shared.set(false)
+            // Un avertissement (`blocked:false`) n'arrête ni l'assistance ni un automate.
+            if (m["blocked"] as? Bool) ?? true {
+                webHost.stopLocal()
+                gate.raise()
+                InputLock.shared.set(false)
+            }
             guardAlert = GuardAlert(level: m["level"] as? String ?? "attention",
                                     title: m["title"] as? String ?? "",
                                     detail: m["detail"] as? String ?? "",
