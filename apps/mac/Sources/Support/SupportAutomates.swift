@@ -1,114 +1,204 @@
+import PDFKit
 import SwiftUI
+import UniformTypeIdentifiers
 
-/// Un automate tel que le serveur le décrit (`GET /lessons`), vu par le support.
-struct SupportAutomate: Decodable, Identifiable {
-    struct Step: Decodable { var instruction: String? }
-    struct Action: Decodable { var `do`: String? }
-    var id: String
-    var title: String
-    var description: String?
-    var publisher: String?
-    var platforms: [String]?
-    var actions: [Action]?
-    var steps: [Step]?
-    var source: String?
+/// « Mes automates » : la bibliothèque du support, gardée sur son poste
+/// (~/Library/Application Support/PapAI/automates.json). Chaque automate est un
+/// pack `.papai` ; le support décide ensuite à qui l'appliquer. Appliquer =
+/// l'importer dans l'espace de la personne (`POST /automations`), ce qui le valide.
+@MainActor
+@Observable
+final class AutomateLibrary {
+    struct Entry: Codable, Identifiable {
+        var id: String
+        var pack: Data          // le JSON .papai, tel quel
+        var applied: [String]   // clés des personnes chez qui il est appliqué
+        var created: Double
+
+        var json: [String: Any] { (try? JSONSerialization.jsonObject(with: pack)) as? [String: Any] ?? [:] }
+        var title: String { json["title"] as? String ?? "Sans titre" }
+        var detail: String { json["description"] as? String ?? "" }
+        var publisher: String { json["publisher"] as? String ?? "" }
+        var platforms: [String] { json["platforms"] as? [String] ?? [] }
+        var stepCount: Int { (json["steps"] as? [Any])?.count ?? 0 }
+        var firstAction: String { ((json["actions"] as? [[String: Any]])?.first?["do"] as? String) ?? "" }
+    }
+
+    static let shared = AutomateLibrary()
+    var entries: [Entry] = []
+
+    private var file: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("PapAI", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("automates.json")
+    }
+
+    init() {
+        if let d = try? Data(contentsOf: file), let l = try? JSONDecoder().decode([Entry].self, from: d) {
+            entries = l
+        } else {
+            seedExamples()
+        }
+    }
+
+    /// Premier lancement : les exemples livrés avec l'app (dossier `automations/` du dépôt).
+    private func seedExamples() {
+        let urls = Bundle.main.urls(forResourcesWithExtension: "papai", subdirectory: "automates") ?? []
+        for u in urls.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            if let d = try? Data(contentsOf: u) { _ = add(pack: d, save: false) }
+        }
+        save()
+    }
+
+    @discardableResult
+    func add(pack: Data, save doSave: Bool = true) -> Entry? {
+        guard let obj = (try? JSONSerialization.jsonObject(with: pack)) as? [String: Any],
+              obj["papai"] as? Int == 1, obj["title"] is String else { return nil }
+        let e = Entry(id: UUID().uuidString, pack: pack, applied: [], created: Date().timeIntervalSince1970)
+        entries.insert(e, at: 0)
+        if doSave { save() }
+        return e
+    }
+
+    func remove(_ e: Entry) { entries.removeAll { $0.id == e.id }; save() }
+
+    func markApplied(_ e: Entry, keys: [String]) {
+        guard let i = entries.firstIndex(where: { $0.id == e.id }) else { return }
+        entries[i].applied = Array(Set(entries[i].applied).union(keys))
+        save()
+    }
+
+    func save() {
+        if let d = try? JSONEncoder().encode(entries) { try? d.write(to: file, options: .atomic) }
+    }
+
+    /// Adresse HTTP de l'espace d'une personne (comme `HelperModel.baseHTTP`).
+    static func base(_ p: Person) -> String {
+        var s = p.server.trimmingCharacters(in: .whitespacesAndNewlines)
+        while s.hasSuffix("/") { s.removeLast() }
+        if !s.contains("://") { s = "http://" + s }
+        return s
+    }
+
+    /// Importe le pack chez une personne. Renvoie un message d'erreur, ou nil.
+    static func apply(_ e: Entry, to p: Person) async -> String? {
+        guard let url = URL(string: base(p) + "/automations") else { return "Adresse invalide" }
+        var req = URLRequest(url: url, timeoutInterval: 20)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = e.pack
+        guard let (d, r) = try? await URLSession.shared.data(for: req) else { return "Serveur injoignable" }
+        if (r as? HTTPURLResponse)?.statusCode == 200 { return nil }
+        let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
+        return obj?["error"] as? String ?? "Refusé par le serveur"
+    }
 }
 
-/// Onglet « Automates » du mode support : tous les automates de la personne
-/// aidée suivie, et la création d'un nouvel automate (validé par le support
-/// en le créant, comme un import `.papai`).
+/// Onglet « Mes automates » du mode support.
 struct SupportAutomates: View {
     let model: HelperModel
-    @State private var list: [SupportAutomate] = []
-    @State private var loading = false
-    @State private var error: String?
+    @State private var lib = AutomateLibrary.shared
     @State private var creating = false
-    @State private var toDelete: SupportAutomate?
+    @State private var importing = false
+    @State private var applying: AutomateLibrary.Entry?
+    @State private var toDelete: AutomateLibrary.Entry?
+    @State private var error: String?
 
     var body: some View {
         Panneau {
             HStack(alignment: .center, spacing: 18) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Automates de \(model.senior)").font(rounded(30, .bold))
-                    Text("Ce que \(model.senior) peut relancer d’un clic depuis son ordinateur.")
+                    Text("Mes automates").font(rounded(30, .bold))
+                    Text("Votre bibliothèque. Choisissez ensuite à qui appliquer chaque automate.")
                         .font(rounded(17, .medium)).opacity(0.92)
                 }
                 Spacer(minLength: 0)
-                Button { creating = true } label: {
-                    Label("Créer un automate", systemImage: "plus.circle.fill")
-                }
-                .buttonStyle(PillStyle(filled: false, height: 50))
+                Button { creating = true } label: { Label("Créer un automate", systemImage: "plus.circle.fill") }
+                    .buttonStyle(PillStyle(filled: false, height: 50))
             }
         } corps: {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
-                        Text(list.isEmpty ? "" : "\(list.count) automate\(list.count > 1 ? "s" : "")")
+                        Text("\(lib.entries.count) automate\(lib.entries.count > 1 ? "s" : "")")
                             .font(rounded(16, .semibold)).foregroundStyle(T.muted)
                         Spacer()
-                        if loading { ProgressView().controlSize(.small) }
-                        Button("Actualiser") { Task { await load() } }
+                        Button("Importer un fichier .papai") { importing = true }
                             .buttonStyle(.plain).font(rounded(14, .semibold)).foregroundStyle(T.leaf)
                     }
                     if let error {
                         Label(error, systemImage: "exclamationmark.triangle").font(rounded(15, .semibold))
                             .foregroundStyle(T.danger)
                     }
-                    if list.isEmpty && !loading {
-                        Text("Aucun automate pour l’instant. Créez-en un, ou gardez une assistance réussie comme automate.")
+                    if lib.entries.isEmpty {
+                        Text("Aucun automate. Créez-en un à partir d’un document, d’un enregistrement de votre écran, ou à la main.")
                             .font(rounded(16)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                     }
-                    ForEach(list) { a in row(a) }
+                    ForEach(lib.entries) { e in row(e) }
                 }
                 .padding(.bottom, 8)
             }
         }
-        .task(id: model.helperKey) { await load() }
         .sheet(isPresented: $creating) {
-            SupportCreateAutomate(model: model) { created in
+            SupportCreateAutomate(model: model) { pack in
                 creating = false
-                if let created {
-                    model.showToast("Automate « \(created) » créé")
-                    Task { await load(); await model.loadLessons() }
+                if let pack, let d = try? JSONSerialization.data(withJSONObject: pack), let e = lib.add(pack: d) {
+                    model.showToast("« \(e.title) » ajouté à vos automates")
+                    applying = e
                 }
             }
         }
-        .confirmationDialog("Retirer cet automate ?", isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } })) {
-            Button("Retirer « \(toDelete?.title ?? "") »", role: .destructive) {
-                if let a = toDelete { Task { await remove(a) } }
+        .sheet(item: $applying) { e in
+            ApplyAutomateSheet(model: model, entry: e) { applying = nil }
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.json, UTType(filenameExtension: "papai") ?? .json]) { r in
+            guard case .success(let url) = r else { return }
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            if let d = try? Data(contentsOf: url), let e = lib.add(pack: d) {
+                error = nil; model.showToast("« \(e.title) » ajouté à vos automates")
+            } else {
+                error = "Ce fichier n’est pas un automate .papai."
             }
+        }
+        .confirmationDialog("Supprimer cet automate de votre bibliothèque ?",
+                            isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } })) {
+            Button("Supprimer « \(toDelete?.title ?? "") »", role: .destructive) { if let e = toDelete { lib.remove(e) } }
             Button("Annuler", role: .cancel) {}
         } message: {
-            Text("\(model.seniorTitle) ne pourra plus le relancer.")
+            Text("Les personnes chez qui il est déjà appliqué le gardent.")
         }
     }
 
-    private func row(_ a: SupportAutomate) -> some View {
+    private func row(_ e: AutomateLibrary.Entry) -> some View {
         HStack(alignment: .top, spacing: 14) {
-            Image(systemName: symbol(a)).font(.system(size: 18, weight: .semibold)).foregroundStyle(T.accent)
+            Image(systemName: symbol(e.firstAction)).font(.system(size: 18, weight: .semibold)).foregroundStyle(T.accent)
                 .frame(width: 44, height: 44).background(Circle().fill(T.mint))
-            VStack(alignment: .leading, spacing: 4) {
-                Text(a.title).font(rounded(19, .semibold))
-                if let d = a.description, !d.isEmpty {
-                    Text(d).font(rounded(15)).foregroundStyle(T.muted).lineLimit(2)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(e.title).font(rounded(19, .semibold))
+                if !e.detail.isEmpty {
+                    Text(e.detail).font(rounded(15)).foregroundStyle(T.muted).lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                HStack(spacing: 10) {
-                    let n = a.steps?.count ?? 0
-                    if n > 0 { tag("\(n) étape\(n > 1 ? "s" : "")") }
-                    if let p = a.platforms, !p.isEmpty {
-                        tag(p.map { $0 == "mac" ? "Mac" : "Windows" }.joined(separator: " · "))
-                    }
-                    if let pub = a.publisher, !pub.isEmpty { tag(pub) }
-                    else if a.source != "import" { tag("Gardé après une assistance") }
+                HStack(spacing: 8) {
+                    if e.stepCount > 0 { tag("\(e.stepCount) étape\(e.stepCount > 1 ? "s" : "")") }
+                    if !e.platforms.isEmpty { tag(e.platforms.map { $0 == "mac" ? "Mac" : "Windows" }.joined(separator: " · ")) }
+                    if !e.publisher.isEmpty { tag(e.publisher) }
                 }
+                let names = model.people.filter { e.applied.contains($0.key) }.map { $0.name.isEmpty ? "Personne aidée" : $0.name }
+                Text(names.isEmpty ? "Appliqué à personne" : "Appliqué à : " + names.joined(separator: ", "))
+                    .font(rounded(14, .semibold)).foregroundStyle(names.isEmpty ? T.muted : T.leaf)
             }
             Spacer(minLength: 0)
-            Button { toDelete = a } label: {
-                Image(systemName: "trash").font(.system(size: 14, weight: .semibold)).foregroundStyle(T.muted)
-                    .frame(width: 36, height: 36).background(Circle().fill(T.field))
+            VStack(spacing: 8) {
+                Button("Appliquer…") { applying = e }.buttonStyle(PillStyle(height: 40))
+                Button { toDelete = e } label: {
+                    Image(systemName: "trash").font(.system(size: 14, weight: .semibold)).foregroundStyle(T.muted)
+                        .frame(width: 36, height: 36).background(Circle().fill(T.field))
+                }
+                .buttonStyle(.plain).accessibilityLabel("Supprimer \(e.title)")
             }
-            .buttonStyle(.plain).accessibilityLabel("Retirer \(a.title)")
         }
         .padding(14).carte()
     }
@@ -119,8 +209,8 @@ struct SupportAutomates: View {
             .background(Capsule().fill(T.field))
     }
 
-    private func symbol(_ a: SupportAutomate) -> String {
-        switch a.actions?.first?.do {
+    private func symbol(_ action: String) -> String {
+        switch action {
         case "open_folder": "folder.fill"
         case "open_settings": "gearshape.fill"
         case "open_url": "globe"
@@ -130,31 +220,68 @@ struct SupportAutomates: View {
         default: "checkmark.circle.fill"
         }
     }
+}
 
-    private func load() async {
-        guard let url = URL(string: model.baseHTTP + "/lessons") else { return }
-        loading = true; defer { loading = false }
-        do {
-            let (d, _) = try await URLSession.shared.data(from: url)
-            list = try JSONDecoder().decode([SupportAutomate].self, from: d)
-            error = nil
-        } catch {
-            self.error = "Impossible de charger les automates."
+/// Choisir les personnes aidées chez qui appliquer un automate.
+struct ApplyAutomateSheet: View {
+    let model: HelperModel
+    let entry: AutomateLibrary.Entry
+    var close: () -> Void
+    @State private var chosen: Set<String> = []
+    @State private var sending = false
+    @State private var results: [String: String] = [:]   // clé -> erreur ("" = réussi)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Appliquer « \(entry.title) »").font(rounded(24, .bold))
+            Text("Les personnes cochées pourront le relancer d’un clic. Vous pouvez aussi ne l’appliquer à personne pour l’instant.")
+                .font(rounded(15)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+            if model.people.isEmpty {
+                Text("Aucune personne aidée reliée à ce poste.").font(rounded(16)).foregroundStyle(T.muted)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(model.people) { p in
+                        let already = entry.applied.contains(p.key)
+                        HStack {
+                            Toggle(isOn: Binding(get: { chosen.contains(p.key) || already },
+                                                 set: { on in if on { chosen.insert(p.key) } else { chosen.remove(p.key) } })) {
+                                Text(p.name.isEmpty ? "Personne aidée" : p.name).font(rounded(17, .semibold))
+                            }
+                            .toggleStyle(.checkbox).disabled(already || sending)
+                            Spacer()
+                            if already { Text("déjà appliqué").font(rounded(13)).foregroundStyle(T.leaf) }
+                            if let r = results[p.key] {
+                                Text(r.isEmpty ? "Appliqué" : r).font(rounded(13, .semibold))
+                                    .foregroundStyle(r.isEmpty ? T.leaf : T.danger)
+                            }
+                        }
+                        .padding(12).champ()
+                    }
+                }
+            }
+            HStack {
+                Spacer()
+                Button(results.isEmpty ? "Plus tard" : "Fermer") { close() }.buttonStyle(PillStyle(filled: false, height: 46))
+                Button(sending ? "Envoi…" : "Appliquer") { Task { await apply() } }
+                    .buttonStyle(PillStyle(height: 46, icone: "checkmark.circle"))
+                    .disabled(chosen.isEmpty || sending)
+            }
         }
+        .padding(24).frame(width: 480, height: 460).background(T.bg).foregroundStyle(T.ink)
     }
 
-    private func remove(_ a: SupportAutomate) async {
-        toDelete = nil
-        guard let enc = a.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: model.baseHTTP + "/automations/" + enc) else { return }
-        var req = URLRequest(url: url); req.httpMethod = "DELETE"
-        if let (_, r) = try? await URLSession.shared.data(for: req), (r as? HTTPURLResponse)?.statusCode == 200 {
-            model.showToast("Automate retiré")
-        } else {
-            error = "Cet automate ne peut pas être retiré d’ici."
+    private func apply() async {
+        sending = true; defer { sending = false }
+        var ok: [String] = []
+        for p in model.people where chosen.contains(p.key) {
+            let err = await AutomateLibrary.apply(entry, to: p)
+            results[p.key] = err ?? ""
+            if err == nil { ok.append(p.key) }
         }
-        await load()
-        await model.loadLessons()
+        AutomateLibrary.shared.markApplied(entry, keys: ok)
+        chosen.subtract(ok)
+        if !ok.isEmpty { await model.loadLessons() }
     }
 }
 
@@ -162,7 +289,7 @@ struct SupportAutomates: View {
 /// niveau, jamais de commande) et le pas à pas « Montrez-moi ».
 struct SupportCreateAutomate: View {
     let model: HelperModel
-    var done: (String?) -> Void
+    var done: ([String: Any]?) -> Void
 
     enum Kind: String, CaseIterable { case holo, folder, settings, url }
     @State private var title = ""
@@ -178,6 +305,12 @@ struct SupportCreateAutomate: View {
     @State private var windows = true
     @State private var sending = false
     @State private var error: String?
+    @State private var importing = false
+    @State private var drafting = false
+    @State private var draftNote: String?
+    @State private var warning: String?
+    @State private var recorder = SupportRecorder()
+    @State private var reviewing = false
 
     private static let kinds: [(String, Kind)] = [("Holo s’en charge", .holo), ("Ouvrir un dossier", .folder),
                                                   ("Page des Réglages", .settings), ("Ouvrir un site", .url)]
@@ -194,6 +327,7 @@ struct SupportCreateAutomate: View {
                 .frame(maxWidth: .infinity, alignment: .leading).background(T.header)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    sources
                     field("Titre (un verbe, par exemple « Retrouver mes photos »)", $title, "Se connecter au Wi-Fi")
                     field("Description (facultatif)", $detail, "Ce que fait l’automate, en une phrase")
                     VStack(alignment: .leading, spacing: 8) {
@@ -231,18 +365,116 @@ struct SupportCreateAutomate: View {
             }
             Rectangle().fill(T.line).frame(height: 1)
             HStack {
-                Text("En le créant, vous le validez pour \(model.senior).").font(rounded(14)).foregroundStyle(T.muted)
+                Text("Il rejoint vos automates ; vous choisirez ensuite à qui l’appliquer.").font(rounded(14)).foregroundStyle(T.muted)
                 Spacer()
                 Button("Annuler") { done(nil) }.buttonStyle(PillStyle(filled: false, height: 48))
                     .keyboardShortcut(.cancelAction)
-                Button(sending ? "Création…" : "Créer") { Task { await create() } }
+                Button("Ajouter à mes automates") { Task { await create() } }
                     .buttonStyle(PillStyle(height: 48, icone: "checkmark.circle"))
                     .disabled(sending)
             }
             .padding(.horizontal, 24).padding(.vertical, 14)
         }
         .foregroundStyle(T.ink)
-        .frame(width: 620, height: 640).background(T.bg)
+        .frame(width: 640, height: 700).background(T.bg)
+        .fileImporter(isPresented: $importing,
+                      allowedContentTypes: [.plainText, .pdf, UTType(filenameExtension: "md") ?? .plainText]) { r in
+            if case .success(let url) = r { Task { await importDocument(url) } }
+        }
+        .onAppear { recorder.onStop = { reviewing = true } }
+    }
+
+    // MARK: Sources (document, enregistrement)
+
+    private var sources: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            label("Partir d’une source (Holo prépare un brouillon, vous le relisez)")
+            HStack(spacing: 10) {
+                Button { importing = true } label: { Label("Importer un document", systemImage: "doc.text") }
+                    .buttonStyle(PillStyle(filled: false, height: 46))
+                Button { recorder.start() } label: { Label("Enregistrer mon écran", systemImage: "record.circle") }
+                    .buttonStyle(PillStyle(filled: false, height: 46))
+                Toggle("avec ma voix", isOn: $recorder.withVoice).toggleStyle(.checkbox).font(rounded(15))
+            }
+            Text("Document : .txt, .md ou .pdf. Enregistrement : faites la manipulation sur votre poste en la commentant ; seules quelques captures clés sont gardées.")
+                .font(rounded(13)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+            if drafting {
+                HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Holo prépare le brouillon…").font(rounded(15)) }
+            }
+            if let draftNote {
+                Label(draftNote, systemImage: "sparkles").font(rounded(14, .semibold)).foregroundStyle(T.leaf)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let warning {
+                Label(warning, systemImage: "exclamationmark.triangle").font(rounded(14, .semibold))
+                    .foregroundStyle(T.danger).fixedSize(horizontal: false, vertical: true)
+            }
+            if let e = recorder.error {
+                Text(e).font(rounded(13)).foregroundStyle(T.danger).fixedSize(horizontal: false, vertical: true)
+            }
+            if reviewing && !recorder.shots.isEmpty {
+                RecorderReview(rec: recorder, analyze: { reviewing = false; Task { await analyzeRecording() } },
+                               cancel: { reviewing = false; recorder.shots = [] })
+            }
+        }
+        .padding(14).background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
+    }
+
+    private func importDocument(_ url: URL) async {
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        var text = ""
+        if url.pathExtension.lowercased() == "pdf" {
+            text = PDFDocument(url: url)?.string ?? ""   // le PDF est lu ici, seul le texte part
+        } else {
+            text = (try? String(contentsOf: url, encoding: .utf8)) ?? (try? String(contentsOf: url, encoding: .isoLatin1)) ?? ""
+        }
+        guard text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 20 else {
+            error = "Ce document ne contient pas de texte lisible (un PDF scanné, par exemple)."
+            return
+        }
+        await requestDraft(["kind": "document", "name": url.lastPathComponent, "text": String(text.prefix(20_000))],
+                           note: "Brouillon tiré de « \(url.lastPathComponent) »")
+    }
+
+    private func analyzeRecording() async {
+        let frames = recorder.selected().compactMap { SupportRecorder.jpegB64($0) }.map { ["b64": $0, "mime": "image/jpeg"] }
+        guard !frames.isEmpty else { return }
+        await requestDraft(["kind": "recording", "frames": frames,
+                            "narration": recorder.narration.trimmingCharacters(in: .whitespacesAndNewlines)],
+                           note: "Brouillon tiré de votre enregistrement (\(frames.count) captures)")
+        recorder.shots = []
+    }
+
+    private func requestDraft(_ body: [String: Any], note: String) async {
+        guard let url = URL(string: model.baseHTTP + "/automations/draft"),
+              let data = try? JSONSerialization.data(withJSONObject: body) else { return }
+        var req = URLRequest(url: url, timeoutInterval: 90)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = data
+        drafting = true; error = nil; draftNote = nil; warning = nil
+        defer { drafting = false }
+        do {
+            let (d, r) = try await URLSession.shared.data(for: req)
+            let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
+            guard (r as? HTTPURLResponse)?.statusCode == 200 else {
+                error = obj["error"] as? String ?? "Holo n’a pas pu préparer de brouillon."
+                return
+            }
+            title = obj["title"] as? String ?? title
+            detail = obj["description"] as? String ?? detail
+            kind = .holo
+            goal = obj["goal"] as? String ?? goal
+            stepsText = (obj["steps"] as? [String] ?? []).joined(separator: "\n")
+            let p = obj["platforms"] as? [String] ?? ["mac", "windows"]
+            mac = p.contains("mac"); windows = p.contains("windows")
+            let w = (obj["warning"] as? String ?? "").trimmingCharacters(in: .whitespaces)
+            warning = w.isEmpty ? nil : w
+            draftNote = note + ". Relisez et corrigez avant de créer."
+        } catch {
+            self.error = "Impossible de joindre le serveur."
+        }
     }
 
     private func label(_ s: String) -> some View {
@@ -291,23 +523,6 @@ struct SupportCreateAutomate: View {
             "actions": [action],
             "steps": steps.map { ["instruction": $0] },
         ]
-        guard let url = URL(string: model.baseHTTP + "/automations"),
-              let body = try? JSONSerialization.data(withJSONObject: pack) else { return }
-        var req = URLRequest(url: url, timeoutInterval: 15)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = body
-        sending = true; defer { sending = false }
-        do {
-            let (d, r) = try await URLSession.shared.data(for: req)
-            let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
-            if (r as? HTTPURLResponse)?.statusCode == 200 {
-                done(obj?["title"] as? String ?? t)
-            } else {
-                error = obj?["error"] as? String ?? "Le serveur a refusé cet automate."
-            }
-        } catch {
-            self.error = "Impossible de joindre le serveur."
-        }
+        done(pack)
     }
 }

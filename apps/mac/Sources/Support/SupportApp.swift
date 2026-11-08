@@ -66,7 +66,7 @@ struct SupportRoot: View {
                 HStack(alignment: .top, spacing: 22) {
                     PeopleSidebar(model: model).frame(width: 236)
                     VStack(alignment: .leading, spacing: 12) {
-                        Onglets(options: [("Assistance", 0), ("Automates", 1)], selection: $onglet)
+                        Onglets(options: [("Assistance", 0), ("Mes automates", 1)], selection: $onglet)
                             .frame(maxWidth: 360)
                         if !model.connected { LostBar(model: model) }
                         if let reason = model.sensitiveRefusal { refusal(reason) }

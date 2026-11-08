@@ -32,6 +32,10 @@ if [[ -f "$ICONS/icon-1024.png" ]]; then
   /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" "$APP/Contents/Info.plist" 2>/dev/null || true
 fi
 
+# Exemples d'automates (bibliothèque du mode support au premier lancement).
+mkdir -p "$APP/Contents/Resources/automates"
+cp -X ../../automations/*.papai "$APP/Contents/Resources/automates/" 2>/dev/null || true
+
 xattr -cr "$APP"
 codesign --force --deep --sign - "$APP"
 echo "construit : $ROOT/$APP"
