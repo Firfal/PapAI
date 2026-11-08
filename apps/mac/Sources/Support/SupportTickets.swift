@@ -21,61 +21,66 @@ struct SupportTickets: View {
         (filter == 0 ? tickets.filter(\.isOpen) : tickets).filter { focus == nil || $0.category == focus }
     }
 
+    @State private var showStats = false
+
     var body: some View {
-        Panneau {
-            HStack(alignment: .center, spacing: 18) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Tickets").font(rounded(30, .bold))
-                    let open = tickets.filter(\.isOpen).count
-                    Text(open == 0 ? "Aucune demande en attente." :
-                         "\(open) demande\(open > 1 ? "s" : "") ouverte\(open > 1 ? "s" : "") chez vos utilisateurs.")
-                        .font(rounded(17, .medium)).opacity(0.92)
-                }
-                Spacer(minLength: 0)
-                if loading { ProgressView().controlSize(.small).tint(.white) }
-            }
-        } corps: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Onglets(options: [("Ouverts", 0), ("Tous", 1)], selection: $filter).frame(maxWidth: 260)
-                    Spacer()
-                    Button("Actualiser") { Task { await load() } }
-                        .buttonStyle(.plain).font(rounded(14, .semibold)).foregroundStyle(T.leaf)
-                }
-                ForEach(errors, id: \.self) { e in
-                    Label(e, systemImage: "exclamationmark.triangle").font(rounded(14)).foregroundStyle(T.danger)
-                }
-                ScrollViewReader { proxy in
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 10) {
-                        if let stats {
-                            TicketWeekCard(week: stats.thisWeek, suggest: { suggestion = $0 })
-                        }
-                        if let stats, stats.count > 0 {
-                            TicketStatsPanel(stats: stats, focus: $focus,
-                                             openExample: { ex in
-                                                 filter = 1; focus = nil; highlight = ex.id
-                                                 // La liste « Tous » doit être affichée avant de défiler.
-                                                 Task { @MainActor in
-                                                     try? await Task.sleep(nanoseconds: 150_000_000)
-                                                     withAnimation { proxy.scrollTo(ex.id, anchor: .center) }
-                                                 }
-                                             },
-                                             suggest: { suggestion = $0 })
-                        }
-                        if model.people.isEmpty {
-                            empty("Aucun utilisateur relié. Reliez un ordinateur depuis l’onglet Utilisateurs.")
-                        } else if shown.isEmpty && !loading {
-                            empty(filter == 0 ? "Rien à traiter. Les nouvelles demandes de vos utilisateurs arriveront ici."
-                                              : "Aucun ticket pour l’instant.")
-                        }
-                        ForEach(shown) { t in row(t).id(t.id) }
+        // Une seule barre (filtre, compteurs, actualiser), puis la liste. Le titre est déjà
+        // l'onglet « Tickets » : pas d'en-tête bleu en double. Les statistiques restent repliées.
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 14) {
+                let open = tickets.filter(\.isOpen).count
+                Onglets(options: [("Ouverts · \(open)", 0), ("Tous · \(tickets.count)", 1)], selection: $filter)
+                    .frame(maxWidth: 300)
+                if focus != nil {
+                    Button { focus = nil } label: {
+                        Label(TicketCategory.label(focus ?? ""), systemImage: "xmark.circle.fill")
                     }
-                    .padding(.bottom, 8)
+                    .buttonStyle(.plain).font(rounded(14, .semibold)).foregroundStyle(T.accent)
+                    .help("Retirer le filtre de catégorie")
                 }
+                Spacer()
+                if loading { ProgressView().controlSize(.small) }
+                if let stats, stats.count > 0 {
+                    Button { withAnimation(.easeOut(duration: 0.2)) { showStats.toggle() } } label: {
+                        Label("Statistiques", systemImage: showStats ? "chart.bar.fill" : "chart.bar")
+                    }
+                    .buttonStyle(.plain).font(rounded(14, .semibold)).foregroundStyle(showStats ? T.accent : T.muted)
                 }
+                Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.plain).font(.system(size: 15, weight: .semibold)).foregroundStyle(T.muted)
+                    .help("Actualiser")
+            }
+            ForEach(errors, id: \.self) { e in
+                Label(e, systemImage: "exclamationmark.triangle").font(rounded(14)).foregroundStyle(T.danger)
+            }
+            ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 10) {
+                    if showStats, let stats, stats.count > 0 {
+                        TicketWeekCard(week: stats.thisWeek, suggest: { suggestion = $0 })
+                        TicketStatsPanel(stats: stats, focus: $focus,
+                                         openExample: { ex in
+                                             filter = 1; focus = nil; highlight = ex.id
+                                             Task { @MainActor in
+                                                 try? await Task.sleep(nanoseconds: 150_000_000)
+                                                 withAnimation { proxy.scrollTo(ex.id, anchor: .center) }
+                                             }
+                                         },
+                                         suggest: { suggestion = $0 })
+                    }
+                    if model.people.isEmpty {
+                        empty("Aucun utilisateur relié pour l’instant.")
+                    } else if shown.isEmpty && !loading {
+                        empty(filter == 0 ? "Rien à traiter. Les demandes de vos utilisateurs arriveront ici."
+                                          : "Aucun ticket pour l’instant.")
+                    }
+                    ForEach(shown) { t in row(t).id(t.id) }
+                }
+                .padding(.bottom, 8)
+            }
             }
         }
+        .padding(.top, 4)
         .sheet(item: $suggestion) { sug in
             SupportCreateAutomate(model: model, prefill: sug.draft) { pack in
                 suggestion = nil
@@ -106,14 +111,13 @@ struct SupportTickets: View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text(t.label).font(rounded(14, .semibold)).foregroundStyle(T.muted).monospacedDigit()
+                    Text(t.person.name.isEmpty ? "Utilisateur" : t.person.name).font(rounded(15, .semibold))
                     status(t)
-                    Pastille(texte: TicketCategory.label(t.category) + (t.categoryBy == "doute" ? " ?" : ""),
-                             icone: "tag.fill", ton: t.categoryBy == "doute" ? .gris : .bleu, taille: 12)
+                    Text("\(t.label) · \(TicketCategory.label(t.category))\(t.categoryBy == "doute" ? " ?" : "")")
+                        .font(rounded(13)).foregroundStyle(T.muted).monospacedDigit()
                         .help(t.categoryBy == "support" ? "Catégorie corrigée par le support"
                               : t.categoryBy == "holo" ? "Catégorie choisie par Holo"
                               : t.categoryBy == "doute" ? "Catégorie à vérifier" : "Catégorie choisie par les règles")
-                    Text(t.person.name.isEmpty ? "Utilisateur" : t.person.name).font(rounded(14, .semibold))
                     if !t.assignee.isEmpty {
                         Text("· pris par \(t.assignee)").font(rounded(13)).foregroundStyle(T.muted)
                     }
@@ -152,23 +156,27 @@ struct SupportTickets: View {
                     Button(busy == t.id ? "…" : "Prendre en charge") { Task { await act(t, "take") } }
                         .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
                 }
-                Button("Voir l’utilisateur") { openUser(t.person) }
-                    .buttonStyle(PillStyle(filled: false, height: 36))
-                Menu("Catégorie") {
-                    ForEach(TicketCategory.all, id: \.id) { c in
-                        Button(c.label + (c.id == t.category ? " ✓" : "")) {
-                            Task { await act(t, "category", ["category": c.id]) }
+                // Le reste dans un seul menu, pour garder la carte lisible.
+                Menu {
+                    Button("Voir l’utilisateur") { openUser(t.person) }
+                    Menu("Catégorie") {
+                        ForEach(TicketCategory.all, id: \.id) { c in
+                            Button(c.label + (c.id == t.category ? " ✓" : "")) {
+                                Task { await act(t, "category", ["category": c.id]) }
+                            }
                         }
                     }
+                    Divider()
+                    if t.isOpen && t.status != "en_cours" {
+                        Button("Clore le ticket") { Task { await act(t, "close") } }
+                    } else if !t.isOpen {
+                        Button("Rouvrir le ticket") { Task { await act(t, "reopen") } }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle").font(.system(size: 20, weight: .medium)).foregroundStyle(T.muted)
                 }
-                .menuStyle(.borderlessButton).fixedSize().font(rounded(13, .semibold)).disabled(busy != nil)
-                if t.isOpen && t.status != "en_cours" {
-                    Button("Clore") { Task { await act(t, "close") } }
-                        .buttonStyle(.plain).font(rounded(13, .semibold)).foregroundStyle(T.muted).disabled(busy != nil)
-                } else if !t.isOpen {
-                    Button("Rouvrir") { Task { await act(t, "reopen") } }
-                        .buttonStyle(.plain).font(rounded(13, .semibold)).foregroundStyle(T.muted).disabled(busy != nil)
-                }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(busy != nil)
+                .help("Plus d’actions")
             }
         }
         .padding(14).carte()
