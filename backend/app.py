@@ -621,7 +621,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if text:
                     it["precisions"].append({"q": it["question"], "a": text})
                 it["question"], it["options"] = "", []
-                _later(_qualifier(force=skip))
+                it["force"] = it.get("force", False) or skip  # « Envoyer quand même » survit à une reconnexion
+                _later(_qualifier())
                 continue
 
             if kind == "clarify_cancel":
@@ -903,7 +904,7 @@ async def _qualifier(force: bool = False) -> None:
     it = getattr(S(), "intake", None)
     if it is None:
         return
-    r = await clarify.evaluer(it["demande"], it["precisions"], force=force)
+    r = await clarify.evaluer(it["demande"], it["precisions"], force=force or it.get("force", False))
     link = S().bridge
     if getattr(S(), "intake", None) is not it:
         return  # annulée ou remplacée entre-temps
