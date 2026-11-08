@@ -762,7 +762,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     # est rouvert, Holo repart de ce qui avait été fait.
                     reprise = _reprise(again)
                     S().tickets.note(again, S().family.senior or "L’utilisateur", "Le problème est revenu.")
-                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="", reprise=reprise)
+                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="", reprise=reprise,
+                                       linkup_answer=None, suggestion_lancee=None)
                     ticket, reopened = again, True
                 if ticket is None and not by and not msg.get("new") and "tidy" not in msg:
                     same = S().tickets.same(task)
