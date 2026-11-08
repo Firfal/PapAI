@@ -421,11 +421,11 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "automation_failed":
-                # Un automatisme n'a pas pu se rejouer : l'écran ou le dossier a
+                # Un automate n'a pas pu se rejouer : l'écran ou le dossier a
                 # changé. On ne tente rien à l'aveugle, on prévient l'aidant.
                 await broadcast_helper({
                     "type": "alert",
-                    "title": str(msg.get("title", "Un raccourci"))[:200],
+                    "title": str(msg.get("title", "Un automate"))[:200],
                     "detail": str(msg.get("detail", ""))[:1000],
                 })
                 continue
@@ -663,7 +663,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
                 lesson = await draft_lesson(session)
             except Exception as e:  # noqa: BLE001 — l'aidant ne doit pas rester sans réponse
                 session.log("lesson_failed", error=f"{type(e).__name__}: {e}")
-                raise Refused("Holo n'a pas pu rédiger la fiche. Réessayez.") from e
+                raise Refused("Holo n'a pas pu rédiger l'automate. Réessayez.") from e
             session.lesson = lesson
             # Aperçu : les captures voyagent avec le brouillon, mais
             # ne sont écrites nulle part tant que rien n'est validé.
@@ -677,7 +677,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
 
         elif kind == "approve_lesson":
             if not session.lesson:
-                raise Refused("Aucune fiche à valider.")
+                raise Refused("Aucun automate à valider.")
             # Le proche a pu corriger le texte : on reprend le sien.
             edited = msg.get("lesson") or {}
             for i, step in enumerate(session.lesson["steps"]):
@@ -691,7 +691,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             saved = approve_and_save(session.lesson, session)
             await ws.send_json({"type": "lesson_saved", "lesson": saved})
             if bridge is not None:
-                # La personne aidée le retrouve aussitôt dans « Mes tutoriels ».
+                # La personne aidée le retrouve aussitôt dans « Mes automates ».
                 await bridge.send({"type": "lessons_changed", "title": saved.get("title", "")})
 
         else:
@@ -752,7 +752,7 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
         raise Refused("Le PC n'est pas connecté.")
 
     session.take_control(Owner.HELPER)
-    args = {"element": "clic du proche", "x": round(x * 1000), "y": round(y * 1000)}
+    args = {"element": "clic du support", "x": round(x * 1000), "y": round(y * 1000)}
     session.log("helper_click", x=args["x"], y=args["y"])
     session.execution_started = True
     result = await bridge.execute("click", args)
@@ -865,7 +865,7 @@ async def handle_remote_request(msg: dict, ws: WebSocket) -> None:
     names = [h["name"] for h in family.helpers]
     who = str(msg.get("from", "")).strip()
     if who not in names:
-        who = names[0] if len(names) == 1 else "Votre proche"
+        who = names[0] if len(names) == 1 else "Votre support"
     task = str(msg.get("text", "")).strip()[:300]
     await bridge.send({"type": "remote_request", "from": who, "task": task})
     await ws.send_json({"type": "ack", "what": "remote_request"})
@@ -966,9 +966,9 @@ GUARD_ADVICE_TIMEOUT_S = 9
 
 def guard_contact() -> str:
     if not family.helpers:
-        return "votre proche"
+        return "votre support"
     h = next((h for h in family.helpers if h["id"] in _online_ids()), family.helpers[0])
-    relation = re.sub(r"^(mon|ma|mes|son|sa|ses|votre)\s+", "", h.get("relation", "").strip(), flags=re.I)
+    relation = re.sub(r"^(mon|ma|mes|son|sa|ses|votre|un|une|le|la)\s+", "", h.get("relation", "").strip(), flags=re.I)
     return f"votre {relation} {h['name']}" if relation else h["name"]
 
 
@@ -988,11 +988,11 @@ async def publish_guard(alerte: guard.Alerte, source: str, session=None, *,
                else "L'assistance est arrêtée.")
     senior = {**common, "title": "Attention, cette démarche peut être une arnaque.",
               "detail": senior_detail or detail}
-    who = family.senior or "Votre proche"
+    who = family.senior or "La personne aidée"
     detail = f"{who} a besoin de votre avis. {alerte.detail}"
     if session:
         detail += f"\nDemande : « {session.task} »"
-    detail += "\nPrenez contact avec votre proche avant de poursuivre. Choisissez « C'est normal » uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
+    detail += f"\nPrenez contact avec {family.senior or 'la personne aidée'} avant de poursuivre. Choisissez « C'est normal » uniquement si vous connaissez cette démarche. L'assistance ne reprendra pas automatiquement."
     helper = {**common, "title": f"Démarche à vérifier pour {who}", "detail": helper_detail or detail}
     pending_alert = {"senior": senior, "helper": helper}
     if bridge:
@@ -1051,7 +1051,7 @@ async def check_request(session, texte: str, source: str) -> bool:
             if type(avis.get("suspect")) is not bool:
                 raise ValueError("Avis manquant")
             if avis["suspect"]:
-                raison = str(avis.get("raison") or "Demande inhabituelle à vérifier avec votre proche.")[:500]
+                raison = str(avis.get("raison") or "Demande inhabituelle à vérifier avec votre support.")[:500]
                 alerte = guard.Alerte("attention", "Démarche à vérifier", raison, "avis_holo", False)
         except Exception:
             if session.is_open:

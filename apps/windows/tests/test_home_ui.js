@@ -44,7 +44,7 @@ test('textes Mac #30, avertissement vide identique et titres renforcés', async 
   assert.match(h.root.innerHTML, /Un souci sur l'ordinateur \? Écrivez ce dont vous avez besoin, un message part tout de suite à Théo\./);
   assert.match(h.root.innerHTML, /placeholder="Écrivez votre demande"/);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>(Bonjour|Bonsoir)</);
-  assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes tutoriels</);
+  assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes automates</);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes raccourcis</);
   assert.match(h.root.innerHTML, /class="pill filled" data-act="submit"[^>]*height:44px/);
   h.click('submit');
@@ -107,9 +107,9 @@ test('bascule micro/texte à chaud, sans perdre le brouillon', async () => {
   assert.match(h.root.innerHTML, /Mes photos<\/textarea>/);
 });
 
-test('aucun tutoriel vide, date ni ancien bouton', async () => {
+test('aucun automate vide, date ni ancien bouton', async () => {
   const h = await home(false);
-  assert.doesNotMatch(h.root.innerHTML, /Mes tutoriels|J'ai besoin d'aide|Mes applications/);
+  assert.doesNotMatch(h.root.innerHTML, /Mes automates|J'ai besoin d'aide|Demander une assistance|Mes applications/);
   assert.match(h.root.innerHTML, /Mes raccourcis/);
   assert.match(h.root.innerHTML, /logotype-papai.svg/);
 });
@@ -212,5 +212,5 @@ test("encart pendant que Holo agit, et fin du gardien adaptée à l'aidé", asyn
   h.update(session({ state: 'stopped', sessionOpen: false, stoppedBy: 'gardien', guardAcknowledged: true }));
   assert.match(html(h), /cette démarche peut être une arnaque/);
   assert.match(html(h), /Appelez Claire à son numéro habituel\./);
-  assert.match(html(h), /Un proche a vu l'alerte et s'en occupe/);
+  assert.match(html(h), /Votre support a vu l'alerte et s'en occupe/);
 });

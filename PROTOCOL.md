@@ -34,11 +34,11 @@ connaît doit accepter qu'il manque (ancien serveur) ou soit `null`.
 Envoie :
 - `{"type":"hello","os":"macos","name":"Sophie"}` à chaque connexion. `name` : le prénom saisi sur l'ordinateur (absent tant qu'il n'est pas saisi).
 - `{"type":"profile","name":"Sophie"}` quand le prénom change. Le serveur le garde et le transmet aux aidants (`senior`).
-- `{"type":"help_request","task":"…"}` quand elle appuie sur « J'ai besoin d'aide ».
+- `{"type":"help_request","task":"…"}` quand elle appuie sur « Demander une assistance ».
 - `{"type":"stop"}` bouton Arrêter. **Le verrou local passe d'abord** : plus aucune action exécutée, même hors ligne.
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
 - `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt ou action interdite.
-- `{"type":"automation_failed","title":"…","detail":"…"}` quand un automatisme ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
+- `{"type":"automation_failed","title":"…","detail":"…"}` quand un automate ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
 - `{"type":"pair_start"}` pour ajouter un proche (QR, 10 min) ; `{"type":"pair_start","long":true}` pour une **invitation à envoyer** par SMS, WhatsApp, Mail… (24 h). Le serveur répond `pair_code`.
 - `{"type":"remove_helper","id":"…"}` retire un proche.
 - `{"type":"remote_answer","accepted":false}` refus d'une session proposée par un proche. En cas d'accord, l'app envoie directement `help_request` avec `"requested_by":"Claire"`.
@@ -53,7 +53,7 @@ Reçoit :
 - `{"type":"pair_code","code":"482913","url":"http://…/p/482913","app_url":"papai://pair?u=http%3A%2F%2F…%2Fp%2F482913","expires_in":600}` code à afficher.
   Le QR contient `app_url` (ouvre l'app iPhone) ; le code et `url` restent affichés en texte pour le secours web.
   Ancien serveur sans `app_url` : l'app le construit, `papai://pair?u=` + `url` encodée (tous caractères réservés).
-- `{"type":"lessons_changed","title":"…"}` le proche vient de valider un tutoriel : l'app relit `/lessons`.
+- `{"type":"lessons_changed","title":"…"}` le proche vient de valider un automate : l'app relit `/lessons`.
 - `{"type":"remote_request","from":"Claire","task":"…"}` un proche propose une session : rien ne démarre sans l'accord de la personne aidée.
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
 
@@ -69,7 +69,7 @@ Reçoit :
 - `{"type":"frame","frame_id":"…","png_b64":"…"}` capture de l'écran de l'aîné
 - `{"type":"question","question":"…","options":["…"]}`
 - `{"type":"answer","content":"…"}` fin de tâche
-- `{"type":"alert","title":"…","detail":"…"}` un automatisme a échoué
+- `{"type":"alert","title":"…","detail":"…"}` un automate a échoué
 - `{"type":"lesson_pending"}`, `{"type":"lesson_draft","lesson":{…},"preview":{frame_id:png_b64}}`, `{"type":"lesson_saved","lesson":{…}}`
   Chaque étape du brouillon a un `frame` : une vraie capture de la session, présente dans `preview`. Jamais d'image fabriquée. Sans aucune capture, le serveur répond `refused`.
 - `{"type":"refused","reason":"…"}`, `{"type":"ack","what":"pause|click"}`
@@ -79,8 +79,8 @@ Envoie :
 - `{"type":"answer","text":"…"}` réponse à une question
 - `{"type":"pause"}` · `{"type":"refresh"}` · `{"type":"click","frame_id":"…","x":0..1,"y":0..1}` (seulement en `awaiting_helper`)
 - `{"type":"remote_request","text":"…","from":"Claire"}` proposer une session (seulement s'il n'y en a pas d'ouverte). Réponses : `ack` `remote_request`, puis `remote_refused` ou `remote_accepted`.
-- `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automatisme »
-  Si Holo n'a pas pu rédiger la fiche, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
+- `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automate »
+  Si Holo n'a pas pu rédiger l'automate, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
 
 ## Dictée de la demande
 
@@ -274,9 +274,9 @@ page bancaire ouverte.
 
 Consulter sa banque seule ne déclenche rien.
 
-## Automatismes
+## Automates
 
-`GET /lessons` renvoie les automatismes validés. Chacun a `title`, `steps`
+`GET /lessons` renvoie les automates validés. Chacun a `title`, `steps`
 (pas à pas, mode « Montre-moi ») et `shortcut` `{"folder":"pictures","subfolder":"Noël 2025"}`
 que l'app rejoue **localement, sans modèle** : elle ouvre le dossier connu du système.
 Si le dossier n'existe plus, elle n'invente rien : `automation_failed`.
