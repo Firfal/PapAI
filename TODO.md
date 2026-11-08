@@ -55,7 +55,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 ## Support informatique de niveau 1 (7 novembre au soir)
 
-- [x] Automates importés par un support (`.papai`) : import et retrait (page aidant, `POST /k/CLÉ/automations`), actions de premier niveau, lancement en un clic sans validation à chaque fois, 4 exemples dans `automations/`. Tests : `tests/test_automatismes.py` (40 contrôles) et `apps/windows/tests/test_windows_app.py`.
+- [x] Automates importés par un support (`.papai`) : import et retrait (page aidant, `POST /k/CLÉ/automations`), actions de premier niveau, lancement en un clic sans validation à chaque fois, 7 exemples dans `automations/` (dont démos Wi-Fi, bloqueur de publicités, navigateur remis à zéro). Tests : `tests/test_automatismes.py` (40 contrôles) et `apps/windows/tests/test_windows_app.py`.
 - [x] Plus de surveillance continue : les apps Mac et Windows n'envoient plus les signaux du gardien toutes les 8 s.
 - [ ] Compiler et essayer sur un Mac (`Automations` dans `Core.swift`) : modèles Word, page Imprimantes, Google via Holo.
 - [ ] Essayer sur un vrai Windows : scan Defender (`MpCmdRun.exe`), modèles Word dans `%APPDATA%\Microsoft\Templates`, `ms-settings:printers`.
