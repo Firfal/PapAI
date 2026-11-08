@@ -231,7 +231,7 @@ final class AppModel {
     /// Le texte de l'invitation envoyée au proche, avec le lien d'appairage.
     var invitationText: String {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
-        let who = n.isEmpty ? "Votre support" : n
+        let who = n.isEmpty ? "Une personne de votre entourage" : n
         return "\(who) aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre téléphone pour vous relier (valable 24 heures) :"
     }
 

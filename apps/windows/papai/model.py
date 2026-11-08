@@ -452,7 +452,7 @@ class Model:
     @property
     def invitation_text(self) -> str:
         n = str(self.prefs.get("firstName") or "").strip()
-        who = n or "Votre support"
+        who = n or "Une personne de votre entourage"
         return (f"{who} aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre "
                 f"téléphone pour vous relier (valable {'24 heures' if self.pair_long else '10 minutes'}) :")
 
