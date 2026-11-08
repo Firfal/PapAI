@@ -12,11 +12,27 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 6. Avant de pousser, `git fetch` puis remettre sa branche à jour sur `main` : un autre agent a peut-être touché aux mêmes fichiers.
 5. Le contrat entre le serveur et les apps est `PROTOCOL.md` : tout nouveau message y est décrit.
 
+## Vocabulaire (textes visibles et consignes de Holo)
+
+Un seul mot par notion, dans toutes les apps. Les identifiants internes (`senior`, `aidant`, `lesson`, routes, messages du protocole) ne changent pas.
+
+| Notion | Mot à l'écran | À ne pas écrire |
+|---|---|---|
+| Celui qui aide (proche, service informatique) | **support** (« Mon support », « Ajouter un support ») | aidant, proche, famille |
+| Celui qui est aidé | son **prénom**, sinon « la personne aidée » | personne âgée, senior, Mamie, votre proche |
+| L'app | **PapAI** | |
+| L'assistant IA | **Holo** | l'IA, l'agent |
+| La tâche enregistrée, relancée d'un clic | **automate** (« Mes automates », « un automate ») | tutoriel, automatisme, fiche, AutoMate |
+| L'aide en cours | **l'assistance** ; au départ, « Demander une assistance » | session |
+| Associer un téléphone | **liaison** par **QR code** ou code à 6 chiffres | appairage, QR seul |
+| Le poste aidé, quand le texte vaut pour Mac et Windows | **l'ordinateur** | le Mac, le PC |
+| Les décisions sur le plan | **Valider**, **Préciser**, **Refuser** | Accepter, Approuver |
+
 ## En cours
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794095923-terminologie` | Terminologie unique (suite de #37) | textes visibles des apps Mac, Windows, iPhone, Android, `backend/static`, messages serveur, `backend/web_agent.py`, docs | 8 nov. |
 
 ## Journal
 
