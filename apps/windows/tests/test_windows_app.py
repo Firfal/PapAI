@@ -529,6 +529,8 @@ def entreprise() -> None:
         check(m.server_url == "wss://srv/k/cle-de-test-123/ws/bridge" and not settings.needs_space(m.prefs),
               "l'espace créé est gardé : plus rien à régler")
         check(settings.provision("http://127.0.0.1:9", timeout=1) is None, "serveur injoignable : pas d'espace")
+        check(settings._on_base("wss://papai.run.app/k/cle/ws/bridge", "http://localhost:8071")
+              == "ws://localhost:8071/k/cle/ws/bridge", "pont recalé sur le serveur de la stratégie")
         settings.save({"server": ""})
         m = Model()
         essais, attentes = iter([None, None, "wss://srv/k/cle-apres-coupure/ws/bridge"]), []

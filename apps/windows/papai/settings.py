@@ -204,11 +204,24 @@ def provision(base: str | None = None, timeout: float = 10, org: str = "",
     clé comprise. L’utilisateur n'a rien à régler. `info` reçoit la réponse
     (nom de l'organisation pour un poste d'entreprise)."""
     body = {"org": org, "name": machine_name()} if org else {}
-    st, d = _post((base or enroll_base()).rstrip("/") + "/spaces", body, timeout)
+    base = (base or enroll_base()).rstrip("/")
+    st, d = _post(base + "/spaces", body, timeout)
     url = str(d.get("bridge_url") or "") if st == 200 else ""
     if info is not None:
         info.update(d, status=st)
-    return url if url.startswith(("wss://", "ws://")) and "/k/" in url else None
+    if not (url.startswith(("wss://", "ws://")) and "/k/" in url):
+        return None
+    return _on_base(url, base)
+
+
+def _on_base(bridge: str, base: str) -> str:
+    """Le pont annoncé par le serveur, recalé sur l'adresse où le poste s'est inscrit
+    (le `PUBLIC_URL` du serveur peut différer du `Server` de la stratégie)."""
+    from urllib.parse import urlsplit, urlunsplit
+    b, u = urlsplit(base), urlsplit(bridge)
+    scheme = "wss" if b.scheme == "https" else "ws"
+    path = u.path[u.path.index("/k/"):]
+    return urlunsplit((scheme, b.netloc, b.path.rstrip("/") + path, u.query, ""))
 
 
 def join_org(http: str, org: str, timeout: float = 10) -> str | None:
