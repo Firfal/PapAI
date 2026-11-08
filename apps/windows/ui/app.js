@@ -564,7 +564,7 @@
     relaunchRequest: (id) => {
       const r = (S.requests || []).find(r => r.id === id);
       if (!r?.relaunch || !(S.lessons || []).some(l => l.id === r.relaunch)) return;
-      ui.sheet = null; call('close_requests'); call('relaunch_request', id); render();
+      ui.sheet = null; render(); call('close_requests'); call('relaunch_request', id);
     },
     closeSheet: () => { if (ui.sheet === 'requests') call('close_requests'); ui.sheet = null; render(); },
     dismissAlert: () => { if (!S.alert?.blocked) { S.alert = null; render(); call('dismiss_alert'); } },
