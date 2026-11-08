@@ -49,6 +49,8 @@ def regles() -> None:
               not r["clair"] and r["question"] == clarify.QUESTION_GENERALE and r["options"])
         r = asyncio.run(clarify.evaluer("Imprimer un document"))
         check("Holo injoignable, demande précise : elle part telle quelle", r == {"clair": True, "objet": "Imprimer un document"})
+        r = asyncio.run(clarify.evaluer(VAGUE, [{"q": "Quoi ?", "a": "L'imprimante ne marche plus"}]))
+        check("Holo injoignable après une réponse : le ticket porte la réponse", r["objet"] == "L'imprimante ne marche plus")
         r = asyncio.run(clarify.evaluer(VAGUE, [], force=True))
         check("« Envoyer quand même » ne repose jamais de question", r["clair"])
     finally:
@@ -95,6 +97,19 @@ async def parcours(base: str) -> None:
         check("demande annulée : aucune réponse ne crée de ticket",
               not [m for m in await drain(wa, 1.5) if m.get("type") in ("ticket_queued", "clarify")] and len(tickets(base, key)) == 3)
 
+    # L'ordinateur se reconnecte pendant la question : elle est reposée, la réponse aboutit.
+    async with websockets.connect(a["bridge_url"]) as wa:
+        await wa.send(json.dumps({"type": "hello", "os": "windows", "clarify": True}))
+        await drain(wa, 0.5)
+        await wa.send(json.dumps({"type": "help_request", "task": VAGUE}))
+        await attendre(wa, "clarify", 10)
+    async with websockets.connect(a["bridge_url"]) as wa:
+        await wa.send(json.dumps({"type": "hello", "os": "windows", "clarify": True}))
+        q = await attendre(wa, "clarify", 5)
+        check("reconnexion : la question de Holo est reposée", q is not None and q["question"])
+        await wa.send(json.dumps({"type": "clarify_answer", "text": "Le Wi-Fi"}))
+        check("reconnexion : la réponse ouvre le ticket", await attendre(wa, "ticket_queued", 10) is not None)
+
         await wa.send(json.dumps({"type": "hello", "os": "windows"}))
         await drain(wa, 0.3)
         await wa.send(json.dumps({"type": "help_request", "task": VAGUE}))
@@ -131,6 +146,17 @@ async def parcours(base: str) -> None:
             check("le ticket de l'assistance garde la précision",
                   t.get("task") == "Imprimante : impression impossible" and t.get("demande") == VAGUE)
             await wa.send(json.dumps({"type": "stop"}))
+            await drain(wa, 1)
+
+            # Annuler juste après la dernière réponse : aucune assistance ne reste ouverte.
+            await wa.send(json.dumps({"type": "help_request", "task": VAGUE}))
+            await attendre(wa, "clarify", 10)
+            await wa.send(json.dumps({"type": "clarify_answer", "text": "L'imprimante"}))
+            await asyncio.sleep(0.3)
+            await wa.send(json.dumps({"type": "clarify_cancel"}))
+            await drain(wa, 1.5)
+            check("Annuler après la réponse : aucune assistance en cours",
+                  not [x for x in tickets(base, key) if x["status"] == "en_cours"])
 
 
 if __name__ == "__main__":
