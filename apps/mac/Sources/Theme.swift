@@ -171,8 +171,8 @@ struct Header: View {
             // Onglets de l'accueil, au-dessus de l'encadré bleu, à distance du logo.
             if model.screen == .home {
                 @Bindable var m = model
-                Onglets(options: [("Accueil", 0), ("Automates", 1)], selection: $m.homeTab)
-                    .frame(width: 300)
+                Onglets(options: [("Accueil", 0), ("Automates", 1), ("Tickets", 2)], selection: $m.homeTab)
+                    .frame(width: 420)
                     .padding(.leading, 48)
             }
             Spacer()

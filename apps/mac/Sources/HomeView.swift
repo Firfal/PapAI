@@ -24,7 +24,9 @@ struct HomeView: View {
                 // En-tête bleu sur toute la largeur ; la barre de demande garde la largeur de la colonne gauche.
                 // L'encadré bleu (bonjour + demande) reste sur l'onglet Accueil seulement.
                 if model.homeTab == 0 { enTete(barre: deux ? gauche - Self.marge : nil) }
-                if model.homeTab == 1 {
+                if model.homeTab == 2 {
+                    UserTickets().frame(maxHeight: .infinity, alignment: .top)
+                } else if model.homeTab == 1 {
                     automates(titre: false, tous: true).padding(.bottom, 24)
                         .frame(maxHeight: .infinity, alignment: .top)
                 } else if deux {

@@ -435,6 +435,7 @@ final class AppModel {
             }
             let json = #"[{"id":"a","title":"Mes photos de Noël","shortcut":{"folder":"pictures"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes documents","shortcut":{"folder":"documents"}}]"#
             lessons = (try? JSONDecoder().decode([Lesson].self, from: Data(json.utf8))) ?? []
+            if demo == "tickets" { homeTab = 2; return }
             if demo == "home" { return }
             if demo == "home_empty" { lessons = []; return }
             if demo == "alert" {
