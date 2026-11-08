@@ -64,6 +64,9 @@ struct RootView: View {
         .sheet(isPresented: $model.showSettings) {
             SettingsView().environment(model)
         }
+        .sheet(isPresented: $model.showRequests) {
+            MesDemandesView().environment(model)
+        }
     }
 }
 

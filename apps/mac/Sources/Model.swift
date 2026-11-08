@@ -83,6 +83,10 @@ final class AppModel {
     @ObservationIgnored let narration = LocalNarration.shared
     var answerSources: [[String: String]] = []
     var lessons: [Lesson] = []
+    var requests: [UserRequest] = []
+    var showRequests = false
+    var requestsLoading = false
+    var requestsError = false
     var notice: String?
     var lesson: Lesson?
     /// La fiche d'automate ouverte par-dessus l'accueil.
@@ -339,6 +343,13 @@ final class AppModel {
             }
             let json = #"[{"id":"a","title":"Mes photos de Noël","shortcut":{"folder":"pictures"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes documents","shortcut":{"folder":"documents"}}]"#
             lessons = (try? JSONDecoder().decode([Lesson].self, from: Data(json.utf8))) ?? []
+            if demo == "requests" {
+                let automate = #"{"id":"print","title":"Configurer mon imprimante","platforms":["mac"],"actions":[{"do":"open_settings","page":"printers"}]}"#
+                if let l = try? JSONDecoder().decode(Lesson.self, from: Data(automate.utf8)) { lessons.append(l) }
+                requests = (try? JSONDecoder().decode(UserRequestsResponse.self, from: Data(UserRequestsResponse.demo.utf8)).requests) ?? []
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showRequests = true }
+                return
+            }
             if demo == "home" { return }
             if demo == "home_empty" { lessons = []; return }
             if demo == "alert" {
@@ -457,6 +468,34 @@ final class AppModel {
         } else if lessons.isEmpty {
             lessons = OfflineLessons.load(base: httpBase)  // pas de réseau : ceux qui n'ont pas besoin de Holo
         }
+    }
+
+    func refreshRequests() async {
+        guard ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil else { return }
+        requestsLoading = true
+        requestsError = false
+        defer { requestsLoading = false }
+        guard let url = URL(string: httpBase + "/requests") else {
+            requests = []; requestsError = true
+            return
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 5
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+            requests = try JSONDecoder().decode(UserRequestsResponse.self, from: data).requests
+        } catch {
+            requests = []
+            requestsError = true
+        }
+    }
+
+    func relaunchRequest(_ request: UserRequest) {
+        guard let id = request.relaunchID(availableIDs: Set(lessons.map(\.id))),
+              let lesson = lessons.first(where: { $0.id == id }) else { return }
+        showRequests = false
+        runAutomation(lesson)
     }
 
     // MARK: Fenêtre
@@ -733,6 +772,8 @@ final class AppModel {
             } else if !Self.cachedHelpers().isEmpty {
                 sendProfile()
             }
+        case "tickets_changed":
+            if showRequests { Task { await refreshRequests() } }
         case "lessons_changed":
             Task {
                 await refreshLessons()

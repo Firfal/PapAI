@@ -51,6 +51,7 @@
         <span class="dot" style="background:#7A8296"></span>
         <span style="${f(16, 5)}">Pas de connexion pour le moment</span>
       </div>`}
+      ${h.home ? `<button class="pillChip chip-blue press" data-act="openRequests" style="padding:10px 16px;min-height:44px;${f(16, 6)}">Mes demandes</button>` : ''}
       <button class="circle press" data-act="openSettings" aria-label="Réglages"
         style="width:44px;height:44px">${icon('gear', 20)}</button>
       </div>
@@ -450,6 +451,36 @@
       <div class="muted" style="${f(15, 4)}">Réglé par votre service informatique : rien à faire sur cet ordinateur.</div>`;
   }
 
+  function requestsSheet() {
+    const states = { nouveau: 'En attente', en_attente: 'En attente', rdv: 'Rendez-vous prévu',
+      en_cours: 'En cours', a_reprendre: 'Interrompue', resolu: 'Réglée' };
+    const rows = (S.requests || []).map(r => {
+      const date = new Date(Number(r.created) * 1000);
+      const dateText = Number(r.created) > 0 && !Number.isNaN(date.getTime())
+        ? date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+      const s = r.solution;
+      let solution = '';
+      if (s?.kind === 'automate') solution = `<div>Réglée par l'automate « ${esc(s.title || 'Automate')} »</div>`;
+      if (s?.kind === 'plan') solution = `<div>Plan exécuté</div><ol>${(s.steps || []).map(t => `<li>${esc(t)}</li>`).join('')}</ol>`;
+      if (s?.kind === 'answer') solution = `<div>Réponse validée par le support</div><div class="requestText">${esc(s.text)}</div>
+        ${(s.sources || []).map(source => `<div class="muted">${esc(source.title)}${source.url ? ' · ' + esc(source.url) : ''}</div>`).join('')}`;
+      const canRelaunch = r.relaunch && (S.lessons || []).some(l => l.id === r.relaunch);
+      return `<article class="card col requestItem" style="padding:20px;gap:10px;${f(17, 5)}">
+        <div class="row" style="gap:12px;flex-wrap:wrap"><span class="muted">${esc(dateText)}</span><span class="spacer"></span>
+          <span style="color:var(--leaf);${f(16, 6)}">${esc(states[r.status] || 'En attente')}</span></div>
+        <div class="requestText" style="${f(20, 6)}">${esc(r.task)}</div>
+        ${solution ? `<div class="col" style="gap:8px">${solution}</div>` : ''}
+        ${canRelaunch ? pill('Relancer', 'relaunchRequest', { arg: r.id, height: 44 }) : ''}</article>`;
+    }).join('');
+    const content = S.requestsLoading ? 'Chargement…' : S.requestsError ? "Liste indisponible pour l'instant."
+      : !(S.requests || []).length ? "Aucune demande pour l'instant." : null;
+    return `<section class="sheet col requestsSheet" role="dialog" aria-modal="true" aria-label="Mes demandes"
+      style="width:720px;max-width:calc(100vw - 32px);padding:32px;gap:18px;background:var(--card)">
+      <div class="sheetHead row" style="gap:16px"><span style="${f(28, 6)}">Mes demandes</span><span class="spacer"></span>
+        <button class="pillChip chip-blue press" data-act="closeSheet" style="padding:10px 16px;${f(16, 6)}">Fermer</button></div>
+      ${content ? `<div style="${f(20, 5)}">${esc(content)}</div>` : rows}</section>`;
+  }
+
   function settingsSheet() {
     const seg = S.textScales.map(([label, v]) =>
       `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
@@ -514,6 +545,7 @@
     document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${main}</div>`;
     document.getElementById('sheet').innerHTML =
       S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
+        : ui.sheet === 'requests' ? requestsSheet()
         : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
     const req = document.getElementById('req');
     if (req) autosize(req);
@@ -563,7 +595,13 @@
       render();
     },
     openSettings: () => { ui.sheet = 'settings'; render(); },
-    closeSheet: () => { ui.sheet = null; render(); },
+    openRequests: () => { ui.sheet = 'requests'; call('open_requests'); render(); },
+    relaunchRequest: (id) => {
+      const r = (S.requests || []).find(r => r.id === id);
+      if (!r?.relaunch || !(S.lessons || []).some(l => l.id === r.relaunch)) return;
+      ui.sheet = null; render(); call('close_requests'); call('relaunch_request', id);
+    },
+    closeSheet: () => { if (ui.sheet === 'requests') call('close_requests'); ui.sheet = null; render(); },
     dismissAlert: () => { if (!S.alert?.blocked) { S.alert = null; render(); call('dismiss_alert'); } },
     scale: (v) => { S.textScale = parseFloat(v); render(); call('set_text_scale', parseFloat(v)); },
     protection: (v) => { S.realtimeProtection = v === '1'; render(); call('set_realtime_protection', S.realtimeProtection); },
@@ -692,6 +730,7 @@
     if (q.has('demo')) {
       fetch('state.json?' + q.toString()).then((r) => r.json()).then((snap) => {
         if (q.get('sheet')) ui.sheet = q.get('sheet');
+        else if (q.get('demo') === 'requests') ui.sheet = 'requests';
         if (q.get('dictation')) snap.dictation = { phase: q.get('dictation'), message: null };
         if (q.get('request')) ui.request = q.get('request');
         if (q.get('connected') === '0') snap.connected = false;

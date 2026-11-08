@@ -185,3 +185,33 @@ def solution(t: dict) -> dict:
 
 def public(t: dict) -> dict:
     return {k: v for k, v in ticket_stats.ensure(dict(t)).items() if k not in ("rdv_notified", "offered")}
+
+
+def for_user(t: dict, lessons: list[dict]) -> dict:
+    """Vue texte : automate (demande résolue seulement) prioritaire sur la réponse validée, puis le plan exécuté."""
+    def text(value):
+        return value if isinstance(value, str) else ""
+
+    result = {k: text(t.get(k)) for k in ("id", "task", "status")}
+    result.update({k: t.get(k) if type(t.get(k)) in (int, float) else 0
+                   for k in ("number", "created", "updated")})
+    solution, relaunch = None, None
+    lesson_id = text(t.get("automation")) or text(t.get("suggestion_lancee"))
+    if lesson_id and t.get("status") == "resolu":
+        lesson = next((a for a in lessons if a.get("id") == lesson_id), None)
+        title = text(lesson.get("title")) if lesson else next(
+            (text(a.get("title")) for a in t.get("suggestions", [])
+             if isinstance(a, dict) and a.get("id") == lesson_id), "")
+        solution = {"kind": "automate", "lesson": lesson_id, "title": title}
+        if lesson is not None:
+            relaunch = lesson_id
+    elif isinstance(t.get("linkup_answer"), dict):
+        answer = t["linkup_answer"]
+        solution = {"kind": "answer", "text": text(answer.get("content")),
+                    "sources": [{"title": text(s.get("title")), "url": text(s.get("url"))}
+                                for s in answer.get("sources", []) if isinstance(s, dict)]}
+    elif t.get("end") == "done":
+        steps = [s for s in t.get("plan", []) if isinstance(s, str) and s]
+        if steps:
+            solution = {"kind": "plan", "steps": steps}
+    return {**result, "solution": solution, "relaunch": relaunch}

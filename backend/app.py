@@ -831,7 +831,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 ticket = _open_ticket(lesson.get("title") or goal[:MAX_TASK], "automatisme",
                                           status="en_cours", by=S().family.senior)
                 session.ticket = ticket["id"]
-                S().tickets.update(ticket, session=session.id)
+                S().tickets.update(ticket, session=session.id, automation=lesson["id"])
                 await _tickets_changed()
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
                 await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
@@ -2380,6 +2380,15 @@ def _sessions_journal():
 
 
 # --- Tickets : vus et traités par le support (page web, apps, organisation) ---
+
+@app.get("/k/{fam}/requests")
+async def user_requests(fam: str):
+    if not _key_ok(fam, support=False):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    lessons = (o.automations() if o else []) + list_lessons()
+    items = sorted(S().tickets.all(), key=lambda t: t.get("created", 0), reverse=True)[:100]
+    return {"requests": [tickets_mod.for_user(t, lessons) for t in items]}
 
 async def _ticket_action(tid: str, body: dict):
     t = S().tickets.get(tid)

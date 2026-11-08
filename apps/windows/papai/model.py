@@ -69,6 +69,10 @@ class Model:
         self.current_action: str | None = None
         self.actions: list[str] = []
         self.lessons: list[dict] = []
+        self.requests: list[dict] = []
+        self.requests_open = False
+        self.requests_loading = False
+        self.requests_error = False
         self.lesson: dict | None = None
         self.notice: str | None = None
         self.alert: dict | None = None
@@ -167,6 +171,9 @@ class Model:
                 "carer": self.carer, "compact": self.compact,
                 "currentAction": self.current_action, "actions": list(self.actions),
                 "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "notice": self.notice, "alert": self.alert,
+                "requests": [{**r, "relaunch": r.get("relaunch") if self._find_lesson(r.get("relaunch")) else None}
+                             for r in self.requests],
+                "requestsLoading": self.requests_loading, "requestsError": self.requests_error,
                 "helpers": list(self.helpers), "remoteRequest": self.remote_request, "queued": self.queued,
                 "existing": self.existing,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
@@ -364,6 +371,40 @@ class Model:
     def reconnect(self) -> None:
         if self.bridge is not None and not self.demo:
             self.bridge.reconnect(self.server_url)
+
+    def open_requests(self) -> None:
+        self.requests_open = True
+        if not self.demo:
+            self.requests_loading = True
+            self.requests_error = False
+            self.push()
+            threading.Thread(target=self.refresh_requests, daemon=True).start()
+
+    def close_requests(self) -> None:
+        self.requests_open = False
+
+    def refresh_requests(self) -> None:
+        if self.demo:
+            return
+        try:
+            with urllib.request.urlopen(self.http_base + "/requests", timeout=5) as response:
+                data = json.loads(response.read().decode())
+            if not isinstance(data, dict) or not isinstance(data.get("requests"), list):
+                raise ValueError("Invalid requests")
+            rows = [r for r in data["requests"] if isinstance(r, dict) and isinstance(r.get("id"), str)]
+        except Exception:
+            with self._lock:
+                self.requests, self.requests_error, self.requests_loading = [], True, False
+        else:
+            with self._lock:
+                self.requests, self.requests_error, self.requests_loading = rows, False, False
+        self.push()
+
+    def relaunch_request(self, request_id: str) -> None:
+        request = next((r for r in self.requests if r.get("id") == request_id), None)
+        lesson_id = request.get("relaunch") if request else None
+        if isinstance(lesson_id, str) and lesson_id and self._find_lesson(lesson_id):
+            self.run_automation(lesson_id)
 
     # ------------------------------------------------------------ réglages
 
@@ -571,6 +612,9 @@ class Model:
         elif kind == "alert_cleared":
             if self.alert and m.get("alert_id") and m["alert_id"] == self.alert.get("id"):
                 self.alert = None
+        elif kind == "tickets_changed":
+            if self.requests_open:
+                threading.Thread(target=self.refresh_requests, daemon=True).start()
         elif kind == "lessons_changed":
             def go() -> None:
                 self.refresh_lessons()
@@ -835,6 +879,21 @@ class Model:
              "steps": [{"instruction": "Ouvrez l'Explorateur de fichiers"}]},
             {"id": "b", "title": "Mes documents", "shortcut": {"folder": "documents"}},
         ]
+        if demo == "requests":
+            self.lessons.append({"id": "print", "title": "Configurer mon imprimante", "platforms": ["windows"],
+                                 "actions": [{"do": "open_settings", "page": "printers"}]})
+            self.requests = [
+                {"id": "r1", "created": 1794132000, "task": "Je voudrais imprimer un document", "status": "resolu",
+                 "solution": {"kind": "automate", "title": "Configurer mon imprimante", "lesson": "print"}, "relaunch": "print"},
+                {"id": "r2", "created": 1794045600, "task": "Retrouver mes documents", "status": "resolu",
+                 "solution": {"kind": "plan", "steps": ["Ouvrir l'Explorateur de fichiers", "Ouvrir le dossier Documents"]}, "relaunch": None},
+                {"id": "r3", "created": 1793959200, "task": "Comment changer la taille du texte ?", "status": "resolu",
+                 "solution": {"kind": "answer", "text": "Ouvrez les Réglages, puis choisissez Très grande.",
+                              "sources": [{"title": "Aide PapAI", "url": "https://example.org/aide"}]}, "relaunch": None},
+                {"id": "r4", "created": 1793872800, "task": "Mon casque ne fonctionne plus", "status": "en_attente",
+                 "solution": None, "relaunch": None},
+            ]
+            return
         if demo == "alert":
             self.alert = {"level": "danger", "title": "Attention : ce message est sans doute une arnaque",
                           "detail": "Un faux message d'alerte demande d'appeler un numéro. N'appelez pas. "
