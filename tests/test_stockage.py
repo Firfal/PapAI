@@ -243,6 +243,37 @@ class Integration(unittest.TestCase):
                 self.assertEqual(_serve_lesson_file("a", "image.png").status_code, 404)
                 self.assertEqual(_serve_lesson_file("a", "absent.png").status_code, 404)
 
+    def test_retrait_dossier_local(self):
+        from backend import automations
+
+        storage.reset(storage.LocalStore())
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            lessons = root / "lessons"
+            lid = "imp-0123456789ab"
+            folder = lessons / lid
+            storage.write_json(folder / "lesson.json", {"id": lid})
+            storage.write(folder / "image.png", b"image")
+            self.assertTrue(automations.remove(lid, lessons))
+            self.assertFalse(folder.exists())
+            self.assertTrue(lessons.is_dir())
+            self.assertFalse(automations.remove(lid, lessons))
+            storage.delete_folder(folder)
+            (folder / "sous-dossier").mkdir(parents=True)
+            storage.delete_folder(folder)
+            self.assertTrue((folder / "sous-dossier").is_dir())
+            outside = root / "exterieur"
+            outside.mkdir()
+            (outside / "conserver").write_bytes(b"conserver")
+            (lessons / "lien").symlink_to(outside, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                storage.delete_folder(lessons / "lien")
+            self.assertEqual((outside / "conserver").read_bytes(), b"conserver")
+            with patch.object(storage, "ROOT", root):
+                with self.assertRaisesRegex(ValueError, "racine"):
+                    storage.delete_folder(root)
+            self.assertTrue(root.is_dir())
+
     def test_migration(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

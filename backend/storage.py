@@ -213,10 +213,10 @@ def location(path: Path) -> tuple[Store, str]:
             key = prefix if suffix == "." else prefix + "/" + suffix
             if isinstance(store, LocalStore):
                 # Les points d'entrée patchés par les suites gardent leur destination.
-                return LocalStore(root=Path("/")), "defaut/" + path.as_posix().lstrip("/")
+                return LocalStore(root=base), "defaut" if suffix == "." else "defaut/" + suffix
             return store, validate(key)
     if isinstance(store, LocalStore):
-        return LocalStore(root=Path("/")), "defaut/" + path.as_posix().lstrip("/")
+        return LocalStore(root=path.parent), "defaut/" + path.name
     raise ValueError("Chemin sans clé de stockage logique")
 
 
@@ -251,4 +251,14 @@ def files(folder: Path, pattern: str) -> list[Path]:
 
 def delete_folder(folder: Path) -> None:
     store, key = location(folder)
+    if key in ("defaut", "spaces", "orgs"):
+        raise ValueError("La racine du stockage ne peut pas être supprimée")
     store.delete_prefix(key + "/")
+    if isinstance(store, LocalStore):
+        import errno
+
+        try:
+            store._path(key).rmdir()
+        except OSError as exc:
+            if exc.errno not in (errno.ENOENT, errno.ENOTEMPTY, errno.EEXIST):
+                raise
