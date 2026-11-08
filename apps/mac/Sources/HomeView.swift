@@ -29,16 +29,12 @@ struct HomeView: View {
                         // Seule la liste défile : le titre de section reste en place.
                         VStack(alignment: .leading, spacing: 14) {
                             titreSection("sparkles", "Mes automates")
-                            ScrollView(showsIndicators: false) {
-                                automates(titre: false).padding(.bottom, 24)
-                            }
+                            automates(titre: false).padding(.bottom, 24)
                         }
                         .frame(width: gauche)
                         VStack(alignment: .leading, spacing: 14) {
                             titreSection("clock.arrow.circlepath", "Applications récentes")
-                            ScrollView(showsIndicators: false) {
-                                applications(titre: false).padding(.bottom, 24)
-                            }
+                            applications(titre: false).padding(.bottom, 24)
                         }
                         .frame(width: droite)
                     }
@@ -282,15 +278,19 @@ struct HomeView: View {
                     }
                     .padding(20).frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    VStack(spacing: 0) {
-                        ForEach(model.lessons) { l in
-                            tuile(l)
-                            if l.id != model.lessons.last?.id {
-                                Rectangle().fill(T.line).frame(height: 1).padding(.leading, 64)
+                    // Deux colonnes : la carte blanche reste en place, seule la liste
+                    // défile à l'intérieur et se coupe sur ses bords.
+                    Defilant(actif: !titre) {
+                        VStack(spacing: 0) {
+                            ForEach(model.lessons) { l in
+                                tuile(l)
+                                if l.id != model.lessons.last?.id {
+                                    Rectangle().fill(T.line).frame(height: 1).padding(.leading, 64)
+                                }
                             }
                         }
+                        .padding(.vertical, 6)
                     }
-                    .padding(.vertical, 6)
                 }
             }
             .carte(T.rBig)
@@ -342,6 +342,7 @@ extension HomeView {
     fileprivate func applications(titre: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             if titre { titreSection("clock.arrow.circlepath", "Applications récentes") }
+            Defilant(actif: !titre) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 14) {
                 ForEach(usage.recent) { app in
                     let name = app.name, bundle = app.bundle
@@ -362,6 +363,7 @@ extension HomeView {
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 18)
+            }
             .carte(T.rBig)
         }
     }
@@ -395,5 +397,27 @@ enum Greeting {
     static func word(at date: Date = Date()) -> String {
         let h = Calendar.current.component(.hour, from: date)
         return (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour"
+    }
+}
+
+/// Une liste qui défile à l'intérieur de sa carte quand la place manque ; sinon
+/// la carte épouse son contenu. La carte elle-même ne bouge jamais.
+private struct Defilant<Contenu: View>: View {
+    var actif: Bool
+    @ViewBuilder var contenu: Contenu
+    var body: some View {
+        if actif {
+            ViewThatFits(in: .vertical) {
+                contenu
+                // Coupé net sur les bords de la carte : l'accueil désactive le
+                // découpage des défilements pour les ombres, on le rétablit ici.
+                ScrollView(showsIndicators: true) { contenu }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .scrollClipDisabled(false)
+                    .clipShape(RoundedRectangle(cornerRadius: T.rBig, style: .continuous))
+            }
+        } else {
+            contenu
+        }
     }
 }
