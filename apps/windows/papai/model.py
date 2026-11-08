@@ -340,6 +340,7 @@ class Model:
     def _connection(self, ok: bool) -> None:
         if ok:
             self._send_profile()
+            threading.Thread(target=self.refresh_lessons, daemon=True).start()
         with self._lock:
             self.connected = ok
             if not ok:
@@ -373,13 +374,13 @@ class Model:
             with self._lock:
                 if self.lessons:
                     return
-                self.lessons = offline_lessons.load()
+                self.lessons = offline_lessons.load(self.http_base)
             self.push()
             return
         lessons = [x for x in data if isinstance(x, dict) and x.get("id")]
         with self._lock:
             self.lessons = lessons
-        offline_lessons.save(lessons)
+        offline_lessons.save(lessons, self.http_base)
         self.push()
 
     def reconnect(self) -> None:
