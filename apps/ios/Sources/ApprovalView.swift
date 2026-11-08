@@ -20,9 +20,7 @@ struct ApprovalView: View {
                 HStack {
                     Text("Plan proposé par Holo").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
                     Spacer()
-                    Text("\(model.plan.count) étape\(model.plan.count > 1 ? "s" : "")")
-                        .font(.system(size: 13)).foregroundStyle(Soin.secondary)
-                        .padding(.horizontal, 12).padding(.vertical, 6).background(Soin.card, in: Capsule())
+                    StatusPill(text: "\(model.plan.count) étape\(model.plan.count > 1 ? "s" : "")", tone: .blue)
                 }
                 .listRowInsets(EdgeInsets(top: 9, leading: 22, bottom: 6, trailing: 22))
                 ForEach(Array(model.plan.enumerated()), id: \.offset) { i, raw in
@@ -94,8 +92,8 @@ struct ApprovalView: View {
     private func stepRow(_ i: Int, _ raw: String) -> some View {
         let s = PlanStep(id: i, raw: raw)
         return HStack(spacing: 14) {
-            Text("\(i + 1)").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.ink)
-                .frame(width: 38, height: 38).background(Soin.bg, in: Circle())
+            Text("\(i + 1)").font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.accent)
+                .frame(width: 38, height: 38).background(Soin.accentSoft, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(s.title).font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
                 if let d = s.detail { Text(d).font(.system(size: 14)).foregroundStyle(Soin.secondary) }
@@ -127,8 +125,12 @@ struct ApprovalView: View {
             }
             Text("Rien ne se fait sans votre accord.").font(.system(size: 13)).foregroundStyle(Soin.secondary)
         }
-        .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 8)
-        .background(Soin.bg)
+        .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 8)
+        .background {
+            Rectangle().fill(.white.opacity(0.92))
+                .overlay(alignment: .top) { Rectangle().fill(Soin.hairline).frame(height: 1) }
+                .ignoresSafeArea(edges: .bottom)
+        }
     }
 }
 
@@ -162,7 +164,7 @@ struct DictationField: View {
         VStack(spacing: 14) {
             TextField(placeholder, text: $text, axis: .vertical)
                 .lineLimit(2...6).focused(focused)
-                .font(.system(size: 17)).padding(16).soinCard(radius: 18)
+                .font(.system(size: 17)).padding(16).soinField()
                 .disabled(dictation.phase != .idle)  // pas de saisie pendant la dictée
             BigMicButton(dictation: dictation) {
                 focused.wrappedValue = false
@@ -200,7 +202,7 @@ struct RefineSheet: View {
             .opacity(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || dictation.phase != .idle ? 0.4 : 1)
             CancelButton { dictation.cancel(); dismiss() }
         }
-        .padding(24).background(Soin.bg.ignoresSafeArea())
+        .padding(24).background { SoinBackground() }
         .presentationDetents([.large])
         .onDisappear { dictation.cancel() }
     }
@@ -245,7 +247,7 @@ struct StepEditSheet: View {
             .opacity(trimmed.isEmpty || trimmed == step.text || dictation.phase != .idle ? 0.4 : 1)
             CancelButton { dictation.cancel(); dismiss() }
         }
-        .padding(24).background(Soin.bg.ignoresSafeArea())
+        .padding(24).background { SoinBackground() }
         .presentationDetents([.large])
         .onAppear { text = step.text }
         .onDisappear { dictation.cancel() }
@@ -257,7 +259,7 @@ struct CancelButton: View {
     let action: () -> Void
     var body: some View {
         Button("Annuler", action: action)
-            .font(.system(size: 17, weight: .semibold, design: .rounded)).foregroundStyle(Soin.ink)
+            .font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.accent)
             .frame(maxWidth: .infinity, minHeight: 48)
             .contentShape(Rectangle())
     }

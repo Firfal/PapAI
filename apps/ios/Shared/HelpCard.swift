@@ -14,19 +14,19 @@ struct LockScreenCard: View {
             HStack(spacing: 8) {
                 Image("Mascot").resizable().scaledToFit().frame(width: 22, height: 22)
                     .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                Text("PAPAI").font(.system(size: 12, weight: .bold, design: .rounded)).kerning(1.2)
+                Text("PAPAI").font(.system(size: 12, weight: .bold)).kerning(1.2)
                     .foregroundStyle(.white.opacity(0.55))
                 Spacer()
                 Text(s.since, style: .relative)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.white.opacity(0.55)).multilineTextAlignment(.trailing)
             }
             Text(s.headline)
-                .font(.system(size: 30, weight: .heavy, design: .rounded))
+                .font(.system(size: 30, weight: .heavy))
                 .foregroundStyle(.white).lineLimit(2).minimumScaleFactor(0.7)
                 .padding(.top, 10)
             Text(s.subline)
-                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(.white.opacity(0.75)).lineLimit(2)
                 .padding(.top, 4)
             if let cta = s.cta {
@@ -34,10 +34,11 @@ struct LockScreenCard: View {
                     Text(cta)
                     Image(systemName: "arrow.right")
                 }
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundStyle(PapColors.ink)
-                .frame(maxWidth: .infinity, minHeight: 42)
-                .background(PapColors.accentBright, in: Capsule())
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(PapColors.primary, in: Capsule())
+                .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1))
                 .padding(.top, 12)
             }
         }
@@ -51,15 +52,17 @@ struct LockScreenCard: View {
                 Image("Mascot").resizable().scaledToFit().frame(width: 40, height: 40)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(s.headline).font(.system(size: 17, weight: .bold, design: .rounded))
+                    Text(s.headline).font(.system(size: 17, weight: .bold))
                         .foregroundStyle(PapColors.ink).lineLimit(1).minimumScaleFactor(0.8)
-                    Text(s.subline).font(.system(size: 14, weight: .medium, design: .rounded))
+                    Text(s.subline).font(.system(size: 14, weight: .medium))
                         .foregroundStyle(PapColors.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 if s.phase == .working || s.phase == .paused {
-                    Text(s.short).font(.system(size: 14, weight: .semibold, design: .rounded))
+                    Text(s.short).font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(s.phase == .paused ? PapColors.secondary : PapColors.accent)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(s.phase == .paused ? PapColors.secondary.opacity(0.12) : PapColors.accent.opacity(0.1), in: Capsule())
                 }
             }
             if s.phase == .working || s.phase == .paused || s.phase == .planning {

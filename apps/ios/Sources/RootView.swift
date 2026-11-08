@@ -5,10 +5,12 @@ struct RootView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            Soin.bg.ignoresSafeArea()
+            SoinBackground()
             VStack(spacing: 0) {
                 Header(name: model.helperName ?? "Support", onAvatar: { model.sheet = .settings })
-                    .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 12)
+                    .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 20)
+                    .background { SoinHeaderBackground() }
+                    .padding(.bottom, 14)
                 if model.isConfigured { PeopleRow(model: model) }
                 if model.isConfigured && !model.connected {
                     LostBanner(model: model).padding(.horizontal, 20).padding(.bottom, 10)
@@ -68,17 +70,17 @@ struct Header: View {
         HStack(spacing: 12) {
             Button(action: onAvatar) {
                 Text(String(name.prefix(1)).uppercased()).font(.system(size: 20, weight: .bold)).foregroundStyle(Soin.accent)
-                    .frame(width: 48, height: 48).background(Soin.accentSoft, in: Circle())
+                    .frame(width: 48, height: 48).background(Soin.card, in: Circle())
             }
             .accessibilityLabel("Réglages")
             VStack(alignment: .leading, spacing: 0) {
                 Text({ let h = Calendar.current.component(.hour, from: Date()); return (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour" }())
-                    .font(.system(size: 14)).foregroundStyle(Soin.secondary)
-                Text(name).font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
+                    .font(.system(size: 14, weight: .medium)).foregroundStyle(.white)
+                Text(name).font(.system(size: 22, weight: .semibold)).foregroundStyle(.white)
             }
             Spacer()
-            Image(systemName: "bell").font(.system(size: 18, weight: .regular)).foregroundStyle(Soin.ink)
-                .frame(width: 48, height: 48).background(Soin.card, in: Circle())
+            Image(systemName: "bell").font(.system(size: 18, weight: .regular)).foregroundStyle(.white)
+                .frame(width: 48, height: 48).background(.white.opacity(0.18), in: Circle())
                 .accessibilityHidden(true)
         }
     }
@@ -138,7 +140,7 @@ struct SettingsView: View {
                 Text("Connexion").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
                 Text("Le plus simple : scannez le QR code affiché sur l’ordinateur de \(model.senior) (Mon support › Ajouter un support).")
                     .font(.system(size: 15)).foregroundStyle(Soin.secondary)
-                Button("Scanner le QR code de l’ordinateur") { model.sheet = .scanner }
+                Button { model.sheet = .scanner } label: { Label("Scanner le QR code de l’ordinateur", systemImage: "qrcode.viewfinder") }
                     .buttonStyle(CapsuleButtonStyle(fill: Soin.accent))
                 if let l = model.manualPairLink() {
                     Button("Entrer le code à 6 chiffres") { model.openPair(l) }
@@ -147,7 +149,7 @@ struct SettingsView: View {
                 Text("Service informatique").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink).padding(.top, 8)
                 Text("Collez le lien d’organisation donné par l’IT : tous les postes s’ajoutent, sans code.")
                     .font(.system(size: 15)).foregroundStyle(Soin.secondary)
-                field("Lien d’organisation", text: $org, prompt: "https://…/o/sup-…")
+                field("Lien d’organisation", text: $org, prompt: "https://…/o/sup-…", icon: "building.2")
                 if let e = model.orgError {
                     Text(e).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.danger)
                 }
@@ -157,10 +159,10 @@ struct SettingsView: View {
                     .buttonStyle(CapsuleButtonStyle(fill: Soin.card, text: Soin.ink))
                     .disabled(org.trimmingCharacters(in: .whitespaces).isEmpty || model.orgBusy)
                 Text("Ou à la main").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink).padding(.top, 8)
-                field("Adresse du serveur", text: $server, prompt: "https://…/k/<clé de l'espace>")
-                field("Clé support", text: $key, prompt: "demo")
+                field("Adresse du serveur", text: $server, prompt: "https://…/k/<clé de l'espace>", icon: "server.rack")
+                field("Clé support", text: $key, prompt: "demo", icon: "key")
                 HStack(alignment: .top, spacing: 6) {
-                    Circle().fill(model.connected ? Soin.accent : (model.linkError == nil ? Soin.secondary : Soin.danger))
+                    Circle().fill(model.connected ? Soin.online : (model.linkError == nil ? Soin.secondary : Soin.danger))
                         .frame(width: 8, height: 8).padding(.top, 5)
                     TimelineView(.periodic(from: .now, by: 1)) { ctx in
                         Text(model.isConfigured ? ConnectionText.line(model, now: ctx.date) : "Non configuré")
@@ -192,17 +194,21 @@ struct SettingsView: View {
             .padding(24)
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Soin.bg.ignoresSafeArea())
+        .background { SoinBackground() }
         .presentationDetents([.large])
         .interactiveDismissDisabled(!model.isConfigured)
         .onAppear { server = model.serverURL; key = model.helperKey }
     }
-    private func field(_ title: String, text: Binding<String>, prompt: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.secondary)
-            TextField(prompt, text: text)
-                .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                .font(.system(size: 17)).padding(16).soinCard(radius: 18)
+    private func field(_ title: String, text: Binding<String>, prompt: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.ink)
+            HStack(spacing: 10) {
+                Image(systemName: icon).font(.system(size: 16)).foregroundStyle(Soin.secondary).accessibilityHidden(true)
+                TextField(prompt, text: text)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                    .font(.system(size: 17))
+            }
+            .padding(16).soinField()
         }
     }
 }
@@ -226,7 +232,7 @@ struct IdleView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         Mascotte(humeur: .calme).frame(width: Mascotte.Taille.carte, height: Mascotte.Taille.carte)
                     }
-                    .padding(22).soinCard(Soin.accentSoft, radius: 28)
+                    .padding(22).soinCard(Soin.accentSoft, radius: 24)
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Liaison interrompue").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
@@ -234,7 +240,7 @@ struct IdleView: View {
                             .font(.system(size: 17, weight: .medium)).foregroundStyle(Soin.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(radius: 28)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(radius: 24)
                 }
                 }
 
@@ -245,7 +251,7 @@ struct IdleView: View {
                         Text("« \(live) »").font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
                             .animation(.easeOut(duration: 0.15), value: live)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading).padding(20).soinCard(.white, radius: 24)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(20).soinCard()
                 }
 
                 if let a = model.lastAlert {
@@ -259,18 +265,20 @@ struct IdleView: View {
                 if model.lessons.isEmpty {
                     Text("Aucun automate pour l’instant.").font(.system(size: 15)).foregroundStyle(Soin.secondary)
                 } else {
-                    ForEach(model.lessons.prefix(5)) { l in
-                        HStack(spacing: 12) {
-                            Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Soin.accent)
-                                .frame(width: 32, height: 32).background(Soin.accentSoft, in: Circle())
-                            VStack(alignment: .leading, spacing: 2) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(model.lessons.prefix(5).enumerated()), id: \.element.id) { i, l in
+                            if i > 0 { Rectangle().fill(Soin.hairline).frame(height: 1).padding(.leading, 64) }
+                            HStack(spacing: 12) {
+                                Image(systemName: "checkmark").font(.system(size: 14, weight: .bold)).foregroundStyle(Soin.accent)
+                                    .frame(width: 36, height: 36).background(Soin.accentSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 Text(l.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Soin.ink)
-                                Text("\(l.steps?.count ?? 0) étapes").font(.system(size: 13)).foregroundStyle(Soin.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                StatusPill(text: "\(l.steps?.count ?? 0) étapes", tone: .gray)
                             }
-                            Spacer()
+                            .padding(.horizontal, 16).padding(.vertical, 14)
                         }
-                        .padding(16).frame(maxWidth: .infinity, alignment: .leading).soinCard()
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading).soinCard()
                 }
             }
             .padding(.horizontal, 20).padding(.bottom, 30)
@@ -292,6 +300,7 @@ struct WaitingView: View {
                         ProgressView().tint(Soin.accent)
                         Text(text).font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
                     }
+                    .padding(.horizontal, 18).padding(.vertical, 12).soinCard(radius: 18)
                 }.padding(.top, 20)
             }.padding(.horizontal, 20)
         }
@@ -306,7 +315,7 @@ struct StoppedView: View {
             if model.stoppedBy == "gardien" {
                 Image(systemName: "exclamationmark.shield.fill")
                     .font(.system(size: 26, weight: .semibold)).foregroundStyle(Soin.danger)
-                    .frame(width: 64, height: 64).background(Soin.card, in: Circle())
+                    .frame(width: 64, height: 64).background(Soin.danger.opacity(0.1), in: Circle())
             } else {
                 Mascotte(humeur: .calme).frame(width: Mascotte.Taille.arret, height: Mascotte.Taille.arret)
             }
@@ -333,8 +342,8 @@ struct RequestCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                Text("J").font(.system(size: 20, weight: .bold)).foregroundStyle(Soin.accent)
-                    .frame(width: 48, height: 48).background(Soin.card, in: Circle())
+                Text("J").font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
+                    .frame(width: 48, height: 48).background(Soin.primary, in: Circle())
                 VStack(alignment: .leading, spacing: 1) {
                     TimelineView(.periodic(from: .now, by: 20)) { _ in
                         Text("Demande de \(model.senior) · \(ago(model.requestStart))")
@@ -359,7 +368,7 @@ struct RequestCard: View {
             }
         }
         .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-        .soinCard(Soin.accentSoft, radius: 28)
+        .soinCard(radius: 24)
     }
     private func ago(_ d: Date) -> String {
         let m = Int(Date().timeIntervalSince(d) / 60)
@@ -378,7 +387,8 @@ struct PeopleRow: View {
                 ForEach(model.people) { p in chip(p) }
                 Button { model.sheet = .settings } label: {
                     Text("+ Ajouter une personne").font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.accent)
-                        .lineLimit(1).padding(.horizontal, 16).padding(.vertical, 12).background(Soin.card, in: Capsule())
+                        .lineLimit(1).padding(.horizontal, 16).frame(minHeight: 44)
+                        .background(Soin.card, in: Capsule()).overlay(Capsule().strokeBorder(Soin.hairline, lineWidth: 1))
                 }
             }
             .padding(.horizontal, 20)
@@ -400,18 +410,18 @@ struct PeopleRow: View {
         return Button { model.switchTo(p) } label: {
             HStack(spacing: 8) {
                 Text(String(name.prefix(1)).uppercased()).font(.system(size: 15, weight: .bold)).foregroundStyle(Soin.accent)
-                    .frame(width: 32, height: 32).background(Soin.accentSoft, in: Circle())
+                    .frame(width: 32, height: 32).background(here ? Soin.card : Soin.accentSoft, in: Circle())
                 Text(name).font(.system(size: 15, weight: .semibold)).foregroundStyle(here ? Color.white : Soin.ink).lineLimit(1)
                 if !here {
-                    Circle().fill(model.othersOnline[p.key] == true ? Soin.accent : Soin.secondary).frame(width: 8, height: 8)
+                    Circle().fill(model.othersOnline[p.key] == true ? Soin.online : Soin.secondary).frame(width: 8, height: 8)
                     if asking {
                         Text("demande une assistance").font(.system(size: 12)).foregroundStyle(Soin.danger).lineLimit(1)
                     }
                 }
             }
             .padding(.leading, 6).padding(.trailing, 14).padding(.vertical, 6)
-            .background(here ? Soin.ink : Soin.card, in: Capsule())
-            .overlay(Capsule().stroke(asking ? Soin.danger : Color.clear, lineWidth: 2))
+            .background(here ? AnyShapeStyle(Soin.primary) : AnyShapeStyle(Soin.card), in: Capsule())
+            .overlay(Capsule().strokeBorder(asking ? Soin.danger : here ? Color.clear : Soin.hairline, lineWidth: asking ? 2 : 1))
         }
         .contextMenu { Button("Retirer", role: .destructive) { forget = p } }
         .accessibilityLabel(asking ? "\(name), demande une assistance" : name)

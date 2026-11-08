@@ -1,41 +1,149 @@
 import SwiftUI
 
-/// Palette « Soin » réchauffée par la papaye du logo, comme sur le Mac.
-/// Les textes secondaires gardent un contraste d'au moins 4,5:1 sur le fond et sur la menthe.
+/// Palette « Soin » : fond bleu-lavande très clair, cartes blanches, un seul accent bleu vif.
+/// Contrastes vérifiés (AA, 4,5:1) : accent et texte secondaire sur blanc et sur le fond,
+/// texte blanc sur les deux bouts du dégradé bleu, texte des pastilles sur leur fond pâle.
 enum Soin {
-    static let bg = Color(red: 0xF6/255, green: 0xF1/255, blue: 0xEA/255)
+    /// Bas du fond (et des barres posées en bas d'écran), lavande très pâle.
+    static let bg = Color(hex: 0xF2F1FC)
+    /// Haut du fond, bleuté.
+    static let bgTop = Color(hex: 0xE9F0FF)
     static let card = Color.white
-    static let ink = Color(red: 0x11/255, green: 0x13/255, blue: 0x12/255)
-    static let secondary = Color(red: 0x5C/255, green: 0x62/255, blue: 0x5E/255)
-    static let accent = Color(red: 0x2E/255, green: 0x9E/255, blue: 0x5B/255)
-    static let accentSoft = Color(red: 0xE2/255, green: 0xF2/255, blue: 0xE7/255)
-    /// Vert du texte sur menthe, pêche ou blanc (le vert d'accent y est trop clair).
-    static let leaf = Color(red: 0x1C/255, green: 0x72/255, blue: 0x40/255)
-    static let papaya = Color(red: 0xF5/255, green: 0x8A/255, blue: 0x3A/255)
-    /// Chair de papaye : fond des moments heureux (fin d'aide).
-    static let peach = Color(red: 0xFF/255, green: 0xE7/255, blue: 0xD2/255)
+    /// Champs de saisie : gris très clair.
+    static let field = Color(hex: 0xF2F4F8)
+    /// Filet des cartes et des champs.
+    static let hairline = Color(hex: 0xE4E8F1)
+    static let ink = Color(hex: 0x111A2E)
+    static let secondary = Color(hex: 0x556074)
+    /// Bleu d'accent (texte, icônes, étape en cours) : 5,3:1 sur blanc.
+    static let accent = Color(hex: 0x1F5BFF)
+    /// Fond pâle des cartes et pastilles bleues.
+    static let accentSoft = Color(hex: 0xE8EFFF)
+    /// Dégradé du bouton principal et de l'en-tête : blanc à 4,5:1 et 6,3:1 aux deux bouts.
+    static let gradientTop = Color(hex: 0x2E6BFF)
+    static let gradientBottom = Color(hex: 0x1A4FE6)
+    /// Vert du texte « terminé » et des pastilles vertes.
+    static let leaf = Color(hex: 0x16794C)
+    /// Point « en ligne ».
+    static let online = Color(hex: 0x12A15E)
+    /// Rouge du gardien et des erreurs : inchangé, impossible à confondre avec l'accent.
     static let danger = Color(red: 0xC8/255, green: 0x44/255, blue: 0x2F/255)
+
+    static var primary: LinearGradient {
+        LinearGradient(colors: [gradientTop, gradientBottom], startPoint: .top, endPoint: .bottom)
+    }
+    /// Ombre diffuse des cartes, teintée de bleu.
+    static let shadow = Color(hex: 0x1E3A8A).opacity(0.08)
 }
 
-extension View {
-    func soinCard(_ fill: Color = Soin.card, radius: CGFloat = 22) -> some View {
-        background(fill, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+/// Fond d'écran : léger dégradé bleuté vers lavande.
+struct SoinBackground: View {
+    var body: some View {
+        LinearGradient(colors: [Soin.bgTop, Color(hex: 0xF4F6FE), Soin.bg], startPoint: .top, endPoint: .bottom)
+            .ignoresSafeArea()
     }
 }
 
-/// Bouton plein en capsule (ink par défaut).
+/// Bandeau d'en-tête bleu dégradé, qui passe sous la barre d'état.
+struct SoinHeaderBackground: View {
+    var body: some View {
+        UnevenRoundedRectangle(bottomLeadingRadius: 28, bottomTrailingRadius: 28, style: .continuous)
+            .fill(LinearGradient(colors: [Soin.gradientTop, Soin.gradientBottom], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .shadow(color: Soin.gradientTop.opacity(0.28), radius: 18, y: 8)
+            .ignoresSafeArea(edges: .top)
+    }
+}
+
+extension View {
+    /// Carte arrondie : blanche avec filet et ombre douce ; teintée (bleu pâle…) avec un filet de la même teinte.
+    func soinCard(_ fill: Color = Soin.card, radius: CGFloat = 20) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        let white = fill == Soin.card
+        return background {
+            shape.fill(fill)
+                .overlay(shape.strokeBorder(white ? Soin.hairline : Soin.accent.opacity(0.12), lineWidth: 1))
+                .shadow(color: white ? Soin.shadow : .clear, radius: 14, y: 6)
+        }
+    }
+
+    /// Champ de saisie : gris très clair, arrondi, avec un filet.
+    func soinField(radius: CGFloat = 16) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        return background(Soin.field, in: shape)
+            .overlay(shape.strokeBorder(Soin.hairline, lineWidth: 1))
+    }
+}
+
+/// Pastille d'état pâle et arrondie.
+struct StatusPill: View {
+    enum Tone { case blue, violet, green, orange, gray }
+    let text: String
+    var tone: Tone = .blue
+    var icon: String?
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if let icon { Image(systemName: icon).font(.system(size: 11, weight: .bold)) }
+            Text(text)
+        }
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(colors.text)
+        .padding(.horizontal, 10).padding(.vertical, 5)
+        .background(colors.fill, in: Capsule())
+    }
+
+    private var colors: (text: Color, fill: Color) {
+        switch tone {
+        case .blue: (Soin.accent, Soin.accentSoft)
+        case .violet: (Color(hex: 0x6235D9), Color(hex: 0xF0EAFF))
+        case .green: (Soin.leaf, Color(hex: 0xE3F6EA))
+        case .orange: (Color(hex: 0xA7480B), Color(hex: 0xFEEEDD))
+        case .gray: (Color(hex: 0x475467), Color(hex: 0xEEF0F4))
+        }
+    }
+}
+
+/// Bouton en pilule. Par défaut (ou `fill: Soin.accent`) : le bouton principal bleu dégradé avec
+/// une ombre bleue. `fill: Soin.card` : bouton secondaire blanc et discret. Autre couleur : pleine.
 struct CapsuleButtonStyle: ButtonStyle {
-    var fill: Color = Soin.ink
+    var fill: Color?
     var text: Color = .white
+
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 17, weight: .semibold, design: .rounded))
-            .foregroundStyle(text)
-            .frame(maxWidth: .infinity, minHeight: 56)
-            .background(fill, in: Capsule())
-            .opacity(configuration.isPressed ? 0.8 : 1)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.spring(duration: 0.25), value: configuration.isPressed)
+        CapsuleLabel(configuration: configuration, fill: fill, text: text)
+    }
+
+    private struct CapsuleLabel: View {
+        let configuration: Configuration
+        let fill: Color?
+        let text: Color
+        @Environment(\.isEnabled) private var enabled
+
+        private var primary: Bool { fill == nil || fill == Soin.accent }
+        private var secondary: Bool { fill == Soin.card }
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(text)
+                .frame(maxWidth: .infinity, minHeight: 56)
+                .background {
+                    if primary {
+                        Capsule().fill(Soin.primary)
+                            .overlay(Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 1))
+                            .shadow(color: Soin.gradientTop.opacity(enabled ? 0.35 : 0), radius: 12, y: 6)
+                    } else if secondary {
+                        Capsule().fill(Soin.card)
+                            .overlay(Capsule().strokeBorder(Soin.hairline, lineWidth: 1))
+                            .shadow(color: Soin.shadow, radius: 8, y: 3)
+                    } else {
+                        Capsule().fill(fill ?? Soin.ink)
+                    }
+                }
+                .opacity(configuration.isPressed ? 0.85 : 1)
+                .scaleEffect(configuration.isPressed ? 0.98 : 1)
+                .animation(.spring(duration: 0.25), value: configuration.isPressed)
+        }
     }
 }
 
@@ -43,7 +151,11 @@ struct RoundIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .frame(width: 58, height: 58)
-            .background(Soin.card, in: Circle())
+            .background {
+                Circle().fill(Soin.card)
+                    .overlay(Circle().strokeBorder(Soin.hairline, lineWidth: 1))
+                    .shadow(color: Soin.shadow, radius: 8, y: 3)
+            }
             .opacity(configuration.isPressed ? 0.7 : 1)
             .scaleEffect(configuration.isPressed ? 0.95 : 1)
             .animation(.spring(duration: 0.25), value: configuration.isPressed)
