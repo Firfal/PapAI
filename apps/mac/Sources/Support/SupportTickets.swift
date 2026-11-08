@@ -108,6 +108,7 @@ struct SupportTickets: View {
         .sheet(item: $applying) { e in
             ApplyAutomateSheet(model: model, entry: e) { applying = nil }
         }
+        .onAppear { if only != nil { filter = 1 } }   // historique complet, résolus compris
         .task {
             while !Task.isCancelled {
                 await load()

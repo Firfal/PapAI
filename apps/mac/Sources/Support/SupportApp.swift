@@ -107,8 +107,9 @@ struct SupportRoot: View {
         switch model.screen {
         case .idle:
             // Hors assistance : les tickets de l'utilisateur choisi, sous l'accueil.
-            VStack(alignment: .leading, spacing: 12) {
-                SupportIdle(model: model)
+            VStack(alignment: .leading, spacing: 14) {
+                ProfilUtilisateur(model: model)
+                Text("Historique des demandes").font(rounded(19, .bold))
                 SupportTickets(model: model, only: model.helperKey) { _ in }
             }
         case .waiting: SupportWaiting(model: model, text: "En attente de l’autorisation de \(model.senior)")
@@ -482,4 +483,29 @@ struct SupportZoom: View {
 /// Bouton secondaire compact (blanc bordé), pour les actions à côté du bouton principal.
 func supportSecondary(_ height: CGFloat = 56, icone: String? = nil) -> PillStyle {
     PillStyle(filled: false, height: height, icone: icone)
+}
+
+
+/// Onglet Utilisateurs, hors assistance : qui est l'utilisateur et où en est son poste.
+struct ProfilUtilisateur: View {
+    let model: HelperModel
+    var body: some View {
+        let p = model.people.first { $0.key == model.helperKey }
+        HStack(spacing: 16) {
+            Text(String(model.senior.prefix(1)).uppercased()).font(rounded(26, .bold)).foregroundStyle(.white)
+                .frame(width: 60, height: 60).background(Circle().fill(T.accent))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.senior.isEmpty ? "Utilisateur" : model.senior).font(rounded(24, .bold))
+                if let label = p?.label, !label.isEmpty {
+                    Text(label).font(rounded(15)).foregroundStyle(T.muted)
+                }
+            }
+            Spacer(minLength: 0)
+            if let online = model.seniorOnline {
+                Pastille(texte: online ? "Ordinateur allumé" : "Ordinateur éteint", icone: "desktopcomputer",
+                         ton: online ? .vert : .gris, taille: 14)
+            }
+        }
+        .padding(18).carte()
+    }
 }
