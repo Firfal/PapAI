@@ -43,7 +43,7 @@ Mac de la personne aidée         Serveur PapAI (Cloud Run)          H Company
   - aucune action sans plan validé ;
   - la fenêtre PapAI est exclue des captures et des clics ;
   - toute demande de l'aidant est revalidée côté serveur.
-- **Windows** : `apps/windows`, mêmes écrans et même design que l'app Mac (Python + pywebview/WebView2, `install.bat` puis `run.bat`). Pas encore essayée sur un vrai Windows. L'ancien prototype reste dans la branche `archive/windows-7-nov`.
+- **Windows** : `apps/windows`, mêmes écrans et même design que l'app Mac (Python + pywebview/WebView2) : double-cliquer `apps\windows\PapAI.bat`, rien à installer. Pas encore essayée sur un vrai Windows. L'ancien prototype reste dans la branche `archive/windows-7-nov`.
 
 ## Structure
 
