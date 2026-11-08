@@ -16,6 +16,7 @@ import base64
 import json
 import re
 import time
+import unicodedata
 from pathlib import Path
 
 from papai_tools import MODEL, TEMPERATURE, make_client, observation
@@ -138,6 +139,28 @@ Ne réponds QUE par cet objet JSON, sans aucun texte autour. Ne devine pas."""
 KNOWN_FOLDERS = {"downloads", "pictures", "documents", "desktop", "videos", "music"}
 
 
+def valid_subfolder(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    sub = value.strip()
+    if len(sub) > 100 or any(
+        unicodedata.category(c) not in {"Lu", "Ll", "Lt", "Lm", "Lo", "Nd"}
+        and c not in " -_'’(),&+" for c in sub
+    ):
+        return None
+    return sub
+
+
+def valid_shortcut(value: object) -> dict | None:
+    if not isinstance(value, dict) or not isinstance(value.get("folder"), str):
+        return None
+    folder = value["folder"].strip().lower()
+    sub = valid_subfolder(value.get("subfolder", ""))
+    if folder not in KNOWN_FOLDERS or sub is None:
+        return None
+    return {"folder": folder, "subfolder": sub}
+
+
 async def _extract_shortcut(session: Session) -> dict | None:
     """Le chemin atteint à la fin, s'il est lisible.
 
@@ -165,16 +188,7 @@ async def _extract_shortcut(session: Session) -> dict | None:
         session.log("shortcut_failed", error=f"{type(e).__name__}: {e}")
         return None
 
-    folder = str(data.get("folder", "")).strip().lower()
-    if folder not in KNOWN_FOLDERS:
-        return None
-
-    # Un NOM de sous-dossier, jamais un chemin : le modèle a tendance à
-    # reconstituer des « C:\\Users\\... » qu'il invente.
-    sub = str(data.get("subfolder") or "").strip()
-    if any(c in sub for c in '\\/:*?"<>|') or sub in (".", ".."):
-        sub = ""
-    return {"folder": folder, "subfolder": sub}
+    return valid_shortcut(data)
 
 
 def _parse(raw: str) -> dict:
@@ -261,6 +275,7 @@ def approve_and_save(lesson: dict, session: Session) -> dict:
 
     Les captures des étapes retenues sont enregistrées, et elles seules.
     """
+    lesson["shortcut"] = valid_shortcut(lesson.get("shortcut"))
     lesson["approved_by_helper"] = True
     lesson["approved_at"] = time.time()
 

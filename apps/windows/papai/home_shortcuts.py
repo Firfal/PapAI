@@ -18,13 +18,16 @@ IMAGES = {'.jpg', '.jpeg', '.png', '.heic', '.webp', '.gif', '.tiff', '.bmp'}
 MESSAGE_ID = 'action:new-message'
 
 
-def valid_folder(value: str | Path) -> Path | None:
+def valid_folder(value: str | Path, *, reject_links=False) -> Path | None:
     try:
         raw = str(value)
         path = Path(raw)
         if not path.is_absolute() or raw.startswith(('\\\\', '//')) or '\x00' in raw:
             return None
         if any(p.suffix.lower() in FORBIDDEN for p in (path, *path.parents)):
+            return None
+        if reject_links and any(p.is_symlink() or getattr(p.lstat(), 'st_file_attributes', 0) & 0x400
+                                for p in (path, *path.parents)):
             return None
         target = path.resolve(strict=True)
         if str(target).startswith(('\\\\', '//')):

@@ -14,6 +14,13 @@ struct HomeShortcutsTest {
             total += 1
             print("  OK      \(nom)")
         }
+        struct Cas: Decodable { var name: String; var valid: Bool }
+        let chemin = CommandLine.arguments.dropFirst().first ?? "../../tests/subfolder_cases.json"
+        let cas = try JSONDecoder().decode([Cas].self, from: Data(contentsOf: URL(fileURLWithPath: chemin)))
+        for exemple in cas {
+            verifier((SousDossier.valider(exemple.name) != nil) == exemple.valid,
+                     "règle partagée : \(exemple.name.debugDescription)")
+        }
         func dossier(_ nom: String) throws -> URL {
             let url = racine.appendingPathComponent(nom)
             try fm.createDirectory(at: url, withIntermediateDirectories: true)
@@ -23,6 +30,15 @@ struct HomeShortcutsTest {
         verifier(DossierRaccourci.valider(normal) == normal.resolvingSymlinksInPath(), "dossier normal accepté")
         let app = try dossier("X.app")
         verifier(DossierRaccourci.valider(app) == nil, "X.app refusé")
+        verifier(DossierRaccourci.cible(dans: racine, sousDossier: "X.app") == nil, "automatisme .app refusé")
+        verifier(DossierRaccourci.cible(dans: racine, sousDossier: "Photos de famille") == normal.resolvingSymlinksInPath(),
+                 "automatisme simple accepté")
+        verifier(DossierRaccourci.cible(dans: racine, sousDossier: "") == racine.resolvingSymlinksInPath(),
+                 "automatisme racine accepté")
+        let ailleurs = racine.appendingPathComponent("Applications")
+        try fm.createSymbolicLink(at: ailleurs, withDestinationURL: URL(fileURLWithPath: "/Applications"))
+        verifier(DossierRaccourci.cible(dans: racine, sousDossier: "Applications") == nil,
+                 "lien vers Applications hors du dossier connu refusé")
         let commande = racine.appendingPathComponent("X.command")
         try Data().write(to: commande)
         verifier(DossierRaccourci.valider(commande) == nil, "fichier X.command refusé")

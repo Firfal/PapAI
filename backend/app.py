@@ -680,6 +680,8 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
                 raise Refused("Aucune fiche à valider.")
             # Le proche a pu corriger le texte : on reprend le sien.
             edited = msg.get("lesson") or {}
+            if "shortcut" in edited and edited["shortcut"] is None:
+                session.lesson["shortcut"] = None
             for i, step in enumerate(session.lesson["steps"]):
                 if i < len(edited.get("steps", [])):
                     step["instruction"] = str(

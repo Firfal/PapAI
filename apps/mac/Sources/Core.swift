@@ -53,24 +53,19 @@ enum Shortcuts {
     /// Ouvre le dossier enregistré. Le modèle ne fournit jamais de chemin :
     /// un dossier connu du système, et au plus un nom de sous-dossier.
     @MainActor
-    static func open(_ shortcut: Lesson.Shortcut) -> (ok: Bool, detail: String) {
+    static func open(_ shortcut: Lesson.Shortcut) async -> (ok: Bool, detail: String) {
         guard let dir = directory(for: shortcut.folder ?? ""),
               let base = FileManager.default.urls(for: dir, in: .userDomainMask).first
         else { return (false, "Aucun raccourci enregistré.") }
-        var target = base
-        let sub = (shortcut.subfolder ?? "").trimmingCharacters(in: .whitespaces)
-        if !sub.isEmpty {
-            if sub.contains("/") || sub.contains("\\") || sub.contains(":") || sub == "." || sub == ".." || sub.contains("..") {
-                return (false, "Nom de dossier invalide.")
+        guard let target = DossierRaccourci.cible(dans: base, sousDossier: shortcut.subfolder ?? "")
+        else { return (false, "Ce dossier n'est pas disponible ou ne peut pas être ouvert en toute sécurité.") }
+        let ouvert: Bool = await withCheckedContinuation { continuation in
+            let lance = DossierRaccourci.ouvrir(target) { erreur in
+                continuation.resume(returning: erreur == nil)
             }
-            target = base.appendingPathComponent(sub, isDirectory: true)
+            if !lance { continuation.resume(returning: false) }
         }
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: target.path, isDirectory: &isDir), isDir.boolValue else {
-            let quoi = sub.isEmpty ? "Ce dossier" : "« \(sub) »"
-            return (false, "\(quoi) n'existe pas (ou plus) sur cet ordinateur.")
-        }
-        return (NSWorkspace.shared.open(target), target.path)
+        return (ouvert, ouvert ? target.path : "Je n'arrive pas à ouvrir ce dossier dans le Finder.")
     }
 }
 

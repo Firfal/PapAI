@@ -663,12 +663,14 @@ final class AppModel {
 
     func runShortcut(_ l: Lesson) {
         guard let sc = l.shortcut else { openLesson(l); return }
-        let r = Shortcuts.open(sc)
-        if r.ok {
-            showNotice("C'est ouvert.")
-        } else {
-            showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
-            client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+        Task {
+            let r = await Shortcuts.open(sc)
+            if r.ok {
+                showNotice("C'est ouvert.")
+            } else {
+                showNotice("Je ne retrouve pas ce dossier. \(HelperName) a reçu un message pour s'en occuper.")
+                client.send(["type": "automation_failed", "title": l.title, "detail": r.detail])
+            }
         }
     }
 

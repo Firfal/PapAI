@@ -12,10 +12,14 @@ import base64
 import ctypes
 import io
 import os
+import subprocess
 import sys
 import threading
 import time
+import unicodedata
 from pathlib import Path
+
+from . import apps
 
 WINDOWS = sys.platform == "win32"
 SEND_WIDTH = 1280  # comme le Mac : assez pour viser juste, pas plus
@@ -525,6 +529,18 @@ def known_folder(name: str) -> Path | None:
         ctypes.windll.ole32.CoTaskMemFree(out)
 
 
+def valid_subfolder(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    sub = value.strip()
+    if len(sub) > 100 or any(
+        unicodedata.category(c) not in {"Lu", "Ll", "Lt", "Lm", "Lo", "Nd"}
+        and c not in " -_'’(),&+" for c in sub
+    ):
+        return None
+    return sub
+
+
 def open_shortcut(shortcut: dict | None) -> tuple[bool, str]:
     """Ouvre le dossier d'un automatisme. Le modèle ne fournit jamais de chemin :
     un dossier connu du système et au plus un nom de sous-dossier. Si le dossier
@@ -533,22 +549,19 @@ def open_shortcut(shortcut: dict | None) -> tuple[bool, str]:
     base = known_folder(str(sc.get("folder") or ""))
     if base is None:
         return False, "Aucun raccourci enregistré."
-    sub = str(sc.get("subfolder") or "").strip()
-    target = base
-    if sub:
-        if any(c in sub for c in '\\/:*?"<>|') or ".." in sub or sub == ".":
-            return False, "Nom de dossier invalide."
-        target = base / sub
-    if not target.is_dir():
-        quoi = f"« {sub} »" if sub else "Ce dossier"
-        return False, f"{quoi} n'existe pas (ou plus) sur cet ordinateur."
+    sub = valid_subfolder(sc.get("subfolder", ""))
+    if sub is None:
+        return False, "Nom de dossier invalide."
+    from .home_shortcuts import valid_folder
+
+    target = valid_folder(base / sub if sub else base, reject_links=True)
+    if target is None or not target.is_relative_to(base.resolve()):
+        return False, "Ce dossier n'est pas disponible ou ne peut pas être ouvert en toute sécurité."
     try:
         if WINDOWS:
-            os.startfile(str(target))  # noqa: S606 — un dossier, dans l'Explorateur
+            subprocess.Popen([str(apps.windows_directory() / "explorer.exe"), str(target)], shell=False)
         else:
-            import subprocess
-
-            subprocess.Popen(["xdg-open", str(target)])  # noqa: S603,S607
+            return False, "L'Explorateur Windows n'est pas disponible."
     except OSError as e:
         return False, str(e)
     return True, str(target)

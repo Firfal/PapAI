@@ -2,6 +2,20 @@ import AppKit
 import Observation
 import UniformTypeIdentifiers
 
+enum SousDossier {
+    static func valider(_ valeur: String) -> String? {
+        let nom = valeur.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard nom.unicodeScalars.count <= 100, nom.unicodeScalars.allSatisfy({ c in
+            switch c.properties.generalCategory {
+            case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter, .decimalNumber:
+                return true
+            default: return " -_'’(),&+".unicodeScalars.contains(c)
+            }
+        }) else { return nil }
+        return nom
+    }
+}
+
 enum DossierRaccourci {
     private static let interdites: Set<String> = [
         "app", "command", "tool", "prefpane", "workflow", "pkg", "mpkg", "action", "bundle", "plugin",
@@ -16,6 +30,27 @@ enum DossierRaccourci {
               valeurs.isDirectory == true, valeurs.isPackage == false, valeurs.isApplication == false
         else { return nil }
         return cible
+    }
+
+    static func cible(dans base: URL, sousDossier: String) -> URL? {
+        guard let nom = SousDossier.valider(sousDossier),
+              let racine = valider(base),
+              let cible = valider(nom.isEmpty ? base : base.appendingPathComponent(nom, isDirectory: true))
+        else { return nil }
+        let prefixe = racine.path.hasSuffix("/") ? racine.path : racine.path + "/"
+        guard cible == racine || cible.path.hasPrefix(prefixe) else { return nil }
+        return cible
+    }
+
+    @MainActor
+    static func ouvrir(_ url: URL, completion: @escaping (Error?) -> Void) -> Bool {
+        guard let cible = valider(url),
+              let finder = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.finder")
+        else { return false }
+        NSWorkspace.shared.open([cible], withApplicationAt: finder, configuration: .init()) { _, erreur in
+            completion(erreur)
+        }
+        return true
     }
 }
 
@@ -149,12 +184,10 @@ final class HomeShortcuts {
         switch tuile.cible {
         case .application(let bundle): ouvrirApplication(bundle, notice: notice)
         case .dossier(let chemin):
-            guard let url = DossierRaccourci.valider(URL(fileURLWithPath: chemin)),
-                  let finder = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.finder")
-            else { notice("Ce dossier n'est pas disponible ou ne peut pas être ouvert en toute sécurité."); return }
-            NSWorkspace.shared.open([url], withApplicationAt: finder, configuration: .init()) { _, erreur in
+            let ouvert = DossierRaccourci.ouvrir(URL(fileURLWithPath: chemin)) { erreur in
                 if erreur != nil { Task { @MainActor in notice("Je n'arrive pas à ouvrir ce dossier dans le Finder.") } }
             }
+            if !ouvert { notice("Ce dossier n'est pas disponible ou ne peut pas être ouvert en toute sécurité.") }
         case .message:
             guard let mail = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.mail"),
                   let url = URL(string: "mailto:") else { notice("Mail n'est pas disponible sur cet ordinateur."); return }
