@@ -47,8 +47,8 @@ struct SupportApp: View {
 
 enum SupportConnection {
     @MainActor static func line(_ m: HelperModel, now: Date) -> String {
-        if m.connected { return "Connecté à \(m.displayHost)" }
-        guard let e = m.linkError else { return "Connexion à \(m.displayHost)…" }
+        if m.connected { return String(localized: "Connecté à \(m.displayHost)") }
+        guard let e = m.linkError else { return String(localized: "Connexion à \(m.displayHost)…") }
         guard let at = m.retryAt else { return e }
         let n = Int(at.timeIntervalSince(now).rounded(.up))
         return n > 0 ? "\(e), nouvel essai dans \(n) s" : "\(e), nouvel essai…"
@@ -68,7 +68,7 @@ struct SupportRoot: View {
                 SupportNoPoste(model: model)
             } else {
                 VStack(alignment: .leading, spacing: 14) {
-                    Onglets(options: [("Tickets", 0), ("Utilisateurs", 1), ("Mes automates", 2)], selection: $onglet)
+                    Onglets(options: [("Tickets", 0), ("Utilisateurs", 1), (String(localized: "Mes automates"), 2)], selection: $onglet)
                         .frame(maxWidth: 520)
                     switch onglet {
                     case 0:
@@ -105,9 +105,15 @@ struct SupportRoot: View {
 
     @ViewBuilder private var content: some View {
         switch model.screen {
-        case .idle: SupportIdle(model: model)
-        case .waiting: SupportWaiting(model: model, text: "En attente de l’autorisation de \(model.senior)")
-        case .planning: SupportWaiting(model: model, text: "Holo regarde l’écran…")
+        case .idle:
+            // Hors assistance : les tickets de l'utilisateur choisi, sous l'accueil.
+            VStack(alignment: .leading, spacing: 14) {
+                ProfilUtilisateur(model: model)
+                Text("Historique des demandes").font(rounded(19, .bold))
+                SupportTickets(model: model, only: model.helperKey) { _ in }
+            }
+        case .waiting: SupportWaiting(model: model, text: String(localized: "En attente de l’autorisation de \(model.senior)"))
+        case .planning: SupportWaiting(model: model, text: String(localized: "Holo regarde l’écran…"))
         case .approval: SupportApproval(model: model)
         case .active: SupportActive(model: model)
         case .helper: SupportHelperView(model: model)
@@ -230,7 +236,7 @@ struct PeopleSidebar: View {
         let online = here ? (model.seniorOnline == true) : (model.othersOnline[p.key] == true)
         let name = People.title(p)
         let detail = People.detail(p)
-        let state = asking ? "Demande une assistance" : online ? "En ligne" : "Hors ligne"
+        let state = asking ? String(localized: "Demande une assistance") : online ? String(localized: "En ligne") : String(localized: "Hors ligne")
         return Button { model.switchTo(p) } label: {
             HStack(spacing: 12) {
                 Text(String(name.prefix(1)).uppercased()).font(rounded(17, .bold))
@@ -273,7 +279,7 @@ struct RequestHead: View {
                 Text("Demande de \(model.senior) · \(ago(model.requestStart))")
                     .font(rounded(15, .medium)).opacity(0.92)
             }
-            Text(model.task.isEmpty ? "\(model.seniorTitle) demande une assistance" : "« \(model.task) »")
+            Text(model.task.isEmpty ? String(localized: "\(model.seniorTitle) demande une assistance") : "« \(model.task) »")
                 .font(rounded(26, .bold)).lineLimit(3).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -309,12 +315,12 @@ struct SupportCapture: View {
                 .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(model.aiming ? T.accent : T.line, lineWidth: model.aiming ? 3 : 1))
                 .shadow(color: T.ombre.opacity(0.08), radius: 14, y: 6)
-                .accessibilityLabel(model.webLive ? model.webBrowserTitle : "Écran de \(model.senior)")
+                .accessibilityLabel(model.webLive ? model.webBrowserTitle : String(localized: "Écran de \(model.senior)"))
         } else {
             VStack(spacing: 10) {
                 Image(systemName: "display").font(.system(size: 28)).foregroundStyle(T.accent)
-                Text(model.webLive ? "En attente de la première image de Chrome PapAI…"
-                     : "En attente de la première capture d’écran…")
+                Text(model.webLive ? String(localized: "En attente de la première image de Chrome PapAI…")
+                     : String(localized: "En attente de la première capture d’écran…"))
                     .font(rounded(16)).foregroundStyle(T.muted)
             }
             .frame(maxWidth: .infinity, minHeight: 220)
@@ -360,7 +366,7 @@ struct SupportPlanProgress: View {
     let current: Int?
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(current.map { "Étape \(min($0, plan.count)) sur \(plan.count)" } ?? "Plan validé")
+            Text(current.map { "Étape \(min($0, plan.count)) sur \(plan.count)" } ?? String(localized: "Plan validé"))
                 .font(rounded(14, .semibold)).foregroundStyle(T.muted)
             ForEach(Array(plan.enumerated()), id: \.offset) { i, raw in
                 let s = PlanStep(id: i, raw: raw)
@@ -386,7 +392,7 @@ struct SupportPlanProgress: View {
                     Spacer(minLength: 0)
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel(now ? "En cours : \(raw)" : past ? "Fait : \(raw)" : raw)
+                .accessibilityLabel(now ? String(localized: "En cours : \(raw)") : past ? "Fait : \(raw)" : raw)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: current)
@@ -418,14 +424,14 @@ struct SupportMic: View {
         }
         .buttonStyle(.plain)
         .disabled(dictation.phase == .transcribing)
-        .accessibilityLabel(listening ? "Arrêter la dictée" : "Dicter")
+        .accessibilityLabel(listening ? String(localized: "Arrêter la dictée") : "Dicter")
     }
 
     static func caption(_ d: Dictation) -> String {
         switch d.phase {
-        case .idle: d.message ?? "Cliquez sur le micro et parlez"
-        case .listening: "Je vous écoute… cliquez pour finir"
-        case .transcribing: "J’écris ce que vous avez dit…"
+        case .idle: d.message ?? String(localized: "Cliquez sur le micro et parlez")
+        case .listening: String(localized: "Je vous écoute… cliquez pour finir")
+        case .transcribing: String(localized: "J’écris ce que vous avez dit…")
         }
     }
 }
@@ -477,4 +483,31 @@ struct SupportZoom: View {
 /// Bouton secondaire compact (blanc bordé), pour les actions à côté du bouton principal.
 func supportSecondary(_ height: CGFloat = 56, icone: String? = nil) -> PillStyle {
     PillStyle(filled: false, height: height, icone: icone)
+}
+
+
+/// Onglet Utilisateurs, hors assistance : qui est l'utilisateur et où en est son poste.
+struct ProfilUtilisateur: View {
+    let model: HelperModel
+    var body: some View {
+        let p = model.people.first { $0.key == model.helperKey }
+        HStack(spacing: 16) {
+            Text(String(model.senior.prefix(1)).uppercased()).font(rounded(26, .bold)).foregroundStyle(.white)
+                .frame(width: 60, height: 60).background(Circle().fill(T.accent))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(model.senior.isEmpty ? "Utilisateur" : model.senior).font(rounded(24, .bold))
+                if let label = p?.label, !label.isEmpty {
+                    Text(label).font(rounded(15)).foregroundStyle(T.muted)
+                }
+                Text(model.connected ? String(localized: "Rien à signaler pour \(model.senior)") : String(localized: "Connexion interrompue"))
+                    .font(rounded(15, .semibold)).foregroundStyle(model.connected ? Pastille.Ton.vert.texte : T.danger)
+            }
+            Spacer(minLength: 0)
+            if let online = model.seniorOnline {
+                Pastille(texte: online ? String(localized: "Ordinateur allumé") : String(localized: "Ordinateur éteint"), icone: "desktopcomputer",
+                         ton: online ? .vert : .gris, taille: 14)
+            }
+        }
+        .padding(18).carte()
+    }
 }

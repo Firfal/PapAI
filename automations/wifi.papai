@@ -1,7 +1,7 @@
 {
   "papai": 1,
   "title": "Se connecter au Wi-Fi",
-  "publisher": "Service IT Acme",
+  "publisher": "Service IT",
   "description": "Ouvre la page Wi-Fi des Réglages. La personne choisit son réseau et tape elle-même la clé Wi-Fi : PapAI ne la garde jamais.",
   "platforms": [
     "windows",

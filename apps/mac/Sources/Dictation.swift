@@ -73,7 +73,7 @@ final class Dictation {
         #endif
         if testFile == nil {
             guard await AVCaptureDevice.requestAccess(for: .audio) else {
-                message = "Je n'ai pas accès au micro. Autorisez-le dans Réglages Système, Confidentialité."
+                message = String(localized: "Je n'ai pas accès au micro. Autorisez-le dans Réglages Système, Confidentialité.")
                 return
             }
         }
@@ -85,7 +85,7 @@ final class Dictation {
         var source: AVAudioFile?
         let inFormat: AVAudioFormat
         if let testFile {
-            guard let f = try? AVAudioFile(forReading: testFile) else { message = "Fichier audio illisible."; return }
+            guard let f = try? AVAudioFile(forReading: testFile) else { message = String(localized: "Fichier audio illisible."); return }
             source = f; inFormat = f.processingFormat
         } else {
             let e = AVAudioEngine()
@@ -95,14 +95,14 @@ final class Dictation {
               let outFormat = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000,
                                             channels: 1, interleaved: true),
               let converter = AVAudioConverter(from: inFormat, to: outFormat) else {
-            message = "Je n'arrive pas à utiliser le micro pour le moment."
+            message = String(localized: "Je n'arrive pas à utiliser le micro pour le moment.")
             return
         }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("papai-dictee.wav")
         try? FileManager.default.removeItem(at: url)
         guard let file = try? AVAudioFile(forWriting: url, settings: outFormat.settings,
                                          commonFormat: .pcmFormatInt16, interleaved: true) else {
-            message = "Je n'arrive pas à utiliser le micro pour le moment."
+            message = String(localized: "Je n'arrive pas à utiliser le micro pour le moment.")
             return
         }
 
@@ -110,7 +110,7 @@ final class Dictation {
         let id = UUID()
         recordingID = id
         var request: SFSpeechAudioBufferRecognitionRequest?
-        if speechOK, let rec = SFSpeechRecognizer(locale: Locale(identifier: "fr-FR")), rec.isAvailable {
+        if speechOK, let rec = SFSpeechRecognizer(locale: Locale(identifier: AppLangue.anglais ? "en-US" : "fr-FR")), rec.isAvailable {
             let r = SFSpeechAudioBufferRecognitionRequest()
             r.shouldReportPartialResults = true
             if rec.supportsOnDeviceRecognition { r.requiresOnDeviceRecognition = true }
@@ -162,7 +162,7 @@ final class Dictation {
                 engine.inputNode.removeTap(onBus: 0)
                 continuation.finish()
                 recognition?.cancel(); recognition = nil
-                message = "Je n'arrive pas à utiliser le micro pour le moment."
+                message = String(localized: "Je n'arrive pas à utiliser le micro pour le moment.")
                 return
             }
         }
@@ -177,7 +177,7 @@ final class Dictation {
         liveAudio = continuation
         let client = GladiaLive()
         liveClient = client
-        client.start(transcribe: URL(string: httpBase + "/transcribe"), audio: audio, onText: { [weak self] text in
+        client.start(transcribe: URL(string: httpBase + "/transcribe" + (AppLangue.anglais ? "?lang=en" : "")), audio: audio, onText: { [weak self] text in
             guard let self, phase != .idle else { return }
             transcript.updateGladia(text)
             publishLive()
@@ -264,7 +264,7 @@ final class Dictation {
             phase = .idle
             live = ""
             if let text, !text.isEmpty { onText?(text) }
-            else if message == nil { message = "Je n'ai rien entendu. Appuyez sur le micro et parlez." }
+            else if message == nil { message = String(localized: "Je n'ai rien entendu. Appuyez sur le micro et parlez.") }
         }
     }
 
@@ -285,7 +285,7 @@ final class Dictation {
     }
 
     private func viaServeur(_ url: URL) async -> String? {
-        guard let endpoint = URL(string: base + "/transcribe"),
+        guard let endpoint = URL(string: base + "/transcribe" + (AppLangue.anglais ? "?lang=en" : "")),
               let audio = try? Data(contentsOf: url), audio.count > 2000 else { return nil }
         var req = URLRequest(url: endpoint, timeoutInterval: 25)
         req.httpMethod = "POST"

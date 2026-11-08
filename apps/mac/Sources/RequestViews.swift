@@ -15,7 +15,7 @@ struct RemoteRequestView: View {
                         .background(Circle().fill(.white))
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 10) {
-                        Pastille(texte: request.rdv ? "C'est l'heure de votre rendez-vous" : request.ticket != nil ? "Votre demande en attente" : "Proposition d'aide", ton: .violet, taille: 17)
+                        Pastille(texte: request.rdv ? String(localized: "C'est l'heure de votre rendez-vous") : request.ticket != nil ? String(localized: "Votre demande en attente") : String(localized: "Proposition d'aide"), ton: .violet, taille: 17)
                         Text(request.ticket != nil ? "\(request.from) est disponible pour vous aider" : "\(request.from) propose de vous aider").font(rounded(44, .bold)).tracking(-0.7)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -47,8 +47,8 @@ struct RemoteRequestView: View {
 
 func rdvText(_ d: Date) -> String {
     let f = DateFormatter()
-    f.locale = Locale(identifier: "fr_FR")
-    f.dateFormat = "EEEE d MMMM 'à' HH:mm"
+    f.locale = Locale(identifier: AppLangue.anglais ? "en_US" : "fr_FR")
+    f.dateFormat = String(localized: "EEEE d MMMM 'à' HH:mm")
     return f.string(from: d)
 }
 
@@ -78,7 +78,7 @@ struct QueuedView: View {
                         Text("Personne n'est disponible pour l'instant. PapAI vous préviendra dès que \(model.helperName) sera là. Vous pouvez aussi fixer un rendez-vous.")
                             .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                         HStack(spacing: 10) {
-                            ForEach([("Dans 1 heure", "1h"), ("Demain à 9 h", "demain9"), ("Demain à 14 h", "demain14")], id: \.1) { slot in
+                            ForEach([("Dans 1 heure", "1h"), (String(localized: "Demain à 9 h"), "demain9"), (String(localized: "Demain à 14 h"), "demain14")], id: \.1) { slot in
                                 Button { model.scheduleTicket(slot.1) } label: { Text(slot.0) }
                                     .buttonStyle(PillStyle(filled: false, height: 56, icone: "calendar"))
                             }
@@ -122,21 +122,21 @@ struct ExistingTicketView: View {
 
     private var statut: String {
         switch ticket.status {
-        case "en_cours": return "Une assistance est déjà en cours sur cette demande."
-        case "rdv": return ticket.rdv.map { "Rendez-vous \(rdvText($0)). PapAI vous préviendra à l’heure dite." }
-            ?? "Un rendez-vous est prévu. PapAI vous préviendra à l’heure dite."
-        case "a_reprendre": return "L’assistance s’est arrêtée avant la fin. \(model.helperName) a votre demande et va la reprendre."
-        default: return "Elle attend un support. PapAI vous préviendra dès que \(model.helperName) sera là."
+        case "en_cours": return String(localized: "Une assistance est déjà en cours sur cette demande.")
+        case "rdv": return ticket.rdv.map { String(localized: "Rendez-vous \(rdvText($0)). PapAI vous préviendra à l’heure dite.") }
+            ?? String(localized: "Un rendez-vous est prévu. PapAI vous préviendra à l’heure dite.")
+        case "a_reprendre": return String(localized: "L’assistance s’est arrêtée avant la fin. \(model.helperName) a votre demande et va la reprendre.")
+        default: return String(localized: "Elle attend un support. PapAI vous préviendra dès que \(model.helperName) sera là.")
         }
     }
 
     private var pastille: String {
-        guard ticket.solved else { return "Demande n° \(ticket.number)" }
-        guard let at = ticket.at else { return "Demande n° \(ticket.number) · réglée" }
+        guard ticket.solved else { return String(localized: "Demande n° \(ticket.number)") }
+        guard let at = ticket.at else { return String(localized: "Demande n° \(ticket.number) · réglée") }
         let f = DateFormatter()
-        f.locale = Locale(identifier: "fr_FR")
+        f.locale = Locale(identifier: AppLangue.anglais ? "en_US" : "fr_FR")
         f.dateFormat = "d MMMM"
-        return "Demande n° \(ticket.number) · réglée le \(f.string(from: at))"
+        return String(localized: "Demande n° \(ticket.number) · réglée le \(f.string(from: at))")
     }
 
     var body: some View {
@@ -145,8 +145,8 @@ struct ExistingTicketView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Pastille(texte: pastille, icone: ticket.solved ? "checkmark.seal.fill" : "person.wave.2.fill",
                              ton: ticket.solved ? .vert : .orange, taille: 17)
-                    Text(ticket.solved ? "Cette demande a déjà été réglée"
-                         : ticket.status == "en_cours" ? "Cette demande est déjà en cours" : "Vous avez déjà fait cette demande")
+                    Text(ticket.solved ? String(localized: "Cette demande a déjà été réglée")
+                         : ticket.status == "en_cours" ? String(localized: "Cette demande est déjà en cours") : String(localized: "Vous avez déjà fait cette demande"))
                         .font(rounded(44, .bold)).tracking(-0.7)
                 }
             } corps: {
@@ -177,7 +177,7 @@ struct ExistingTicketView: View {
                         Text("Si le problème est revenu, Holo peut refaire la même chose avec vous.")
                             .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                     } else {
-                        Text(statut + " Inutile de la refaire.")
+                        Text(statut + String(localized: " Inutile de la refaire."))
                             .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer(minLength: 0)
@@ -186,7 +186,7 @@ struct ExistingTicketView: View {
 
             HStack(spacing: 14) {
                 Button { model.newRequest() } label: {
-                    Text(ticket.solved ? "Ce n’est pas la même demande" : "C’est une autre demande").frame(maxWidth: .infinity)
+                    Text(ticket.solved ? String(localized: "Ce n’est pas la même demande") : String(localized: "C’est une autre demande")).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(PillStyle(filled: false, height: 78))
                 .disabled(!model.connected)
@@ -196,7 +196,7 @@ struct ExistingTicketView: View {
                         .disabled(!model.connected)
                 }
                 Button { model.existing = nil } label: {
-                    Text(ticket.solved ? "C’est réglé, merci" : "D’accord").frame(maxWidth: .infinity)
+                    Text(ticket.solved ? String(localized: "C’est réglé, merci") : "D’accord").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(PillStyle(height: 78, icone: "checkmark.circle", plein: true))
                 .keyboardShortcut(.defaultAction)

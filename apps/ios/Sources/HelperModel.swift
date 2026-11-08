@@ -215,8 +215,8 @@ final class HelperModel {
     private var orgTask: Task<Void, Never>?
 
     var orgConfigured: Bool { org != nil }
-    /// « Support IT · Acme », ou « Support IT » tant que le nom n'est pas connu.
-    var orgTitle: String { orgName.map { "Support IT · \($0)" } ?? "Support IT" }
+    /// Toujours « Support IT » : le nom de l’organisation ne s’affiche pas en titre.
+    var orgTitle: String { "Support IT" }
 
     /// Relit la liste des postes toutes les 30 s : un poste inscrit après coup apparaît seul.
     private func startOrg() {
@@ -902,6 +902,8 @@ final class HelperModel {
     func refinePlan(_ text: String) { planBusy = true; send(["type": "refine_plan", "text": text]) }
     func refusePlan() { iRefusedPlan = true; send(["type": "refuse_plan"]) }
     func answer(_ t: String) { send(["type": "answer", "text": t]) }
+    /// Le support a tout réglé : il met fin à l'aide, le ticket est résolu avec cette solution.
+    func finishHelp(_ text: String) { send(["type": "finish", "text": text]); aiming = false }
     func pause() { pausing = true; send(["type": "pause"]); showToast("Pause demandée : l’action en cours se termine.") }
     func refresh() { send(["type": "refresh"]) }
 

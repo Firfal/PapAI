@@ -1,6 +1,7 @@
 name: PapAI
 options:
   bundleIdPrefix: com.quentin
+  developmentLanguage: fr
   deploymentTarget:
     macOS: "15.0"
 settings:

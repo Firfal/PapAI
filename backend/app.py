@@ -28,7 +28,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.requests import HTTPConnection
 
 from . import (
-    automations, billing, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
+    automate_draft, automations, billing, guard, linkup, orgs as orgs_mod, space, storage, suggest, ticket_stats,
     tickets as tickets_mod, voice,
 )
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
@@ -1437,6 +1437,24 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             session.answer_from_helper(str(msg.get("text", "")).strip())
             await broadcast_helper(session.status())
 
+        elif kind == "finish":
+            # Le support a tout réglé (souvent après avoir pris la main) : il met fin à l'aide.
+            # L'assistance se termine comme réglée et le ticket garde la solution.
+            sup = _ws_support.get(ws)
+            who = (sup["name"] if sup else S().helper_who.get(ws, {}).get("name", "")) or "Support"
+            text = str(msg.get("text") or "").strip()[:1000] or "Réglé par le support."
+            session.finish(text)
+            session.log("helper_finish", by=who)
+            if S().agent_task and not S().agent_task.done():
+                S().agent_task.cancel()
+            ticket = S().tickets.get(session.ticket) if session.ticket else None
+            if ticket is not None:
+                S().tickets.update(ticket, status="resolu", solution=text, closed_by=who)
+                S().tickets.note(ticket, who, text)
+                await _tickets_changed()
+            await broadcast_helper({"type": "answer", "session": session.id, "content": text})
+            await broadcast_helper(session.status())
+
         elif kind == "pause":
             session.pause_requested = True
             session.log("helper_pause")
@@ -2353,7 +2371,7 @@ async def transcribe_live_keyed(ws: WebSocket, fam: str) -> None:
         return
     _track_support(ws)
     try:
-        await voice.relay_live(ws)
+        await voice.relay_live(ws, voice.langue(ws.query_params.get("lang")))
     finally:
         _untrack_support(ws)
 
@@ -2418,6 +2436,37 @@ async def remove_automation_keyed(fam: str, lesson_id: str):
     return await _remove_automation(lesson_id)
 
 
+async def _draft_automation(request: Request):
+    """Brouillon d'automate (document ou enregistrement) : appelle Holo, n'écrit rien."""
+    try:
+        body = await request.json()
+    except ValueError:
+        return JSONResponse({"error": "Requête illisible (JSON attendu)."}, status_code=400)
+    if not isinstance(body, dict):
+        return JSONResponse({"error": "Requête illisible (JSON attendu)."}, status_code=400)
+    try:
+        return await automate_draft.draft(body)
+    except automate_draft.DraftError as e:
+        return JSONResponse({"error": str(e)}, status_code=422)
+    except Exception as e:  # noqa: BLE001 — Holo injoignable, quota…
+        print(f"[automate] brouillon impossible : {type(e).__name__}")
+        return JSONResponse({"error": "Holo ne répond pas pour le moment. Réessayez."}, status_code=502)
+
+
+@app.post("/k/{fam}/automations/draft")
+async def draft_automation_keyed(fam: str, request: Request):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _draft_automation(request)
+
+
+@app.post("/automations/draft")
+async def draft_automation(request: Request):
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _draft_automation(request)
+
+
 @app.post("/automations")
 async def import_automation(request: Request):
     if not _same_machine(request):
@@ -2444,7 +2493,8 @@ async def transcribe_keyed(fam: str, request: Request):
         return JSONResponse({"error": "trop_long"}, status_code=413)
     ctype = request.headers.get("content-type", "audio/wav").split(";")[0].strip()
     ext = "m4a" if "m4a" in ctype or "mp4" in ctype else "wav"
-    ok, text = await asyncio.to_thread(voice.transcribe, audio, f"demande.{ext}", ctype)
+    ok, text = await asyncio.to_thread(voice.transcribe, audio, f"demande.{ext}", ctype,
+                                       voice.langue(request.query_params.get("lang")))
     if not ok:
         return JSONResponse({"error": text}, status_code=502)
     return {"text": text}
@@ -2561,6 +2611,102 @@ async def _ticket_action(tid: str, body: dict):
         S().tickets.update(t, assignee=by, status="en_attente", offered=int(time.time()))
         await S().bridge.send({"type": "remote_request", "from": by or "Votre support", "task": t["task"],
                                "ticket": t["id"], "number": t["number"], "rdv": False})
+    elif act == "refine":
+        # Le support réécrit tout le plan d'une phrase : Holo refait le plan avec sa consigne.
+        if not t.get("automate") or t["status"] == "resolu":
+            return JSONResponse({"error": "Ce ticket n'a pas de plan à modifier."}, status_code=409)
+        consigne = str(body.get("text") or "").strip()[:600]
+        if len(consigne) < 3:
+            return JSONResponse({"error": "Dites à Holo ce qu'il doit changer."}, status_code=400)
+        actuel = " ; ".join(t["automate"].get("steps", []))
+        try:
+            new = await automate_draft.draft({
+                "kind": "request", "os": (t["automate"].get("platforms") or ["mac"])[0],
+                "lang": str(body.get("lang") or ""),
+                "text": f"{t['task']}\n\nPlan actuel : {actuel}\nConsigne du support, à suivre : {consigne}"})
+        except automate_draft.DraftError as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
+        except Exception as e:  # noqa: BLE001
+            print(f"[tickets] plan non refait : {type(e).__name__}")
+            return JSONResponse({"error": "Holo ne répond pas pour le moment. Réessayez."}, status_code=502)
+        new.pop("linkup", None)
+        S().tickets.update(t, automate=new)
+        S().tickets.note(t, by, f"Plan refait : {consigne}")
+    elif act == "linkup":
+        # Le support demande une recherche Linkup : Holo refait le plan avec la documentation.
+        if not t.get("automate") or t["status"] == "resolu":
+            return JSONResponse({"error": "Ce ticket n'a pas de plan à mettre à jour."}, status_code=409)
+        if not linkup.enabled():
+            return JSONResponse({"error": "Linkup n'est pas configuré sur ce serveur."}, status_code=409)
+        question = str(body.get("query") or t["task"]).strip()[:1000]
+        try:
+            new = await automate_draft.draft({"kind": "request", "text": t["task"], "linkup_query": question,
+                                              "os": (t["automate"].get("platforms") or ["mac"])[0]})
+        except automate_draft.DraftError as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
+        except Exception as e:  # noqa: BLE001 — Holo ou Linkup injoignable
+            print(f"[tickets] recherche Linkup impossible : {type(e).__name__}")
+            return JSONResponse({"error": "La recherche n'a pas abouti. Réessayez."}, status_code=502)
+        note = new.pop("linkup", None)
+        if not note:
+            return JSONResponse({"error": "Linkup n'a rien trouvé d'utile pour cette demande."}, status_code=422)
+        S().tickets.update(t, automate=new, linkup=note)
+        S().tickets.note(t, by, "Plan mis à jour avec une recherche Linkup.")
+    elif act == "run":
+        # Le support lance la solution du ticket sur l'ordinateur : plan déjà validé par lui,
+        # aucun automate n'est créé (il le fera s'il voit la demande revenir).
+        if not t.get("automate") or t["status"] == "resolu":
+            return JSONResponse({"error": "Ce ticket n'a pas de plan à exécuter."}, status_code=409)
+        link = S().bridge
+        if link is None:
+            return JSONResponse({"error": "L'ordinateur n'est pas connecté."}, status_code=409)
+        cur = current_session()
+        if cur is not None and cur.is_open:
+            return JSONResponse({"error": "Une assistance est déjà en cours."}, status_code=409)
+        edit = body.get("automate")
+        if isinstance(edit, dict):
+            try:
+                S().tickets.update(t, automate=automate_draft.clean(
+                    {**t["automate"], **{k: v for k, v in edit.items() if k in ("title", "steps")}}))
+            except automate_draft.DraftError as e:
+                return JSONResponse({"error": str(e)}, status_code=422)
+        plan = t["automate"]
+        session = S().registry.create((plan.get("goal") or t["task"])[:MAX_TASK])
+        session.grant_consent()
+        session.preapprove_plan(list(plan.get("steps") or []), by=by or "Support IT")
+        session.ticket = t["id"]
+        session.log("ticket_run", ticket=t["id"])
+        S().tickets.update(t, status="en_cours", session=session.id, assignee=by or t.get("assignee", ""))
+        await link.send({"type": "session", "id": session.id, "helper_url": f"{PUBLIC_URL}/h/{session.helper_token}",
+                         "ticket": t["id"], "number": t["number"]})
+        await broadcast_helper(session.status())
+        if S().agent_task and not S().agent_task.done():
+            S().agent_task.cancel()
+        S().agent_task = asyncio.create_task(run_automation(session, link))
+        S().tickets.note(t, by, "Solution lancée sur l'ordinateur.")
+    elif act == "validate":
+        # Demande d'automate : valider le plan, c'est créer l'automate chez l'utilisateur.
+        if not t.get("automate") or t["status"] == "resolu":
+            return JSONResponse({"error": "Ce ticket n'a pas d'automate à valider."}, status_code=409)
+        # Le support peut corriger le plan de Holo avant de le valider (titre, étapes).
+        edit = body.get("automate")
+        if isinstance(edit, dict):
+            try:
+                plan = automate_draft.clean({**t["automate"], **{k: v for k, v in edit.items() if k in ("title", "steps")}})
+            except automate_draft.DraftError as e:
+                return JSONResponse({"error": str(e)}, status_code=422)
+            S().tickets.update(t, automate=plan)
+        try:
+            lesson = automations.save(automate_draft.pack(t["automate"], by or "Support IT"), by=by or "Support IT")
+        except automations.Invalid as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
+        print(f"[automate] créé depuis le ticket {t['id']} : {lesson['id']}")
+        steps = "\n".join(f"{i}. {x}" for i, x in enumerate(t["automate"].get("steps", []), 1))
+        S().tickets.update(t, status="resolu", closed_by=by or "Support IT", rdv=None, lesson=lesson["id"],
+                           solution=f"Automate « {lesson['title']} » créé et validé par {by or 'le support IT'} :\n{steps}"[:1000])
+        S().tickets.note(t, by, f"Automate « {lesson['title']} » créé.")
+        if S().bridge is not None:
+            await S().bridge.send({"type": "lessons_changed", "title": lesson["title"]})
     else:
         return JSONResponse({"error": "Action inconnue."}, status_code=400)
     await _tickets_changed()
@@ -2597,6 +2743,36 @@ async def tickets_stats_keyed(fam: str, weeks: int = ticket_stats.WEEKS):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return ticket_stats.stats(S().tickets.all(), weeks=weeks)
+async def _ticket_automate(body: dict):
+    """Aucun automate ne répond à la demande : l'utilisateur envoie au support
+    un ticket qui porte le plan proposé par Holo. Rien n'est créé avant Valider."""
+    task = str(body.get("task") or "").strip()[:MAX_TASK]
+    if not task:
+        return JSONResponse({"error": "Demande vide."}, status_code=400)
+    raw = body.get("automate")
+    try:
+        plan = automate_draft.clean(raw if isinstance(raw, dict) else {})
+    except automate_draft.DraftError as e:
+        return JSONResponse({"error": str(e)}, status_code=422)
+    t = _open_ticket(task, "automate", by=S().family.senior)
+    note = automate_draft.linkup_note(raw.get("linkup")) if isinstance(raw, dict) else None
+    S().tickets.update(t, automate=plan, **({"linkup": note} if note else {}))
+    await _tickets_changed()
+    return {"ticket": tickets_mod.public(t)}
+
+
+@app.post("/k/{fam}/tickets")
+async def ticket_automate_keyed(fam: str, request: Request):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _ticket_automate(await _json_body(request))
+
+
+@app.post("/tickets")
+async def ticket_automate(request: Request):
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _ticket_automate(await _json_body(request))
 
 
 @app.post("/k/{fam}/tickets/{tid}")

@@ -31,6 +31,12 @@ struct SupportTicket: Identifiable {
     var categoryBy: String
     var resolved: Double?
     var person: Person
+    /// Demande d'automate : le plan proposé par Holo, à valider pour créer l'automate.
+    var plan: (titre: String, etapes: [String])?
+    /// Recherche Linkup jointe au plan : résumé et sources, relus par le support.
+    var linkup: (resume: String, sources: [(nom: String, url: String)])?
+    /// Trace de la solution, une fois le ticket résolu.
+    var solution: String = ""
 
     var label: String { String(format: "T-%04d", number) }
     var isOpen: Bool { status != "resolu" }
@@ -62,6 +68,16 @@ struct SupportTicket: Identifiable {
         category = d["category"] as? String ?? "autre"
         categoryBy = d["category_by"] as? String ?? ""
         resolved = (d["resolved"] as? NSNumber)?.doubleValue
+        if let l = d["linkup"] as? [String: Any], let r = l["summary"] as? String, !r.isEmpty {
+            linkup = (r, (l["sources"] as? [[String: Any]] ?? []).compactMap { x in
+                guard let u = x["url"] as? String else { return nil }
+                return ((x["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? u, u)
+            })
+        }
+        solution = d["solution"] as? String ?? ""
+        if let a = d["automate"] as? [String: Any] {
+            plan = (a["title"] as? String ?? "Nouvel automate", a["steps"] as? [String] ?? [])
+        }
         self.person = person
     }
 
@@ -181,9 +197,9 @@ final class AutomateLibrary {
     init() {
         if let d = try? Data(contentsOf: file), let l = try? JSONDecoder().decode([Entry].self, from: d) {
             entries = l
-        } else {
-            seedExamples()
         }
+        // Pas d'exemples au premier lancement : la bibliothèque se remplit avec les automates
+        // nés des tickets, et avec ceux déjà présents chez les utilisateurs.
     }
 
     /// Premier lancement : les exemples livrés avec l'app (dossier `automations/` du dépôt).
@@ -205,7 +221,52 @@ final class AutomateLibrary {
         return e
     }
 
+    /// Les automates déjà présents chez les utilisateurs entrent dans la bibliothèque, marqués
+    /// comme appliqués chez eux : rien n'existe côté utilisateur sans exister côté support.
+    @MainActor
+    func syncFromUsers(_ people: [Person]) async {
+        var changed = false
+        for p in people {
+            guard let url = URL(string: Self.base(p) + "/lessons"),
+                  let (d, r) = try? await URLSession.shared.data(from: url),
+                  (r as? HTTPURLResponse)?.statusCode == 200,
+                  let list = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] else { continue }
+            for var l in list {
+                guard let title = l["title"] as? String, !title.isEmpty else { continue }
+                let k = title.lowercased()
+                if !entries.contains(where: { $0.title.lowercased() == k }) {
+                    l["papai"] = 1
+                    guard let pack = try? JSONSerialization.data(withJSONObject: l),
+                          add(pack: pack, save: false) != nil else { continue }
+                    changed = true
+                }
+                if let i = entries.firstIndex(where: { $0.title.lowercased() == k }), !entries[i].applied.contains(p.key) {
+                    entries[i].applied.append(p.key)
+                    changed = true
+                }
+            }
+        }
+        if changed { save() }
+    }
+
     func remove(_ e: Entry) { entries.removeAll { $0.id == e.id }; save() }
+
+    /// Supprimer un automate de la bibliothèque le retire aussi chez les utilisateurs
+    /// qui l'ont (même titre), pour qu'il ne reste rien côté utilisateur sans le support.
+    func removeEverywhere(_ e: Entry, people: [Person]) async {
+        let title = e.title.lowercased()
+        for p in people {
+            guard let url = URL(string: Self.base(p) + "/lessons"),
+                  let (d, _) = try? await URLSession.shared.data(from: url),
+                  let list = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] else { continue }
+            for l in list where (l["title"] as? String)?.lowercased() == title {
+                guard let id = l["id"] as? String, let del = URL(string: Self.base(p) + "/automations/" + id) else { continue }
+                var req = URLRequest(url: del, timeoutInterval: 10); req.httpMethod = "DELETE"
+                _ = try? await URLSession.shared.data(for: req)
+            }
+        }
+        await MainActor.run { remove(e) }
+    }
 
     func markApplied(_ e: Entry, keys: [String], org: String? = nil) {
         guard let i = entries.firstIndex(where: { $0.id == e.id }) else { return }

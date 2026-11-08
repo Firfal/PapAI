@@ -621,7 +621,7 @@ def entreprise() -> None:
     check(m.snapshot()["orgConfigured"] and m.snapshot()["orgName"] == "Acme", "organisation rattachée visible")
     demo = Model(demo="home")
     demo.start()
-    check(demo.snapshot()["orgName"] == "Acme" and demo.snapshot()["firstName"] == "Jeanne", "démo : Jeanne chez Acme")
+    check(demo.snapshot()["orgName"] == "Mon entreprise" and demo.snapshot()["firstName"] == "Jeanne", "démo : Jeanne chez Mon entreprise")
 
     # Premier lancement sans serveur réglé : l'espace est créé, l'adresse gardée.
     saved = os.environ.pop("PAPAI_SERVER", None)

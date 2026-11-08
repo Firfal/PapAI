@@ -4,6 +4,8 @@ import SwiftUI
 /// les utilisateurs reliés à ce poste, les plus récents d'abord.
 struct SupportTickets: View {
     let model: HelperModel
+    /// Clé d'un utilisateur : n'afficher que ses tickets (onglet Utilisateurs).
+    var only: String? = nil
     var openUser: (Person) -> Void
 
     @State private var tickets: [SupportTicket] = []
@@ -16,79 +18,106 @@ struct SupportTickets: View {
     @State private var highlight: String?    // ticket ouvert depuis un exemple
     @State private var suggestion: TicketStats.Suggestion?
     @State private var applying: AutomateLibrary.Entry?
+    @State private var editing: SupportTicket?
+    @State private var closing: SupportTicket?
 
     private var shown: [SupportTicket] {
-        (filter == 0 ? tickets.filter(\.isOpen) : tickets).filter { focus == nil || $0.category == focus }
+        (filter == 0 ? tickets.filter(\.isOpen) : tickets)
+            .filter { (focus == nil || $0.category == focus) && (only == nil || $0.person.key == only) }
     }
 
+    @State private var showStats = false
+
     var body: some View {
-        Panneau {
-            HStack(alignment: .center, spacing: 18) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Tickets").font(rounded(30, .bold))
-                    let open = tickets.filter(\.isOpen).count
-                    Text(open == 0 ? "Aucune demande en attente." :
-                         "\(open) demande\(open > 1 ? "s" : "") ouverte\(open > 1 ? "s" : "") chez vos utilisateurs.")
-                        .font(rounded(17, .medium)).opacity(0.92)
+        // Une seule barre (filtre, compteurs, actualiser), puis la liste. Le titre est déjà
+        // l'onglet « Tickets » : pas d'en-tête bleu en double. Les statistiques restent repliées.
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 14) {
+                let open = tickets.filter(\.isOpen).count
+                Picker("Afficher", selection: $filter) {
+                    Text("Ouverts (\(open))").tag(0)
+                    Text("Tous (\(tickets.count))").tag(1)
                 }
-                Spacer(minLength: 0)
-                if loading { ProgressView().controlSize(.small).tint(.white) }
-            }
-        } corps: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Onglets(options: [("Ouverts", 0), ("Tous", 1)], selection: $filter).frame(maxWidth: 260)
-                    Spacer()
-                    Button("Actualiser") { Task { await load() } }
-                        .buttonStyle(.plain).font(rounded(14, .semibold)).foregroundStyle(T.leaf)
-                }
-                ForEach(errors, id: \.self) { e in
-                    Label(e, systemImage: "exclamationmark.triangle").font(rounded(14)).foregroundStyle(T.danger)
-                }
-                ScrollViewReader { proxy in
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 10) {
-                        if let stats {
-                            TicketWeekCard(week: stats.thisWeek, suggest: { suggestion = $0 })
-                        }
-                        if let stats, stats.count > 0 {
-                            TicketStatsPanel(stats: stats, focus: $focus,
-                                             openExample: { ex in
-                                                 filter = 1; focus = nil; highlight = ex.id
-                                                 // La liste « Tous » doit être affichée avant de défiler.
-                                                 Task { @MainActor in
-                                                     try? await Task.sleep(nanoseconds: 150_000_000)
-                                                     withAnimation { proxy.scrollTo(ex.id, anchor: .center) }
-                                                 }
-                                             },
-                                             suggest: { suggestion = $0 })
-                        }
-                        if model.people.isEmpty {
-                            empty("Aucun utilisateur relié. Reliez un ordinateur depuis l’onglet Utilisateurs.")
-                        } else if shown.isEmpty && !loading {
-                            empty(filter == 0 ? "Rien à traiter. Les nouvelles demandes de vos utilisateurs arriveront ici."
-                                              : "Aucun ticket pour l’instant.")
-                        }
-                        ForEach(shown) { t in row(t).id(t.id) }
+                .pickerStyle(.segmented).labelsHidden().fixedSize()
+                if focus != nil {
+                    Button { focus = nil } label: {
+                        Label(TicketCategory.label(focus ?? ""), systemImage: "xmark.circle.fill")
                     }
-                    .padding(.bottom, 8)
+                    .buttonStyle(.plain).font(rounded(14, .semibold)).foregroundStyle(T.accent)
+                    .help("Retirer le filtre de catégorie")
                 }
+                Spacer()
+                if loading { ProgressView().controlSize(.small) }
+                if let stats, stats.count > 0 {
+                    Button { withAnimation(.easeOut(duration: 0.2)) { showStats.toggle() } } label: {
+                        Label("Statistiques", systemImage: showStats ? "chart.bar.fill" : "chart.bar")
+                    }
+                    .buttonStyle(.plain).font(rounded(14, .semibold)).foregroundStyle(showStats ? T.accent : T.muted)
                 }
+                Button { Task { await load() } } label: { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.plain).font(.system(size: 15, weight: .semibold)).foregroundStyle(T.muted)
+                    .help("Actualiser")
+            }
+            ForEach(errors, id: \.self) { e in
+                Label(e, systemImage: "exclamationmark.triangle").font(rounded(14)).foregroundStyle(T.danger)
+            }
+            ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 10) {
+                    if showStats, let stats, stats.count > 0 {
+                        TicketWeekCard(week: stats.thisWeek, suggest: { suggestion = $0 })
+                        TicketStatsPanel(stats: stats, focus: $focus,
+                                         openExample: { ex in
+                                             filter = 1; focus = nil; highlight = ex.id
+                                             Task { @MainActor in
+                                                 try? await Task.sleep(nanoseconds: 150_000_000)
+                                                 withAnimation { proxy.scrollTo(ex.id, anchor: .center) }
+                                             }
+                                         },
+                                         suggest: { suggestion = $0 })
+                    }
+                    if model.people.isEmpty {
+                        empty(String(localized: "Aucun utilisateur relié pour l’instant."))
+                    } else if shown.isEmpty && !loading {
+                        empty(filter == 0 ? String(localized: "Rien à traiter. Les demandes de vos utilisateurs arriveront ici.")
+                                          : String(localized: "Aucun ticket pour l’instant."))
+                    }
+                    ForEach(shown) { t in row(t).id(t.id) }
+                }
+                .padding(.bottom, 8)
+            }
             }
         }
+        .padding(.top, 4)
         .sheet(item: $suggestion) { sug in
             SupportCreateAutomate(model: model, prefill: sug.draft) { pack in
                 suggestion = nil
                 if let pack, let d = try? JSONSerialization.data(withJSONObject: pack),
                    let e = AutomateLibrary.shared.add(pack: d) {
-                    model.showToast("« \(e.title) » ajouté à vos automates")
+                    model.showToast(String(localized: "« \(e.title) » ajouté à vos automates"))
                     applying = e
                 }
+            }
+        }
+        .sheet(item: $editing) { t in
+            EditPlanSheet(titre: t.plan?.titre ?? "", etapes: t.plan?.etapes ?? [],
+                          refaire: { consigne in await refine(t, consigne) }) { titre, etapes in
+                editing = nil
+                guard let titre else { return }
+                Task { await validateEdited(t, titre: titre, etapes: etapes) }
+            }
+        }
+        .sheet(item: $closing) { t in
+            SolutionSheet { texte in
+                closing = nil
+                guard let texte else { return }
+                Task { await act(t, "close", ["text": texte]) }
             }
         }
         .sheet(item: $applying) { e in
             ApplyAutomateSheet(model: model, entry: e) { applying = nil }
         }
+        .onAppear { if only != nil { filter = 1 } }   // historique complet, résolus compris
         .task {
             while !Task.isCancelled {
                 await load()
@@ -106,20 +135,53 @@ struct SupportTickets: View {
         HStack(alignment: .top, spacing: 14) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Text(t.label).font(rounded(14, .semibold)).foregroundStyle(T.muted).monospacedDigit()
+                    Text(t.person.name.isEmpty ? "Utilisateur" : t.person.name).font(rounded(15, .semibold))
                     status(t)
-                    Pastille(texte: TicketCategory.label(t.category) + (t.categoryBy == "doute" ? " ?" : ""),
-                             icone: "tag.fill", ton: t.categoryBy == "doute" ? .gris : .bleu, taille: 12)
-                        .help(t.categoryBy == "support" ? "Catégorie corrigée par le support"
-                              : t.categoryBy == "holo" ? "Catégorie choisie par Holo"
-                              : t.categoryBy == "doute" ? "Catégorie à vérifier" : "Catégorie choisie par les règles")
-                    Text(t.person.name.isEmpty ? "Utilisateur" : t.person.name).font(rounded(14, .semibold))
+                    Text("\(t.label) · \(TicketCategory.label(t.category))\(t.categoryBy == "doute" ? " ?" : "")")
+                        .font(rounded(13)).foregroundStyle(T.muted).monospacedDigit()
+                        .help(t.categoryBy == "support" ? String(localized: "Catégorie corrigée par le support")
+                              : t.categoryBy == "holo" ? String(localized: "Catégorie choisie par Holo")
+                              : t.categoryBy == "doute" ? String(localized: "Catégorie à vérifier") : String(localized: "Catégorie choisie par les règles"))
                     if !t.assignee.isEmpty {
                         Text("· pris par \(t.assignee)").font(rounded(13)).foregroundStyle(T.muted)
                     }
                 }
-                Text(t.task.isEmpty ? "Demande sans texte" : "« \(t.task) »").font(rounded(18, .semibold))
+                Text(t.task.isEmpty ? String(localized: "Demande sans texte") : "« \(t.task) »").font(rounded(18, .semibold))
                     .fixedSize(horizontal: false, vertical: true)
+                if let p = t.plan {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Automate proposé : \(p.titre)", systemImage: "wand.and.stars")
+                            .font(rounded(15, .semibold)).foregroundStyle(T.accent)
+                        ForEach(Array(p.etapes.enumerated()), id: \.offset) { i, s in
+                            Text("\(i + 1). \(s)").font(rounded(14)).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(T.field))
+                }
+                if let l = t.linkup {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Recherche Linkup", systemImage: "magnifyingglass")
+                            .font(rounded(14, .semibold)).foregroundStyle(T.accent)
+                        Text(l.resume).font(rounded(14)).lineLimit(4).fixedSize(horizontal: false, vertical: true)
+                        ForEach(Array(l.sources.prefix(3).enumerated()), id: \.offset) { _, src in
+                            if let u = URL(string: src.url) {
+                                Link(src.nom, destination: u).font(rounded(13)).lineLimit(1)
+                            }
+                        }
+                    }
+                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(T.field))
+                }
+                if !t.isOpen && !t.solution.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Solution", systemImage: "checkmark.seal.fill")
+                            .font(rounded(14, .semibold)).foregroundStyle(Pastille.Ton.vert.texte)
+                        Text(t.solution).font(rounded(14)).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(T.field))
+                }
                 if let b = t.blocked {
                     Label(b, systemImage: "exclamationmark.circle").font(rounded(14, .medium))
                         .foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
@@ -133,27 +195,48 @@ struct SupportTickets: View {
             }
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 8) {
-                if t.isOpen && t.status != "en_cours" {
-                    Button(busy == t.id ? "…" : "Prendre en charge") { Task { await act(t, "take") } }
+                if t.isOpen && t.plan != nil {
+                    // Trois boutons de même taille, empilés et alignés.
+                    Button(busy == t.id ? "…" : "Exécuter") { Task { await act(t, "run") } }
+                        .buttonStyle(PillStyle(height: 40, icone: "play.circle", plein: true)).frame(width: 190)
+                        .disabled(busy != nil)
+                        .help("Lance la solution sur l’ordinateur de l’utilisateur, sans créer d’automate")
+                    Button("Modifier") { editing = t }
+                        .buttonStyle(PillStyle(filled: false, height: 40, icone: "pencil", plein: true)).frame(width: 190)
+                        .disabled(busy != nil)
+                        .help("Corriger le plan proposé par Holo avant de le valider")
+                    Button(busy == t.id ? "…" : "Linkup") { Task { await act(t, "linkup") } }
+                        .buttonStyle(PillStyle(filled: false, height: 40, icone: "magnifyingglass", plein: true)).frame(width: 190)
+                        .disabled(busy != nil)
+                        .help("Recherche documentaire : Holo refait le plan avec les sources trouvées")
+                } else if t.isOpen && t.status != "en_cours" {
+                    Button(busy == t.id ? "…" : String(localized: "Prendre en charge")) { Task { await act(t, "take") } }
                         .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
                 }
-                Button("Voir l’utilisateur") { openUser(t.person) }
-                    .buttonStyle(PillStyle(filled: false, height: 36))
-                Menu("Catégorie") {
-                    ForEach(TicketCategory.all, id: \.id) { c in
-                        Button(c.label + (c.id == t.category ? " ✓" : "")) {
-                            Task { await act(t, "category", ["category": c.id]) }
+                // Le reste dans un seul menu, pour garder la carte lisible.
+                Menu {
+                    Button("Voir l’utilisateur") { openUser(t.person) }
+                    if t.isOpen && t.plan != nil {
+                        Button("Créer un automate avec ce plan") { Task { await act(t, "validate") } }
+                    }
+                    Menu("Catégorie") {
+                        ForEach(TicketCategory.all, id: \.id) { c in
+                            Button(c.label + (c.id == t.category ? " ✓" : "")) {
+                                Task { await act(t, "category", ["category": c.id]) }
+                            }
                         }
                     }
+                    Divider()
+                    if t.isOpen && t.status != "en_cours" {
+                        Button("Clore le ticket…") { closing = t }
+                    } else if !t.isOpen {
+                        Button("Rouvrir le ticket") { Task { await act(t, "reopen") } }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle").font(.system(size: 20, weight: .medium)).foregroundStyle(T.muted)
                 }
-                .menuStyle(.borderlessButton).fixedSize().font(rounded(13, .semibold)).disabled(busy != nil)
-                if t.isOpen && t.status != "en_cours" {
-                    Button("Clore") { Task { await act(t, "close") } }
-                        .buttonStyle(.plain).font(rounded(13, .semibold)).foregroundStyle(T.muted).disabled(busy != nil)
-                } else if !t.isOpen {
-                    Button("Rouvrir") { Task { await act(t, "reopen") } }
-                        .buttonStyle(.plain).font(rounded(13, .semibold)).foregroundStyle(T.muted).disabled(busy != nil)
-                }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize().disabled(busy != nil)
+                .help("Plus d’actions")
             }
         }
         .padding(14).carte()
@@ -163,9 +246,9 @@ struct SupportTickets: View {
     private func status(_ t: SupportTicket) -> some View {
         let (txt, ton): (String, Pastille.Ton) = switch t.status {
         case "nouveau": ("Nouveau", .bleu)
-        case "en_attente": ("En attente", .orange)
+        case "en_attente": (String(localized: "En attente"), .orange)
         case "rdv": ("Rendez-vous", .violet)
-        case "en_cours": ("En cours", .vert)
+        case "en_cours": (String(localized: "En cours"), .vert)
         case "a_reprendre": ("À reprendre", .orange)
         case "resolu": ("Résolu", .gris)
         default: (t.status, .gris)
@@ -175,8 +258,8 @@ struct SupportTickets: View {
 
     private func when(_ t: SupportTicket) -> String {
         let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "d MMM 'à' HH:mm"
-        if t.status == "rdv", let r = t.rdv { return "Rendez-vous le " + f.string(from: Date(timeIntervalSince1970: r)) }
-        return "Mis à jour le " + f.string(from: Date(timeIntervalSince1970: t.updated))
+        if t.status == "rdv", let r = t.rdv { return String(localized: "Rendez-vous le ") + f.string(from: Date(timeIntervalSince1970: r)) }
+        return String(localized: "Mis à jour le ") + f.string(from: Date(timeIntervalSince1970: t.updated))
     }
 
     // MARK: Réseau
@@ -222,6 +305,51 @@ struct SupportTickets: View {
         stats = parts.isEmpty ? nil : TicketStats.merge(parts)
     }
 
+    /// Holo refait tout le plan du ticket d'après la consigne du support.
+    private func refine(_ t: SupportTicket, _ consigne: String) async -> (String, [String])? {
+        guard let url = URL(string: AutomateLibrary.base(t.person) + "/tickets/" + t.tid) else { return nil }
+        var req = URLRequest(url: url, timeoutInterval: 60)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "action": "refine", "by": model.helperName ?? "Support", "text": consigne,
+            "lang": AppLangue.anglais ? "en" : "fr"])
+        guard let (d, r) = try? await URLSession.shared.data(for: req),
+              let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else {
+            model.showToast(String(localized: "Serveur injoignable")); return nil
+        }
+        guard (r as? HTTPURLResponse)?.statusCode == 200,
+              let a = (obj["ticket"] as? [String: Any])?["automate"] as? [String: Any] else {
+            model.showToast(obj["error"] as? String ?? String(localized: "Action refusée")); return nil
+        }
+        await load()
+        return (a["title"] as? String ?? "", a["steps"] as? [String] ?? [])
+    }
+
+    /// Valide le plan corrigé par le support : l'automate est créé avec ces étapes.
+    private func validateEdited(_ t: SupportTicket, titre: String, etapes: [String]) async {
+        guard let url = URL(string: AutomateLibrary.base(t.person) + "/tickets/" + t.tid) else { return }
+        busy = t.id; defer { busy = nil }
+        var req = URLRequest(url: url, timeoutInterval: 15)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "action": "run", "by": model.helperName ?? "Support",
+            "automate": ["title": titre, "steps": etapes],
+        ])
+        if let (d, r) = try? await URLSession.shared.data(for: req) {
+            if (r as? HTTPURLResponse)?.statusCode == 200 {
+                model.showToast("Solution lancée chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
+            } else {
+                let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
+                model.showToast(obj?["error"] as? String ?? String(localized: "Action refusée"))
+            }
+        } else {
+            model.showToast(String(localized: "Serveur injoignable"))
+        }
+        await load()
+    }
+
     private func act(_ t: SupportTicket, _ action: String, _ extra: [String: String] = [:]) async {
         guard let url = URL(string: AutomateLibrary.base(t.person) + "/tickets/" + t.tid) else { return }
         busy = t.id; defer { busy = nil }
@@ -232,15 +360,23 @@ struct SupportTickets: View {
         if let (d, r) = try? await URLSession.shared.data(for: req) {
             if (r as? HTTPURLResponse)?.statusCode != 200 {
                 let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
-                model.showToast(obj?["error"] as? String ?? "Action refusée")
+                model.showToast(obj?["error"] as? String ?? String(localized: "Action refusée"))
             } else if action == "category" {
                 model.showToast("Catégorie : \(TicketCategory.label(extra["category"] ?? ""))")
+            } else if action == "validate" {
+                model.showToast("Automate créé chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
+            } else if action == "run" {
+                model.showToast("Solution lancée chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
+            } else if action == "linkup" {
+                model.showToast(String(localized: "Plan mis à jour avec Linkup"))
+            } else if action == "close" {
+                model.showToast(String(localized: "Ticket résolu, solution enregistrée"))
             } else if action == "take" {
                 model.showToast("Demande proposée à \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
                 openUser(t.person)
             }
         } else {
-            model.showToast("Serveur injoignable")
+            model.showToast(String(localized: "Serveur injoignable"))
         }
         await load()
     }
@@ -260,15 +396,15 @@ struct TicketWeekCard: View {
                 Text("Aucune demande ces 7 derniers jours.").font(rounded(15)).foregroundStyle(T.muted)
             } else {
                 HStack(spacing: 10) {
-                    kpi("\(week.count)", "demandes reçues")
+                    kpi("\(week.count)", String(localized: "demandes reçues"))
                     kpi("\(week.resolved)", "réglées")
-                    kpi("\(Int((week.automateShare * 100).rounded())) %", "réglées par un automate")
+                    kpi("\(Int((week.automateShare * 100).rounded())) %", String(localized: "réglées par un automate"))
                     kpi(TicketStatsPanel.duration(week.meanResolution), "temps moyen")
                 }
                 if !week.top.isEmpty {
-                    line("En tête", week.top.map { "\($0.label) (\($0.count))" }.joined(separator: ", "))
+                    line(String(localized: "En tête"), week.top.map { "\($0.label) (\($0.count))" }.joined(separator: ", "))
                 }
-                line("Automate le plus utile", week.automate.map {
+                line(String(localized: "Automate le plus utile"), week.automate.map {
                     "« \($0.title) », \($0.count) demande\($0.count > 1 ? "s" : "") réglée\($0.count > 1 ? "s" : "")"
                 } ?? "aucun cette semaine")
             }
@@ -331,10 +467,10 @@ struct TicketStatsPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                kpi("\(stats.count)", "tickets depuis le \(Self.day(stats.since))")
+                kpi("\(stats.count)", String(localized: "tickets depuis le \(Self.day(stats.since))"))
                 kpi("\(stats.resolved)", "résolus")
-                kpi(Self.duration(stats.medianResolution), "temps de résolution (médian)")
-                kpi("\(Int((stats.automateShare * 100).rounded())) %", "réglés par un automate")
+                kpi(Self.duration(stats.medianResolution), String(localized: "temps de résolution (médian)"))
+                kpi("\(Int((stats.automateShare * 100).rounded())) %", String(localized: "réglés par un automate"))
             }
             ForEach(stats.panelSuggestions) { s in
                 HStack(spacing: 12) {
@@ -426,5 +562,106 @@ struct TicketStatsPanel: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+
+/// Le support corrige le plan proposé par Holo : titre et étapes, puis valide.
+struct EditPlanSheet: View {
+    @State var titre: String
+    @State var etapes: [String]
+    /// Refait tout le plan avec une consigne du support ; rend le nouveau plan, ou nil.
+    var refaire: ((String) async -> (String, [String])?)? = nil
+    @State private var consigne = ""
+    @State private var enCours = false
+    /// (nil, _) si annulé ; sinon le titre et les étapes non vides.
+    var done: (String?, [String]) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Modifier le plan").font(rounded(26, .bold)).foregroundStyle(.white)
+                .padding(24).frame(maxWidth: .infinity, alignment: .leading).background(T.header)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if let refaire {
+                        Text("Dites à Holo ce qu’il doit changer").font(rounded(14, .semibold)).foregroundStyle(T.muted)
+                        HStack(spacing: 10) {
+                            TextField("Par exemple : tout faire dans Safari et mettre google.fr en page d’accueil", text: $consigne, axis: .vertical)
+                                .lineLimit(1...3).textFieldStyle(.plain).font(rounded(16)).padding(10).champ(T.r)
+                            Button(enCours ? "…" : String(localized: "Refaire le plan")) {
+                                enCours = true
+                                Task {
+                                    if let (t, e) = await refaire(consigne) { titre = t; etapes = e; consigne = "" }
+                                    enCours = false
+                                }
+                            }
+                            .buttonStyle(PillStyle(height: 40, icone: "wand.and.stars"))
+                            .disabled(enCours || consigne.trimmingCharacters(in: .whitespaces).count < 3)
+                        }
+                    }
+                    Text("Titre de l’automate").font(rounded(14, .semibold)).foregroundStyle(T.muted)
+                    TextField("Titre", text: $titre).textFieldStyle(.plain).font(rounded(17))
+                        .padding(12).champ(T.r)
+                    Text("Étapes").font(rounded(14, .semibold)).foregroundStyle(T.muted)
+                    ForEach(etapes.indices, id: \.self) { i in
+                        HStack(spacing: 10) {
+                            Text("\(i + 1)").font(rounded(14, .bold)).foregroundStyle(T.accent)
+                                .frame(width: 26, height: 26).background(Circle().fill(T.mint))
+                            TextField("Étape \(i + 1)", text: $etapes[i], axis: .vertical)
+                                .textFieldStyle(.plain).font(rounded(16)).padding(10).champ(T.r)
+                            Button { etapes.remove(at: i) } label: {
+                                Image(systemName: "minus.circle.fill").font(.system(size: 18)).foregroundStyle(T.muted)
+                            }
+                            .buttonStyle(.plain).disabled(etapes.count <= 1).help("Retirer cette étape")
+                        }
+                    }
+                    if etapes.count < 6 {
+                        Button { etapes.append("") } label: { Label("Ajouter une étape", systemImage: "plus.circle") }
+                            .buttonStyle(.plain).font(rounded(15, .semibold)).foregroundStyle(T.accent)
+                    }
+                }
+                .padding(24)
+            }
+            Rectangle().fill(T.line).frame(height: 1)
+            HStack {
+                Spacer()
+                Button("Annuler") { done(nil, []) }.buttonStyle(PillStyle(filled: false, height: 44))
+                    .keyboardShortcut(.cancelAction)
+                Button("Exécuter ce plan") {
+                    done(titre.trimmingCharacters(in: .whitespacesAndNewlines),
+                         etapes.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+                }
+                .buttonStyle(PillStyle(height: 44, icone: "checkmark.circle"))
+                .disabled(titre.trimmingCharacters(in: .whitespaces).isEmpty
+                          || etapes.allSatisfy { $0.trimmingCharacters(in: .whitespaces).isEmpty })
+            }
+            .padding(16)
+        }
+        .foregroundStyle(T.ink).frame(width: 560, height: 560).background(T.bg)
+    }
+}
+
+
+/// Clore un ticket : la solution apportée est obligatoire, elle reste dans l'historique.
+struct SolutionSheet: View {
+    @State private var texte = ""
+    var done: (String?) -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Solution apportée").font(rounded(24, .bold))
+            Text("Ce que vous avez fait pour régler la demande. L’utilisateur la retrouve dans « Mes demandes ».")
+                .font(rounded(15)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+            TextField("Par exemple : imprimante réinstallée, pilote mis à jour.", text: $texte, axis: .vertical)
+                .lineLimit(4...8).textFieldStyle(.plain).font(rounded(16)).padding(12).champ(T.r)
+            HStack {
+                Spacer()
+                Button("Annuler") { done(nil) }.buttonStyle(PillStyle(filled: false, height: 44))
+                    .keyboardShortcut(.cancelAction)
+                Button("Clore le ticket") { done(texte.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                    .buttonStyle(PillStyle(height: 44, icone: "checkmark.circle"))
+                    .disabled(texte.trimmingCharacters(in: .whitespacesAndNewlines).count < 3)
+            }
+        }
+        .padding(24).foregroundStyle(T.ink).frame(width: 520).background(T.bg)
     }
 }

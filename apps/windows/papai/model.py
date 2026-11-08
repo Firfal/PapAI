@@ -906,12 +906,12 @@ class Model:
     def _apply_demo(self, demo: str) -> None:
         """PAPAI_DEMO=home|home_no_org|consent|planning|awaiting_approval|active|
         awaiting_helper|done|stopped|remote|… : mêmes écrans de démonstration que le
-        Mac, sans serveur. Sert aux captures. Poste de Jeanne, rattaché à « Acme »
+        Mac, sans serveur. Sert aux captures. Poste de Jeanne, rattaché à « Mon entreprise »
         (sauf `home_no_org`, poste sans stratégie de groupe)."""
         self.connected = True
         self._first_name = "Jeanne"
         if demo != "home_no_org":
-            self.prefs["orgName"] = "Acme"
+            self.prefs["orgName"] = "Mon entreprise"
         self.helpers = [{"id": "1", "name": "Marc", "relation": "Service informatique"}]
         self.apps = [{"label": n, "path": "", "icon": None}
                      for n in ("Mail", "Photos", "Internet", "Visio", "Explorateur", "Calendrier")]

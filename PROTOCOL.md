@@ -699,6 +699,8 @@ automate et cet id existe encore dans le catalogue courant ; sinon `null`.
 Liste blanche stricte à chaque niveau : texte seulement, aucun objet d'étape/capture,
 image, note interne, token, assignation, catégorie ni suggestion complète.
 Relancer = `run_automation` existant (ou lancement local existant), pas de nouveau chemin.
+`source` : `personne`, `support`, `automatisme` ou `automate` (demande d'automate, ci-dessous). Le ticket suit la session (`plan`, `steps_done`,
+`helper`, `stopped_by`, `tokens`) ; `assignee`, `closed_by`, `notes` [{t, by, text}], `rdv` (secondes Unix).
 
 **Ordinateur aidé (`/ws/bridge`)**
 - `help_request` peut porter `"ticket"` (reprise d'un ticket proposé par `remote_request`).
@@ -745,7 +747,16 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
 - `GET /k/<clé>/tickets` → `{"tickets":[…]}` (200 plus récents d'abord).
 - `POST /k/<clé>/tickets/<id>` `{"action","by","text"?,"at"?}` → `{"ticket"}`. Actions : `take`
   (propose la session à la personne ; 409 si ordinateur hors ligne ou session en cours), `note`,
-  `schedule` (`at`), `close`, `reopen` (409 pendant une session).
+  `schedule` (`at`), `close`, `reopen` (409 pendant une session), `validate` (demande d'automate :
+  crée l'automate, `approved_by` = `by`, ticket `resolu` avec `lesson`, l'ordinateur reçoit
+  `lessons_changed` ; 409 sans plan ou déjà résolu).
+- **Demande d'automate** (barre de recherche de l'accueil Mac) : l'app cherche d'abord dans ses
+  automates (`GET /lessons`), qui se lancent sans accord ni support en direct. Rien ne correspond :
+  `POST /k/<clé>/automations/draft` `{"kind":"request","text","os"}` → plan proposé par Holo
+  (`title`, `description`, `goal`, `steps`, `platforms`, `warning`), rien n'est écrit ; l'utilisateur
+  l'envoie : `POST /k/<clé>/tickets` (ou `POST /tickets` depuis la machine du serveur)
+  `{"task","automate":{…plan}}` → `{"ticket"}`, `source` `automate`, statut `nouveau`, champ
+  `automate`. Le support valide par l'action `validate`.
 - `GET /o/<support_token>/tickets` → `{"org","tickets":[… + "space","poste","online"]}` ;
   `POST /o/<support_token>/tickets/<clé du poste>/<id>` : mêmes actions (404 hors organisation).
 - `GET /tickets.js` : liste commune à la page du support et à celle de l'organisation (filtres, export CSV).

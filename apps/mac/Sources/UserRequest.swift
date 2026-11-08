@@ -35,18 +35,18 @@ struct UserRequest: Decodable, Identifiable {
 
     var statusText: String {
         switch status {
-        case "rdv": "Rendez-vous prévu"
-        case "en_cours": "En cours"
+        case "rdv": String(localized: "Rendez-vous prévu")
+        case "en_cours": String(localized: "En cours")
         case "a_reprendre": "Interrompue"
         case "resolu": "Réglée"
-        default: "En attente"
+        default: String(localized: "En attente")
         }
     }
 
     var dateText: String {
         guard let created, created > 0 else { return "" }
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.locale = Locale(identifier: AppLangue.anglais ? "en_US" : "fr_FR")
         formatter.dateStyle = .long
         formatter.timeStyle = .none
         return formatter.string(from: Date(timeIntervalSince1970: created))
@@ -70,14 +70,14 @@ struct UserRequestsResponse: Decodable {
 
     static let demo = #"""
     {"requests":[
-      {"id":"r1","created":1794132000,"task":"Je voudrais imprimer un document","status":"resolu",
-       "solution":{"kind":"automate","title":"Configurer mon imprimante","lesson":"print"},"relaunch":"print"},
-      {"id":"r2","created":1794045600,"task":"Retrouver mes documents","status":"resolu",
-       "solution":{"kind":"plan","steps":["Ouvrir le Finder","Ouvrir le dossier Documents"]},"relaunch":null},
-      {"id":"r3","created":1793959200,"task":"Comment changer la taille du texte ?","status":"resolu",
-       "solution":{"kind":"answer","text":"Ouvrez les Réglages, puis choisissez Très grande.",
-                   "sources":[{"title":"Aide PapAI","url":"https://example.org/aide"}]},"relaunch":null},
-      {"id":"r4","created":1793872800,"task":"Mon casque ne fonctionne plus","status":"en_attente","solution":null,"relaunch":null}
+      {"id":"r1","created":1794132000,"task":String(localized: "Je voudrais imprimer un document"),"status":"resolu",
+       "solution":{"kind":"automate","title":String(localized: "Configurer mon imprimante"),"lesson":"print"},"relaunch":"print"},
+      {"id":"r2","created":1794045600,"task":String(localized: "Retrouver mes documents"),"status":"resolu",
+       "solution":{"kind":"plan","steps":[String(localized: "Ouvrir le Finder"),String(localized: "Ouvrir le dossier Documents")]},"relaunch":null},
+      {"id":"r3","created":1793959200,"task":String(localized: "Comment changer la taille du texte ?"),"status":"resolu",
+       "solution":{"kind":"answer","text":String(localized: "Ouvrez les Réglages, puis choisissez Très grande."),
+                   "sources":[{"title":String(localized: "Aide PapAI"),"url":"https://example.org/aide"}]},"relaunch":null},
+      {"id":"r4","created":1793872800,"task":String(localized: "Mon casque ne fonctionne plus"),"status":"en_attente","solution":null,"relaunch":null}
     ]}
     """#
 }

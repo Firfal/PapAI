@@ -1,7 +1,7 @@
 {
   "papai": 1,
   "title": "Ajouter l'imprimante de l'accueil",
-  "publisher": "Service IT Acme",
+  "publisher": "Service IT",
   "description": "Ouvre la page des imprimantes, puis le guide pas à pas.",
   "platforms": [
     "windows"

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Réglages de l'employé : taille du texte et protection. Le nom affiché et le support
 /// viennent du poste (compte macOS, jeton de l'organisation) : rien à saisir ici.
@@ -20,6 +21,7 @@ struct SettingsView: View {
             .background(T.header)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    LangueReglage()
                     Toggle("Lire à voix haute", isOn: Binding(
                         get: { model.narration.enabled }, set: { model.narration.enabled = $0 }))
                         .font(rounded(22, .semibold)).toggleStyle(.switch).tint(T.accent)
@@ -31,8 +33,8 @@ struct SettingsView: View {
                         }
                         .toggleStyle(.switch).tint(T.accent)
                         Text(model.realtimeProtection
-                             ? "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe."
-                             : "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées.")
+                             ? String(localized: "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe.")
+                             : String(localized: "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées."))
                             .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                     }
                     MonSupport()
@@ -113,21 +115,56 @@ struct MonSupport: View {
 
     private var titre: String {
         switch etat {
-        case .rattache(let org): "Support IT · \(org)"
-        case .enCours: "Support IT"
-        case .aucun: "Aucune organisation configurée"
+        case .rattache: String(localized: "Support IT")
+        case .enCours: String(localized: "Support IT")
+        case .aucun: String(localized: "Aucune organisation configurée")
         }
     }
 
     private var detail: String {
         switch etat {
         case .aucun:
-            return "Contactez votre service informatique."
+            return String(localized: "Contactez votre service informatique.")
         case .enCours:
-            return model.connected ? "Rattachement à votre organisation en cours…" : "Hors connexion pour le moment."
+            return model.connected ? String(localized: "Rattachement à votre organisation en cours…") : String(localized: "Hors connexion pour le moment.")
         case .rattache:
-            if !model.connected { return "Hors connexion pour le moment." }
-            return enLigne ? "En ligne" : "Aucun agent en ligne : votre demande sera mise en attente."
+            if !model.connected { return String(localized: "Hors connexion pour le moment.") }
+            return enLigne ? String(localized: "En ligne") : String(localized: "Aucun agent en ligne : votre demande sera mise en attente.")
         }
+    }
+}
+
+
+/// Langue de l'app : français (par défaut) ou anglais. Elle s'applique au prochain lancement,
+/// PapAI se relance donc tout de suite.
+struct LangueReglage: View {
+    @State private var langue = (UserDefaults.standard.stringArray(forKey: "AppleLanguages")?.first ?? "fr").hasPrefix("en") ? "en" : "fr"
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Langue").font(rounded(22, .semibold))
+            Picker("Langue", selection: $langue) {
+                Text(verbatim: "Français").tag("fr")
+                Text(verbatim: "English").tag("en")
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            .onChange(of: langue) { _, l in
+                UserDefaults.standard.set([l], forKey: "AppleLanguages")
+                UserDefaults.standard.synchronize()
+                // Relance : la langue de l'interface se choisit au démarrage.
+                let url = Bundle.main.bundleURL
+                let conf = NSWorkspace.OpenConfiguration(); conf.createsNewApplicationInstance = true
+                NSWorkspace.shared.openApplication(at: url, configuration: conf) { _, _ in
+                    DispatchQueue.main.async { NSApp.terminate(nil) }
+                }
+            }
+        }
+    }
+}
+
+
+/// Langue choisie dans les Réglages (au lancement) : sert à la dictée, à la voix et aux dates.
+enum AppLangue {
+    static var anglais: Bool {
+        (Bundle.main.preferredLocalizations.first ?? "fr").hasPrefix("en")
     }
 }

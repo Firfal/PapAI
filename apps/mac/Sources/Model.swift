@@ -87,6 +87,8 @@ final class AppModel {
     var showRequests = false
     var requestsLoading = false
     var requestsError = false
+    /// Onglet de l'accueil : 0 Accueil, 1 Automates (affiché dans l'en-tête).
+    var homeTab = 0
     var notice: String?
     var lesson: Lesson?
     /// La fiche d'automate ouverte par-dessus l'accueil.
@@ -219,7 +221,7 @@ final class AppModel {
     /// Qui s'occupe de la demande, au singulier : « Quentin s'en occupe ».
     var carer: String {
         if let n = sessionHelper, !n.isEmpty { return n }
-        return helpers.count == 1 ? helpers[0].name : "Votre support"
+        return helpers.count == 1 ? helpers[0].name : String(localized: "Votre support")
     }
 
     // MARK: Profil et support
@@ -353,15 +355,15 @@ final class AppModel {
         if let demo = ProcessInfo.processInfo.environment["PAPAI_DEMO"] {
             permissionsDismissed = true
             connected = true
-            helpers = [Helper(id: "1", name: "Marc", relation: "Service informatique", online: true)]
-            if orgName.isEmpty { orgName = "Acme" }
+            helpers = [Helper(id: "1", name: "Marc", relation: String(localized: "Service informatique"), online: true)]
+            if orgName.isEmpty { orgName = String(localized: "Mon entreprise") }
             if demo == "settings" || demo == "settings_none" {
                 if demo == "settings_none" { orgName = ""; helpers = [] }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showSettings = true }
                 return
             }
             if demo == "remote" {
-                remoteRequest = RemoteRequest(from: "Marc", task: "Mettre à jour votre ordinateur")
+                remoteRequest = RemoteRequest(from: "Marc", task: String(localized: "Mettre à jour votre ordinateur"))
                 return
             }
             let json = #"[{"id":"a","title":"Dossier comptabilité","shortcut":{"folder":"documents"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes téléchargements","shortcut":{"folder":"downloads"}}]"#
@@ -373,23 +375,24 @@ final class AppModel {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showRequests = true }
                 return
             }
+            if demo == "tickets" { homeTab = 2; return }
             if demo == "home" { return }
             if demo == "home_empty" { lessons = []; return }
             if demo == "alert" {
                 guardAlert = GuardAlert(level: "danger",
-                                        title: "Quelqu'un est en train de prendre la main sur votre ordinateur",
-                                        detail: "Le logiciel « anydesk » est en marche. Il permet à une personne à distance de voir votre écran et de cliquer à votre place. Est-ce bien quelqu'un que vous connaissez ?")
+                                        title: String(localized: "Quelqu'un est en train de prendre la main sur votre ordinateur"),
+                                        detail: String(localized: "Le logiciel « anydesk » est en marche. Il permet à une personne à distance de voir votre écran et de cliquer à votre place. Est-ce bien quelqu'un que vous connaissez ?"))
                 return
             }
-            if demo == "consent" { pendingTask = "Je ne retrouve plus le dossier de la comptabilité"; screen = .consent; return }
+            if demo == "consent" { pendingTask = String(localized: "Je ne retrouve plus le dossier de la comptabilité"); screen = .consent; return }
             guard let s = SessionState(rawValue: demo) else { return }
-            task = "Je ne retrouve plus le dossier de la comptabilité"
-            plan = ["Ouvrir le Finder", "Aller dans le dossier Documents", "Ouvrir le dossier « Comptabilité 2025 »"]
+            task = String(localized: "Je ne retrouve plus le dossier de la comptabilité")
+            plan = [String(localized: "Ouvrir le Finder"), String(localized: "Aller dans le dossier Documents"), String(localized: "Ouvrir le dossier « Comptabilité 2025 »")]
             planStep = 2
-            answer = "Le dossier Comptabilité 2025 est ouvert dans Documents."
-            currentAction = "Je clique sur l'icône du Finder"
-            actions = ["J'ouvre la recherche du Mac", "J'écris « Finder »", "Je clique sur l'icône du Finder"]
-            question = "Je vois deux dossiers « Comptabilité ». Lequel faut-il ouvrir ?"
+            answer = String(localized: "Le dossier Comptabilité 2025 est ouvert dans Documents.")
+            currentAction = String(localized: "Je clique sur l'icône du Finder")
+            actions = [String(localized: "J'ouvre la recherche du Mac"), String(localized: "J'écris « Finder »"), String(localized: "Je clique sur l'icône du Finder")]
+            question = String(localized: "Je vois deux dossiers « Comptabilité ». Lequel faut-il ouvrir ?")
             state = s
             screen = .session
         }
@@ -488,8 +491,36 @@ final class AppModel {
            let list = try? JSONDecoder().decode([Lesson].self, from: data) {
             lessons = list
             OfflineLessons.save(data, base: httpBase)
+            // Aucun automate fourni d'avance : ils naissent tous de tickets résolus.
         } else if lessons.isEmpty {
             lessons = OfflineLessons.load(base: httpBase)  // pas de réseau : ceux qui n'ont pas besoin de Holo
+        }
+    }
+
+    /// Espace tout neuf : on y importe une fois les automates d'exemple livrés avec
+    /// l'app (`Resources/automates/*.papai`, actions de premier niveau seulement),
+    /// pour que « Derniers automates » et l'onglet Automates ne soient pas vides.
+    private func seedExampleAutomates() async {
+        let flag = "exemplesAutomates.v1"
+        guard !UserDefaults.standard.bool(forKey: flag),
+              let url = URL(string: httpBase + "/automations") else { return }
+        let files = (Bundle.main.urls(forResourcesWithExtension: "papai", subdirectory: "automates") ?? [])
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+        guard !files.isEmpty else { return }
+        var added = 0
+        for f in files {
+            guard let body = try? Data(contentsOf: f) else { continue }
+            var req = URLRequest(url: url, timeoutInterval: 10)
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            if let (_, r) = try? await URLSession.shared.upload(for: req, from: body),
+               (r as? HTTPURLResponse)?.statusCode == 200 { added += 1 }
+        }
+        guard added > 0 else { return }
+        UserDefaults.standard.set(true, forKey: flag)
+        if let (data, _) = try? await URLSession.shared.data(from: URL(string: httpBase + "/lessons")!),
+           let list = try? JSONDecoder().decode([Lesson].self, from: data) {
+            lessons = list
         }
     }
 
@@ -716,8 +747,8 @@ final class AppModel {
 
     private func chooseTidyFolder() -> TidyFolder? {
         let alert = NSAlert()
-        alert.messageText = "Quel dossier ranger ?"
-        alert.informativeText = "Holo ne lit que les noms des fichiers, jamais leur contenu. \(helperName) validera le rangement, et vous pourrez l'annuler."
+        alert.messageText = String(localized: "Quel dossier ranger ?")
+        alert.informativeText = String(localized: "Holo ne lit que les noms des fichiers, jamais leur contenu. \(helperName) validera le rangement, et vous pourrez l'annuler.")
         for f in TidyFolder.allCases { alert.addButton(withTitle: f.label) }
         alert.addButton(withTitle: "Annuler")
         let i = alert.runModal().rawValue - NSApplication.ModalResponse.alertFirstButtonReturn.rawValue
@@ -771,7 +802,7 @@ final class AppModel {
             automationRun?.number = m["number"] as? Int
         case "support_requested":
             automationRun?.asked = true
-            showNotice("C'est envoyé à \(helperName), avec l'étape où l'automate s'est arrêté.")
+            showNotice(String(localized: "C'est envoyé à \(helperName), avec l'étape où l'automate s'est arrêté."))
         case "web_agent_start":
             webHost.updateSites(m["sites"] as? [String] ?? [], hosts: m["hosts"] as? [String] ?? [])
             if sessionOpen && !gate.isStopped { webHost.start() }
@@ -810,7 +841,7 @@ final class AppModel {
         case "lessons_changed":
             Task {
                 await refreshLessons()
-                if let t = m["title"] as? String { showNotice("Nouvel automate : « \(t) »") }
+                if let t = m["title"] as? String { showNotice(String(localized: "Nouvel automate : « \(t) »")) }
             }
         case "guard_rules":
             GuardSignals.rules = m
@@ -843,10 +874,10 @@ final class AppModel {
             state = nil
             screen = .home
             applyLevel()
-            showNotice(m["reason"] as? String ?? "Cet automate n'a pas pu être lancé.")
+            showNotice(m["reason"] as? String ?? String(localized: "Cet automate n'a pas pu être lancé."))
         case "ticket_refused":
             queuedShown = false
-            showNotice(m["reason"] as? String ?? "Ce rendez-vous n'est pas possible.")
+            showNotice(m["reason"] as? String ?? String(localized: "Ce rendez-vous n'est pas possible."))
         case "pair_confirm":
             // Poste d'entreprise : le support vient de l'organisation, aucune liaison manuelle.
             // Quelqu'un qui tape un code de liaison est refusé sans rien afficher.
@@ -886,7 +917,7 @@ final class AppModel {
             }
         case "remote_request":
             guard !sessionOpen else { return }
-            remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre support",
+            remoteRequest = RemoteRequest(from: m["from"] as? String ?? String(localized: "Votre support"),
                                           task: m["task"] as? String ?? "",
                                           ticket: m["ticket"] as? String, rdv: m["rdv"] as? Bool ?? false)
             NSApp.activate(ignoringOtherApps: true)
@@ -950,7 +981,7 @@ final class AppModel {
             client.send(["type": "frame", "req": req, "frame_id": UUID().uuidString.prefix(8).lowercased(),
                          "png_b64": f.pngB64, "width": f.width, "height": f.height])
         } catch {
-            captureError = "Capture impossible : \(error.localizedDescription)"
+            captureError = String(localized: "Capture impossible : \(error.localizedDescription)")
             print("[papai] \(captureError ?? "")")
         }
     }
@@ -963,9 +994,9 @@ final class AppModel {
             if let blocked { message["blocked"] = blocked }
             client.send(message)
         }
-        if gate.isStopped || guardAlert != nil { reply("Assistance arrêtée ou alerte du gardien en attente.", refused: true); return }
+        if gate.isStopped || guardAlert != nil { reply(String(localized: "Assistance arrêtée ou alerte du gardien en attente."), refused: true); return }
         guard planApproved && ["active", "awaiting_helper"].contains(executionState ?? "") else {
-            reply("Action refusée : aucun plan validé par le support.", refused: true)
+            reply(String(localized: "Action refusée : aucun plan validé par le support."), refused: true)
             return
         }
         let said = describeAction(name, args)
@@ -975,15 +1006,15 @@ final class AppModel {
             let r = try await Actuator.run(name: name, args: args, gate: gate, protected: protectedRect())
             reply(r, refused: false)
         } catch ActionError.stopped {
-            reply("Arrêt demandé par l’utilisateur.", refused: true)
+            reply(String(localized: "Arrêt demandé par l’utilisateur."), refused: true)
         } catch ActionError.protectedZone {
-            reply("Action refusée par PapAI : cette zone appartient à PapAI. Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.", refused: false, blocked: "sensitive")
+            reply(String(localized: "Action refusée par PapAI : cette zone appartient à PapAI. Ne réessaie pas : appelle ask_helper pour que le support s'en occupe."), refused: false, blocked: "sensitive")
         } catch ActionError.sensitive(let reason) {
-            reply("Action refusée par PapAI : \(reason). Ne réessaie pas : appelle ask_helper pour que le support s'en occupe.", refused: false, blocked: "sensitive")
+            reply(String(localized: "Action refusée par PapAI : \(reason). Ne réessaie pas : appelle ask_helper pour que le support s'en occupe."), refused: false, blocked: "sensitive")
         } catch ActionError.noAccessibility {
-            reply("Autorisation Accessibilité manquante sur cet ordinateur.", refused: true)
+            reply(String(localized: "Autorisation Accessibilité manquante sur cet ordinateur."), refused: true)
         } catch ActionError.unknownKey(let k) {
-            reply("Touche inconnue : \(k)", refused: false)
+            reply(String(localized: "Touche inconnue : \(k)"), refused: false)
         } catch {
             reply("échec : \(error.localizedDescription)", refused: true)
         }
@@ -995,20 +1026,20 @@ final class AppModel {
             client.send(["type": "result", "req": req, "result": text, "refused": refused,
                          "moved": r.moved, "renamed": r.renamed, "skipped": r.skipped])
         }
-        if gate.isStopped || guardAlert != nil { reply("Assistance arrêtée ou alerte du gardien en attente.", refused: true); return }
+        if gate.isStopped || guardAlert != nil { reply(String(localized: "Assistance arrêtée ou alerte du gardien en attente."), refused: true); return }
         guard planApproved && executionState == "active" else {
-            reply("Rangement refusé : aucun plan validé par le support.", refused: true)
+            reply(String(localized: "Rangement refusé : aucun plan validé par le support."), refused: true)
             return
         }
         guard let scan = tidyScan, (m["folder"] as? String) == scan.folder.rawValue else {
-            reply("Rangement refusé : ce dossier n'a pas été demandé sur cet ordinateur.", refused: true)
+            reply(String(localized: "Rangement refusé : ce dossier n'a pas été demandé sur cet ordinateur."), refused: true)
             return
         }
         let moves = ((m["moves"] as? [[String: Any]]) ?? []).compactMap { d -> TidyMove? in
             guard let from = d["from"] as? String, let to = d["to"] as? String else { return nil }
             return TidyMove(from: from, to: to)
         }
-        currentAction = "Holo range vos fichiers dans \(scan.folder.label)"
+        currentAction = String(localized: "Holo range vos fichiers dans \(scan.folder.label)")
         actions.append(currentAction ?? "")
         let stop = gate.pin()
         do {
@@ -1044,7 +1075,7 @@ final class AppModel {
         Task {
             let r = await Shortcuts.open(sc)
             if r.ok {
-                showRunStatus(l.id, "C'est ouvert")
+                showRunStatus(l.id, String(localized: "C'est ouvert"))
             } else {
                 automationStopped(l, step: 1, detail: r.detail)
             }
@@ -1069,24 +1100,21 @@ final class AppModel {
         }
         let acts = l.actions ?? []
         if let p = l.platforms, !p.contains("mac") {
-            showNotice("Cet automate est prévu pour un autre ordinateur.")
+            showNotice(String(localized: "Cet automate est prévu pour un autre ordinateur."))
             return
         }
+        // Ni accord ni support en direct : l'automate a été validé par le support à sa création.
         let holo = acts.first { $0.kind == "holo" }
-        if holo != nil && !screenConsent {
-            pendingAutomation = l
-            pendingAutomationTicket = launchTicket
-            pendingTask = l.title
-            screen = .consent
-            return
-        }
+        // Un automate tourne directement chez l'utilisateur, sans écran d'accord :
+        // il a été validé par le support. Seule une demande d'assistance passe par un ticket.
+        _ = holo
         if let launchTicket {
             client.send(["type": "ticket_automate_launched", "ticket": launchTicket, "lesson": l.id])
             if queued?.ticket == launchTicket { queued?.suggestionLancee = l.id }
         }
         gate.reset()
         automationRun = nil
-        showRunStatus(l.id, "En cours…", enCours: true)
+        showRunStatus(l.id, String(localized: "En cours…"), enCours: true)
         Task {
             let r = await Automations.play(l, base: httpBase, gate: gate)
             if gate.isStopped { showRunStatus(l.id, "Arrêté"); return }
@@ -1095,7 +1123,7 @@ final class AppModel {
                 return
             }
             guard let holo else {
-                showRunStatus(l.id, "C'est fait")
+                showRunStatus(l.id, String(localized: "C'est fait"))
                 if !r.detail.isEmpty { showNotice(r.detail) }
                 return
             }

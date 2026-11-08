@@ -1,7 +1,7 @@
 {
   "papai": 1,
   "title": "Lancer un scan antivirus",
-  "publisher": "Service IT Acme",
+  "publisher": "Service IT",
   "description": "Analyse rapide avec Microsoft Defender. Le support est prévenu si une menace est trouvée.",
   "platforms": [
     "windows"

@@ -37,13 +37,13 @@ struct ConsentView: View {
             Text("« \(model.pendingTask) »").font(rounded(28, .semibold))
                 .fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 0) {
-                promise("eye.fill", "Holo voit votre écran pour comprendre le problème.")
+                promise("eye.fill", String(localized: "Holo voit votre écran pour comprendre le problème."))
                 separateur
-                promise("hand.raised.fill", "Rien ne bouge avant l'accord de \(model.helperName).")
+                promise("hand.raised.fill", String(localized: "Rien ne bouge avant l'accord de \(model.helperName)."))
                 separateur
-                promise("stop.circle.fill", "Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.")
+                promise("stop.circle.fill", String(localized: "Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment."))
                 separateur
-                promise("checkmark.seal.fill", "On ne vous le redemandera pas. Vous pouvez retirer cet accord dans Réglages.")
+                promise("checkmark.seal.fill", String(localized: "On ne vous le redemandera pas. Vous pouvez retirer cet accord dans Réglages."))
             }
             .padding(.horizontal, 18).padding(.vertical, 4)
             .champ(T.r)
@@ -102,7 +102,7 @@ struct SessionView: View {
                                 .shadow(color: T.ombre.opacity(0.06), radius: 8, y: 3))
                         }
                         .buttonStyle(PressStyle())
-                        .accessibilityLabel(model.paused ? "Reprendre l'aide" : "Mettre l'aide en pause")
+                        .accessibilityLabel(model.paused ? String(localized: "Reprendre l'aide") : String(localized: "Mettre l'aide en pause"))
                     }
                     Button { model.stop() } label: {
                         HStack(spacing: 14) {
@@ -194,46 +194,46 @@ struct SessionView: View {
     }
 
     private var title: String {
-        if model.paused && model.sessionOpen { return "L'aide est en pause" }
+        if model.paused && model.sessionOpen { return String(localized: "L'aide est en pause") }
         if let a = automate {
             switch state {
-            case .planning, .awaiting_approval: return "Holo prépare « \(a.title) »…"
-            case .active: return "Holo s'occupe de « \(a.title) »"
-            case .awaiting_helper: return a.asked ? "\(model.HelperName) vous aide" : "Holo a une question"
-            case .done: return "C'est fait !"
+            case .planning, .awaiting_approval: return String(localized: "Holo prépare « \(a.title) »…")
+            case .active: return String(localized: "Holo s'occupe de « \(a.title) »")
+            case .awaiting_helper: return a.asked ? String(localized: "\(model.HelperName) vous aide") : String(localized: "Holo a une question")
+            case .done: return String(localized: "C'est fait !")
             case .stopped where !guardStopped:
-                return a.step != nil && model.stoppedBy == "blocage" ? "L'automate s'est arrêté" : "L'automate est arrêté."
+                return a.step != nil && model.stoppedBy == "blocage" ? String(localized: "L'automate s'est arrêté") : String(localized: "L'automate est arrêté.")
             default: break
             }
         }
         switch state {
-        case .planning: return "Holo regarde votre écran…"
-        case .awaiting_approval: return "\(model.HelperName) vérifie votre demande"
+        case .planning: return String(localized: "Holo regarde votre écran…")
+        case .awaiting_approval: return String(localized: "\(model.HelperName) vérifie votre demande")
         case .active: return "\(model.carer) s'en occupe"
-        case .awaiting_helper: return "\(model.HelperName) vous aide"
-        case .done: return "C'est fait !"
+        case .awaiting_helper: return String(localized: "\(model.HelperName) vous aide")
+        case .done: return String(localized: "C'est fait !")
         case .stopped: return model.stoppedBy == "gardien"
-            ? "PapAI a arrêté : cette démarche peut être une arnaque" : "L'assistance est arrêtée."
+            ? String(localized: "PapAI a arrêté : cette démarche peut être une arnaque") : String(localized: "L'assistance est arrêtée.")
         }
     }
 
     private var subtitle: String? {
         if model.paused && model.sessionOpen {
-            return "Vous pouvez utiliser votre ordinateur. Appuyez sur Reprendre quand vous voulez."
+            return String(localized: "Vous pouvez utiliser votre ordinateur. Appuyez sur Reprendre quand vous voulez.")
         }
         if let a = automate, state == .stopped, !guardStopped, model.stoppedBy == "blocage" {
             let ou = a.step.map { "à l'étape \($0)" } ?? "en route"
             return "Holo n'a pas pu continuer seul \(ou)\(a.reason.map { " : \($0)" } ?? ".")"
         }
         switch state {
-        case .planning: return "Un instant, je prépare ce qu'il faut faire."
-        case .awaiting_approval: return "Rien ne se passera sur votre écran avant son accord."
-        case .active: return "Pendant l'assistance, laissez la souris et le clavier à Holo. Pause ou Arrêter, quand vous voulez."
+        case .planning: return String(localized: "Un instant, je prépare ce qu'il faut faire.")
+        case .awaiting_approval: return String(localized: "Rien ne se passera sur votre écran avant son accord.")
+        case .active: return String(localized: "Pendant l'assistance, laissez la souris et le clavier à Holo. Pause ou Arrêter, quand vous voulez.")
         case .awaiting_helper: return model.questionForMe
-            ? "J'ai besoin d'une information que vous seul connaissez."
-            : "\(model.HelperName) répond à une question de Holo. Restez là, ne touchez à rien."
+            ? String(localized: "J'ai besoin d'une information que vous seul connaissez.")
+            : String(localized: "\(model.HelperName) répond à une question de Holo. Restez là, ne touchez à rien.")
         case .done: return nil
-        case .stopped: return guardStopped ? nil : "Votre écran n'est plus partagé."
+        case .stopped: return guardStopped ? nil : String(localized: "Votre écran n'est plus partagé.")
         }
     }
 
@@ -249,11 +249,11 @@ struct SessionView: View {
             }
         case .done:
             VStack(alignment: .leading, spacing: 16) {
-                Text(model.answer ?? "Voilà, c'est fait.")
+                Text(model.answer ?? String(localized: "Voilà, c'est fait."))
                     .font(rounded(26, .medium)).padding(28)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.peach))
-                endNote("lock.fill", "Votre écran n'est plus partagé.")
+                endNote("lock.fill", String(localized: "Votre écran n'est plus partagé."))
                 ForEach(Array(model.answerSources.enumerated()), id: \.offset) { _, source in
                     if let url = URL(string: source["url"] ?? ""), ["http", "https"].contains(url.scheme ?? "") {
                         Link(destination: url) { Text(verbatim: source["name"] ?? source["url"] ?? "Source") }
@@ -261,10 +261,10 @@ struct SessionView: View {
                     }
                 }
                 if model.sessionWhere == "web" {
-                    endNote("globe", "Holo a fermé sa fenêtre Chrome.")
+                    endNote("globe", String(localized: "Holo a fermé sa fenêtre Chrome."))
                 }
                 // Fiches héritées, à remplacer par la tâche `.papi` enregistrée.
-                endNote("book.fill", "\(model.HelperName) peut en faire un automate. Vous le retrouverez dans « Mes automates » pour le refaire sans aide.")
+                endNote("book.fill", String(localized: "\(model.HelperName) peut en faire un automate. Vous le retrouverez dans « Mes automates » pour le refaire sans aide."))
             }
         case .stopped where guardStopped:
             VStack(alignment: .leading, spacing: 20) {
@@ -291,7 +291,7 @@ struct SessionView: View {
                         : "L'étape est notée\(a.number.map { " sur la demande n° \($0)" } ?? ""). Rien n'est envoyé à \(model.helperName) sans votre accord.")
                 }
                 if model.sessionWhere == "web" {
-                    endNote("globe", "Holo a fermé sa fenêtre Chrome.")
+                    endNote("globe", String(localized: "Holo a fermé sa fenêtre Chrome."))
                 }
             }
         }
@@ -353,13 +353,13 @@ private struct Progress: View {
             .accessibilityValue("\(Int(fraction * 100)) %")
 
             if automate {
-                step(0, "Holo regarde votre écran")
-                step(1, "L'automate est déjà validé")
-                step(2, "Holo s'en occupe, seul")
+                step(0, String(localized: "Holo regarde votre écran"))
+                step(1, String(localized: "L'automate est déjà validé"))
+                step(2, String(localized: "Holo s'en occupe, seul"))
             } else {
-                step(0, "Holo regarde votre écran et prépare la suite")
-                step(1, "\(helper) vérifie et donne son accord")
-                step(2, "\(carer) s'en occupe, avec Holo")
+                step(0, String(localized: "Holo regarde votre écran et prépare la suite"))
+                step(1, String(localized: "\(helper) vérifie et donne son accord"))
+                step(2, String(localized: "\(carer) s'en occupe, avec Holo"))
             }
         }
         .padding(22)
@@ -375,7 +375,7 @@ private struct Progress: View {
                 .foregroundStyle(done ? T.muted : T.ink)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(done ? "Fait : \(text)" : now ? "En cours : \(text)" : text)
+        .accessibilityLabel(done ? "Fait : \(text)" : now ? String(localized: "En cours : \(text)") : text)
     }
 }
 
@@ -447,7 +447,7 @@ struct AssistanceDiscrete: View {
                     .contentShape(Capsule())
             }
             .buttonStyle(PressStyle())
-            .accessibilityHint("Prévient votre support, avec l'étape où l'automate s'est arrêté")
+            .accessibilityHint(String(localized: "Prévient votre support, avec l'étape où l'automate s'est arrêté"))
         }
     }
 }

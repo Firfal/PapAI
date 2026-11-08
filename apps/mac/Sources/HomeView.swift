@@ -6,6 +6,9 @@ struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var request = ""
     @State private var warning: String?
+    @State private var trouves: [Lesson] = []
+    @State private var prepare = false
+    @State private var proposition: PropositionAutomate?
     @FocusState private var focused: Bool
     @State private var dictation = Dictation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -22,21 +25,29 @@ struct HomeView: View {
             let deux = droite >= Self.droiteMin
             VStack(alignment: .leading, spacing: 24) {
                 // En-tête bleu sur toute la largeur ; la barre de demande garde la largeur de la colonne gauche.
-                enTete(barre: deux ? gauche - Self.marge : nil)
-                if deux {
+                // L'encadré bleu (bonjour + demande) reste sur l'onglet Accueil seulement.
+                if model.homeTab == 0 { enTete(barre: deux ? gauche - Self.marge : nil) }
+                if model.homeTab == 2 {
+                    MesDemandesView(integre: true).padding(.bottom, 24).frame(maxHeight: .infinity, alignment: .top)
+                } else if model.homeTab == 1 {
+                    automates(titre: false, tous: true).padding(.bottom, 24)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                } else if deux {
                     // Les deux colonnes partent de la même ligne : titres de section alignés, contenu en haut.
                     HStack(alignment: .top, spacing: Self.ecart) {
                         // Seule la liste défile : le titre de section reste en place.
                         VStack(alignment: .leading, spacing: 14) {
-                            titreSection("sparkles", "Mes automates")
+                            titreSection("sparkles", "Derniers automates")
                             automates(titre: false).padding(.bottom, 24)
                         }
                         .frame(width: gauche)
+                        .frame(maxHeight: .infinity)
                         VStack(alignment: .leading, spacing: 14) {
                             titreSection("clock.arrow.circlepath", "Applications récentes")
                             applications(titre: false).padding(.bottom, 24)
                         }
                         .frame(width: droite)
+                        .frame(maxHeight: .infinity)
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
                 } else {
@@ -77,15 +88,28 @@ struct HomeView: View {
                         .padding(.leading, 18)
                 }
                 if let warning {
-                    Label(warning, systemImage: "exclamationmark.circle")
+                    Label(LocalizedStringKey(warning), systemImage: "exclamationmark.circle")
                         .font(rounded(17, .semibold)).foregroundStyle(T.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 18).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 }
+                // Juste sous la ligne de saisie : la confirmation de ce qui vient d'être envoyé.
+                if let n = model.notice {
+                    Label(n, systemImage: "checkmark.circle.fill").font(rounded(17, .medium))
+                        .foregroundStyle(T.leaf)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 18).padding(.vertical, 12)
+                        .frame(maxWidth: largeur ?? .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                }
+                if !trouves.isEmpty || prepare || proposition != nil {
+                    ResultatsRecherche(trouves: trouves, prepare: prepare, proposition: proposition, fermer: fermerRecherche)
+                        .frame(maxWidth: largeur ?? .infinity)
+                }
                 if let q = model.queued, !model.queuedShown {
                     Button { model.queuedShown = true } label: {
-                        Label(q.rdv.map { "Demande n° \(q.number) · rendez-vous \(rdvText($0))" } ?? "Demande n° \(q.number) en attente",
+                        Label(q.rdv.map { String(localized: "Demande n° \(q.number) · rendez-vous \(rdvText($0))") } ?? String(localized: "Demande n° \(q.number) en attente"),
                               systemImage: "person.wave.2.fill")
                             .font(rounded(17, .semibold)).foregroundStyle(Pastille.Ton.orange.texte)
                             .padding(.horizontal, 18).frame(minHeight: 44)
@@ -110,7 +134,7 @@ struct HomeView: View {
             Image(systemName: symbol).font(rounded(20, .semibold)).foregroundStyle(T.accent)
                 .frame(width: 26)
                 .accessibilityHidden(true)
-            Text(text).font(rounded(22, .bold))
+            Text(LocalizedStringKey(text)).font(rounded(22, .bold))
         }
         .frame(minHeight: 32)
         .accessibilityAddTraits(.isHeader)
@@ -129,7 +153,9 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 TimelineView(.everyMinute) { ctx in
                     let hello = Greeting.word(at: ctx.date)
-                    Text(model.displayName.isEmpty ? hello : "\(hello) \(model.displayName) !")
+                    Group {
+                        if model.displayName.isEmpty { Text(verbatim: hello) } else { Text("\(hello) \(model.displayName) !") }
+                    }
                         .font(rounded(34, .bold)).tracking(-0.6)
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
@@ -147,7 +173,7 @@ struct HomeView: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass").font(rounded(16, .semibold)).foregroundStyle(T.muted)
                 .accessibilityHidden(true)
-            TextField(micro.microPresent ? "Écrivez ou dites ce que vous voulez faire" : "Écrivez ce que vous voulez faire",
+            TextField(LocalizedStringKey(micro.microPresent ? String(localized: "Écrivez ou dites ce que vous voulez faire") : String(localized: "Écrivez ce que vous voulez faire")),
                       text: $request)
                 .textFieldStyle(.plain).font(rounded(18)).focused($focused)
                 .focusEffectDisabled()
@@ -200,8 +226,8 @@ struct HomeView: View {
         }
         .buttonStyle(PressStyle())
         .disabled(dictation.phase == .transcribing)
-        .help(listening ? "Arrêter la dictée" : "Dicter ma demande")
-        .accessibilityLabel(listening ? "Arrêter la dictée" : "Dicter ma demande")
+        .help(listening ? String(localized: "Arrêter la dictée") : String(localized: "Dicter ma demande"))
+        .accessibilityLabel(listening ? String(localized: "Arrêter la dictée") : String(localized: "Dicter ma demande"))
         .onChange(of: listening) { _, on in
             if on, !reduceMotion {
                 withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
@@ -211,8 +237,8 @@ struct HomeView: View {
 
     private var etatDictee: String? {
         switch dictation.phase {
-        case .listening: "Je vous écoute… Touchez le carré quand vous avez fini."
-        case .transcribing: "Je note…"
+        case .listening: String(localized: "Je vous écoute… Touchez le carré quand vous avez fini.")
+        case .transcribing: String(localized: "Je note…")
         case .idle: nil
         }
     }
@@ -251,27 +277,37 @@ struct HomeView: View {
     private func submit() {
         guard dictation.phase == .idle else { return }
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.isEmpty { warning = "Dites en quelques mots ce que vous voulez faire."; focused = true; return }
-        if !model.connected { warning = "Je ne joins pas \(model.helperName) pour le moment. Réessayez dans un instant."; return }
+        if text.isEmpty { warning = String(localized: "Dites en quelques mots ce que vous voulez faire."); focused = true; return }
         warning = nil
-        // L'accord de partage a été donné à l'inscription : la demande part directement.
-        model.requestConsent(task: text)
+        proposition = nil
+        // D'abord les automates de l'utilisateur : ils se lancent sans autorisation ni support en direct.
+        trouves = RechercheAutomates.chercher(text, dans: model.lessons)
+        if !trouves.isEmpty { return }
+        // Rien ne correspond : Holo propose un plan, à envoyer au support IT dans un ticket.
+        prepare = true
+        Task {
+            let r = await PropositionAutomate.preparer(text, base: model.httpBase)
+            prepare = false
+            switch r {
+            case .success(let p): proposition = p; request = ""
+            case .failure(let e): warning = e.texte
+            }
+        }
+    }
+
+    private func fermerRecherche() {
+        trouves = []; proposition = nil; prepare = false
         request = ""
     }
 
     // MARK: Automates
 
     /// Les automates enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
-    private func automates(titre: Bool = true) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            if titre { titreSection("sparkles", "Mes automates") }
-            if let n = model.notice {
-                Label(n, systemImage: "info.circle.fill").font(rounded(17, .medium))
-                    .foregroundStyle(T.leaf)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
-            }
+    private func automates(titre: Bool = true, tous: Bool = false) -> some View {
+        // Accueil : les 5 plus récents ; onglet Automates : tous.
+        let liste = tous ? model.lessons : Array(model.lessons.prefix(Self.derniers))
+        return VStack(alignment: .leading, spacing: 14) {
+            if titre { titreSection("sparkles", "Derniers automates") }
             if let t = model.lastTidy { annulerRangement(t) }
             Group {
                 if model.lessons.isEmpty {
@@ -285,11 +321,11 @@ struct HomeView: View {
                 } else {
                     // Deux colonnes : la carte blanche reste en place, seule la liste
                     // défile à l'intérieur et se coupe sur ses bords.
-                    Defilant(actif: !titre) {
+                    Defilant(actif: !titre || tous) {
                         VStack(spacing: 0) {
-                            ForEach(model.lessons) { l in
+                            ForEach(liste) { l in
                                 tuile(l)
-                                if l.id != model.lessons.last?.id {
+                                if l.id != liste.last?.id {
                                     Rectangle().fill(T.line).frame(height: 1).padding(.leading, 64)
                                 }
                             }
@@ -298,7 +334,12 @@ struct HomeView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: titre ? nil : .infinity, alignment: .top)
             .carte(T.rBig)
+            if !tous && model.lessons.count > Self.derniers {
+                Button("Voir les \(model.lessons.count) automates") { model.homeTab = 1 }
+                    .buttonStyle(.plain).font(rounded(16, .semibold)).foregroundStyle(T.leaf)
+            }
         }
     }
 
@@ -318,6 +359,7 @@ struct HomeView: View {
         .padding(18).frame(maxWidth: .infinity, alignment: .leading)
         .carte(T.r)
     }
+    private static let derniers = 5
 
     private func tuile(_ l: Lesson) -> some View {
         HStack(spacing: 10) {
@@ -390,26 +432,30 @@ extension HomeView {
                             RoundedRectangle(cornerRadius: 20, style: .continuous).fill(T.field)
                                 .frame(width: 72, height: 72)
                                 .overlay(Image(nsImage: icon(bundle)).resizable().frame(width: 48, height: 48))
+                            // Une seule ligne : le nom rétrécit un peu, puis se termine par « … » ;
+                            // le nom complet reste dans la bulle d'aide et pour VoiceOver.
                             Text(name).font(rounded(16, .medium))
-                                .lineLimit(2, reservesSpace: true).multilineTextAlignment(.center)
-                                .fixedSize(horizontal: false, vertical: true)
+                                .lineLimit(1).minimumScaleFactor(0.8).truncationMode(.tail)
+                                .frame(maxWidth: .infinity)
                         }
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(PressStyle())
+                    .help(name)
                     .accessibilityLabel("Ouvrir \(name)")
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 18)
             }
+            .frame(maxWidth: .infinity, maxHeight: titre ? nil : .infinity, alignment: .top)
             .carte(T.rBig)
         }
     }
 
     private func openApp(_ bundle: String) {
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else {
-            model.showNotice("Cette application n'est pas disponible sur cet ordinateur.")
+            model.showNotice(String(localized: "Cette application n'est pas disponible sur cet ordinateur."))
             return
         }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
@@ -435,13 +481,13 @@ struct PressStyle: ButtonStyle {
 enum Greeting {
     static func word(at date: Date = Date()) -> String {
         let h = Calendar.current.component(.hour, from: date)
-        return (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour"
+        return (h >= 19 || h < 5) ? String(localized: "Bonsoir") : String(localized: "Bonjour")
     }
 }
 
 /// Une liste qui défile à l'intérieur de sa carte quand la place manque ; sinon
 /// la carte épouse son contenu. La carte elle-même ne bouge jamais.
-private struct Defilant<Contenu: View>: View {
+struct Defilant<Contenu: View>: View {
     var actif: Bool
     @ViewBuilder var contenu: Contenu
     var body: some View {

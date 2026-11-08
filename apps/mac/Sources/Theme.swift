@@ -30,7 +30,7 @@ struct Pastille: View {
     var body: some View {
         HStack(spacing: 7) {
             if let icone { Image(systemName: icone).font(.system(size: taille - 2, weight: .semibold)) }
-            Text(texte).font(rounded(taille, .semibold))
+            Text(LocalizedStringKey(texte)).font(rounded(taille, .semibold))
         }
         .foregroundStyle(ton.texte)
         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -42,7 +42,7 @@ struct Pastille: View {
 /// Taille du texte choisie à l'accueil. Grande par défaut, l'interface est
 /// déjà dessinée en gros caractères ; « Très grande » agrandit tout.
 enum TextScale {
-    static let options: [(label: String, value: Double)] = [("Grande", 1.0), ("Très grande", 1.18)]
+    static let options: [(label: String, value: Double)] = [("Grande", 1.0), (String(localized: "Très grande"), 1.18)]
     static var current: Double {
         get { let v = UserDefaults.standard.double(forKey: "textScale"); return v > 0 ? v : 1.0 }
         set { UserDefaults.standard.set(newValue, forKey: "textScale") }
@@ -101,14 +101,17 @@ struct Header: View {
     var body: some View {
         HStack(spacing: 14) {
             LogotypePapai().frame(height: 36 * CGFloat(model.textScale))
+            // Onglets de l'accueil, au-dessus de l'encadré bleu, à distance du logo.
+            if accueilAffiche {
+                @Bindable var m = model
+                Onglets(options: [("Accueil", 0), (String(localized: "Mes demandes"), 2), ("Automates", 1)], selection: $m.homeTab)
+                    .frame(width: 420)
+                    .padding(.leading, 48)
+            }
             Spacer()
             // Rien quand tout va bien : l’utilisateur n'a pas à se soucier de la connexion.
             if !model.connected {
                 Pastille(texte: "Pas de connexion pour le moment", icone: "wifi.slash", ton: .gris, taille: 16)
-            }
-            if model.screen == .home {
-                Button("Mes demandes") { model.showRequests = true }
-                    .buttonStyle(PillStyle(filled: false, height: 44))
             }
             Button { model.showSettings = true } label: {
                 Image(systemName: "gearshape").font(.system(size: 18, weight: .semibold))
@@ -121,6 +124,14 @@ struct Header: View {
             .accessibilityLabel("Réglages")
         }
         .padding(.top, 24)
+    }
+
+    /// Vrai seulement quand `RootView` montre l'accueil lui-même (pas l'accueil de départ,
+    /// les autorisations ni une demande par-dessus).
+    private var accueilAffiche: Bool {
+        model.screen == .home && model.remoteRequest == nil
+            && !(model.queued != nil && model.queuedShown)
+            && (model.screenOK && model.axOK || model.permissionsDismissed)
     }
 }
 
@@ -161,7 +172,7 @@ struct Onglets<V: Hashable>: View {
                 let on = o.value == selection
                 Button { selection = o.value } label: {
                     VStack(spacing: 0) {
-                        Text(o.label).font(rounded(17, on ? .semibold : .medium))
+                        Text(LocalizedStringKey(o.label)).font(rounded(17, on ? .semibold : .medium))
                             .foregroundStyle(on ? T.leaf : T.muted)
                             .frame(maxWidth: .infinity, minHeight: 46)
                         Rectangle().fill(on ? T.accent : T.line).frame(height: on ? 3 : 1)
@@ -169,6 +180,7 @@ struct Onglets<V: Hashable>: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .focusEffectDisabled()  // pas de cadre de sélection autour de l'onglet
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
         }
