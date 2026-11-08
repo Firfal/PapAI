@@ -1206,10 +1206,12 @@ async def join_org(fam: str, request: Request):
         return JSONResponse({"error": "Jeton d'organisation inconnu."}, status_code=403)
     if S().org and S().org != o.id:
         return JSONResponse({"error": "Ce poste appartient déjà à une autre organisation."}, status_code=409)
+    first = S().org != o.id
     if not spaces.join(S(), o.id, _label(body)):
         return JSONResponse({"error": "Cet espace ne peut pas rejoindre une organisation."}, status_code=409)
     o.copy_automations(S().lessons_dir)
-    S().tickets.renumber(o.next_ticket)
+    if first:
+        S().tickets.renumber(o.next_ticket)
     if S().bridge is not None:
         await S().bridge.send({"type": "lessons_changed", "title": ""})
     return {"org": o.name}
