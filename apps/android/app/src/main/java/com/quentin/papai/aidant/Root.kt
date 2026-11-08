@@ -69,6 +69,16 @@ fun Root() {
             if (m.isConfigured && !m.connected) {
                 LostBanner(Modifier.padding(horizontal = 20.dp).padding(bottom = 10.dp))
             }
+            m.sensitiveRefusal?.let { reason ->
+                Column(
+                    Modifier.padding(horizontal = 20.dp).padding(bottom = 12.dp)
+                        .fillMaxWidth().soinCard().padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    T(reason, 17.sp, FontWeight.Normal, Soin.ink)
+                    CapsuleButton("Compris") { m.sensitiveRefusal = null }
+                }
+            }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (m.isConfigured) when (m.screen) {
                     Screen.IDLE -> IdleScreen()

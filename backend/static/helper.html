@@ -248,6 +248,10 @@
 <div id="lost" hidden role="status"><div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:#fff;width:16px;height:16px"></div><span>Connexion perdue</span><span>reconnexion…</span></div>
 
 <main>
+  <div class="card stack" id="sensitiveRefusal" hidden role="alert" style="margin-bottom:16px">
+    <p id="sensitiveRefusalText"></p>
+    <button class="capsule" id="sensitiveRefusalOk" type="button">Compris</button>
+  </div>
 
   <div class="card alertcard" style="margin-bottom:16px" id="alert" hidden role="alert">
       <h3 id="alertTitle"></h3>
@@ -610,7 +614,10 @@ function dropSession() {
 
 function isOpen() { return ws && ws.readyState === WebSocket.OPEN; }
 function send(o) {
-  if (isOpen()) { ws.send(JSON.stringify(o)); return true; }
+  if (isOpen()) {
+    if (o.type !== 'helper_hello') $('sensitiveRefusal').hidden = true;
+    ws.send(JSON.stringify(o)); return true;
+  }
   toast('Pas de connexion au serveur.');
   return false;
 }
@@ -1007,7 +1014,11 @@ function onMessage(ev) {
   else if (m.type === 'answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
 
   else if (m.type === 'refused') {
-    toast(m.reason);
+    if (m.blocked === 'sensitive') {
+      $('sensitiveRefusalText').textContent = m.reason;
+      $('sensitiveRefusal').hidden = false;
+      $('toast').style.display = 'none';
+    } else toast(m.reason);
     sending = false; planBusy = false; lessonBusy = false;
     if (m.reason === 'Aucune demande en cours.') dropSession();
     render();
@@ -1139,6 +1150,7 @@ $('pause').onclick = () => {
 
 $('arm').onclick = () => setArmed(true);
 $('cancelAim').onclick = () => setArmed(false);
+$('sensitiveRefusalOk').onclick = () => { $('sensitiveRefusal').hidden = true; };
 $('refresh').onclick = requestRefresh;
 
 // Le clic part en coordonnées normalisées relatives à l'image affichée, jamais

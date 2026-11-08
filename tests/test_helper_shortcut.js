@@ -5,8 +5,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-test('la cible est visible, retirable seulement, et réinitialisée entre brouillons', () => {
-  const nodes = new Map(), sent = [];
+test('cible retirable et refus sensible persistant jusqu’à Compris ou au geste suivant', () => {
+  const nodes = new Map(), sent = [], timers = [];
   function element() {
     return { hidden: true, textContent: '', value: '', checked: false, style: {},
       children: [], classList: { add() {}, remove() {}, toggle() {} },
@@ -29,7 +29,7 @@ test('la cible est visible, retirable seulement, et réinitialisée entre brouil
     document: { getElementById: get, querySelectorAll: () => [], createElement: element },
     location: { pathname: '/a/demo', protocol: 'http:', host: 'localhost' },
     localStorage: { getItem: () => '' }, WebSocket,
-    setInterval() {}, setTimeout() {}, clearTimeout() {},
+    setInterval() {}, setTimeout(callback) { timers.push(callback); }, clearTimeout() {},
     window: { addEventListener() {}, scrollTo() {} },
   });
   const html = fs.readFileSync(path.join(__dirname, '../backend/static/helper.html'), 'utf8');
@@ -55,4 +55,28 @@ test('la cible est visible, retirable seulement, et réinitialisée entre brouil
   get('noShortcut').checked = true;
   get('approve').onclick();
   assert.equal(Object.hasOwn(sent.at(-1).lesson, 'shortcut'), false);
+  function message(m) {
+    context.payload = JSON.stringify(m);
+    vm.runInContext('onMessage({data: payload})', context);
+  }
+  const reason = 'Clic non effectué : cette fenêtre est protégée (réglages ou mots de passe). Guidez Jeanne par téléphone.';
+  message({ type: 'refused', blocked: 'sensitive', reason });
+  assert.equal(get('sensitiveRefusal').hidden, false);
+  assert.equal(get('sensitiveRefusalText').textContent, reason);
+  for (const callback of timers.splice(0)) callback();
+  assert.equal(get('sensitiveRefusal').hidden, false);
+  message({ type: 'senior', name: 'Jeanne' });
+  assert.equal(get('sensitiveRefusal').hidden, false);
+  get('sensitiveRefusalOk').onclick();
+  assert.equal(get('sensitiveRefusal').hidden, true);
+  message({ type: 'refused', blocked: 'sensitive', reason });
+  vm.runInContext("send({ type: 'helper_hello' })", context);
+  assert.equal(get('sensitiveRefusal').hidden, false);
+  vm.runInContext("send({ type: 'answer', text: 'C’est fait.' })", context);
+  assert.equal(get('sensitiveRefusal').hidden, true);
+  message({ type: 'refused', reason: 'Autre erreur' });
+  assert.equal(get('toast').textContent, 'Autre erreur');
+  assert.equal(get('toast').style.display, 'block');
+  for (const callback of timers.splice(0)) callback();
+  assert.equal(get('toast').style.display, 'none');
 });

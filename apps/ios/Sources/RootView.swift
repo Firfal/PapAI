@@ -13,6 +13,16 @@ struct RootView: View {
                 if model.isConfigured && !model.connected {
                     LostBanner(model: model).padding(.horizontal, 20).padding(.bottom, 10)
                 }
+                if let reason = model.sensitiveRefusal {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(reason).font(.system(size: 17)).foregroundStyle(Soin.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("Compris") { model.sensitiveRefusal = nil }
+                            .buttonStyle(CapsuleButtonStyle())
+                    }
+                    .padding(20).frame(maxWidth: .infinity, alignment: .leading).soinCard()
+                    .padding(.horizontal, 20).padding(.bottom, 12)
+                }
                 content
             }
             if let t = model.toast {

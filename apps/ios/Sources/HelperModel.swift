@@ -127,6 +127,7 @@ final class HelperModel {
     var lessons: [Lesson] = []
 
     var toast: String?
+    var sensitiveRefusal: String?
     var lastAlert: (title: String, detail: String)?
     var guardAlertId: String?
     var guardTask = ""
@@ -287,6 +288,7 @@ final class HelperModel {
 
     /// Suivre une autre personne : la liaison active change, les autres restent surveillées.
     func switchTo(_ p: Person) {
+        sensitiveRefusal = nil
         guard !isCurrent(p) else { return }
         rememberCurrent()
         serverURL = p.server; helperKey = p.key; seniorName = p.name
@@ -628,6 +630,7 @@ final class HelperModel {
             planBusy = false; sending = false
             showToast("Pas de connexion au serveur."); return
         }
+        if o["type"] as? String != "helper_hello" { sensitiveRefusal = nil }
         socket.send(.string(s)) { _ in }
     }
 
@@ -760,7 +763,10 @@ final class HelperModel {
             }
 
         case "refused":
-            showToast(m["reason"] as? String ?? "Refusé")
+            if m["blocked"] as? String == "sensitive" {
+                sensitiveRefusal = m["reason"] as? String ?? "Cette fenêtre est protégée (réglages ou mots de passe)."
+                toast = nil
+            } else { showToast(m["reason"] as? String ?? "Refusé") }
             sending = false; planBusy = false; lessonBusy = false
 
         case "ack":

@@ -152,6 +152,7 @@ object Helper {
     var lessons by mutableStateOf<List<Lesson>>(emptyList())
 
     var toast by mutableStateOf<String?>(null)
+    var sensitiveRefusal by mutableStateOf<String?>(null)
     var lastAlert by mutableStateOf<AlertInfo?>(null)
 
     /** L'app est au premier plan : pas besoin de notification, l'écran change déjà. */
@@ -314,6 +315,7 @@ object Helper {
 
     /** Suivre une autre personne : la liaison active change, les autres restent surveillées. */
     fun switchTo(p: Person) {
+        sensitiveRefusal = null
         if (isCurrent(p)) return
         rememberCurrent()
         serverURL = p.server; helperKey = p.key; seniorName = p.name
@@ -628,6 +630,7 @@ object Helper {
             planBusy = false; sending = false
             showToast("Pas de connexion au serveur."); return
         }
+        if (o.text("type") != "helper_hello") sensitiveRefusal = null
         s.send(o.toString())
     }
 
@@ -758,7 +761,10 @@ object Helper {
             }
 
             "refused" -> {
-                showToast(m.text("reason").ifEmpty { "Refusé" })
+                if (m.text("blocked") == "sensitive") {
+                    sensitiveRefusal = m.text("reason").ifEmpty { "Cette fenêtre est protégée (réglages ou mots de passe)." }
+                    toast = null
+                } else showToast(m.text("reason").ifEmpty { "Refusé" })
                 sending = false; planBusy = false; lessonBusy = false
             }
 
