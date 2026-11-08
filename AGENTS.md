@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794091852-appairage-code-seul` | PR #40 : accord sur l'ordinateur avant appairage | backend/family.py, backend/app.py, backend/static/pair.html, PROTOCOL.md, tests/test_appairage_code.py, apps/mac/Sources, apps/ios/Sources, apps/android, apps/windows | 8 nov. |
 
 ## Journal
 
