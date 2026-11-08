@@ -208,6 +208,13 @@ struct HelpersPanel: View {
                             .frame(width: 46, height: 46).background(Circle().fill(T.accent))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(h.name).font(rounded(21, .semibold))
+                            if h.online {
+                                HStack(spacing: 6) {
+                                    Circle().fill(Color(hex: 0x2F6B4A)).frame(width: 8, height: 8)
+                                    Text("En ligne").font(rounded(15, .medium)).foregroundStyle(Color(hex: 0x2F6B4A))
+                                }
+                                .accessibilityElement(children: .combine)
+                            }
                             if !h.relation.isEmpty {
                                 Text(h.relation.prefix(1).uppercased() + h.relation.dropFirst())
                                     .font(rounded(16)).foregroundStyle(T.muted)
