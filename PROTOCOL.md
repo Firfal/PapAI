@@ -540,6 +540,37 @@ organisation configurée : contactez votre administrateur », sans formulaire. O
 - Tests : `apps/mac/tests/support_org_test.swift` (vrai `HelperModel`, essai réel contre un serveur
   local avec `PAPAI_TEST_SERVER`, `PAPAI_TEST_SUPPORT`, `PAPAI_TEST_POSTES`), `tests/test_helper_postes.js`.
 
+### Un jeton par support, révocable (sécurité C1, #51)
+
+Le `support_token` ci-dessus est le **jeton de l'organisation** : il reste accepté partout
+(migration), et lui seul gère les supports. Chaque support reçoit en plus son **jeton personnel**
+(`sup-…`, 32 caractères), dont le serveur ne garde que l'empreinte SHA-256 dans `org.json`
+(`supports: [{"id","name","hash","created","revoked"}]`).
+
+- `GET /o/<jeton org>/supports` → `{"org","supports":[{"id","name","created","revoked","online"}]}`
+  (`revoked` = date de retrait, `null` sinon). Jeton personnel → 403, inconnu → 404.
+- `POST /o/<jeton org>/supports` `{"name"}` → `{"id","name","created","revoked","online","token",
+  "server","support_url","app_url"}`. Le jeton n'est donné qu'ici. Nom vide → 400 ; 200 supports max → 409.
+- `POST /o/<jeton org>/supports/<id>/revoke` → `{… ,"closed","stopped"}` : ses sockets (`ws/aidant`,
+  `transcribe/live`) sont fermées tout de suite (code **4401**), l'assistance qu'il avait validée
+  s'arrête (`status` `stopped`, `stopped_by: "support_revoque"`), il sort de la liste des supports de
+  chaque poste (`helpers` renvoyé au pont), puis son jeton et ses clés dérivées
+  sont refusés (404 en HTTP, 4403 ou `refused` en WebSocket). Une autre organisation → 404.
+- `POST /o/<jeton org>/rotate` → `{"support_token","server","support_url","app_url"}` : nouveau
+  jeton de l'organisation (fin de migration ou fuite), l'ancien est refusé. Les jetons personnels restent.
+- Avec un jeton personnel, `GET /o/<jeton>/spaces` et `GET /o/<jeton>/tickets` donnent pour chaque
+  poste une **clé dérivée** `sk<id du poste, 12><id du support, 8><sceau, 32>` (54 caractères, HMAC
+  de l'id du poste par l'empreinte du jeton), jamais la vraie clé. Elle s'utilise comme une clé
+  d'espace sur les routes du support (`/a/<clé>`, `/k/<clé>/…`, `ws/aidant/<clé>`,
+  `POST /o/<jeton>/tickets/<clé dérivée>/<id>`), jamais sur le pont (`/k/<clé>/ws/bridge`), la
+  liaison (`/k/<clé>/p…`) ni l'inscription (`/k/<clé>/org`). Elle ne vaut que pour un poste de
+  l'organisation de ce support, et seulement avec son jeton à lui.
+- Sur ces sockets, le nom du support est celui donné par l'IT (`helper_hello.name` est ignoré),
+  de même pour `by` des actions de ticket et l'auteur d'un automate importé.
+- Journal de l'assistance : `plan_decision` porte `by` `{"name","via","support"?}` ; `via` vaut
+  `jeton_support` (identité sûre, `support` = id), `cle_espace` ou `lien_session` (nom annoncé par l'app).
+- Test : `python tests/test_supports_revocables.py`.
+
 ## Tickets (chaque demande d'assistance)
 
 Chaque demande devient un ticket, gardé dans `<espace>/tickets.json` (500 derniers, texte seulement :

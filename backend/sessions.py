@@ -114,6 +114,8 @@ class Session:
     # Le prénom de l'aidant qui a validé le plan : l’utilisateur lit
     # « Quentin s'en occupe » plutôt que le nom de l'agent.
     helper_name: str = ""
+    # Qui a validé le plan, pour le journal : {"name", "via", "support"?}.
+    approved_by: dict = field(default_factory=dict)
     # Une seule phrase pour l'aidant : ce que Holo est en train de faire.
     doing: str = ""
 
@@ -285,7 +287,7 @@ class Session:
         self.owner = Owner.AGENT
         self.log("plan_preapproved", by=by, steps=steps)
 
-    def decide_plan(self, decision: str, note: str = "") -> None:
+    def decide_plan(self, decision: str, note: str = "", by: dict | None = None) -> None:
         """approve, refine (avec une précision) ou refuse. Revalidé côté serveur."""
         self.require_open()
         if self.state is not State.AWAITING_APPROVAL or self.linkup_query:
@@ -294,8 +296,9 @@ class Session:
             raise Refused("Décision inconnue.")
         if decision == "refine" and not note:
             raise Refused("Écrivez la précision à donner à Holo.")
-        self.log("plan_decision", decision=decision, note=note)
+        self.log("plan_decision", decision=decision, note=note, **({"by": by} if by else {}))
         if decision == "approve":
+            self.approved_by = dict(by or {})
             self.plan_approved = True
             self.plan_step = 1 if self.plan else None
             self.state = State.ACTIVE

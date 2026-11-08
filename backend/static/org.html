@@ -69,6 +69,24 @@
 <h2>Postes</h2>
 <div class="card" id="spaces"><p class="empty">Chargement…</p></div>
 
+<section id="supportsBox" hidden>
+<h2>Supports</h2>
+<p class="muted" style="margin-bottom:10px">Chaque support a son propre lien. Le retirer coupe aussitôt son accès, y compris pendant une assistance.</p>
+<div class="card" id="supports"><p class="empty">Chargement…</p></div>
+<p class="row" style="padding:12px 0 0;gap:8px;flex-wrap:wrap">
+  <input id="supName" maxlength="40" placeholder="Nom du support" aria-label="Nom du support"
+         style="font:inherit;font-size:15px;border:0;border-radius:999px;padding:0 16px;min-height:44px;flex:1;box-shadow:var(--shadow)">
+  <button id="supAdd">Ajouter un support</button>
+</p>
+<div class="card" id="supNew" hidden style="margin-top:12px;padding:14px 18px">
+  <p style="font-weight:600">Lien de <span id="supNewName"></span></p>
+  <p class="muted" style="font-size:14px;margin:4px 0 10px">Affiché une seule fois : envoyez-le à ce support seulement.</p>
+  <p style="display:flex;gap:8px;flex-wrap:wrap"><button class="light" id="supCopy">Copier le lien</button>
+  <button class="light" id="supHide">C'est fait</button></p>
+</div>
+<p style="margin-top:12px"><button class="light" id="rotate">Renouveler le lien de l'organisation</button></p>
+</section>
+
 <h2>Automates de l'organisation</h2>
 <p class="muted" style="margin-bottom:10px">Importés une fois, proposés sur chaque poste, y compris ceux inscrits plus tard. L'importer, c'est le valider : la personne le lance seule, en un clic.</p>
 <div class="card" id="autos"><p class="empty">Chargement…</p></div>
@@ -214,6 +232,66 @@ async function loadStats() {
   drawStats();
 }
 
+let newSupportUrl = '';
+
+async function loadSupports() {
+  const r = await fetch(`${api}/supports`);
+  // Seul le lien de l'organisation gère les supports : un support ne voit pas cette section.
+  if (!r.ok) { $('supportsBox').hidden = true; return; }
+  $('supportsBox').hidden = false;
+  const d = await r.json();
+  const box = $('supports');
+  box.replaceChildren();
+  if (!d.supports.length) box.append(el('p', 'empty', "Aucun support pour l'instant."));
+  for (const s of d.supports) {
+    const row = el('div', 'row');
+    const g = el('div', 'grow', s.name || 'Support');
+    g.append(el('small', '', s.revoked ? 'Accès retiré' : (s.online ? 'Connecté' : 'Hors ligne')));
+    const dot = el('span', 'dot' + (s.online ? ' on' : ''));
+    row.append(el('span', 'avatar', (s.name || 'S')[0].toUpperCase()), g, dot);
+    if (!s.revoked) {
+      const b = el('button', 'light', 'Retirer');
+      b.onclick = async () => {
+        if (!confirm(`Retirer ${s.name} ? Son lien ne marchera plus et son assistance en cours s'arrête.`)) return;
+        const x = await fetch(`${api}/supports/${encodeURIComponent(s.id)}/revoke`, { method: 'POST' });
+        toast(x.ok ? `${s.name} n'a plus accès.` : 'Retrait impossible.');
+        loadSupports();
+      };
+      row.append(b);
+    }
+    box.append(row);
+  }
+}
+
+$('supAdd').onclick = async () => {
+  const name = $('supName').value.trim();
+  if (!name) { $('supName').focus(); return; }
+  const r = await fetch(`${api}/supports`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                             body: JSON.stringify({ name }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { toast(d.error || 'Ajout impossible.'); return; }
+  newSupportUrl = d.support_url;
+  $('supNewName').textContent = d.name;
+  $('supNew').hidden = false;
+  $('supName').value = '';
+  loadSupports();
+};
+$('supCopy').onclick = async () => {
+  try { await navigator.clipboard.writeText(newSupportUrl); toast('Lien copié.'); } catch (e) { toast('Copie impossible.'); }
+};
+$('supHide').onclick = () => { newSupportUrl = ''; $('supNew').hidden = true; };
+$('rotate').onclick = async () => {
+  if (!confirm("Nouveau lien de l'organisation : l'ancien ne marchera plus. Les supports qui ont leur propre lien ne sont pas touchés.")) return;
+  const r = await fetch(`${api}/rotate`, { method: 'POST' });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) { toast('Renouvellement impossible.'); return; }
+  try {
+    const orgs = JSON.parse(localStorage.getItem('papai_orgs') || '[]').filter(o => o !== token);
+    localStorage.setItem('papai_orgs', JSON.stringify(orgs));
+  } catch (e) {}
+  location.replace(`/o/${encodeURIComponent(d.support_token)}`);
+};
+
 async function loadTickets() {
   const r = await fetch(`${api}/tickets`);
   if (!r.ok) { $('tickets').replaceChildren(el('p', 'empty', 'Lien invalide.')); return; }
@@ -239,7 +317,8 @@ $('csv').onclick = () => {
   URL.revokeObjectURL(a.href);
 };
 
-loadSpaces(); loadAutos(); loadTickets(); loadStats();
+loadSpaces(); loadAutos(); loadTickets(); loadStats(); loadSupports();
+setInterval(loadSupports, 30000);
 setInterval(loadSpaces, 30000);
 setInterval(loadTickets, 15000);
 setInterval(loadStats, 60000);

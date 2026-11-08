@@ -106,6 +106,9 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Essayer l'inscription d'un vrai poste Windows et d'un vrai Mac avec un jeton d'organisation.
 - [x] Support connecté d'office à l'organisation, liaison archivée : Mac (`supportToken`), iPhone (MDM, xcconfig local), Android (restrictions gérées), web (`/o/<jeton>`). Tests : `apps/mac/tests/support_org_test.swift`, `tests/test_helper_postes.js`.
 - [ ] Essayer le support sur un vrai iPhone avec une configuration MDM (ou le xcconfig local) et sur un vrai Android avec restrictions gérées.
+- [x] Un jeton par support, révocable (C1, #51) : la console `/o/<jeton org>` crée un lien par support et le retire (sockets fermées aussitôt, assistance validée par lui arrêtée, jeton et clés dérivées refusés), renouvelle le jeton de l'organisation ; le journal dit quel support a validé chaque plan. Tests : `tests/test_supports_revocables.py`.
+- [ ] Apps du support (iPhone, Mac support, Android) : afficher « Accès retiré » à la fermeture 4401 au lieu de se reconnecter en boucle (non fait, Swift non compilé ici).
+- [ ] Une fois chaque support passé à son lien personnel : renouveler le jeton de l'organisation (`POST /o/<jeton>/rotate`) pour couper l'ancien lien partagé.
 - [ ] Essayer « Mes personnes aidées » sur un vrai Android et un vrai iPhone (Swift non compilé ici).
 - [ ] Plusieurs aidants : plusieurs proches s'ajoutent déjà et reçoivent tous la demande. Reste à éprouver « le premier disponible valide » avec deux aidants connectés.
 - [x] Renommer `carepilot_tools.py` en `papai_tools.py` (fusionné le 7 novembre au soir).
