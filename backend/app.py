@@ -1731,6 +1731,11 @@ async def _json_body(request: Request) -> dict:
     return body if isinstance(body, dict) else {}
 
 
+@app.get("/tickets.js")
+async def tickets_js():
+    return FileResponse(STATIC / "tickets.js", media_type="text/javascript")
+
+
 @app.get("/k/{fam}/tickets")
 async def tickets_keyed(fam: str):
     if not _key_ok(fam):
