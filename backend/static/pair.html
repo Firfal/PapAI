@@ -104,7 +104,7 @@
         body: JSON.stringify({ name, relation: $("relation").value }),
       });
       const data = await r.json();
-      if (r.status === 408 || (r.status === 403 && data.refused === true)) {
+      if (r.status === 408 || r.status === 409 || (r.status === 403 && data.refused === true)) {
         needsNew = true;
         code = "";
         $("code").value = "";

@@ -32,7 +32,7 @@ assert(PairLink.parse("https://" + PairServer.officialHost + "/i/" + token)!.isO
 assert(!PairLink.parse("https://trusted.example/i/" + token)!.isOfficial)
 for status in [200, 400, 403, 408, 409, 429] {
     for refused in [false, true] {
-        assert(PairServer.needsNew(status: status, refused: refused) == (status == 408 || (status == 403 && refused)))
+        assert(PairServer.needsNew(status: status, refused: refused) == (status == 408 || status == 409 || (status == 403 && refused)))
     }
 }
 print("OK : parsing iOS (3 routes, refus, origine manuelle, serveur officiel), refus/délai.")

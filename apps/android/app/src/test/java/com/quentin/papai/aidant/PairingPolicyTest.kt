@@ -31,7 +31,7 @@ class PairingPolicyTest {
     @Test fun onlyRefusalAndTimeoutRequireNewCredentials() {
         for (status in listOf(200, 400, 403, 408, 409, 429)) {
             for (refused in listOf(false, true)) {
-                assertEquals(status == 408 || (status == 403 && refused), PairingPolicy.needsNew(status, refused))
+                assertEquals(status == 408 || status == 409 || (status == 403 && refused), PairingPolicy.needsNew(status, refused))
             }
         }
         assertEquals("Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).", PairingPolicy.instruction)

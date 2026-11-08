@@ -83,7 +83,7 @@ test('code manuel et prénom vides : aucun POST', async () => {
 
 test('refus et délai consomment QR et invitation, même par soumission forcée', async () => {
   for (const route of ['/p/123456', '/i/Abc_def-123456789012345']) {
-    for (const status of [403, 408]) {
+    for (const status of [403, 408, 409]) {
       let calls = 0;
       const p = page(route, async () => {
         calls++;
@@ -103,7 +103,7 @@ test('refus et délai consomment QR et invitation, même par soumission forcée'
 });
 
 test('code manuel vidé après refus/délai, nouveau code requis', async () => {
-  for (const status of [403, 408]) {
+  for (const status of [403, 408, 409]) {
     let calls = 0;
     const p = page('/p', async url => {
       calls++;

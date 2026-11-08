@@ -5,7 +5,7 @@ enum PairServer {
     static let refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
     static let officialHost = "papai-450417131702.europe-west1.run.app"
     static func needsNew(status: Int, refused: Bool) -> Bool {
-        status == 408 || (status == 403 && refused)
+        status == 408 || status == 409 || (status == 403 && refused)
     }
 
     static func allowed(_ text: String) -> Bool {
