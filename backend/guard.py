@@ -244,7 +244,9 @@ _TIERS = (r"\b(?:support|technicien|service (?:informatique|technique|it)|helpde
           r"microsoft|apple|google|administrateur|quelqu'un|quelqu un|une personne|un monsieur|une dame|"
           r"un homme|une femme|interlocuteur|telephone|appel|appele|appelle|rappele)\b")
 _DEMANDE = r"\b(?:demande\w*|veut|veulent|exige\w*|reclame\w*|me dit|m'a dit|il faut|faut que|doit|doivent|wants|asks?|asked)\b"
-_RENOUVELER = r"\b(?:changer|change|reinitialiser|modifier|renouveler|reset|oublie|perdu|expire|bloque|verrouille)\b"
+_SECRET_SEUL = r"(?:mots? de passe|mdp|identifiants?|password|codes?)"
+_RENOUVELER = (r"\b(?:changer|change|reinitialiser|modifier|renouveler|reset)\s+(?:(?:de|le|la|les|mon|ma|mes|son|sa|ses|votre|vos|l')\s*){0,2}" + _SECRET_SEUL
+               + r"|\b" + _SECRET_SEUL + r"\b.{0,25}\b(?:oublie|perdu|expire|bloque|verrouille)\b|\ble change\b|\ble reinitialise\b")
 _NOTIF = (r"\b(?:(?:notifications?|demandes?) (?:de |d')?(?:connexion|validation|authentification|approbation)|"
           r"authenticator|mfa|2fa|double authentification)\b")
 _FATIGUE = (r"\b(?:plein de|plusieurs|beaucoup de|des dizaines|sans arret|en boucle|que je n'ai pas \w+|"
