@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Accueil : une barre pour demander (avec un petit micro) et les AutoMates.
+/// Accueil : une barre pour demander (avec un petit micro) et les automates.
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var request = ""
@@ -174,7 +174,7 @@ struct HomeView: View {
         request = ""
     }
 
-    // MARK: AutoMates
+    // MARK: Automates
 
     /// Les automatismes enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
     private var automates: some View {
@@ -188,12 +188,12 @@ struct HomeView: View {
             HStack(spacing: 10) {
                 Image(systemName: "sparkles").font(rounded(20, .semibold)).foregroundStyle(T.papaya)
                     .accessibilityHidden(true)
-                Text("Mes AutoMates").font(rounded(22, .bold))
+                Text("Mes automates").font(rounded(22, .bold))
             }
             if model.lessons.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Aucun AutoMate pour l'instant.").font(rounded(18, .semibold))
-                    Text("Un AutoMate est une tâche toute prête. Quand \(model.helperName) en enregistre une pour vous, elle apparaît ici et se lance d'un clic.")
+                    Text("Aucun automate pour l'instant.").font(rounded(18, .semibold))
+                    Text("Un automate est une tâche toute prête. Quand \(model.helperName) en enregistre un pour vous, il apparaît ici et se lance d'un clic.")
                         .font(rounded(17)).foregroundStyle(T.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }

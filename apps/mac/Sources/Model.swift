@@ -552,7 +552,7 @@ final class AppModel {
         case "lessons_changed":
             Task {
                 await refreshLessons()
-                if let t = m["title"] as? String { showNotice("Nouvel AutoMate : « \(t) »") }
+                if let t = m["title"] as? String { showNotice("Nouvel automate : « \(t) »") }
             }
         case "pair_code":
             pairCode = m["code"] as? String

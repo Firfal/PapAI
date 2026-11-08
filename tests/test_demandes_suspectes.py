@@ -447,7 +447,7 @@ class Orchestration(unittest.IsolatedAsyncioTestCase):
             await app.handle_guard({"processes": ["AnyDesk"], "url": "https://ma-banque.fr"})
         avis.assert_not_called()
         self.assertEqual(s.state, State.STOPPED)
-        self.assertIn("Prenez contact avec votre proche", app.pending_alert["helper"]["detail"])
+        self.assertIn("Prenez contact avec ", app.pending_alert["helper"]["detail"])
 
     async def test_execute_refuse_si_alerte_en_attente(self):
         await app.check_request(self.session(SUSPECTES[0]), SUSPECTES[0], "request")

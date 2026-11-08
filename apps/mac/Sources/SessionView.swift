@@ -210,7 +210,7 @@ struct SessionView: View {
                     endNote("globe", "Holo a fermé sa fenêtre Chrome.")
                 }
                 // Fiches héritées, à remplacer par la tâche `.papi` enregistrée.
-                endNote("book.fill", "\(model.HelperName) peut en faire un tutoriel. Vous le retrouverez dans « Mes tutoriels » pour le refaire sans aide.")
+                endNote("book.fill", "\(model.HelperName) peut en faire un automate. Vous le retrouverez dans « Mes automates » pour le refaire sans aide.")
             }
         case .stopped where guardStopped:
             VStack(alignment: .leading, spacing: 20) {

@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 
 enum PairServer {
-    static let refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
+    static let refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
     static let officialHost = "papai-450417131702.europe-west1.run.app"
 
     static func allowed(_ text: String) -> Bool {
@@ -208,7 +208,7 @@ struct ScannerSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Scanner le QR de l’ordinateur").font(.system(size: 26, weight: .bold)).foregroundStyle(Soin.ink)
+            Text("Scanner le QR code de l’ordinateur").font(.system(size: 26, weight: .bold)).foregroundStyle(Soin.ink)
             Text("Sur l’ordinateur de \(model.senior) : Mon support › Ajouter un support.")
                 .font(.system(size: 15)).foregroundStyle(Soin.secondary)
             ZStack {
