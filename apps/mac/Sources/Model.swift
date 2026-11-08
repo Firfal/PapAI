@@ -35,6 +35,22 @@ struct QueuedTicket: Equatable {
     var suggestionLancee: String?
 }
 
+/// Demande qui a déjà son ticket : encore ouvert, ou réglé avec sa solution.
+struct ExistingTicket: Equatable {
+    var solved: Bool
+    var ticket: String
+    var number: Int
+    var task: String
+    /// Ce que la personne vient de demander, renvoyé tel quel si elle insiste.
+    var asked: String
+    var status = ""
+    var rdv: Date?
+    var note = ""
+    var by = ""
+    var at: Date?
+    var steps: [String] = []
+}
+
 enum SessionState: String {
     case planning, awaiting_approval, active, awaiting_helper, done, stopped
     var isOpen: Bool { self != .done && self != .stopped }
@@ -67,6 +83,10 @@ final class AppModel {
     @ObservationIgnored let narration = LocalNarration.shared
     var answerSources: [[String: String]] = []
     var lessons: [Lesson] = []
+    var requests: [UserRequest] = []
+    var showRequests = false
+    var requestsLoading = false
+    var requestsError = false
     var notice: String?
     var lesson: Lesson?
     /// La fiche d'automate ouverte par-dessus l'accueil.
@@ -91,6 +111,7 @@ final class AppModel {
     var queuedShown = false
     /// Nom de l'organisation qui gère ce poste, connu après l'inscription par jeton.
     var orgName = UserDefaults.standard.string(forKey: "orgName") ?? ""
+    var existing: ExistingTicket?
     var pendingTask = ""
     var pendingAutomation: Lesson?
     var pendingAutomationTicket: String?
@@ -322,6 +343,13 @@ final class AppModel {
             }
             let json = #"[{"id":"a","title":"Mes photos de Noël","shortcut":{"folder":"pictures"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes documents","shortcut":{"folder":"documents"}}]"#
             lessons = (try? JSONDecoder().decode([Lesson].self, from: Data(json.utf8))) ?? []
+            if demo == "requests" {
+                let automate = #"{"id":"print","title":"Configurer mon imprimante","platforms":["mac"],"actions":[{"do":"open_settings","page":"printers"}]}"#
+                if let l = try? JSONDecoder().decode(Lesson.self, from: Data(automate.utf8)) { lessons.append(l) }
+                requests = (try? JSONDecoder().decode(UserRequestsResponse.self, from: Data(UserRequestsResponse.demo.utf8)).requests) ?? []
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showRequests = true }
+                return
+            }
             if demo == "home" { return }
             if demo == "home_empty" { lessons = []; return }
             if demo == "alert" {
@@ -440,6 +468,34 @@ final class AppModel {
         } else if lessons.isEmpty {
             lessons = OfflineLessons.load(base: httpBase)  // pas de réseau : ceux qui n'ont pas besoin de Holo
         }
+    }
+
+    func refreshRequests() async {
+        guard ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil else { return }
+        requestsLoading = true
+        requestsError = false
+        defer { requestsLoading = false }
+        guard let url = URL(string: httpBase + "/requests") else {
+            requests = []; requestsError = true
+            return
+        }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 5
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+            requests = try JSONDecoder().decode(UserRequestsResponse.self, from: data).requests
+        } catch {
+            requests = []
+            requestsError = true
+        }
+    }
+
+    func relaunchRequest(_ request: UserRequest) {
+        guard let id = request.relaunchID(availableIDs: Set(lessons.map(\.id))),
+              let lesson = lessons.first(where: { $0.id == id }) else { return }
+        showRequests = false
+        runAutomation(lesson)
     }
 
     // MARK: Fenêtre
@@ -581,8 +637,24 @@ final class AppModel {
         screen = .home
     }
 
-    func askHelp(task: String, requestedBy: String? = nil, ticket: String? = nil) {
+    /// Déjà réglée mais le problème est revenu : le même ticket est rouvert.
+    func retryExisting() {
+        guard let e = existing, e.solved else { return }
+        existing = nil
+        askHelp(task: e.asked.isEmpty ? e.task : e.asked, reopen: e.ticket)
+    }
+
+    /// Ce n'est pas la même demande : elle part avec son propre ticket.
+    func newRequest() {
+        guard let e = existing else { return }
+        existing = nil
+        askHelp(task: e.asked.isEmpty ? e.task : e.asked, new: true)
+    }
+
+    func askHelp(task: String, requestedBy: String? = nil, ticket: String? = nil,
+                 reopen: String? = nil, new: Bool = false) {
         guard guardAlert == nil else { return }
+        existing = nil
         // « Range mes documents » : seuls les noms des fichiers partent, avec la demande.
         tidyScan = nil
         if Tidy.isRequest(task) {
@@ -616,6 +688,8 @@ final class AppModel {
         if let requestedBy { msg["requested_by"] = requestedBy }
         if let ticket { msg["ticket"] = ticket }
         if let tidyScan { msg["tidy"] = tidyScan.payload }
+        if let reopen { msg["reopen"] = reopen }
+        if new { msg["new"] = true }
         client.send(msg)
     }
 
@@ -698,6 +772,8 @@ final class AppModel {
             } else if !Self.cachedHelpers().isEmpty {
                 sendProfile()
             }
+        case "tickets_changed":
+            if showRequests { Task { await refreshRequests() } }
         case "lessons_changed":
             Task {
                 await refreshLessons()
@@ -749,6 +825,21 @@ final class AppModel {
                                   task: m["task"] as? String ?? task, rdv: nil, suggestions: suggestions,
                                   suggestionLancee: m["suggestion_lancee"] as? String)
             queuedShown = true
+            state = nil
+            screen = .home
+            applyLevel()
+        case "ticket_exists", "ticket_solved":
+            // La demande a déjà son ticket : rien de nouveau n'est ouvert.
+            let sol = m["solution"] as? [String: Any] ?? [:]
+            existing = ExistingTicket(
+                solved: m["type"] as? String == "ticket_solved",
+                ticket: m["ticket"] as? String ?? "", number: m["number"] as? Int ?? 0,
+                task: m["task"] as? String ?? task, asked: task,
+                status: m["status"] as? String ?? "",
+                rdv: (m["rdv"] as? Double).map { Date(timeIntervalSince1970: $0) },
+                note: sol["note"] as? String ?? "", by: sol["by"] as? String ?? "",
+                at: (sol["at"] as? Double).map { Date(timeIntervalSince1970: $0) },
+                steps: sol["steps"] as? [String] ?? [])
             state = nil
             screen = .home
             applyLevel()

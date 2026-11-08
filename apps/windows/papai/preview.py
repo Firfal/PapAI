@@ -3,7 +3,7 @@
     python -m papai.preview [port]
     puis http://127.0.0.1:8765/?demo=home   (ou consent, planning,
     awaiting_approval, active, awaiting_helper, done, stopped, lesson, remote,
-    home_no_org ; `&sheet=settings` pour les Réglages)
+    home_no_org, requests ; `&sheet=settings` pour les Réglages)
 
 Les états viennent de `Model` en mode démonstration (les mêmes que PAPAI_DEMO).
 Sert aux captures de la PR et à travailler le dessin depuis n'importe quel OS.

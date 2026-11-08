@@ -104,6 +104,8 @@ class Session:
     lesson: dict | None = None
     # Le ticket de cette demande (suivi par le support IT).
     ticket: str = ""
+    # La même demande a déjà été réglée : ce qui avait été fait, pour Holo.
+    reprise: str = ""
     journal: list[dict] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     last_activity: float = field(default_factory=time.time)

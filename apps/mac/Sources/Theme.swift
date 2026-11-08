@@ -106,6 +106,10 @@ struct Header: View {
             if !model.connected {
                 Pastille(texte: "Pas de connexion pour le moment", icone: "wifi.slash", ton: .gris, taille: 16)
             }
+            if model.screen == .home {
+                Button("Mes demandes") { model.showRequests = true }
+                    .buttonStyle(PillStyle(filled: false, height: 44))
+            }
             Button { model.showSettings = true } label: {
                 Image(systemName: "gearshape").font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(T.ink)
