@@ -95,7 +95,7 @@ class Bridge:
             try:
                 async with websockets.connect(self.url, max_size=MAX_SIZE, open_timeout=8) as ws:
                     self._ws = ws
-                    await ws.send(json.dumps({"type": "hello", "os": "windows",
+                    await ws.send(json.dumps({"type": "hello", "os": "windows", "clarify": True,
                                               "protection": bool(self.protection())}))
                     self._set_connected(True)
                     watch = asyncio.create_task(self._guard_loop(ws))

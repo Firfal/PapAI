@@ -15,6 +15,9 @@ struct SupportTicket: Identifiable {
     var person: Person
     /// Demande d'automate : le plan proposé par Holo, à valider pour créer l'automate.
     var plan: (titre: String, etapes: [String])?
+    /// Mots d'origine de l'utilisateur et précisions données à Holo, quand l'objet a été reformulé.
+    var demande = ""
+    var precisions: [(q: String, a: String)] = []
 
     var label: String { String(format: "T-%04d", number) }
     var isOpen: Bool { status != "resolu" }
@@ -30,6 +33,11 @@ struct SupportTicket: Identifiable {
         created = (d["created"] as? NSNumber)?.doubleValue ?? updated
         rdv = (d["rdv"] as? NSNumber)?.doubleValue
         assignee = d["assignee"] as? String ?? ""
+        demande = d["demande"] as? String ?? ""
+        precisions = (d["precisions"] as? [[String: Any]] ?? []).compactMap { p in
+            guard let q = p["q"] as? String, let a = p["a"] as? String else { return nil }
+            return (q, a)
+        }
         if let a = d["automate"] as? [String: Any] {
             plan = (a["title"] as? String ?? "Nouvel automate", a["steps"] as? [String] ?? [])
         }
@@ -115,6 +123,14 @@ struct SupportTickets: View {
                 }
                 Text(t.task.isEmpty ? "Demande sans texte" : "« \(t.task) »").font(rounded(18, .semibold))
                     .fixedSize(horizontal: false, vertical: true)
+                if !t.demande.isEmpty {
+                    Text("Demande d’origine : « \(t.demande) »").font(rounded(14)).foregroundStyle(T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(Array(t.precisions.enumerated()), id: \.offset) { _, p in
+                    Text("\(p.q) → \(p.a)").font(rounded(14)).foregroundStyle(T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let p = t.plan {
                     VStack(alignment: .leading, spacing: 4) {
                         Label("Automate proposé : \(p.titre)", systemImage: "wand.and.stars")

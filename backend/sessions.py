@@ -90,6 +90,8 @@ class Session:
     plan: list[str] | None = None
     plan_mode: str | None = None
     plan_sites: list[str] = field(default_factory=list)
+    # Mots d'origine et précisions données à Holo avant le ticket (backend/clarify.py).
+    context: str = ""
     web_steps: list[int] = field(default_factory=list)
     plan_approved: bool = False
     # Numéro (à partir de 1) de l'étape du plan validé en cours d'exécution.

@@ -69,6 +69,7 @@ async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> l
     messages = [
         {"role": "system", "content": PLAN_PROMPT.format(os="Mac" if bridge.os == "macos" else "Windows")},
         {"role": "user", "content": f"Demande de la personne : « {session.task} »"
+            + (f"\n{session.context}" if session.context else "")
             + (f"\nPrécision de son support : {note}" if note else "")},
     ]
     if frame is not None:
@@ -215,6 +216,8 @@ class AgentRunner:
 
     async def _loop(self) -> None:
         brief = self.s.task
+        if self.s.context:
+            brief += "\n" + self.s.context
         if self.s.plan:
             brief += "\n\nPlan validé par le support, à suivre :\n" + "\n".join(
                 f"{i}. {step}" for i, step in enumerate(self.s.plan, 1)

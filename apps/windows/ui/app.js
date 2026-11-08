@@ -216,6 +216,30 @@
     return `<div class="col" style="gap:18px;padding:24px;border-radius:var(--r);background:rgba(255,255,255,.55)">${bar(st, 18)}${rows}</div>`;
   }
 
+  // Demande floue (« j'ai besoin d'aide ») : Holo la fait préciser avant d'ouvrir le ticket.
+  function clarifyScreen() {
+    const c = S.clarify;
+    const options = (c.options || []).map((o) =>
+      `<button class="pill plain" data-act="clarifyOption" data-arg="${esc(o)}" style="height:56px;padding:0 22px;${f(20, 6)}">${esc(o)}</button>`).join('');
+    const reply = c.sent
+      ? `<div class="row accent" style="gap:10px">${icon('checkCircle', 22)}<span style="${f(20, 6)}">Merci, Holo prépare votre demande…</span></div>`
+      : `${options ? `<div class="row" style="gap:10px;flex-wrap:wrap">${options}</div>` : ''}
+        <div class="row" style="gap:12px">
+          <input id="clarifyReply" class="grow" placeholder="Ou dites-le avec vos mots" value="${esc(ui.clarifyText || '')}"
+            style="${f(22, 5)};padding:16px 20px;border:0;border-radius:var(--r);background:var(--bg)">
+          ${pill('Répondre', 'clarifyReply', { height: 56, disabled: !(ui.clarifyText || '').trim() })}
+        </div>
+        <div class="muted" style="${f(15, 4)}">Ne donnez jamais de mot de passe ni de code : on ne vous les demandera pas.</div>`;
+    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Holo a besoin d'une précision${c.max > 1 ? ` · ${esc(c.round)}/${esc(c.max)}` : ''}</span></div>
+      <div style="${f(40, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(c.question)}</div>
+      ${S.task ? `<div class="muted" style="${f(19, 4)}">Votre demande : « ${esc(S.task)} »</div>` : ''}
+      <div class="card col" style="padding:24px;gap:16px">${reply}</div>`, 40, 22) +
+      `<div class="row" style="gap:14px;margin-top:18px">
+        ${pill('Annuler', 'cancelClarify', { filled: false, height: 78, grow: true })}
+        ${pill('Envoyer quand même', 'skipClarify', { height: 78, grow: true, disabled: !!c.sent })}
+      </div>`;
+  }
+
   // Une question que Holo pose à l’utilisateur, pour ce que lui seul sait.
   function seniorQuestion() {
     const sent = ui.seniorSent === S.question;
@@ -528,6 +552,7 @@
     if (S.remoteRequest) return remote();
     if (S.queued && S.queued.show) return queued();
     if (S.screen === 'consent') return consent();
+    if (S.screen === 'session' && S.clarify) return clarifyScreen();
     if (S.screen === 'session') return session();
     if (S.screen === 'lesson' && S.lesson) return lesson();
     return home();
@@ -630,6 +655,15 @@
     pause: () => call('toggle_pause'),
     expand: () => call('expand_window'),
     seniorOption: (o) => acts.seniorReply(o),
+    clarifyOption: (o) => acts.clarifyReply(o),
+    clarifyReply: (o) => {
+      const t = String(o || ui.clarifyText || '').trim();
+      if (!t || !S.clarify || S.clarify.sent) return;
+      ui.clarifyText = '';
+      call('answer_clarify', t);
+    },
+    skipClarify: () => call('skip_clarify'),
+    cancelClarify: () => { ui.clarifyText = ''; call('cancel_clarify'); },
     seniorReply: (o) => {
       const t = String(o || ui.seniorText || '').trim();
       if (!t || !S.question) return;
@@ -672,6 +706,11 @@
     const t = e.target;
     if (t.id === 'req') { ui.request = t.value; autosize(t); }
     else if (t.id === 'name') ui.name = t.value;
+    else if (t.id === 'clarifyReply') {
+      const was = !(ui.clarifyText || '').trim(), now = !t.value.trim();
+      ui.clarifyText = t.value;
+      if (was !== now) render();
+    }
     else if (t.id === 'seniorReply') {
       const was = !(ui.seniorText || '').trim(), now = !t.value.trim();
       ui.seniorText = t.value;
@@ -703,6 +742,7 @@
       if (ui.sheet) { ui.sheet === 'helpers' ? acts.closeHelpers() : acts.closeSheet(); return; }
       if (S.pairRequest) return acts.refusePair();
       if (!S.onboarded) return;
+      if (S.clarify) return acts.cancelClarify();
       if (S.remoteRequest) return acts.refuseRemote();
       if (S.screen === 'consent') return acts.cancelConsent();
       if (S.screen === 'lesson') return acts.closeLesson();
@@ -712,6 +752,7 @@
     if (t && t.tagName === 'BUTTON') return;
     if (t && t.id === 'req') { e.preventDefault(); submit(); return; }
     if (t && t.id === 'seniorReply') { e.preventDefault(); acts.seniorReply(); return; }
+    if (t && t.id === 'clarifyReply') { e.preventDefault(); acts.clarifyReply(); return; }
     if (S.pairRequest) return;
     if (!S.onboarded) { e.preventDefault(); onbNext(); return; }
     if (S.remoteRequest) return;
