@@ -319,6 +319,21 @@ struct HomeView: View {
             .buttonStyle(PressStyle())
             .accessibilityLabel("Voir la fiche de \(l.title)")
             // Le lancement ne se fait que par ce bouton ; la ligne ouvre la fiche.
+            // Après un lancement, le résultat (« C'est fait ») prend sa place sur la ligne.
+            if let st = model.runStatus, st.id == l.id {
+                HStack(spacing: 6) {
+                    if st.enCours { ProgressView().controlSize(.small) }
+                    else { Image(systemName: st.text == "Arrêté" ? "stop.circle.fill" : "checkmark.circle.fill") }
+                    Text(st.text)
+                }
+                .font(rounded(15, .semibold))
+                .foregroundStyle(st.enCours ? T.leaf : st.text == "Arrêté" ? Pastille.Ton.gris.texte : Pastille.Ton.vert.texte)
+                .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+                .padding(.horizontal, 14).frame(minHeight: 44)
+                .background(Capsule().fill(st.enCours ? T.mint : st.text == "Arrêté" ? Pastille.Ton.gris.fond : Pastille.Ton.vert.fond))
+                .transition(.opacity)
+                .accessibilityLabel(st.text)
+            } else {
             Button { model.runShortcut(l) } label: {
                 Text("Exécuter").font(rounded(15, .semibold)).foregroundStyle(T.leaf)
                     .lineLimit(1).fixedSize(horizontal: true, vertical: false)
@@ -329,7 +344,9 @@ struct HomeView: View {
             }
             .buttonStyle(PressStyle())
             .accessibilityLabel("Exécuter \(l.title)")
+            }
         }
+        .animation(.easeOut(duration: 0.2), value: model.runStatus)
         .padding(.horizontal, 14).padding(.vertical, 10)
         .frame(maxWidth: .infinity)
     }
