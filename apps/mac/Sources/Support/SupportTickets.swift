@@ -4,6 +4,8 @@ import SwiftUI
 /// les utilisateurs reliés à ce poste, les plus récents d'abord.
 struct SupportTickets: View {
     let model: HelperModel
+    /// Clé d'un utilisateur : n'afficher que ses tickets (onglet Utilisateurs).
+    var only: String? = nil
     var openUser: (Person) -> Void
 
     @State private var tickets: [SupportTicket] = []
@@ -16,9 +18,11 @@ struct SupportTickets: View {
     @State private var highlight: String?    // ticket ouvert depuis un exemple
     @State private var suggestion: TicketStats.Suggestion?
     @State private var applying: AutomateLibrary.Entry?
+    @State private var editing: SupportTicket?
 
     private var shown: [SupportTicket] {
-        (filter == 0 ? tickets.filter(\.isOpen) : tickets).filter { focus == nil || $0.category == focus }
+        (filter == 0 ? tickets.filter(\.isOpen) : tickets)
+            .filter { (focus == nil || $0.category == focus) && (only == nil || $0.person.key == only) }
     }
 
     @State private var showStats = false
@@ -94,6 +98,13 @@ struct SupportTickets: View {
                 }
             }
         }
+        .sheet(item: $editing) { t in
+            EditPlanSheet(titre: t.plan?.titre ?? "", etapes: t.plan?.etapes ?? []) { titre, etapes in
+                editing = nil
+                guard let titre else { return }
+                Task { await validateEdited(t, titre: titre, etapes: etapes) }
+            }
+        }
         .sheet(item: $applying) { e in
             ApplyAutomateSheet(model: model, entry: e) { applying = nil }
         }
@@ -155,6 +166,9 @@ struct SupportTickets: View {
                     Button(busy == t.id ? "…" : "Valider") { Task { await act(t, "validate") } }
                         .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
                         .help("Crée l’automate chez l’utilisateur")
+                    Button("Modifier") { editing = t }
+                        .buttonStyle(PillStyle(filled: false, height: 36)).disabled(busy != nil)
+                        .help("Corriger le plan proposé par Holo avant de le valider")
                 } else if t.isOpen && t.status != "en_cours" {
                     Button(busy == t.id ? "…" : "Prendre en charge") { Task { await act(t, "take") } }
                         .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
@@ -246,6 +260,30 @@ struct SupportTickets: View {
         tickets = all.sorted { $0.updated > $1.updated }
         errors = errs
         stats = parts.isEmpty ? nil : TicketStats.merge(parts)
+    }
+
+    /// Valide le plan corrigé par le support : l'automate est créé avec ces étapes.
+    private func validateEdited(_ t: SupportTicket, titre: String, etapes: [String]) async {
+        guard let url = URL(string: AutomateLibrary.base(t.person) + "/tickets/" + t.tid) else { return }
+        busy = t.id; defer { busy = nil }
+        var req = URLRequest(url: url, timeoutInterval: 15)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "action": "validate", "by": model.helperName ?? "Support",
+            "automate": ["title": titre, "steps": etapes],
+        ])
+        if let (d, r) = try? await URLSession.shared.data(for: req) {
+            if (r as? HTTPURLResponse)?.statusCode == 200 {
+                model.showToast("Automate créé chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
+            } else {
+                let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
+                model.showToast(obj?["error"] as? String ?? "Action refusée")
+            }
+        } else {
+            model.showToast("Serveur injoignable")
+        }
+        await load()
     }
 
     private func act(_ t: SupportTicket, _ action: String, _ extra: [String: String] = [:]) async {
@@ -454,5 +492,61 @@ struct TicketStatsPanel: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+
+/// Le support corrige le plan proposé par Holo : titre et étapes, puis valide.
+struct EditPlanSheet: View {
+    @State var titre: String
+    @State var etapes: [String]
+    /// (nil, _) si annulé ; sinon le titre et les étapes non vides.
+    var done: (String?, [String]) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Modifier le plan").font(rounded(26, .bold)).foregroundStyle(.white)
+                .padding(24).frame(maxWidth: .infinity, alignment: .leading).background(T.header)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Titre de l’automate").font(rounded(14, .semibold)).foregroundStyle(T.muted)
+                    TextField("Titre", text: $titre).textFieldStyle(.plain).font(rounded(17))
+                        .padding(12).champ(T.r)
+                    Text("Étapes").font(rounded(14, .semibold)).foregroundStyle(T.muted)
+                    ForEach(etapes.indices, id: \.self) { i in
+                        HStack(spacing: 10) {
+                            Text("\(i + 1)").font(rounded(14, .bold)).foregroundStyle(T.accent)
+                                .frame(width: 26, height: 26).background(Circle().fill(T.mint))
+                            TextField("Étape \(i + 1)", text: $etapes[i], axis: .vertical)
+                                .textFieldStyle(.plain).font(rounded(16)).padding(10).champ(T.r)
+                            Button { etapes.remove(at: i) } label: {
+                                Image(systemName: "minus.circle.fill").font(.system(size: 18)).foregroundStyle(T.muted)
+                            }
+                            .buttonStyle(.plain).disabled(etapes.count <= 1).help("Retirer cette étape")
+                        }
+                    }
+                    if etapes.count < 6 {
+                        Button { etapes.append("") } label: { Label("Ajouter une étape", systemImage: "plus.circle") }
+                            .buttonStyle(.plain).font(rounded(15, .semibold)).foregroundStyle(T.accent)
+                    }
+                }
+                .padding(24)
+            }
+            Rectangle().fill(T.line).frame(height: 1)
+            HStack {
+                Spacer()
+                Button("Annuler") { done(nil, []) }.buttonStyle(PillStyle(filled: false, height: 44))
+                    .keyboardShortcut(.cancelAction)
+                Button("Valider le plan") {
+                    done(titre.trimmingCharacters(in: .whitespacesAndNewlines),
+                         etapes.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
+                }
+                .buttonStyle(PillStyle(height: 44, icone: "checkmark.circle"))
+                .disabled(titre.trimmingCharacters(in: .whitespaces).isEmpty
+                          || etapes.allSatisfy { $0.trimmingCharacters(in: .whitespaces).isEmpty })
+            }
+            .padding(16)
+        }
+        .foregroundStyle(T.ink).frame(width: 560, height: 560).background(T.bg)
     }
 }

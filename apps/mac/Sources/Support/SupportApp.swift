@@ -105,7 +105,12 @@ struct SupportRoot: View {
 
     @ViewBuilder private var content: some View {
         switch model.screen {
-        case .idle: SupportIdle(model: model)
+        case .idle:
+            // Hors assistance : les tickets de l'utilisateur choisi, sous l'accueil.
+            VStack(alignment: .leading, spacing: 12) {
+                SupportIdle(model: model)
+                SupportTickets(model: model, only: model.helperKey) { _ in }
+            }
         case .waiting: SupportWaiting(model: model, text: "En attente de l’autorisation de \(model.senior)")
         case .planning: SupportWaiting(model: model, text: "Holo regarde l’écran…")
         case .approval: SupportApproval(model: model)

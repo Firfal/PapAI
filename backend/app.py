@@ -2596,6 +2596,14 @@ async def _ticket_action(tid: str, body: dict):
         # Demande d'automate : valider le plan, c'est créer l'automate chez l'utilisateur.
         if not t.get("automate") or t["status"] == "resolu":
             return JSONResponse({"error": "Ce ticket n'a pas d'automate à valider."}, status_code=409)
+        # Le support peut corriger le plan de Holo avant de le valider (titre, étapes).
+        edit = body.get("automate")
+        if isinstance(edit, dict):
+            try:
+                plan = automate_draft.clean({**t["automate"], **{k: v for k, v in edit.items() if k in ("title", "steps")}})
+            except automate_draft.DraftError as e:
+                return JSONResponse({"error": str(e)}, status_code=422)
+            S().tickets.update(t, automate=plan)
         try:
             lesson = automations.save(automate_draft.pack(t["automate"], by or "Support IT"), by=by or "Support IT")
         except automations.Invalid as e:

@@ -277,6 +277,18 @@ async def parcours(base: str) -> None:
         st, _ = http(f"{base}/k/{k}/tickets/{t['id']}", {"action": "validate", "by": "Claire"})
         check("un ticket ne se valide qu'une fois", st == 409)
 
+        # Le support corrige le plan de Holo avant de valider.
+        st, r = http(f"{base}/k/{k}/tickets", {"task": "installer teams", "automate": {**plan, "title": "Installer Teams"}})
+        t2 = r.get("ticket", {}) if isinstance(r, dict) else {}
+        st, r = http(f"{base}/k/{k}/tickets/{t2.get('id')}",
+                     {"action": "validate", "by": "Claire",
+                      "automate": {"title": "Installer Microsoft Teams", "steps": ["Ouvrir teams.microsoft.com", "Télécharger Teams"]}})
+        st, apres = http(f"{base}/k/{k}/lessons")
+        l2 = next((x for x in apres if x.get("title") == "Installer Microsoft Teams"), None) if st == 200 else None
+        check("le support modifie le plan avant de valider : titre et étapes corrigés",
+              l2 is not None and [x.get("instruction", x) if isinstance(x, dict) else x for x in l2.get("steps", [])][:2]
+              == ["Ouvrir teams.microsoft.com", "Télécharger Teams"])
+
     st, o2 = http(f"{base}/orgs", {"name": "Poste avec automate local"})
     st, local_space = http(f"{base}/spaces", {"org": o2["enroll_token"], "name": "Poste local"})
     local_key = local_space["key"]
