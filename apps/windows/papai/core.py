@@ -401,6 +401,8 @@ def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
             if a <= px <= c and b <= py <= d:
                 raise ProtectedZone()
         safety.check_pointer(px, py)
+        if gate.is_stopped:
+            raise Stopped()
         return px, py
 
     if name in ("click", "double_click"):
@@ -410,6 +412,8 @@ def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
         if gate.is_stopped:
             raise Stopped()
         safety.check_pointer(px, py)
+        if gate.is_stopped:
+            raise Stopped()
         pyautogui.click(px, py, clicks=2 if name == "double_click" else 1, interval=0.08)
         return f"{name} à ({px}, {py}) sur « {args.get('element') or ''} »"
 
@@ -420,6 +424,8 @@ def run_action(name: str, args: dict, screen: Screen, gate: StopGate,
             if gate.is_stopped:
                 raise Stopped()
             safety.check_keyboard()
+            if gate.is_stopped:
+                raise Stopped()
             if ch == "\n":
                 pyautogui.press("enter")
             elif WINDOWS:

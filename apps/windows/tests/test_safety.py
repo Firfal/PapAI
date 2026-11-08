@@ -183,11 +183,53 @@ class BridgeSafetyTests(unittest.IsolatedAsyncioTestCase):
             await bridge._execute(ws, 'r', {'name': 'click'})
             self.assertIs(messages[-1]['refused'], True)
             runner.assert_not_called()
-            self.assertFalse(model.gate.is_stopped)
+            self.assertTrue(model.gate.is_stopped)
         model.dismiss_alert()
+        await bridge._execute(ws, 'r', {'name': 'click'})
+        self.assertIs(messages[-1]['refused'], True)
+        runner.assert_not_called()
+        model.gate.reset()
         await bridge._execute(ws, 'r', {'name': 'click'})
         self.assertIs(messages[-1]['refused'], False)
         runner.assert_called_once()
+
+    async def test_alerte_pendant_la_frappe_arrete_les_caracteres_suivants(self):
+        for level in ('info', 'attention'):
+            messages = []
+            ws = Mock()
+
+            async def send(raw):
+                messages.append(json.loads(raw))
+            ws.send = send
+            bridge = Bridge('', core.StopGate(), Mock, lambda m: None, lambda ok: None,
+                            lambda text: None, runner=lambda *args: core.run_action(*args, safety=Mock()))
+            bridge.last_status = {'plan_approved': True, 'state': 'active'}
+            loop = asyncio.get_running_loop()
+            fake = Mock()
+            fake.write.side_effect = lambda text: asyncio.run_coroutine_threadsafe(
+                bridge._handle(ws, {'type': 'alert', 'level': level}), loop).result(timeout=2)
+            with patch.dict(sys.modules, {'pyautogui': fake}), patch.object(core, 'WINDOWS', False):
+                await bridge._execute(ws, 'r', {'name': 'type_text', 'args': {'text': 'AB'}})
+            self.assertEqual(fake.write.call_args_list, [unittest.mock.call('A')])
+            self.assertIs(messages[-1]['refused'], True)
+
+    async def test_alerte_avant_un_geste_empeche_son_depart(self):
+        for name in ('click', 'double_click', 'scroll', 'press_key', 'type_text'):
+            gate = core.StopGate()
+            safety = Mock()
+            safety.check_pointer.side_effect = lambda *args: gate.raise_stop()
+            safety.prepare_keyboard.side_effect = gate.raise_stop
+            fake = Mock()
+            screen = Mock()
+            screen.to_pixels.return_value = (10, 20)
+            with patch.dict(sys.modules, {'pyautogui': fake}), patch.object(core, 'WINDOWS', False):
+                with self.assertRaises(core.Stopped):
+                    core.run_action(name, {'keys': 'enter', 'text': 'A'}, screen, gate, safety=safety)
+            fake.moveTo.assert_not_called()
+            fake.click.assert_not_called()
+            fake.scroll.assert_not_called()
+            fake.press.assert_not_called()
+            fake.write.assert_not_called()
 
 
 if __name__ == '__main__':

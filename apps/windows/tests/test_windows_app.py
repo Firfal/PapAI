@@ -238,7 +238,7 @@ def unit() -> None:
             check(await asyncio.to_thread(started.wait, 3), f"{name} engagé avant l'alerte")
             tasks = list(b._executions)
             await b._handle(WS(), {"type": "alert", "level": "info"})
-            check(not b.gate.is_stopped and not tasks[0].cancelling(), "info : pas d'arrêt abusif")
+            check(b.gate.is_stopped and not tasks[0].cancelling(), "info : verrou levé avant le geste suivant")
             await b._handle(WS(), {"type": "alert", "level": "danger"})
             check(b.gate.is_stopped and tasks[0].cancelling(), "danger : verrou levé et execute annulé")
             await b._execute(WS(), "apres", act)
