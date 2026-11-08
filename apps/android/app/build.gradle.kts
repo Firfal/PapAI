@@ -70,7 +70,15 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true; buildConfig = true }
+    // Exemples d'automates : bibliothèque « Mes automates » au premier lancement (comme Mac et iPhone).
+    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/automates"))
 }
+
+val copyAutomates by tasks.registering(Sync::class) {
+    from(rootProject.file("../../automations")) { include("*.papai") }
+    into(layout.buildDirectory.dir("generated/automates/automates"))
+}
+tasks.named("preBuild") { dependsOn(copyAutomates) }
 
 dependencies {
     testImplementation("junit:junit:4.13.2")

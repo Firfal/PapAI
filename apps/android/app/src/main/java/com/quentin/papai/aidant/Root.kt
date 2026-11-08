@@ -23,6 +23,15 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material.icons.filled.PanTool
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,9 +66,11 @@ import java.util.Calendar
 fun Root() {
     val m = Helper
     Box(Modifier.fillMaxSize().soinScreen()) {
-        Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
+        // Une assistance démarre : on montre l'utilisateur concerné, quel que soit l'onglet (comme sur Mac).
+        LaunchedEffect(m.screen) { if (m.screen != Screen.IDLE) m.supportTab = 1 }
+        Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
             Header(m.helperName ?: m.orgTitle) { m.sheet = AppSheet.Settings }
-            if (m.isConfigured) PeopleRow()
+            if (m.isConfigured && !m.screen.isHome) PeopleRow()
             if (m.isConfigured && !m.connected) {
                 LostBanner(Modifier.padding(horizontal = 20.dp).padding(bottom = 10.dp))
             }
@@ -77,14 +88,12 @@ fun Root() {
                 if (!m.orgConfigured) NoOrgScreen()
                 else if (!m.isConfigured) NoPosteScreen()
                 else when (m.screen) {
-                    Screen.IDLE -> IdleScreen()
+                    Screen.IDLE, Screen.DONE, Screen.STOPPED -> SupportHome()
                     Screen.WAITING -> WaitingScreen("En attente de l'autorisation de ${m.senior}")
                     Screen.PLANNING -> WaitingScreen("Holo regarde l'écran…")
                     Screen.APPROVAL -> ApprovalScreen()
                     Screen.ACTIVE -> ActiveScreen()
                     Screen.HELPER -> HelperScreen()
-                    Screen.DONE -> DoneScreen()
-                    Screen.STOPPED -> StoppedScreen()
                 }
             }
         }
@@ -100,6 +109,10 @@ fun Root() {
             AppSheet.Settings -> Sheet { SettingsSheet() }
             null -> {}
         }
+        AutomateLibrary.applying?.let { e ->
+            Sheet(onClose = { AutomateLibrary.applying = null }) { ApplyAutomateSheet(e) { AutomateLibrary.applying = null } }
+        }
+        if (m.guardAlertId != null) Sheet(dismissable = false) { GuardScreen() }
     }
 }
 
@@ -115,23 +128,27 @@ fun Sheet(dismissable: Boolean = true, onClose: () -> Unit = { Helper.sheet = nu
 
 @Composable
 fun Header(name: String, onAvatar: () -> Unit) {
+    // Bandeau bleu dégradé qui passe sous la barre d'état, coins bas arrondis (comme l'iPhone).
+    val shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
     Row(
-        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp)
-            .shadow(10.dp, RoundedCornerShape(24.dp), ambientColor = Soin.accent, spotColor = Soin.accent)
-            .clip(RoundedCornerShape(24.dp)).background(Soin.headerBrush)
-            .padding(horizontal = 14.dp, vertical = 14.dp),
+        Modifier.fillMaxWidth().padding(bottom = 14.dp)
+            .shadow(14.dp, shape, ambientColor = Soin.accent, spotColor = Soin.accent)
+            .clip(shape).background(Soin.headerBrush)
+            .statusBarsPadding()
+            .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
-            Modifier.size(48.dp).clip(CircleShape).background(Color.White).clickable(onClick = onAvatar),
+            Modifier.size(48.dp).clip(CircleShape).background(Color.White)
+                .clickable(role = Role.Button, onClick = onAvatar).semantics { contentDescription = "Réglages" },
             contentAlignment = Alignment.Center,
         ) { T(name.take(1).uppercase(), 20.sp, FontWeight.Bold, Soin.accent) }
         Column(Modifier.weight(1f)) {
             val h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-            T(if (h >= 19 || h < 5) "Bonsoir" else "Bonjour", 14.sp, color = Color.White)
-            T(name, 20.sp, FontWeight.SemiBold, Color.White)
+            T(if (h >= 19 || h < 5) "Bonsoir" else "Bonjour", 14.sp, FontWeight.Medium, Color.White)
+            T(name, 22.sp, FontWeight.SemiBold, Color.White, maxLines = 1)
         }
-        Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)).clickable(onClick = onAvatar), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(48.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.18f)).clickable(onClick = onAvatar), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.Settings, "Réglages", tint = Color.White)
         }
     }
@@ -151,7 +168,7 @@ fun connectionLine(now: Long): String {
 fun LostBanner(modifier: Modifier = Modifier) {
     val m = Helper
     val now = rememberNow()
-    Column(modifier.fillMaxWidth().soinCard(Soin.ink).padding(horizontal = 16.dp, vertical = 12.dp),
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Soin.ink).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
             if (m.linkError == null || m.retryAt != null) {
@@ -180,12 +197,12 @@ fun IdleScreen() {
             when (card) {
                 // Hors connexion, on ne sait rien : pas de « Rien à signaler ».
                 HomeCard.WELLBEING -> if (m.connected) {
-                    Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 24.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         T("Rien à signaler pour ${m.senior}", 28.sp, FontWeight.Bold)
                         T("Vous serez prévenu dès qu'une demande d'aide arrive.", 16.sp, color = Soin.secondary)
                     }
                 } else {
-                    Column(Modifier.fillMaxWidth().soinCard(radius = 28.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.fillMaxWidth().soinCard(radius = 24.dp).padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         T("Connexion interrompue", 28.sp, FontWeight.Bold)
                         T("Impossible de recevoir les demandes d'aide de ${m.senior} pour le moment.", 17.sp, FontWeight.Medium)
                     }
@@ -233,9 +250,10 @@ fun WaitingScreen(text: String) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
         RequestCard()
-        Row(Modifier.padding(top = 20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.padding(top = 20.dp).soinCard(radius = 18.dp).padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CircularProgressIndicator(Modifier.size(20.dp), color = Soin.accent, strokeWidth = 2.dp)
-            T(text, 16.sp, FontWeight.Medium, Soin.secondary)
+            T(text, 17.sp, FontWeight.SemiBold)
         }
     }
 }
@@ -243,17 +261,59 @@ fun WaitingScreen(text: String) {
 @Composable
 fun StoppedScreen() {
     val m = Helper
-    Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    val guard = m.stoppedBy == "gardien"
+    Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Spacer(Modifier.weight(1f))
-        Box(Modifier.size(64.dp).clip(CircleShape).background(Soin.card), contentAlignment = Alignment.Center) {
-            Icon(if (m.iRefusedPlan) Icons.Default.Close else Icons.Default.Pause, null, tint = Soin.ink)
+        Box(Modifier.size(64.dp).clip(CircleShape).background(if (guard) Soin.danger.copy(alpha = 0.1f) else Soin.card),
+            contentAlignment = Alignment.Center) {
+            Icon(if (guard) Icons.Default.Shield else if (m.iRefusedPlan) Icons.Default.Close else Icons.Default.Pause, null,
+                tint = if (guard) Soin.danger else Soin.ink)
         }
-        Spacer(Modifier.height(10.dp))
-        T(if (m.iRefusedPlan) "Vous avez refusé le plan" else "${m.seniorTitle} a arrêté l'assistance", 22.sp,
-            FontWeight.Bold, align = TextAlign.Center)
-        Spacer(Modifier.height(10.dp))
-        T("Rien n'a été fait sur son ordinateur.", 15.sp, color = Soin.secondary, align = TextAlign.Center)
+        T(when {
+            guard -> "PapAI a arrêté l'assistance : démarche suspecte"
+            m.iRefusedPlan -> "Vous avez refusé le plan"
+            else -> "${m.seniorTitle} a arrêté l’assistance"
+        }, 22.sp, FontWeight.Bold, align = TextAlign.Center)
+        T("L'assistance reste arrêtée. Toute nouvelle aide demande votre accord.", 15.sp, color = Soin.secondary, align = TextAlign.Center)
+        T("Appelez ${m.senior} à son numéro habituel.", 17.sp, FontWeight.SemiBold, align = TextAlign.Center)
         Spacer(Modifier.weight(2f))
+    }
+}
+
+/** Alerte du gardien en plein écran, comme `GuardRequestView` sur l'iPhone. */
+@Composable
+fun GuardScreen() {
+    val m = Helper
+    var confirm by remember { mutableStateOf(false) }
+    val detail = m.lastAlert?.detail.orEmpty().let { d ->
+        if (m.guardTask.isEmpty()) d else d.replace("\nDemande : « ${m.guardTask} »", "")
+    }
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxWidth().height(4.dp).background(Soin.danger))
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)) {
+            Column(Modifier.fillMaxWidth().soinCard(radius = 28.dp).border(2.dp, Soin.danger, RoundedCornerShape(28.dp)).padding(28.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Box(Modifier.size(60.dp).clip(CircleShape).background(Soin.danger.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.PanTool, null, Modifier.size(28.dp), tint = Soin.danger)
+                }
+                T(m.lastAlert?.title ?: "Démarche à vérifier", 28.sp, FontWeight.Bold)
+                T("PapAI a arrêté l'assistance : démarche suspecte", 18.sp, FontWeight.SemiBold)
+                if (m.guardTask.isNotEmpty()) T("« ${m.guardTask} »", 20.sp, FontWeight.SemiBold)
+                if (detail.isNotEmpty()) T(detail, 17.sp, color = Soin.secondary)
+                if (m.guardAcknowledged) T("Un support a vu l'alerte et s'en occupe", 17.sp, FontWeight.SemiBold)
+            }
+            if (confirm) {
+                T("Vous connaissez cette démarche ? Cela ferme l'alerte, sans relancer l'assistance.", 17.sp)
+                CapsuleButton("Confirmer : c'est normal", fill = Soin.ink, enabled = m.connected) { m.dismissGuardAlert() }
+                CapsuleButton("Retour", fill = Soin.card, text = Soin.ink) { confirm = false }
+            } else {
+                CapsuleButton("Je m'en occupe", fill = Soin.ink, enabled = m.connected && !m.guardAcknowledged) { m.acknowledgeGuardAlert() }
+                CapsuleButton("C'est normal", fill = Soin.card, text = Soin.ink, enabled = m.connected) { confirm = true }
+            }
+            if (!m.connected) T("Reconnectez-vous pour répondre à cette alerte.", 16.sp, color = Soin.secondary)
+        }
     }
 }
 
@@ -263,20 +323,20 @@ fun RequestCard(onThumb: (() -> Unit)? = null) {
     val m = Helper
     val now = rememberNow(20_000)
     val min = ((now - m.requestStart) / 60_000).toInt()
-    Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxWidth().soinCard(radius = 24.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(48.dp).clip(CircleShape).background(Soin.card), contentAlignment = Alignment.Center) {
-                T(m.seniorTitle.take(1).uppercase(), 20.sp, FontWeight.Bold, Soin.accent)
+            Box(Modifier.size(48.dp).clip(CircleShape).background(Soin.accentBrush), contentAlignment = Alignment.Center) {
+                T(m.seniorTitle.take(1).uppercase(), 20.sp, FontWeight.Bold, Color.White)
             }
             Column {
-                T("Demande · " + if (min < 1) "à l'instant" else "il y a $min min", 13.sp, color = Soin.secondary, maxLines = 1)
+                T("Demande de ${m.senior} · " + if (min < 1) "à l’instant" else "il y a $min min", 13.sp, color = Soin.secondary, maxLines = 1)
                 T(m.seniorTitle, 20.sp, FontWeight.Bold)
             }
         }
         if (m.task.isNotEmpty()) T("« ${m.task} »", 21.sp, FontWeight.SemiBold)
         val img = m.frame
         if (img != null && onThumb != null) {
-            Row(Modifier.clip(CircleShape).background(Soin.card).clickable(onClick = onThumb)
+            Row(Modifier.clip(CircleShape).background(Soin.field).clickable(onClick = onThumb)
                 .padding(start = 6.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Image(img, "Agrandir la dernière capture", Modifier.size(38.dp, 26.dp).clip(RoundedCornerShape(6.dp)),

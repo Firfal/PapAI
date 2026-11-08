@@ -44,9 +44,9 @@ fun DoneScreen() {
     var zoom by remember { mutableStateOf<ImageBitmap?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().soinCard(radius = 24.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             StatusPill("Terminé", Tone.GREEN) {
-                Icon(Icons.Default.Check, null, Modifier.size(16.dp), tint = Soin.online)
+                Icon(Icons.Default.Check, null, Modifier.size(16.dp), tint = Soin.tone(Tone.GREEN).second)
             }
             if (m.task.isNotEmpty()) T("« ${m.task} »", 14.sp, color = Soin.secondary)
             T(m.doneAnswer ?: "Holo a terminé.", 20.sp, FontWeight.SemiBold)
@@ -55,7 +55,7 @@ fun DoneScreen() {
         when {
             saved != null -> Row(Modifier.fillMaxWidth().soinCard().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(Modifier.size(34.dp).clip(CircleShape).background(Soin.accent), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(34.dp).clip(CircleShape).background(Soin.online), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Check, null, Modifier.size(18.dp), tint = Color.White)
                 }
                 T("Automate « $saved » enregistré.", 16.sp, FontWeight.SemiBold)

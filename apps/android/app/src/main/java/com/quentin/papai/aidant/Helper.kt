@@ -46,7 +46,12 @@ class DraftStep(instruction: String, val checkpoint: String?, val preview: Image
     var instruction by mutableStateOf(instruction)
 }
 
-enum class Screen { IDLE, WAITING, PLANNING, APPROVAL, ACTIVE, HELPER, DONE, STOPPED }
+enum class Screen {
+    IDLE, WAITING, PLANNING, APPROVAL, ACTIVE, HELPER, DONE, STOPPED;
+
+    /** Écrans montrés sous les onglets de l'accueil (rien n'attend le support). */
+    val isHome get() = this == IDLE || this == DONE || this == STOPPED
+}
 
 sealed interface AppSheet {
     data object Settings : AppSheet
@@ -158,6 +163,20 @@ object Helper {
     var toast by mutableStateOf<String?>(null)
     var sensitiveRefusal by mutableStateOf<String?>(null)
     var lastAlert by mutableStateOf<AlertInfo?>(null)
+    /** Alerte du gardien ouverte sur le poste suivi : plein écran jusqu'à « Je m'en occupe » ou « C'est normal ». */
+    var guardAlertId by mutableStateOf<String?>(null)
+    var guardTask by mutableStateOf("")
+    var guardAcknowledged by mutableStateOf(false)
+    /** Qui a arrêté l'assistance (`senior`, `gardien`, `navigateur`…), d'après `status.stopped_by`. */
+    var stoppedBy by mutableStateOf<String?>(null)
+
+    /** Onglet de l'accueil : 0 Tickets, 1 Utilisateurs, 2 Mes automates (retenu entre deux lancements). */
+    private var tabState = mutableStateOf(0)
+    var supportTab: Int
+        get() = tabState.value
+        set(v) { tabState.value = v; if (::prefs.isInitialized) prefs.edit().putInt("supportTab", v).apply() }
+    /** Change à chaque `tickets_changed` du serveur : l'onglet Tickets relit la liste. */
+    var ticketsVersion by mutableStateOf(0)
 
     /** L'app est au premier plan : pas besoin de notification, l'écran change déjà. */
     var foreground = false
@@ -177,6 +196,8 @@ object Helper {
         // Restes de l'ancienne liaison poste par poste : plus rien de tout cela n'est lu.
         prefs.edit().remove("people").remove("orgs").remove("lastGoodServerURL").remove("lastGoodHelperKey")
             .remove("helperRelation").remove("helperName").remove("helperId").apply()
+        supportTab = prefs.getInt("supportTab", 0).coerceIn(0, 2)
+        AutomateLibrary.init(ctx)
         org = loadSupportOrg(ctx)
         helperName = loadSupportName(ctx)
         // Le dernier poste suivi, s'il est bien sur le serveur de l'organisation : on s'y
@@ -405,6 +426,7 @@ object Helper {
         doing = null; question = null; questionToSenior = false; liveDictation = null
         frame = null; frameId = null; frameAt = null; aiming = false; target = null
         lessons = emptyList(); lastAlert = null; doneFresh = false; hasDraft = false; savedTitle = null
+        guardAlertId = null; guardTask = ""; guardAcknowledged = false; stoppedBy = null
         clearHelpNotification()
     }
 
@@ -668,6 +690,8 @@ object Helper {
         when (m.text("type")) {
             "hello" -> {
                 setSenior(m.text("senior"))
+                // Une alerte encore ouverte est renvoyée juste après `hello` ; sinon elle a été réglée hors connexion.
+                guardAlertId = null; guardTask = ""; guardAcknowledged = false
                 // Le serveur renvoie status et capture juste après s'il y a une session :
                 // sans session (serveur redémarré), il ne reste rien de l'ancienne demande.
                 state = null; frame = null; frameId = null; frameAt = null
@@ -740,6 +764,7 @@ object Helper {
                 plan = strings(m.optJSONArray("plan"))
                 planStep = if (m.has("plan_step") && !m.isNull("plan_step")) m.optInt("plan_step") else null
                 doing = m.text("doing").ifEmpty { null }
+                stoppedBy = m.text("stopped_by").ifEmpty { null }
                 seniorPaused = m.optBoolean("paused", false)
                 if (q != null && q.text("question").isNotEmpty()) {
                     question = Question(q.text("question"), strings(q.optJSONArray("options")))
@@ -775,16 +800,38 @@ object Helper {
             "alert" -> {
                 val t = m.text("title").ifEmpty { "Alerte" }
                 val d = m.text("detail")
-                lastAlert = AlertInfo(t, d)
-                notifyLocal(t, d, ALERT_ID)
-                showToast(t)
+                val aid = m.text("alert_id").ifEmpty { null }
+                val fresh = guardAlertId != aid || lastAlert?.detail != d
+                if (aid != null) {
+                    lastAlert = AlertInfo(t, d)
+                    guardAlertId = aid
+                    guardTask = m.text("task")
+                    guardAcknowledged = if (m.has("acknowledged")) m.optBoolean("acknowledged") else m.text("acknowledged_by").isNotEmpty()
+                } else if (guardAlertId == null) {
+                    lastAlert = AlertInfo(t, d)   // échec d'un automate : simple information, l'alerte ouverte reste
+                }
+                if (fresh) notifyLocal(t, d, ALERT_ID)
+                if (aid == null) showToast(t)
             }
+
+            "alert_acknowledged" -> if (m.text("alert_id") == guardAlertId) guardAcknowledged = true
+
+            "alert_cleared" -> if (guardAlertId != null && m.text("alert_id") == guardAlertId) {
+                guardAlertId = null; lastAlert = null; guardTask = ""; guardAcknowledged = false
+                showToast("Alerte rejetée. L'assistance reste arrêtée.")
+            }
+
+            "tickets_changed" -> ticketsVersion++
 
             "refused" -> {
                 if (m.text("blocked") == "sensitive") {
                     sensitiveRefusal = m.text("reason").ifEmpty { "Cette fenêtre est protégée (réglages ou mots de passe)." }
                     toast = null
-                } else showToast(m.text("reason").ifEmpty { "Refusé" })
+                } else {
+                    val reason = m.text("reason").ifEmpty { "Refusé" }
+                    if (reason.contains("n'est plus en attente")) { guardAlertId = null; lastAlert = null; guardTask = ""; guardAcknowledged = false }
+                    showToast(reason)
+                }
                 sending = false; planBusy = false; lessonBusy = false; linkupBusy = false
             }
 
@@ -863,7 +910,7 @@ object Helper {
                 .setContentIntent(pi)
                 .build())
             .setSmallIcon(R.drawable.ic_notif)
-            .setColor(0xFF1F5BE8.toInt())
+            .setColor(0xFF2F6EF7.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -877,6 +924,9 @@ object Helper {
     }
 
     // MARK: Actions
+
+    fun dismissGuardAlert() { guardAlertId?.let { send("type" to "dismiss_alert", "alert_id" to it) } }
+    fun acknowledgeGuardAlert() { guardAlertId?.let { send("type" to "ack_alert", "alert_id" to it) } }
 
     fun approvePlan() { planBusy = true; send("type" to "approve_plan") }
     fun clearLinkup() {
