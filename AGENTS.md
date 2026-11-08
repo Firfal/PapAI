@@ -40,8 +40,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| 8 nov. | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces (`backend/space.py`) : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), Windows et Mac créent leur espace au premier lancement. |
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794099594-protection-temps-reel` | Protection en temps réel (gardien hors assistance, interrupteur Réglages) et aucun compte ni cookie gardé | `apps/mac/Sources/{Model,Guard,PermissionsView,WebAgent}.swift`, `apps/windows/papai/{bridge,model,settings,app}.py`, `apps/windows/ui/app.js`, `backend/app.py`, `backend/static/helper.html`, `PROTOCOL.md`, `tests/test_protection.py` | 8 nov. |
 
 ## Journal
 
