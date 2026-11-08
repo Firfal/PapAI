@@ -25,7 +25,10 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import automate_draft, automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
+from . import (
+    automate_draft, automations, guard, orgs as orgs_mod, space, suggest,
+    tickets as tickets_mod, voice,
+)
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
@@ -326,9 +329,22 @@ def _rdv_at(v) -> int | None:
     return int(at) if now + RDV_MIN_S <= at <= now + tickets_mod.RDV_MAX_S else None
 
 
-def _open_ticket(task: str, source: str, status: str = "nouveau", by: str = "") -> dict:
+def _open_ticket(task: str, source: str, status: str = "nouveau", by: str = "",
+                 suggestions: list[dict] | None = None) -> dict:
     o = orgs.get(S().org) if getattr(S(), "org", "") else None
-    return S().tickets.open(task, source, status=status, by=by, number=o.next_ticket() if o else None)
+    return S().tickets.open(
+        task, source, status=status, by=by, number=o.next_ticket() if o else None,
+        suggestions=suggestions,
+    )
+
+
+def _ticket_suggestions(task: str) -> list[dict]:
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    automates = [
+        a for a in (o.automations() if o else []) + list_lessons()
+        if isinstance(a, dict) and a.get("actions")
+    ]
+    return suggest.suggerer(task, automates, limite=2)
 
 
 async def _tickets_changed() -> None:
@@ -604,6 +620,24 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 await _tickets_changed()
                 continue
 
+            if kind == "ticket_automate_launched":
+                t = S().tickets.get(str(msg.get("ticket") or ""))
+                lesson_id = str(msg.get("lesson") or "")
+                proposed = None
+                if t:
+                    proposed = next(
+                        (x for x in (t.get("suggestions") or []) if isinstance(x, dict)
+                         and str(x.get("id") or "") == lesson_id),
+                        None,
+                    )
+                if proposed is None:
+                    continue
+                S().tickets.update(t, suggestion_lancee=lesson_id)
+                S().tickets.note(t, "L’utilisateur",
+                                 f"Automate proposé lancé : {proposed.get('title') or 'Automate'}")
+                await _tickets_changed()
+                continue
+
             if kind == "help_request":
                 task = str(msg.get("task") or "").strip()[:MAX_TASK]
                 by = str(msg.get("requested_by") or "")[:40]
@@ -613,9 +647,14 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if ticket is None and not by and _support_expected() and not _support_available():
                     # Aucun support disponible : la demande attend, la personne
                     # sera reprévenue dès qu'un support est là (ou au rendez-vous).
-                    ticket = _open_ticket(task, "personne", status="en_attente", by=S().family.senior)
+                    suggestions = _ticket_suggestions(task)
+                    ticket = _open_ticket(
+                        task, "personne", status="en_attente", by=S().family.senior,
+                        suggestions=suggestions,
+                    )
                     await ws.send_json({"type": "ticket_queued", "ticket": ticket["id"],
-                                        "number": ticket["number"], "task": task})
+                                        "number": ticket["number"], "task": task,
+                                        "suggestions": suggestions})
                     await _tickets_changed()
                     print(f"[tickets] demande n° {ticket['number']} en attente d'un support")
                     continue

@@ -362,10 +362,20 @@
   function queued() {
     const q = S.queued;
     const slots = [['Dans 1 heure', '1h'], ['Demain à 9 h', 'demain9'], ['Demain à 14 h', 'demain14']];
+    const suggestions = (q.suggestions || []).filter(s => s && s.id && s.title).map(s => {
+      const launched = q.suggestion_lancee === s.id;
+      const disabled = !!q.suggestion_lancee;
+      return `<div class="card row" style="gap:14px;padding:14px">
+        <div class="grow" style="${f(18, 6)}">${esc(s.title)}</div>
+        <button class="pill ${launched ? 'plain' : 'filled'}" data-act="runSuggested" data-arg="${esc(s.id)}"
+          data-ticket="${esc(q.ticket)}" ${disabled ? 'disabled' : ''} style="height:48px;padding:0 20px;${f(17, 6)}">
+          ${launched ? 'Lancé' : 'Lancer'}</button></div>`;
+    }).join('');
     hd = { chip: hdChip('personWave', `Demande n° ${esc(q.number)}`), title: hdTitle('Votre demande est partie', 44) };
     return mint(`${q.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(q.task)} »</div>` : ''}
       ${q.rdv ? lead(`Rendez-vous ${esc(rdvText(q.rdv))}. PapAI vous préviendra à l'heure dite.`)
         : lead(`Personne n'est disponible pour l'instant. PapAI vous préviendra dès que ${esc(S.helperName)} sera là. Vous pouvez aussi fixer un rendez-vous.`)}
+      ${suggestions ? `<div class="col" style="gap:10px"><div class="muted" style="${f(19, 6)}">En attendant, vous pouvez essayer :</div>${suggestions}</div>` : ''}
       ${q.rdv ? '' : `<div class="row" style="gap:10px;flex-wrap:wrap">${slots.map(([label, v]) =>
         `<button class="pill plain" data-act="scheduleTicket" data-arg="${v}" style="height:56px;padding:0 22px;${f(20, 6)}">${label}</button>`).join('')}</div>`}`, 40, 22) +
       `<div class="row" style="gap:14px;margin-top:18px">${pill("D'accord", 'closeQueued', { height: 78, grow: true })}</div>`;
@@ -537,6 +547,7 @@
     nextStep: lessonNext,
     acceptRemote: () => call('accept_remote'),
     scheduleTicket: (slot) => call('schedule_ticket', slot),
+    runSuggested: (id, ticket) => call('run_suggested_automation', id, ticket),
     closeQueued: () => call('close_queued'),
     openQueued: () => { S.queued.show = true; render(); call('open_queued'); },
     refuseRemote: () => call('refuse_remote'),
@@ -546,7 +557,7 @@
     const b = e.target.closest('[data-act]');
     if (!b || b.disabled) return;
     const fn = acts[b.dataset.act];
-    if (fn) fn(b.dataset.arg);
+    if (fn) fn(b.dataset.arg, b.dataset.ticket);
   });
   document.addEventListener('input', (e) => {
     const t = e.target;

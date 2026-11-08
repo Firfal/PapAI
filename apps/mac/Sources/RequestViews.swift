@@ -84,6 +84,26 @@ struct QueuedView: View {
                             }
                         }
                     }
+                    if !ticket.suggestions.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("En attendant, vous pouvez essayer :")
+                                .font(rounded(19, .semibold))
+                            ForEach(ticket.suggestions) { suggestion in
+                                HStack(spacing: 12) {
+                                    Text(suggestion.title).font(rounded(18, .medium))
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Spacer(minLength: 8)
+                                    Button(ticket.suggestionLancee == suggestion.id ? "Lancé" : "Lancer") {
+                                        model.runSuggestedAutomation(suggestion, ticket: ticket.ticket)
+                                    }
+                                    .buttonStyle(PillStyle(filled: ticket.suggestionLancee != suggestion.id,
+                                                           height: 48))
+                                    .disabled(ticket.suggestionLancee != nil)
+                                }
+                                .padding(14).carte()
+                            }
+                        }
+                    }
                     Spacer(minLength: 0)
                 }
             }
@@ -94,4 +114,3 @@ struct QueuedView: View {
         }
     }
 }
-

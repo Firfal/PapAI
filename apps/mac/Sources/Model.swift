@@ -21,11 +21,18 @@ struct RemoteRequest: Equatable {
 }
 
 /// Demande partie en ticket sans support disponible.
+struct QueuedSuggestion: Equatable, Identifiable {
+    var id: String
+    var title: String
+}
+
 struct QueuedTicket: Equatable {
     var ticket: String
     var number: Int
     var task: String
     var rdv: Date?
+    var suggestions: [QueuedSuggestion] = []
+    var suggestionLancee: String?
 }
 
 enum SessionState: String {
@@ -82,6 +89,7 @@ final class AppModel {
     var orgName = UserDefaults.standard.string(forKey: "orgName") ?? ""
     var pendingTask = ""
     var pendingAutomation: Lesson?
+    var pendingAutomationTicket: String?
     var actions: [String] = []
     var guardAlert: GuardAlert?
     var stoppedBy: String?
@@ -538,9 +546,11 @@ final class AppModel {
         screenConsent = true
         if let a = pendingAutomation {
             pendingAutomation = nil
+            let ticket = pendingAutomationTicket
+            pendingAutomationTicket = nil
             pendingTask = ""
             screen = .home
-            runAutomation(a)
+            runAutomation(a, ticket: ticket)
             return
         }
         askHelp(task: pendingTask)
@@ -554,6 +564,7 @@ final class AppModel {
     func cancelConsent() {
         pendingTask = ""
         pendingAutomation = nil
+        pendingAutomationTicket = nil
         screen = .home
     }
 
@@ -684,8 +695,13 @@ final class AppModel {
             client.send(["type": "pair_decision", "req": req, "accept": false])
         case "ticket_queued":
             // Aucun support disponible : la demande attend, retour à l'accueil.
+            let suggestions = (m["suggestions"] as? [[String: Any]] ?? []).compactMap { suggestion -> QueuedSuggestion? in
+                guard let id = suggestion["id"] as? String, let title = suggestion["title"] as? String else { return nil }
+                return QueuedSuggestion(id: id, title: title)
+            }
             queued = QueuedTicket(ticket: m["ticket"] as? String ?? "", number: m["number"] as? Int ?? 0,
-                                  task: m["task"] as? String ?? task, rdv: nil)
+                                  task: m["task"] as? String ?? task, rdv: nil, suggestions: suggestions,
+                                  suggestionLancee: m["suggestion_lancee"] as? String)
             queuedShown = true
             state = nil
             screen = .home
@@ -813,7 +829,20 @@ final class AppModel {
 
     /// Un automate importé par un support, lancé en un clic. Pas de
     /// validation à chaque fois : le support l'a validé à l'import.
-    func runAutomation(_ l: Lesson) {
+    func runSuggestedAutomation(_ suggestion: QueuedSuggestion, ticket: String) {
+        guard queued?.ticket == ticket,
+              queued?.suggestions.contains(where: { $0.id == suggestion.id }) == true,
+              let lesson = lessons.first(where: { $0.id == suggestion.id }) else { return }
+        queuedShown = false
+        runAutomation(lesson, ticket: ticket)
+    }
+
+    func runAutomation(_ l: Lesson, ticket: String? = nil) {
+        var launchTicket = ticket
+        if let ticket, (queued?.ticket != ticket
+                        || !(queued?.suggestions.contains(where: { $0.id == l.id }) ?? false)) {
+            launchTicket = nil
+        }
         let acts = l.actions ?? []
         if let p = l.platforms, !p.contains("mac") {
             showNotice("Cet automate est prévu pour un autre ordinateur.")
@@ -822,9 +851,14 @@ final class AppModel {
         let holo = acts.first { $0.kind == "holo" }
         if holo != nil && !screenConsent {
             pendingAutomation = l
+            pendingAutomationTicket = launchTicket
             pendingTask = l.title
             screen = .consent
             return
+        }
+        if let launchTicket {
+            client.send(["type": "ticket_automate_launched", "ticket": launchTicket, "lesson": l.id])
+            if queued?.ticket == launchTicket { queued?.suggestionLancee = l.id }
         }
         gate.reset()
         showRunStatus(l.id, "En cours…", enCours: true)

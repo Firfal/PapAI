@@ -508,12 +508,21 @@ aucune capture). Numéro `number` par espace, ou unique dans l’organisation (`
 (aucun support disponible), `rdv`, `en_cours`, `a_reprendre` (session arrêtée ou échouée), `resolu`.
 `source` : `personne`, `support` ou `automatisme`. Le ticket suit la session (`plan`, `steps_done`,
 `helper`, `stopped_by`, `tokens`) ; `assignee`, `closed_by`, `notes` [{t, by, text}], `rdv` (secondes Unix).
+Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus deux) et
+`suggestion_lancee` (`id` ou `null`).
 
 **Ordinateur aidé (`/ws/bridge`)**
 - `help_request` peut porter `"ticket"` (reprise d'un ticket proposé par `remote_request`).
 - Sans `requested_by` ni `ticket`, si l'espace a un support connu (appairé ou organisation) mais
-  aucun connecté : pas de session. Serveur → `{"type":"ticket_queued","ticket","number","task"}`.
-  L'app revient à l'accueil et propose un rendez-vous. Sans aucun support connu : session comme avant.
+  aucun connecté : pas de session. Serveur → `{"type":"ticket_queued","ticket","number","task","suggestions"}`.
+  `suggestions` est une liste (vide si aucun résultat) d'au plus deux automates de l'organisation ou de
+  l'espace, rapprochés par mots du titre et de la description, sans modèle. Les anciennes apps peuvent
+  ignorer ce champ. L'app revient à l'accueil et propose un rendez-vous et, s'il y en a, les automates.
+  Sans aucun support connu : session comme avant.
+- Quand l'utilisateur lance un automate suggéré, app → serveur :
+  `{"type":"ticket_automate_launched","ticket","lesson"}`. Seul un ID suggéré pour ce ticket est accepté ;
+  le serveur mémorise `suggestion_lancee`, ajoute la note « Automate proposé lancé : <titre> » et garde
+  le statut du ticket.
 - `session` porte en plus `"ticket"` et `"number"`.
 - App → `{"type":"ticket_schedule","ticket","at"}` (entre 1 min et 30 jours) →
   `{"type":"ticket_scheduled","ticket","number","at"}` ou `{"type":"ticket_refused","ticket","reason"}`.
