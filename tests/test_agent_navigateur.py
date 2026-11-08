@@ -336,7 +336,7 @@ class QuestionAuProche(Base):
         res = self.h().tool_results[0]
         self.assertEqual(res["kind"], "tool_result")
         self.assertEqual(res["tool_req"]["id"], "q1")
-        self.assertEqual(res["result"], "Réponse du proche : Oui, accepte")
+        self.assertEqual(res["result"], "Réponse du support : Oui, accepte")
 
     async def test_pas_de_prise_en_main_du_bureau(self):
         s = self.session()

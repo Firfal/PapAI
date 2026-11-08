@@ -38,7 +38,7 @@ Le problème : Mamie veut retrouver ses photos de Noël et ne sait pas dans quel
 
 ### La boucle, cœur du pitch
 
-1. **Demander :** la personne aidée appuie sur le gros bouton « J'ai besoin d'aide », puis tape ou dicte sa demande avec ses mots.
+1. **Demander :** la personne aidée appuie sur le gros bouton « Demander une assistance », puis tape ou dicte sa demande avec ses mots.
 2. **Proposer :** Holo (le modèle de H Company) regarde l'écran et propose un plan de 2 à 5 étapes, en langage simple.
 3. **Valider :** l'aidant reçoit la demande sur son iPhone et choisit **Valider**, **Préciser** (Holo refait alors un plan) ou **Refuser**. **Rien ne bouge sur l'ordinateur avant.**
 4. **Exécuter :** Holo agit pendant que la personne regarde. Elle peut tout **Arrêter** à tout moment, même si la connexion est coupée.
@@ -173,7 +173,7 @@ gcloud run deploy papai --source . --project papai-h42-ifiy5 --region europe-wes
   |---|---|
   | `Bridge.swift` | WebSocket, capture ScreenCaptureKit sans les fenêtres PapAI, actions CGEvent (click, double_click, type_text, press_key, scroll), verrou d'arrêt, refus des clics sur la fenêtre PapAI |
   | `Model.swift` | état et réglages ; `serverURL` est lu dans `defaults` à la clé `server`, puis dans `PAPAI_SERVER`, puis vaut `ws://localhost:8000/ws/bridge` |
-  | `HomeView.swift` | accueil « Soin » : carte menthe, champ de demande, micro, gros bouton noir, « Mes raccourcis », « Mes applications » |
+  | `HomeView.swift` | accueil « Soin » : carte menthe, champ de demande, micro, gros bouton noir (raccourcis retirés le 8 nov.) |
   | `SessionView.swift` | écrans planning, plan en attente, action en cours, question, fin, arrêt |
   | `OnboardingView.swift` | accueil en 5 écrans et proches (snarbe) |
   | `Dictation.swift` | enregistrement wav de 30 s maximum, envoi à `/transcribe`, secours avec SFSpeechRecognizer fr-FR sur l'appareil |
