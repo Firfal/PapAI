@@ -1,96 +1,57 @@
 package com.quentin.papai.aidant
 
 import org.json.JSONArray
-import org.json.JSONObject
 
-/** Une personne aidée suivie par ce support : un ordinateur, son espace et sa clé. */
+/**
+ * Un poste de l'organisation suivi par ce support : un ordinateur, son espace et sa clé.
+ * La liste vient du serveur (`GET /o/<jeton support>/spaces`) : rien ne s'ajoute ni ne se retire ici.
+ */
 data class Person(
     val server: String,
     val key: String,
+    /** Prénom de l'employé (compte de l'ordinateur), sinon vide. */
     val name: String = "",
+    /** Nom donné par le poste à son inscription (nom de l'ordinateur, service). */
+    val label: String = "",
     val helperId: String = "",
-    val relation: String = "",
 )
 
 object People {
-    const val MAX = 200
+    const val MAX = 500
+    private val KEY = Regex("^[A-Za-z0-9_-]{1,200}$")
     private val asking = setOf("waiting_consent", "planning", "awaiting_approval", "awaiting_helper")
 
-    fun decode(raw: String?): List<Person> = try {
-        val a = JSONArray(raw ?: "[]")
-        (0 until a.length()).mapNotNull { i ->
-            val o = a.optJSONObject(i) ?: return@mapNotNull null
-            val s = o.text("server")
-            val k = o.text("key")
-            if (s.isEmpty() || k.isEmpty()) null
-            else Person(s, k, o.text("name"), o.text("helperId"), o.text("relation"))
-        }.distinctBy { it.key }.take(MAX)
-    } catch (_: Exception) { emptyList() }
-
-    fun encode(list: List<Person>): String = JSONArray().apply {
-        list.take(MAX).forEach { p ->
-            put(JSONObject().put("server", p.server).put("key", p.key).put("name", p.name)
-                .put("helperId", p.helperId).put("relation", p.relation))
+    /**
+     * Postes renvoyés par `/o/<jeton>/spaces`, sans doublon ; ce qu'on savait déjà (prénom
+     * appris par `hello`, identifiant de support) n'est pas effacé par du vide.
+     */
+    fun fromSpaces(spaces: JSONArray?, server: String, known: List<Person>): List<Person> {
+        if (spaces == null) return emptyList()
+        val seen = HashSet<String>()
+        val out = ArrayList<Person>()
+        for (i in 0 until spaces.length()) {
+            val s = spaces.optJSONObject(i) ?: continue
+            val k = s.opt("key") as? String ?: continue
+            if (!KEY.matches(k) || !seen.add(k)) continue
+            val old = known.firstOrNull { it.key == k }
+            out.add(Person(
+                server = "$server/k/$k",
+                key = k,
+                name = s.text("name").ifEmpty { old?.name.orEmpty() },
+                label = s.text("label").ifEmpty { old?.label.orEmpty() },
+                helperId = old?.helperId.orEmpty(),
+            ))
+            if (out.size >= MAX) break
         }
-    }.toString()
-
-    /** Ajoute ou met à jour la personne de même clé, sans effacer par du vide ce qu'on savait. */
-    fun upsert(list: List<Person>, p: Person): List<Person> {
-        val i = list.indexOfFirst { it.key == p.key }
-        if (i < 0) return (list + p).take(MAX)
-        val old = list[i]
-        val merged = p.copy(
-            name = p.name.ifEmpty { old.name },
-            helperId = p.helperId.ifEmpty { old.helperId },
-            relation = p.relation.ifEmpty { old.relation },
-        )
-        return list.toMutableList().also { it[i] = merged }
+        return out
     }
+
+    /** « Christine » : le prénom, sinon le nom du poste. */
+    fun title(p: Person): String = p.name.ifEmpty { p.label.ifEmpty { "Poste" } }
+
+    /** « Comptabilité » sous le prénom, seulement s'il dit autre chose. */
+    fun detail(p: Person): String? = p.label.takeIf { it.isNotEmpty() && p.name.isNotEmpty() && it != p.name }
 
     /** Une demande attend le support : aide demandée, plan à valider, question de Holo. */
     fun isAsking(state: String?): Boolean = state in asking
-}
-
-/** Une organisation (service IT) suivie par ce support : son jeton liste tous ses postes. */
-data class Org(val server: String, val token: String, val name: String = "")
-
-object Orgs {
-    private val TOKEN = Regex("^sup-[A-Za-z0-9_-]{10,100}$")
-
-    /** Lien donné par l'IT : `https://…/o/sup-…`, `papai://org?u=…&t=sup-…`, ou le jeton seul. */
-    fun parse(input: String, officialHost: String): Org? {
-        val s = input.trim()
-        if (TOKEN.matches(s)) return Org("https://$officialHost", s)
-        val u = try { java.net.URI(s) } catch (_: Exception) { return null }
-        if (u.scheme == "papai" && u.host == "org") {
-            val q = (u.rawQuery ?: "").split("&").mapNotNull { kv ->
-                val p = kv.split("=", limit = 2)
-                if (p.size == 2) p[0] to java.net.URLDecoder.decode(p[1], "UTF-8") else null
-            }.toMap()
-            val base = q["u"]?.trimEnd('/') ?: return null
-            val t = q["t"] ?: return null
-            return if (TOKEN.matches(t) && (base.startsWith("https://") || base.startsWith("http://"))) Org(base, t) else null
-        }
-        if ((u.scheme == "https" || u.scheme == "http") && u.host != null) {
-            val parts = (u.path ?: "").trim('/').split("/")
-            if (parts.size == 2 && parts[0] == "o" && TOKEN.matches(parts[1])) {
-                val port = if (u.port == -1) "" else ":${u.port}"
-                return Org("${u.scheme}://${u.host}$port", parts[1])
-            }
-        }
-        return null
-    }
-
-    fun decode(raw: String?): List<Org> = try {
-        val a = JSONArray(raw ?: "[]")
-        (0 until a.length()).mapNotNull { i ->
-            val o = a.optJSONObject(i) ?: return@mapNotNull null
-            val s = o.text("server"); val t = o.text("token")
-            if (s.isEmpty() || !TOKEN.matches(t)) null else Org(s, t, o.text("name"))
-        }.distinctBy { it.token }.take(10)
-    } catch (_: Exception) { emptyList() }
-
-    fun encode(list: List<Org>): String = JSONArray().apply {
-        list.take(10).forEach { put(JSONObject().put("server", it.server).put("token", it.token).put("name", it.name)) }
-    }.toString()
 }
