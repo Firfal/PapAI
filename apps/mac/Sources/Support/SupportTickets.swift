@@ -1,71 +1,23 @@
 import SwiftUI
 
-struct SupportTicketSuggestion: Identifiable {
-    var id: String
-    var title: String
-}
-
-/// Un ticket d'un utilisateur (`GET …/k/<clé>/tickets`), avec la personne d'où il vient.
-struct SupportTicket: Identifiable {
-    var id: String { person.key + "/" + tid }
-    var tid: String
-    var number: Int
-    var task: String
-    var status: String
-    var source: String
-    var updated: Double
-    var created: Double
-    var rdv: Double?
-    var assignee: String
-    var suggestions: [SupportTicketSuggestion] = []
-    var suggestionLancee: String?
-    var category: String
-    var categoryBy: String
-    var resolved: Double?
-    var person: Person
-
-    var label: String { String(format: "T-%04d", number) }
-    var isOpen: Bool { status != "resolu" }
-
-    init?(_ d: [String: Any], person: Person) {
-        guard let id = d["id"] as? String else { return nil }
-        tid = id
-        number = (d["number"] as? NSNumber)?.intValue ?? 0
-        task = d["task"] as? String ?? ""
-        status = d["status"] as? String ?? "nouveau"
-        source = d["source"] as? String ?? ""
-        updated = (d["updated"] as? NSNumber)?.doubleValue ?? 0
-        created = (d["created"] as? NSNumber)?.doubleValue ?? updated
-        rdv = (d["rdv"] as? NSNumber)?.doubleValue
-        assignee = d["assignee"] as? String ?? ""
-        suggestions = (d["suggestions"] as? [[String: Any]] ?? []).compactMap { item in
-            guard let id = item["id"] as? String, let title = item["title"] as? String else { return nil }
-            return SupportTicketSuggestion(id: id, title: title)
-        }
-        suggestionLancee = d["suggestion_lancee"] as? String
-        category = d["category"] as? String ?? "autre"
-        categoryBy = d["category_by"] as? String ?? ""
-        resolved = (d["resolved"] as? NSNumber)?.doubleValue
-        self.person = person
-    }
-}
-
 /// Premier onglet de l'accueil support : tous les tickets formulés par tous
 /// les utilisateurs reliés à ce poste, les plus récents d'abord.
 struct SupportTickets: View {
     let model: HelperModel
     var openUser: (Person) -> Void
 
-    @State private var tickets: [SupportTicket] = []
-    @State private var loading = false
-    @State private var errors: [String] = []
+    @State private var board = TicketBoard()
     @State private var filter = 0   // 0 ouverts, 1 tous
-    @State private var busy: String?
     @State private var stats: TicketStats?
     @State private var focus: String?        // catégorie choisie dans les statistiques
     @State private var highlight: String?    // ticket ouvert depuis un exemple
     @State private var suggestion: TicketStats.Suggestion?
     @State private var applying: AutomateLibrary.Entry?
+
+    private var tickets: [SupportTicket] { board.tickets }
+    private var loading: Bool { board.loading }
+    private var errors: [String] { board.errors }
+    private var busy: String? { board.busy }
 
     private var shown: [SupportTicket] {
         (filter == 0 ? tickets.filter(\.isOpen) : tickets).filter { focus == nil || $0.category == focus }
@@ -204,32 +156,17 @@ struct SupportTickets: View {
     }
 
     private func status(_ t: SupportTicket) -> some View {
-        let (txt, ton): (String, Pastille.Ton) = switch t.status {
-        case "nouveau": ("Nouveau", .bleu)
-        case "en_attente": ("En attente", .orange)
-        case "rdv": ("Rendez-vous", .violet)
-        case "en_cours": ("En cours", .vert)
-        case "a_reprendre": ("À reprendre", .orange)
-        case "resolu": ("Résolu", .gris)
-        default: (t.status, .gris)
-        }
-        return Pastille(texte: txt, icone: "circle.fill", ton: ton, taille: 12)
+        Pastille(texte: t.statut.texte, icone: "circle.fill", ton: t.statut.ton, taille: 12)
     }
 
-    private func when(_ t: SupportTicket) -> String {
-        let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "d MMM 'à' HH:mm"
-        if t.status == "rdv", let r = t.rdv { return "Rendez-vous le " + f.string(from: Date(timeIntervalSince1970: r)) }
-        return "Mis à jour le " + f.string(from: Date(timeIntervalSince1970: t.updated))
-    }
+    private func when(_ t: SupportTicket) -> String { t.quand }
 
     // MARK: Réseau
 
     private func load() async {
         let people = model.people
-        guard !people.isEmpty else { tickets = []; stats = nil; return }
-        loading = true; defer { loading = false }
-        var all: [SupportTicket] = []
-        var errs: [String] = []
+        await board.load(people)
+        guard !people.isEmpty else { stats = nil; return }
         var parts: [TicketStats] = []
         await withTaskGroup(of: TicketStats?.self) { g in
             for p in people {
@@ -245,47 +182,18 @@ struct SupportTickets: View {
             }
             for await s in g { if let s { parts.append(s) } }
         }
-        await withTaskGroup(of: ([SupportTicket], String?).self) { g in
-            for p in people {
-                let base = AutomateLibrary.base(p)
-                g.addTask {
-                    guard let url = URL(string: base + "/tickets"),
-                          let (d, r) = try? await URLSession.shared.data(from: url),
-                          (r as? HTTPURLResponse)?.statusCode == 200,
-                          let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
-                          let list = obj["tickets"] as? [[String: Any]]
-                    else { return ([], "Tickets de \(p.name.isEmpty ? "un utilisateur" : p.name) indisponibles") }
-                    return (list.compactMap { SupportTicket($0, person: p) }, nil)
-                }
-            }
-            for await (l, e) in g { all += l; if let e { errs.append(e) } }
-        }
-        tickets = all.sorted { $0.updated > $1.updated }
-        errors = errs
         stats = parts.isEmpty ? nil : TicketStats.merge(parts)
     }
 
     private func act(_ t: SupportTicket, _ action: String, _ extra: [String: String] = [:]) async {
-        guard let url = URL(string: AutomateLibrary.base(t.person) + "/tickets/" + t.tid) else { return }
-        busy = t.id; defer { busy = nil }
-        var req = URLRequest(url: url, timeoutInterval: 15)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: extra.merging(["action": action, "by": model.helperName ?? "Support"]) { a, _ in a })
-        if let (d, r) = try? await URLSession.shared.data(for: req) {
-            if (r as? HTTPURLResponse)?.statusCode != 200 {
-                let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
-                model.showToast(obj?["error"] as? String ?? "Action refusée")
-            } else if action == "category" {
-                model.showToast("Catégorie : \(TicketCategory.label(extra["category"] ?? ""))")
-            } else if action == "take" {
-                model.showToast("Demande proposée à \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
-                openUser(t.person)
-            }
-        } else {
-            model.showToast("Serveur injoignable")
+        if let e = await board.act(t, action, extra, by: model.helperName ?? "Support", people: model.people) {
+            model.showToast(e)
+        } else if action == "category" {
+            model.showToast("Catégorie : \(TicketCategory.label(extra["category"] ?? ""))")
+        } else if action == "take" {
+            model.showToast("Demande proposée à \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
+            openUser(t.person)
         }
-        await load()
     }
 }
 

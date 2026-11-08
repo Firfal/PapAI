@@ -22,6 +22,7 @@ targets:
       - ../ios/Sources/SupportConfig.swift
       - ../ios/Sources/Platform.swift
       - ../ios/Sources/FlowLayout.swift
+      - ../ios/Sources/SupportData.swift
     info:
       path: Sources/Info.plist
       properties:
