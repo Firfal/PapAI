@@ -295,14 +295,22 @@ def evaluer_demande(texte: str) -> Alerte | None:
     facture_habituelle = (
         r"\b(?:payer|regler|paie|paye)\s+(?:(?:ma|la|mes|les|mon|le|une|un)\s+)?"
         r"(?:factures?\s+(?:de\s+|d')?)?"
-        r"(?P<fournisseur>edf|engie|orange|sfr|free|bouygues|impots(?:\.gouv)?|eau|loyer)\s+"
+        r"(?P<fournisseur>edf|engie|orange|sfr|free|bouygues|impots(?:\.gouv)?|"
+        r"taxe\s+fonciere|taxe\s+d'habitation|eau|loyer)\s+"
         r"(?:de\s+)?(?P<montant>\d[\d\s.,]*)\s*(?:euros?\b|eur\b|€)"
     )
 
     factures = list(re.finditer(facture_habituelle, t))
+
+    def fournisseur_facture(m):
+        fournisseur = m["fournisseur"].split(".", 1)[0]
+        if fournisseur in {"taxe fonciere", "taxe d'habitation"}:
+            return "impots"
+        return fournisseur
+
     total_impots_loyer = sum(
         (_montant(m["montant"]) for m in factures
-         if m["fournisseur"].split(".", 1)[0] in {"impots", "loyer"}),
+         if fournisseur_facture(m) in {"impots", "loyer"}),
         Decimal(0),
     )
     plafond_impots_loyer = (
@@ -310,7 +318,7 @@ def evaluer_demande(texte: str) -> Alerte | None:
     )
 
     def facture_autorisee(m):
-        fournisseur = m["fournisseur"].split(".", 1)[0]
+        fournisseur = fournisseur_facture(m)
         if fournisseur in {"impots", "loyer"}:
             return total_impots_loyer <= plafond_impots_loyer
         return _montant(m["montant"]) <= 1500
