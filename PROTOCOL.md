@@ -740,8 +740,8 @@ bureau reste le comportement par défaut.
   Un ancien serveur sans `sites` ne déclenche aucune surveillance locale.
 - Serveur → Mac, `{"type":"web_sites","sites":["ameli.fr"],"hosts":["connexion.exemple.fr"]}` :
   actualise ces deux listes après une autorisation.
-- Mac → serveur, `{"type":"web_off_site","url":"https://autre.fr/chemin?x=…"}` :
-  une cible CDP de type `page` est hors des sites validés. Le Mac interroge
+- Mac ou Windows → serveur, `{"type":"web_off_site","url":"https://autre.fr/chemin?x=…"}` :
+  une cible CDP de type `page` est hors des sites validés. Le Mac (et Windows, même règle) interroge
   `127.0.0.1:9222/json/list` toutes les 0,5 s, avec un délai court,
   et limite les rapports à un toutes les 2 s ; il arrête la surveillance avec
   Chrome PapAI. Le serveur recontrôle l'URL et ignore les rapports sans pilote

@@ -9,6 +9,7 @@ la configuration de holo, sa sortie ne va dans aucun journal.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -19,6 +20,8 @@ import urllib.request
 import uuid
 from pathlib import Path
 from typing import Callable
+
+from papai.site_check import classify
 
 DEBUG_PORT = 9222
 WINDOWS = sys.platform == "win32"
@@ -57,6 +60,15 @@ def debugger_listening(port: int = DEBUG_PORT) -> bool:
             return r.status == 200
     except Exception:  # noqa: BLE001
         return False
+
+
+def debugger_pages(port: int = DEBUG_PORT) -> list[dict]:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=0.4) as r:  # noqa: S310
+            data = json.loads(r.read())
+            return data if isinstance(data, list) else []
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def wipe_profile(path: Path | None = None) -> None:
@@ -98,7 +110,8 @@ class WebAgentHost:
                  executable: Callable[[], Path | None] = browser_executable,
                  holo: Callable[[], Path] = holo_binary, profile: Callable[[], Path] = profile_dir,
                  sleep: Callable[[float], None] = time.sleep, front: Callable[[int], None] = bring_pid_to_front,
-                 spawn: Callable[[Callable], None] | None = None) -> None:
+                 spawn: Callable[[Callable], None] | None = None,
+                 pages: Callable[[], list] = debugger_pages, clock: Callable[[], float] = time.monotonic) -> None:
         self.on_change = on_change
         self._popen, self._listening, self._executable = popen, listening, executable
         self._holo_path, self._profile, self._sleep, self._front = holo, profile, sleep, front
@@ -109,6 +122,56 @@ class WebAgentHost:
         self.chrome = None
         self.holo = None
         self.session_id: str | None = None
+        # Sites validés du plan : Chrome PapAI est surveillé comme sur le Mac (`web_off_site`).
+        self.on_off_site: Callable[[str], None] = lambda _url: None
+        self._pages, self._clock = pages, clock
+        self.sites: list[str] = []
+        self.hosts: list[str] = []
+        self._monitor_gen: int | None = None
+        self._last_off_site = float("-inf")
+
+    def update_sites(self, sites, hosts=()) -> None:
+        with self._lock:
+            self.sites = [str(s) for s in sites or [] if s]
+            self.hosts = [str(h) for h in hosts or [] if h]
+            if not self.sites:
+                self._monitor_gen = None
+            run = self.session_id is not None
+        if run:
+            self._monitor_sites()
+
+    def _monitor_sites(self) -> None:
+        with self._lock:
+            if not self.sites or self._monitor_gen == self._generation:
+                return
+            gen = self._monitor_gen = self._generation
+        self._spawn(lambda: self._watch_sites(gen))
+
+    def check_sites(self) -> str | None:
+        """Un passage de la surveillance : l'adresse hors plan signalée, sinon None."""
+        with self._lock:
+            sites, hosts = list(self.sites), list(self.hosts)
+        if not sites:
+            return None
+        for page in self._pages():
+            if not isinstance(page, dict) or page.get("type") != "page":
+                continue
+            url = str(page.get("url") or "")
+            if classify(url, sites, hosts) == "hors" and self._clock() - self._last_off_site >= 2:
+                self._last_off_site = self._clock()
+                self.on_off_site(url)
+                return url
+        return None
+
+    def _watch_sites(self, gen: int) -> None:
+        while True:
+            with self._lock:
+                if self._monitor_gen != gen or gen != self._generation or self.session_id is None:
+                    if self._monitor_gen == gen:
+                        self._monitor_gen = None
+                    return
+            self.check_sites()
+            self._sleep(0.5)
 
     # Annoncé au serveur seulement si holo et un navigateur sont là.
     def available(self) -> bool:
@@ -204,6 +267,7 @@ class WebAgentHost:
         with self._lock:
             self.session_id = sid
         self.on_change(sid)
+        self._monitor_sites()
         self._spawn(lambda: self._watch_holo(holo))
 
     def _watch_holo(self, holo) -> None:

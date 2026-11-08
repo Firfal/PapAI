@@ -59,6 +59,24 @@ class Host:
 
 
 class WebAgentTests(unittest.TestCase):
+    def test_surveillance_des_sites_valides(self):
+        h = Host()
+        pages = [{"type": "page", "url": "https://www.ameli.fr/compte"}]
+        now = [100.0]
+        h.host._pages, h.host._clock = (lambda: pages), (lambda: now[0])
+        seen = []
+        h.host.on_off_site = seen.append
+        self.assertIsNone(h.host.check_sites(), "sans sites validés, rien n'est surveillé")
+        h.host.update_sites(["ameli.fr"])
+        self.assertIsNone(h.host.check_sites(), "page du plan : rien à signaler")
+        pages.append({"type": "page", "url": "https://autre.fr/x"})
+        self.assertEqual(h.host.check_sites(), "https://autre.fr/x")
+        self.assertIsNone(h.host.check_sites(), "pas deux signalements en moins de 2 s")
+        now[0] += 3
+        h.host.update_sites(["ameli.fr"], ["autre.fr"])
+        self.assertIsNone(h.host.check_sites(), "hôte autorisé par le support")
+        self.assertEqual(seen, ["https://autre.fr/x"])
+
     def test_lancement_profil_neuf_puis_session(self):
         h = Host(listening_after=1)
         (h.dir / "Chrome").mkdir()
@@ -151,6 +169,9 @@ class FakeHost:
     def start(self):
         self.events.append("start")
 
+    def update_sites(self, sites, hosts=()):
+        self.events.append(("sites", list(sites), list(hosts)))
+
     def stop_local(self, notify_server=True):
         self.events.append(("stop", notify_server))
 
@@ -171,7 +192,7 @@ class ModelWebTests(unittest.TestCase):
     def test_messages_du_serveur(self):
         m, web, sent = self.model()
         m._handle({"type": "web_agent_start"})
-        self.assertEqual(web.events, ["start"])
+        self.assertEqual(web.events, [("sites", [], []), "start"])
         m._handle({"type": "status", "state": "active", "where": "web", "plan": ["a"]})
         self.assertEqual(m.snapshot()["sessionWhere"], "web")
         self.assertEqual(web.events[-1], "front")
@@ -208,6 +229,21 @@ class ModelWebTests(unittest.TestCase):
         self.assertIn(("stop", True), web2.events)
         m2._connection(False)
         self.assertIn(("stop", False), web2.events)
+
+    def test_sites_du_plan_transmis(self):
+        m, web, _ = self.model()
+        m._handle({"type": "web_agent_start", "sites": ["ameli.fr"], "hosts": []})
+        m._handle({"type": "web_sites", "sites": ["ameli.fr"], "hosts": ["connexion.exemple.fr"]})
+        self.assertEqual(web.events[:3], [("sites", ["ameli.fr"], []), "start",
+                                          ("sites", ["ameli.fr"], ["connexion.exemple.fr"])])
+
+    def test_web_off_site_envoye(self):
+        web = FakeHost()
+        m = Model(demo="home", web_host=web)
+        sent = []
+        m.bridge = type("B", (), {"send": lambda self, p: sent.append(p)})()
+        m.web.on_off_site("https://autre.fr/x")
+        self.assertEqual(sent, [{"type": "web_off_site", "url": "https://autre.fr/x"}])
 
     def test_session_id_envoye_au_serveur(self):
         web = FakeHost()

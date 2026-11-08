@@ -103,6 +103,7 @@ class Model:
         self._bridge_factory = bridge_factory
         self.web = web_host or WebAgentHost()
         self.web.on_change = lambda sid: self._send({"type": "web_agent", "session_id": sid})
+        self.web.on_off_site = lambda url: self._send({"type": "web_off_site", "url": url})
 
     # ------------------------------------------------------------ dérivés
 
@@ -548,7 +549,11 @@ class Model:
                             for d in lst if isinstance(d, dict) and d.get("id") and d.get("name")]
         elif kind == "web_agent_start":
             if self.session_open and not self.gate.is_stopped:
+                self.web.update_sites(m.get("sites") or [], m.get("hosts") or [])
                 self.web.start()
+            return
+        elif kind == "web_sites":
+            self.web.update_sites(m.get("sites") or [], m.get("hosts") or [])
             return
         elif kind == "web_agent_stop":
             self.web.stop_local(notify_server=False)
