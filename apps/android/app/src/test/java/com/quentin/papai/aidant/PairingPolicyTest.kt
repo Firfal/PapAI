@@ -32,7 +32,7 @@ class PairingPolicyTest {
     }
 
     @Test fun refusalsAreExactAndActionable() {
-        val expected = "Ce lien n'est pas sûr. Demandez un nouveau QR depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
+        val expected = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
         for (debug in listOf(false, true)) {
             for (text in listOf("http://example.com/p/123456", "papai://pair?u=http%3A%2F%2Fexample.com%2Fp%2F123456", "illisible", "", "https://foreign.example/qr")) {
                 assertEquals(expected, PairingPolicy.invitationError(text, debug))

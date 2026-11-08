@@ -508,7 +508,7 @@ class Model:
             def go() -> None:
                 self.refresh_lessons()
                 if m.get("title"):
-                    self.show_notice(f"Nouveau tutoriel : « {m['title']} »")
+                    self.show_notice(f"Nouvel automate : « {m['title']} »")
             threading.Thread(target=go, daemon=True).start()
         elif kind == "pair_code":
             self.pair_code = m.get("code")

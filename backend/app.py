@@ -421,11 +421,11 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "automation_failed":
-                # Un automatisme n'a pas pu se rejouer : l'écran ou le dossier a
+                # Un automate n'a pas pu se rejouer : l'écran ou le dossier a
                 # changé. On ne tente rien à l'aveugle, on prévient l'aidant.
                 await broadcast_helper({
                     "type": "alert",
-                    "title": str(msg.get("title", "Un raccourci"))[:200],
+                    "title": str(msg.get("title", "Un automate"))[:200],
                     "detail": str(msg.get("detail", ""))[:1000],
                 })
                 continue
@@ -663,7 +663,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
                 lesson = await draft_lesson(session)
             except Exception as e:  # noqa: BLE001 — l'aidant ne doit pas rester sans réponse
                 session.log("lesson_failed", error=f"{type(e).__name__}: {e}")
-                raise Refused("Holo n'a pas pu rédiger la fiche. Réessayez.") from e
+                raise Refused("Holo n'a pas pu rédiger l'automate. Réessayez.") from e
             session.lesson = lesson
             # Aperçu : les captures voyagent avec le brouillon, mais
             # ne sont écrites nulle part tant que rien n'est validé.
@@ -677,7 +677,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
 
         elif kind == "approve_lesson":
             if not session.lesson:
-                raise Refused("Aucune fiche à valider.")
+                raise Refused("Aucun automate à valider.")
             # Le proche a pu corriger le texte : on reprend le sien.
             edited = msg.get("lesson") or {}
             for i, step in enumerate(session.lesson["steps"]):
@@ -691,7 +691,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             saved = approve_and_save(session.lesson, session)
             await ws.send_json({"type": "lesson_saved", "lesson": saved})
             if bridge is not None:
-                # La personne aidée le retrouve aussitôt dans « Mes tutoriels ».
+                # La personne aidée le retrouve aussitôt dans « Mes automates ».
                 await bridge.send({"type": "lessons_changed", "title": saved.get("title", "")})
 
         else:
@@ -752,7 +752,7 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
         raise Refused("Le PC n'est pas connecté.")
 
     session.take_control(Owner.HELPER)
-    args = {"element": "clic du proche", "x": round(x * 1000), "y": round(y * 1000)}
+    args = {"element": "clic du support", "x": round(x * 1000), "y": round(y * 1000)}
     session.log("helper_click", x=args["x"], y=args["y"])
     session.execution_started = True
     result = await bridge.execute("click", args)
