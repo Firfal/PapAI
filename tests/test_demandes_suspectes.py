@@ -172,6 +172,8 @@ SUSPECTES = [
     "Acheter deux cartes-cadeaux Fnac de 20 €",
     "Payer mes impôts de 4 900 euros, le monsieur des impôts m'a appelé",
     "Payer mes impôts de 4 900 euros à l'agent qui m'a téléphoné",
+    "Payer mes impôts de 4 900 euros après un appel de ma banque",
+    "Payer mes impôts de 4 900 euros suite à un appel de mon conseiller",
     "Payer mes impôts de 4 900 euros sur ce lien reçu par SMS",
     "Payer mes impôts de 4 900 euros sur le site impots-gouv-paiement.com",
     "Payer mes impôts de 4 900 euros sur impots.gouv.fr.paiement-securise.com",

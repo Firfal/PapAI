@@ -253,8 +253,12 @@ def evaluer_demande(texte: str) -> Alerte | None:
         r"\bm'a\s+(?:appel\w*|telephone\w*|contacte\w*)\b|"
         r"\bon\s+m'a\s+appel\w*\b|"
         r"\bqui\s+m'a\s+(?:appel|telephon)\w*\b|"
-        r"\bappel\w*\s+(?:de|du|par)\s+(?:l'|un\s+|une\s+|le\s+|la\s+)?"
-        r"(?:agent|conseiller|impots|banque|technicien)\b|"
+        r"\bappel\w*\s+(?:de|du|d'|par)\s+"
+        r"(?:(?:l'|un\s+|une\s+|le\s+|la\s+|ma\s+|mon\s+|sa\s+|son\s+|notre\s+|votre\s+))?"
+        r"(?:agent|conseiller|impots|banque|technicien|banquier|police|"
+        r"gendarmerie|support|service)\b|"
+        r"\b(?:apres|suite a|suite au|j'ai recu|recu)\s+"
+        r"(?:un\s+|l'|cet\s+|ce\s+)?appel\w*\b|"
         r"\b(?:au|par)\s+telephone\b|"
         r"\b(?:agent|conseiller|demarchage|monsieur\s+des\s+impots)\b",
         t,
