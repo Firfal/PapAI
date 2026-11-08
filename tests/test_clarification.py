@@ -56,6 +56,7 @@ def regles() -> None:
         longue = "Bonjour, excusez-moi de vous déranger, j'ai un souci avec l'imprimante depuis ce matin au bureau"
         r = asyncio.run(clarify.evaluer(longue, [{"q": "Quoi ?", "a": "Bourrage papier"}]))
         check("Holo injoignable : la réponse reste visible après une longue demande", "Bourrage papier" in r["objet"])
+        check("Holo injoignable : l'appareil d'une longue demande reste dans l'objet", "imprimante" in r["objet"])
         r = asyncio.run(clarify.evaluer(VAGUE, [], force=True))
         check("« Envoyer quand même » ne repose jamais de question", r["clair"])
     finally:
