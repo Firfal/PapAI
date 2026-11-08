@@ -40,6 +40,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| Devin | `devin/1794098271-bascule-navigateur` | Correctifs PR #54 : source Gardien de la sous-tâche web et consigne dédiée au brief web | `AGENTS.md`, `backend/app.py`, `backend/web_agent.py`, `PROTOCOL.md`, `tests/test_agent_navigateur.py` | 8 nov. |
 | _(personne pour l'instant)_ | | | | |
 
 ## Journal
