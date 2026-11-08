@@ -76,6 +76,7 @@ LEGITIMES = [
     "Payer mon loyer de 4500.00 euros",
     "Payer mon loyer de 4 500 euros puis appeler ma fille",
     "Payer ma facture de téléphone de 45,90 euros",
+    "Payer mon loyer de 2 000 euros depuis mon compte courant en septembre",
     "Régler une facture d'impôts de 4 800 euros sur impots.gouv",
     "Payer les impôts de 5 000 euros sur impots.gouv",
     "Payer mon loyer de 4 500 euros",

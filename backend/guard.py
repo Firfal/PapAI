@@ -217,7 +217,9 @@ def evaluer_demande(texte: str) -> Alerte | None:
         r"\b(?:compte|banque)"
         r"(?:\s+(?:en\s+(?:ligne|banque|commun)|bancaire|courant|joint|epargne))?"
         r"\s+(?:au|en|aux)\s+"
-        r"(?!(?:banque|ligne|commun|cours|attente|france|euros?|direct|question|joint)\b)[a-z]+\b|"
+        r"(?!(?:banque|ligne|commun|cours|attente|france|euros?|direct|question|joint|"
+        r"janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|"
+        r"decembre|debut|fin|avance|retard|regle|ordre|positif|negatif|cas)\b)[a-z]+\b|"
         r"\ba\s+l'etranger\b", t
     ))
     iban = re.search(r"\b([a-z]{2})\s*\d{2}\s*(?:\d{4}|[a-z]{4}\s*\d{4})(?:\s*[a-z0-9]){6,26}\b", t)
