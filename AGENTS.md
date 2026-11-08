@@ -49,7 +49,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794134255-ticket-plan-valide` | Ticket : plan validé par le support (Valider / Préciser) puis lancé avec Holo, ou assistance en direct obligatoire avec créneaux proposés | `backend/app.py` (tickets), `backend/tickets.py`, `backend/automate_draft.py`, `backend/static/tickets.js`, `apps/windows/papai/model.py`, `apps/windows/papai/app.py`, `apps/windows/ui/app.js`, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/RequestViews.swift`, `apps/mac/Sources/Support/SupportTickets.swift`, `PROTOCOL.md` (Tickets), `tests/test_tickets.py` | 8 nov. |
 
 ## Journal
 
