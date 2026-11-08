@@ -1988,7 +1988,8 @@ async def _import_automation(request: Request):
     if isinstance(pack, JSONResponse):
         return pack
     try:
-        lesson = automations.save(pack, by=request.query_params.get("by", ""))
+        sup = _support_ctx.get()
+        lesson = automations.save(pack, by=sup["name"] if sup else request.query_params.get("by", ""))
     except automations.Invalid as e:
         return JSONResponse({"error": str(e)}, status_code=422)
     print(f"[automate] importé {lesson['id']}")

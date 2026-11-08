@@ -190,6 +190,11 @@ async def parcours(base: str, data: Path, log: Path) -> None:
     check("la clé dérivée ouvre les routes du support", st == 200 and isinstance(les, list), st)
     st, _ = await ahttp(f"{base}/a/{dk_a}")
     check("…et la page du support", st == 200)
+    pack = {"papai": 1, "title": "Vider la corbeille", "publisher": "IT",
+            "actions": [{"do": "antivirus_scan"}], "platforms": ["windows"]}
+    st, imp = await ahttp(f"{base}/k/{dk_a}/automations?by=IT%20de%20confiance", pack)
+    check("un automate importé par Alice porte son nom, pas celui envoyé",
+          st == 200 and imp.get("approved_by") == "Alice", (st, imp))
     sid_autre = next(p.parent.name for p in (data / "spaces").glob("*/space.json")
                      if json.loads(p.read_text())["key"] == autre["key"])
     forge = "sk" + sid_autre + dk_a[14:]
