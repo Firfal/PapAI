@@ -7,7 +7,7 @@
   let api = null;
   const ui = { request: '', warning: null, lessonId: null, lessonIndex: 0, name: null,
                sheet: null, settings: { name: '', server: '' }, lastDictMsg: null,
-               writing: false, dictating: false, lastDictation: null, submitting: false, editingShortcuts: false };
+               dictating: false, lastDictation: null, submitting: false, editingShortcuts: false };
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -43,7 +43,7 @@
   const hdChip = (sym, text) => `<div class="pillChip chip-blue" style="align-self:flex-start;gap:8px;padding:8px 16px;${f(16, 6)}">${sym ? icon(sym, 20) : ''}<span>${text}</span></div>`;
   function header() {
     const h = hd || {};
-    return `<div class="hdr${h.tone === 'danger' ? ' danger' : ''}">
+    return `<div class="hdr${h.tone === 'danger' ? ' danger' : ''}${h.home ? ' hdrHome' : ''}">
       <div class="row hdrTop">
       <img class="logotype" src="logotype-papai.svg" alt="papai">
       <div class="spacer"></div>
@@ -59,77 +59,65 @@
   }
 
   // -------------------------------------------------------------------- Home
+  // Accueil du Mac (HomeView.swift) : en-tête bleu avec salutation et barre de
+  // demande (petit micro intégré), puis deux colonnes 60/40, automates et raccourcis.
   function home() {
     const mic = S.microPresent;
-    const busy = ui.dictating || S.dictation.phase !== 'idle';
-    const wait = S.queued && !S.queued.show ? `<button class="pillChip chip-blue press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
+    const ph = S.dictation.phase;
+    const busy = ui.dictating || ph !== 'idle';
+    const wait = S.queued && !S.queued.show ? `<button class="pillChip chip-orange press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:0 18px;min-height:44px;${f(17, 6)}">
         ${icon('personWave', 20)}<span>Demande n° ${esc(S.queued.number)} ${S.queued.rdv ? '· rendez-vous ' + esc(rdvText(S.queued.rdv)) : 'en attente'}</span></button>` : '';
-    const warn = (ui.warning ? `<div class="pillChip chip-orange" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
-        ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '') + wait;
-    const field = ui.writing || !mic ? `<div class="requestRow">
-        <span class="fieldIcon">${icon('compose', 22)}</span>
-        <textarea id="req" rows="1" placeholder="Écrivez votre demande" aria-label="Écrivez votre demande"
+    const warn = ui.warning ? `<div class="row homeWarn" style="gap:8px;${f(17, 6)}">${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '';
+    const etat = ph === 'listening' ? 'Je vous écoute… Touchez le carré quand vous avez fini.'
+      : ph === 'transcribing' || ph === 'starting' ? 'Je note…' : '';
+    const field = `<div class="requestRow homeBar">
+        <span class="fieldIcon">${icon('compose', 18)}</span>
+        <textarea id="req" rows="1" placeholder="${mic ? 'Écrivez ou dites ce que vous voulez faire' : 'Écrivez ce que vous voulez faire'}" aria-label="Ma demande"
           style="${f(18, 5)};line-height:1.3">${esc(ui.request)}</textarea>
-        <button class="pill filled" data-act="submit" ${busy || ui.submitting ? 'disabled' : ''} style="height:44px;padding:0 18px;${f(15, 6)}">Envoyer</button>
-      </div>` : '';
+        ${mic ? micButton() : ''}
+        <button class="pill filled" data-act="submit" ${busy || ui.submitting ? 'disabled' : ''} style="height:44px;padding:0 18px;${f(16, 6)}">Envoyer</button>
+      </div>`;
     hd = {
-      title: `<div class="hdrTitle" style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) : ''}</div>`,
-      sub: hdSub(`Un souci sur l'ordinateur ? ${mic ? 'Dites-le simplement' : 'Écrivez ce dont vous avez besoin'}, un message part tout de suite à ${esc(S.helperName)}.`, 18),
-      extra: field + (warn ? `<div class="row" style="gap:10px;flex-wrap:wrap">${warn}</div>` : ''),
+      home: true,
+      title: `<div class="hdrTitle" style="${f(34, 7)};letter-spacing:-0.6px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) + ' !' : ''}</div>`,
+      sub: hdSub('Que voulez-vous faire ?', 19),
+      extra: field + (etat ? `<div class="hdrSub" style="padding-left:18px;${f(17, 6)}">${etat}</div>` : '')
+        + (warn || wait ? `<div class="row" style="gap:10px;flex-wrap:wrap">${warn}${wait}</div>` : ''),
     };
-    if (!mic) {
-      // Sans micro, rien à dicter : les automates prennent la place de la carte du micro.
-      const t = tutorials();
-      return `<div class="row" style="align-items:stretch;gap:24px;flex:1;min-height:0">
-        ${t ? `<div class="scroll grow"><div class="col" style="gap:16px;padding-bottom:8px">${t}</div></div>` : ''}
-        <div class="scroll ${t ? '' : 'grow'}" style="${t ? 'width:400px;flex:none' : ''}"><div class="col" style="gap:16px;padding-bottom:8px">${appsGrid()}</div></div></div>`;
-    }
-    return `<div class="row" style="align-items:stretch;gap:24px;flex:1;min-height:0">
-      ${helpCard()}
-      <div class="scroll" style="width:400px;flex:none">
-        <div class="col" style="gap:16px;padding-bottom:8px">${tutorials()}${appsGrid()}</div>
-      </div></div>`;
+    return `<div class="homeCols">
+      <section class="col homeLeft">${tutorials()}</section>
+      <section class="col homeRight">${appsGrid()}</section></div>`;
   }
 
-  // Carte du micro : le grand bouton de dictée, et « Écrire » qui ouvre le champ de l'en-tête.
-  function helpCard() {
-    return `<div class="mintCard homeCard" style="padding:32px;gap:16px;align-items:center;justify-content:center">
-      ${micButton()}
-      ${!ui.writing && S.dictation.phase === 'idle' ? `<button class="pillChip softBtn press writeButton" data-act="write" style="${f(15, 6)}">${icon('compose', 18)}<span style="margin-left:8px">Écrire</span></button>` : ''}
-    </div>`;
-  }
+  // Titre de section, le même dans les deux colonnes pour qu'ils tombent sur la même ligne.
+  const sectionTitle = (sym, text, extra) => `<div class="row sectionTitle" style="gap:10px;min-height:44px">
+      <span class="accent" style="width:26px;display:flex;justify-content:center" aria-hidden="true">${icon(sym, 22)}</span>
+      <h2 class="grow" style="margin:0;${f(22, 7)}">${text}</h2>${extra || ''}</div>`;
 
+  // Petit micro dans la barre : la même dictée qu'avant, juste plus discrète.
   function micButton() {
     const ph = S.dictation.phase;
     const listening = ph === 'listening';
-    const inner = ph === 'transcribing' ? '<div class="spinner"></div>'
-      : icon(listening ? 'stop' : 'mic', 48, listening ? '#fff' : 'var(--accent)');
-    const label = listening ? 'Je vous écoute…' : ph === 'transcribing' || ph === 'starting' ? 'Je note…' : 'Parler à PapAI';
-    return `<div class="col" style="align-items:center;gap:12px">
-      <button class="press" data-act="mic" ${ph === 'transcribing' || ph === 'starting' ? 'disabled' : ''}
-        aria-label="${listening ? 'Arrêter la dictée' : 'Dicter ma demande'}"
-        style="flex:none">
-      <span class="microFrame" style="position:relative;width:180px;height:180px;display:flex;align-items:center;justify-content:center">
-        ${listening ? '<span class="micRing"></span>' : ''}
-        <span class="circle microDisc${listening ? ' on' : ''}" style="position:relative;width:148px;height:148px">${inner}</span>
-      </span></button><span style="${f(20, 6)}">${label}</span>
-      ${ui.request && !ui.writing ? `<span style="${f(18, 5)}">${esc(ui.request)}</span>` : ''}</div>`;
+    const inner = ph === 'transcribing' || ph === 'starting' ? '<div class="spinner small"></div>'
+      : icon(listening ? 'stop' : 'mic', 16, listening ? '#fff' : 'var(--accent)');
+    return `<button class="press micMini" data-act="mic" ${ph === 'transcribing' || ph === 'starting' ? 'disabled' : ''}
+        aria-label="${listening ? 'Arrêter la dictée' : 'Dicter ma demande'}" title="${listening ? 'Arrêter la dictée' : 'Dicter ma demande'}">
+        ${listening ? '<span class="micRing"></span>' : ''}<span class="circle microDisc${listening ? ' on' : ''}">${inner}</span></button>`;
   }
 
   const folderIcon = (folder) => ({ pictures: 'photo', documents: 'doc', downloads: 'download',
     desktop: 'desktop', videos: 'film', music: 'music' }[String(folder || '').toLowerCase()] || 'list');
 
   function tutorials() {
-    const notice = S.notice ? `<div style="background:var(--mint);border-radius:var(--r);padding:18px;${f(17, 5)}">${esc(S.notice)}</div>` : '';
+    const notice = S.notice ? `<div class="row accent" style="gap:10px;background:var(--mint);border-radius:var(--r);padding:18px;${f(17, 5)}">${icon('exclam', 20)}<span>${esc(S.notice)}</span></div>` : '';
     const tiles = S.lessons.map((l) => {
       const steps = (l.steps || []).length;
-      return `<div class="card row" style="padding:12px;gap:10px">
-        <button class="row press grow" data-act="shortcut" data-arg="${esc(l.id)}" aria-label="${esc(l.title)}" style="gap:10px;text-align:left;min-height:36px">
-          <span class="circle" style="width:36px;height:36px;background:var(--mint);color:var(--accent)">${icon(folderIcon((l.shortcut || {}).folder), 19)}</span>
-          <span class="col" style="gap:2px"><span style="${f(18, 6)}">${esc(l.title)}</span>${l.publisher ? `<span class="muted" style="${f(14, 4)}">${esc('Fourni par ' + l.publisher)}</span>` : ''}</span>
+      return `<div class="row lessonRow" style="padding:10px 14px;gap:10px">
+        <button class="row press grow" data-act="shortcut" data-arg="${esc(l.id)}" aria-label="${esc(l.title)}" style="gap:12px;text-align:left;min-height:44px">
+          <span class="circle" style="width:40px;height:40px;background:var(--mint);color:var(--accentIcon)">${icon(folderIcon((l.shortcut || {}).folder), 20)}</span>
+          <span class="col" style="gap:3px"><span style="${f(18, 6)}">${esc(l.title)}</span>${l.publisher ? `<span class="muted" style="${f(14, 4)}">${esc('Fourni par ' + l.publisher)}</span>` : ''}</span>
         </button>
-        ${steps ? `<button class="press accent" data-act="lesson" data-arg="${esc(l.id)}"
-          style="white-space:nowrap;min-height:44px;padding:5px 10px;border-radius:999px;background:var(--mint);${f(15, 6)}">Montrez-moi</button>` : ''}
+        ${steps ? `<button class="press accent softChip" data-act="lesson" data-arg="${esc(l.id)}" style="${f(15, 6)}">Montrez-moi</button>` : ''}
       </div>`;
     }).join('');
     const running = S.automationRunning ? `<div class="card row" style="padding:18px;gap:14px;align-items:center">
@@ -137,8 +125,10 @@
         <button class="row press stopBtn" data-act="stop" aria-label="Arrêter l'automate (Échap)"
           style="gap:10px;height:52px;padding:0 20px;border-radius:999px">
           ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
-    if (!S.lessons.length && !notice && !running) return '';
-    return `<div class="col" style="gap:14px">${running}${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes automates</div>` : ''}${tiles}</div>`;
+    const list = S.lessons.length ? `<div class="card listCard">${tiles}</div>`
+      : `<div class="card col" style="padding:20px;gap:6px"><div style="${f(18, 6)}">Aucun automate pour l'instant.</div>
+          <div class="muted" style="${f(17, 4)}">Un automate est une tâche toute prête. Quand ${esc(S.helperName)} en enregistre un pour vous, il apparaît ici et se lance d'un clic.</div></div>`;
+    return `${sectionTitle('list', 'Mes automates')}${running}${notice}${list}`;
   }
 
   const APP_STYLE = {
@@ -152,21 +142,19 @@
 
   function appsGrid() {
     const items = (S.homeShortcuts || []).map((a) => {
-      const img = a.icon && a.icon.startsWith('data:image/png;base64,') ? `<img src="${esc(a.icon)}" alt="" width="36" height="36">`
-        : icon(a.symbol || (APP_STYLE[a.label] || ['app'])[0], 24, 'var(--accent)');
+      const img = a.icon && a.icon.startsWith('data:image/png;base64,') ? `<img src="${esc(a.icon)}" alt="" width="48" height="48">`
+        : icon(a.symbol || (APP_STYLE[a.label] || ['app'])[0], 30, 'var(--accentIcon)');
       return `<div class="col" style="position:relative"><button class="col press" data-act="homeShortcut" data-arg="${esc(a.id)}" aria-label="Ouvrir ${esc(a.label)}"
-          style="gap:4px;align-items:center">
-        <span class="circle tileIcon" style="width:54px;height:54px">${img}</span>
-        <span style="${f(15, 5)};min-height:24px;text-align:center">${esc(a.label)}</span></button>
+          style="gap:8px;align-items:center">
+        <span class="tileIcon">${img}</span>
+        <span class="tileLabel" style="${f(16, 5)}">${esc(a.label)}</span></button>
         ${a.personal && ui.editingShortcuts ? `<button class="removeShortcut" data-act="removeShortcut" data-arg="${esc(a.id)}" aria-label="Retirer ${esc(a.label)}" style="${f(15, 6)}">Retirer</button>` : ''}</div>`;
     }).join('');
-    return `<div class="col" style="gap:12px"><div class="row" style="gap:10px;justify-content:space-between">
-      <div style="${f(21, 7)}">Mes raccourcis</div>
-      ${(S.homeShortcuts || []).some(a => a.personal) ? `<button class="press" data-act="editShortcuts" aria-pressed="${ui.editingShortcuts}" style="min-height:44px;${f(15, 6)}">${ui.editingShortcuts ? 'Terminer' : 'Modifier'}</button>` : ''}
-      </div><div class="grid3 homeGrid">${items}
-      <button class="col press" data-act="addShortcut" style="gap:4px;align-items:center">
-        <span class="circle tileIcon" style="width:54px;height:54px">${icon('plus', 24, 'var(--accent)')}</span>
-        <span style="${f(15, 5)};min-height:24px">Ajouter</span></button></div></div>`;
+    const edit = (S.homeShortcuts || []).some(a => a.personal) ? `<button class="press accent" data-act="editShortcuts" aria-pressed="${ui.editingShortcuts}" style="min-height:44px;${f(15, 6)}">${ui.editingShortcuts ? 'Terminer' : 'Modifier'}</button>` : '';
+    return `${sectionTitle('app', 'Mes raccourcis', edit)}<div class="card listCard"><div class="grid3 homeGrid">${items}
+      <button class="col press" data-act="addShortcut" style="gap:8px;align-items:center">
+        <span class="tileIcon">${icon('plus', 30, 'var(--accentIcon)')}</span>
+        <span class="tileLabel" style="${f(16, 5)}">Ajouter</span></button></div></div>`;
   }
 
   function addShortcutSheet() {
@@ -519,7 +507,7 @@
         <div class="muted" style="${f(15, 4)}">${S.realtimeProtection
           ? "PapAI repère les arnaques à partir des applications ouvertes et du titre de la fenêtre. Jamais l'écran, jamais vos mots de passe."
           : "Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées."}</div></div>
-      <div class="row" style="gap:12px">
+      <div class="row" style="gap:12px;flex-wrap:wrap">
         ${pill(`Mon support (${S.helpers.length})`, 'openHelpers', { filled: false, height: 50 })}
         ${pill("Revoir l'accueil", 'replayOnboarding', { filled: false, height: 50 })}
         ${S.screenConsent ? pill("Retirer l'accord de partage", 'revokeConsent', { filled: false, height: 50 }) : ''}
@@ -630,7 +618,6 @@
       ui.warning = null; ui.dictating = true; render();
       Promise.resolve(call('dictation_toggle')).catch(() => { ui.dictating = false; render(); });
     },
-    write: () => { ui.writing = true; render(); focus('req'); },
     homeShortcut: (id) => call('open_home_shortcut', id),
     editShortcuts: () => { ui.editingShortcuts = !ui.editingShortcuts; render(); },
     removeShortcut: (id) => call('remove_home_shortcut', id),

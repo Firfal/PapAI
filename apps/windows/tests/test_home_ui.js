@@ -114,8 +114,8 @@ test('Entrée et Échap ne ferment aucune alerte ni ne déclenchent une action d
 test('textes Mac #30, avertissement vide identique et titres renforcés', async () => {
   const h = await home(false);
   h.update({ helperName: 'Théo', lessons: [{ id: 'l', title: 'Mes photos', steps: [] }] });
-  assert.match(h.root.innerHTML, /Un souci sur l'ordinateur \? Écrivez ce dont vous avez besoin, un message part tout de suite à Théo\./);
-  assert.match(h.root.innerHTML, /placeholder="Écrivez votre demande"/);
+  assert.match(h.root.innerHTML, /Que voulez-vous faire \?/);
+  assert.match(h.root.innerHTML, /placeholder="Écrivez ce que vous voulez faire"/);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>(Bonjour|Bonsoir)</);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes automates</);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes raccourcis</);
@@ -124,7 +124,7 @@ test('textes Mac #30, avertissement vide identique et titres renforcés', async 
   assert.match(h.root.innerHTML, /Dites en quelques mots ce qui ne va pas\./);
   assert.deepEqual(h.sent, []);
   h.update({ microPresent: true });
-  assert.match(h.root.innerHTML, /Un souci sur l'ordinateur \? Dites-le simplement, un message part tout de suite à Théo\./);
+  assert.match(h.root.innerHTML, /placeholder="Écrivez ou dites ce que vous voulez faire"/);
   h.click('submit');
   assert.match(h.root.innerHTML, /Dites en quelques mots ce qui ne va pas\./);
 });
@@ -167,22 +167,21 @@ test('retirer le dernier personnel quitte le mode édition avant le prochain ajo
 test('bascule micro/texte à chaud, sans perdre le brouillon', async () => {
   const h = await home();
   assert.match(h.root.innerHTML, /Dicter ma demande/);
-  assert.match(h.root.innerHTML, />Écrire</);
-  assert.doesNotMatch(h.root.innerHTML, /id="req"/);
-  h.click('write');
+  assert.match(h.root.innerHTML, /id="req"/);
   h.type('Mes photos');
   h.update({ microPresent: false });
   assert.doesNotMatch(h.root.innerHTML, /Dicter ma demande/);
-  assert.match(h.root.innerHTML, /Écrivez ce dont vous avez besoin/);
+  assert.match(h.root.innerHTML, /placeholder="Écrivez ce que vous voulez faire"/);
   assert.match(h.root.innerHTML, /Mes photos<\/textarea>/);
   h.update({ microPresent: true });
   assert.match(h.root.innerHTML, /Dicter ma demande/);
   assert.match(h.root.innerHTML, /Mes photos<\/textarea>/);
 });
 
-test('aucun automate vide, date ni ancien bouton', async () => {
+test('sans automate : explication du Mac, ni date ni ancien bouton', async () => {
   const h = await home(false);
-  assert.doesNotMatch(h.root.innerHTML, /Mes automates|J'ai besoin d'aide|Demander une assistance|Mes applications/);
+  assert.match(h.root.innerHTML, /Aucun automate pour l'instant\./);
+  assert.doesNotMatch(h.root.innerHTML, /J'ai besoin d'aide|Demander une assistance|Mes applications/);
   assert.match(h.root.innerHTML, /Mes raccourcis/);
   assert.match(h.root.innerHTML, /logotype-papai.svg/);
 });

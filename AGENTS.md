@@ -32,6 +32,7 @@ Un seul mot par notion, dans toutes les apps. Les identifiants internes (`senior
 
 - **Surveillance continue du gardien** : elle est conservée, comme option à activer ou non, à la manière de la protection en temps réel d'un antivirus. Hors assistance, seuls partent des noms d'apps, le titre de la fenêtre et le nom du site, jamais d'image de l'écran.
 - **Aucun compte ni identifiant retenu par l'app** : pas d'import de cookies ni de mot de passe, même pour une liste de sites. Quand un site demande une connexion, la personne aidée reprend la main et se connecte elle-même, puis Holo continue.
+- **Pas de blocage du clavier et de la souris sur Windows pour l'instant** : trop compliqué à ce stade. Le verrou existant du Mac (`InputLock`) n'est pas retiré.
 
 ## Branches gelées
 
@@ -51,6 +52,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 8 nov. | Devin | `devin/1794107959-design-windows-mac` | Design Windows aligné sur le Mac actuel (#65 fusionnée dans `test-demo`, accord de liaison #59 conservé) : palette et dégradés de `Theme.swift`, en-tête en carte bleue avec salutation et barre de demande à micro intégré, accueil en deux colonnes 60/40 (automates en liste, raccourcis en grille), onglets à indicateur bleu dans les Réglages. Alertes du gardien et bouton Arrêter inchangés. Tests UI 14/14, home/shortcuts/safety OK, Windows app 95 OK sauf le QR code (module `qrcode` absent de la VM). Fichiers libérés. |
 | 8 nov. | Devin (pilotage) | `test-demo` | Arbitrage de Corentin : sélecteur « Taille du texte » (Grande / Très grande) remis dans les Réglages Mac, style `Onglets` du nouveau design ; étiquette VoiceOver « Voir l'automate » au lieu de « fiche ». `PermissionsView.swift`, `HomeView.swift`. Swift non compilé (Linux). Fichiers libérés. |
 | 8 nov. | Claude | `devin/1794097973-gardien-trous` | PR #53, relecture sécurité : exception impôts/loyer refusée dès qu'un site autre que `impots.gouv.fr` (ou sous-domaine) est cité, ou qu'apparaît « téléphone » ou « donner/envoyer/dicter le code ou numéro » ; carte cadeau + code ou numéro communiqué à quelqu'un = alerte quel que soit le montant (Google Play 99 €). 15 cas ajoutés à `tests/test_demandes_suspectes.py` ; suspectes, gardien, parcours, sécurité verts. |
 | 8 nov. | Devin | `devin/1794097973-gardien-trous` | Corrige le découpage décimal et la détection des cartes espacées ; distingue les cartes strictes et grand public, avec dispense conditionnelle des cadeaux Amazon/Apple/iTunes familiaux. Les taxes foncière et d'habitation suivent le plafond impôts ; IP et URL non autorisés, appels suspects et comptes étrangers qualifiés sont signalés sans confondre un compte courant ou les mois avec un pays. Quantités de cartes et montants restent contrôlés. Cas légitimes et suspects étendus. Fichiers libérés. |
