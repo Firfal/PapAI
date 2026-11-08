@@ -278,8 +278,10 @@ def evaluer_demande(texte: str) -> Alerte | None:
     code_cadeau = cadeau and bool(re.search(r"\bcodes?\b", t)) and payer
     payer_en_cadeau = cadeau and bool(re.search(r"\b(payer|regler|pay)\b.*\b(avec|par|en|with|using)\b", t))
     demande_carte_suspecte = False
-    segments = re.split(r"[.;\n]+|\b(?:puis|ensuite)\b", t)
-    segments_originaux = re.split(r"[.;\n]+|\b(?:puis|ensuite)\b", texte.casefold())
+    segments = re.split(r"[;\n]+|\.(?!\d)|(?<!\d)\.|\b(?:puis|ensuite)\b", t)
+    segments_originaux = re.split(
+        r"[;\n]+|\.(?!\d)|(?<!\d)\.|\b(?:puis|ensuite)\b", texte.casefold()
+    )
     for segment, segment_original in zip(segments, segments_originaux):
         if not re.search(carte_cadeau_pattern, segment):
             continue

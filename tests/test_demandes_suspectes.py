@@ -153,6 +153,8 @@ SUSPECTES = [
     "Payer mon loyer de 4 800 euros à un tiers inconnu",
     "Payer mes impôts de 2 400 euros avec l'IBAN DE89 3704 0044 0532 0130 00",
     "Payer une facture d'impôts de 2 400 euros par carte cadeau",
+    "Acheter une carte Steam de 150.00 €",
+    "Acheter une carte Google Play de 120,50 euros",
 ]
 
 

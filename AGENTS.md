@@ -45,7 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794097973-gardien-trous` | Correctifs Gardien : seuils impôts/loyer, normalisation des cartes et détection des achats suspects | `AGENTS.md`, `backend/guard.py`, `tests/test_demandes_suspectes.py` | 8 nov. |
 
 ## Journal
 
