@@ -46,6 +46,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
+| Devin | `devin/1794127166-jeton-par-support` | Chantier 2 : un jeton par support, révocable (C1, #51) | `backend/orgs.py`, `backend/app.py` (routes `/o/…`, `_key_ok`, `ws_aidant`, validation du plan), `backend/static/org.html` (section Supports), `tests/test_supports_revocables.py`, `PROTOCOL.md` (Organisations) | 8 nov. |
 
 ## Journal
 
