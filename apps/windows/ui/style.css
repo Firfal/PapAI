@@ -23,7 +23,6 @@ body {
 button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
 button:disabled { opacity: .45; cursor: default; }
 button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid rgba(46,158,91,.45); outline-offset: 2px; }
-#pairDialog:focus { outline: none; }
 input, textarea { font: inherit; color: var(--ink); border: 0; outline: none; background: none; user-select: text; }
 input::placeholder, textarea::placeholder { color: rgba(17,19,18,.32); }
 svg { display: block; flex: none; }
@@ -75,8 +74,6 @@ body.compact #root { padding: 0; gap: 0; }
 .pill:active:not(:disabled), .press:active:not(:disabled) { transform: scale(.97); }
 .grow { flex: 1 1 0; min-width: 0; }
 
-.field { background: var(--card); border-radius: var(--r); width: 100%; resize: none; display: block; }
-
 /* Micro : pulsation pendant l'écoute */
 .micRing { position: absolute; inset: 0; border-radius: 50%; background: rgba(46,158,91,.25);
   animation: pulse .9s ease-in-out infinite alternate; }
@@ -89,14 +86,12 @@ body.compact #root { padding: 0; gap: 0; }
 .fade { animation: fade .25s ease-in-out; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
-.dots .d { height: 12px; border-radius: 999px; transition: width .3s cubic-bezier(.2,.8,.2,1), background .3s; }
-
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 8px; row-gap: 14px; }
 .appIcon { width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center;
   justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 .appIcon img { width: 52px; height: 52px; }
 
-/* Feuilles (réglages, proches), comme .sheet sur macOS */
+/* Feuilles (réglages, raccourcis), comme .sheet sur macOS */
 #sheet:empty { display: none; }
 #sheet { position: fixed; inset: 0; background: rgba(17,19,18,.22); display: flex;
   align-items: flex-start; justify-content: center; padding-top: 28px; animation: fade .2s; }

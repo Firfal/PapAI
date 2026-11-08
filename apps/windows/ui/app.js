@@ -5,8 +5,8 @@
   'use strict';
   let S = null;
   let api = null;
-  const ui = { request: '', warning: null, lessonId: null, lessonIndex: 0, name: null,
-               sheet: null, settings: { name: '', server: '' }, lastDictMsg: null,
+  const ui = { request: '', warning: null, lessonId: null, lessonIndex: 0,
+               sheet: null, lastDictMsg: null,
                writing: false, dictating: false, lastDictation: null, submitting: false, editingShortcuts: false };
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -65,7 +65,7 @@
     const warn = (ui.warning ? `<div class="pillChip" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
         ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '') + wait;
     return `<div class="mintCard homeCard" style="padding:32px;gap:16px">
-      <div style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) : ''}</div>
+      <div style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.firstName ? ' ' + esc(S.firstName) : ''}</div>
       <div class="muted" style="${f(18, 5)}">Un souci sur l'ordinateur ? ${mic ? 'Dites-le simplement' : 'Écrivez ce dont vous avez besoin'}, un message part tout de suite à ${esc(S.helperName)}.</div>
       <div class="spacer"></div>
       ${mic ? micButton() : ''}
@@ -339,109 +339,7 @@
       </div>`;
   }
 
-  // -------------------------------------------------------------- Onboarding
-  const ONB = 4;  // la taille du texte se règle dans les réglages, pas à l'accueil
-  function onboarding() {
-    const step = S.onboardingStep;
-    const dots = `<div class="row dots" style="gap:8px" aria-label="Étape ${step + 1} sur ${ONB}">` +
-      Array.from({ length: ONB }, (_, i) => `<span class="d" style="width:${i === step ? 34 : 12}px;background:${i <= step ? 'var(--accent)' : 'var(--card)'}"></span>`).join('') + '</div>';
-    const content = [onbWelcome, onbName, onbPermissions, () => helpersPanel(true)][step]();
-    const label = step === 0 ? 'Commencer' : step === ONB - 1 ? (S.helpers.length ? 'Terminer' : 'Plus tard') : 'Continuer';
-    return mint(`${dots}<div class="col" style="gap:22px;flex:1;min-height:0">${content}</div>`, 40, 22) +
-      `<div class="row" style="gap:14px;margin-top:18px">
-        ${step > 0 ? pill('Retour', 'onbBack', { filled: false, height: 78 }) : ''}
-        ${pill(label, 'onbNext', { height: 78, grow: true })}
-      </div>`;
-  }
-  const h1 = (text, size) => `<div style="${f(size || 44, 6)};letter-spacing:${size === 52 ? -0.8 : -0.6}px;line-height:1.1">${esc(text)}</div>`;
   const lead = (text, size) => `<div class="muted" style="${f(size || 21, 5)}">${esc(text)}</div>`;
-
-  function onbWelcome() {
-    return h1('Bienvenue sur PapAI', 52) +
-      lead("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.", 23) +
-      promise('hand', "Rien ne bouge sur votre écran sans l'accord de votre support.", 20) +
-      promise('stopCircle', 'Vous pouvez tout arrêter à tout moment.', 20) +
-      promise('lock', "Votre écran n'est partagé que quand vous le demandez.", 20);
-  }
-  function onbName() {
-    if (ui.name === null) ui.name = S.storedFirstName || '';
-    return h1('Comment vous appelez-vous ?') +
-      lead("Votre prénom suffit. C'est ainsi que PapAI vous dira bonjour.") +
-      `<input id="name" class="field" placeholder="Votre prénom" value="${esc(ui.name)}" autocomplete="off"
-        style="padding:22px 26px;${f(30, 6)}">`;
-  }
-  function onbTextSize() {
-    const opts = S.textScales.map(([label, v]) => {
-      const on = Math.abs(S.textScale - v) < 0.01;
-      return `<button class="col press grow card" data-act="scale" data-arg="${v}" aria-pressed="${on}"
-          style="height:190px;gap:10px;align-items:center;justify-content:center;
-          box-shadow:${on ? '0 0 0 2px var(--accent), inset 0 0 0 2px var(--accent)' : 'none'}">
-        <span style="font-size:${54 * v}px;font-weight:600">Aa</span>
-        <span style="font-size:${20 * v}px;font-weight:500">${label}</span></button>`;
-    }).join('');
-    return h1('La taille du texte') +
-      lead('Choisissez ce qui est le plus confortable à lire. Vous pourrez changer plus tard.') +
-      `<div class="row" style="gap:16px">${opts}</div>`;
-  }
-  function permissionRow(title, detail) {
-    return `<div class="card row" style="gap:18px;padding:20px">
-      <span class="accent">${icon('checkCircle', 34)}</span>
-      <div class="col grow" style="gap:4px"><div style="${f(22, 6)}">${esc(title)}</div>
-      <div class="muted" style="${f(17, 4)}">${esc(detail)}</div></div></div>`;
-  }
-  function onbPermissions() {
-    // Windows ne demande pas d'autorisation pour voir l'écran ni pour la souris :
-    // même étape, mêmes engagements, déjà cochés.
-    return h1('Deux autorisations, déjà prêtes') +
-      lead("Sur Windows, rien à cocher : PapAI peut voir l'écran et utiliser la souris, mais seulement quand vous le demandez.") +
-      permissionRow('Voir mon écran', 'Pour que Holo voie ce que vous voyez. Jamais sans votre demande.') +
-      permissionRow('Utiliser la souris et le clavier', "Pour cliquer à votre place, uniquement après l'accord de votre support.");
-  }
-
-  // ------------------------------------------------------------ HelpersPanel
-  function helpersPanel(onb) {
-    const rows = S.helpers.map((h) => `<div class="card row" style="gap:14px;padding:14px">
-        <span class="circle" style="width:46px;height:46px;background:var(--accent);color:#fff;${f(20, 6)}">${esc((h.name[0] || '').toUpperCase())}</span>
-        <div class="col grow" style="gap:2px"><div style="${f(21, 6)}">${esc(h.name)}</div>
-          ${h.relation ? `<div class="muted" style="${f(16, 4)}">${esc(cap(h.relation))}</div>` : ''}</div>
-        ${onb ? '' : `<button class="circle press" data-act="removeHelper" data-arg="${esc(h.id)}" aria-label="Retirer ${esc(h.name)}"
-          style="width:36px;height:36px;background:var(--bg)">${icon('xmark', 16)}</button>`}
-      </div>`).join('');
-    const add = S.pairCode || S.pairURL ? '' :
-      `<div>${pill(S.helpers.length ? 'Ajouter un autre support' : 'Ajouter un support', 'pair', { filled: !S.helpers.length, height: 60, disabled: !S.connected })}</div>
-       ${S.connected ? '' : `<div class="muted" style="${f(16, 4)}">Connexion au serveur en cours…</div>`}`;
-    const added = S.pairAdded ? `<div class="row accent" style="gap:8px;${f(19, 6)}">${icon('checkCircle', 22)}${esc(S.pairAdded)} est maintenant support.</div>` : '';
-    const code = S.pairCode || S.pairURL ? `<div class="card col" style="padding:18px 22px;gap:8px;align-items:center;flex:none">
-        ${S.pairQR ? `<img src="${S.pairQR}" alt="QR code à scanner par votre support" style="width:170px;height:170px;image-rendering:pixelated">` : ''}
-        ${S.pairCode ? `<div class="muted" style="${f(16, 4)}">ou le code</div>
-        <div style="font-size:${38 * S.textScale}px;font-weight:600;letter-spacing:4px;font-variant-numeric:tabular-nums;user-select:text">${esc(S.pairCode.slice(0, 3))} ${esc(S.pairCode.slice(3))}</div>` : `<div style="${f(20, 6)}">Lien d'invitation</div>`}
-        <div class="muted" style="${f(15, 4)}">${S.pairLong ? 'Valable 24 heures' : 'Valable 10 minutes'}</div>
-        ${S.pairURL ? `<button class="accent press" data-act="shareInvite" style="${f(17, 6)}">Envoyer par SMS, WhatsApp…</button>` : ''}
-        ${ui.inviteCopied ? `<div class="accent" style="max-width:260px;text-align:center;${f(15, 6)}">${esc(ui.inviteCopied)}</div>` : ''}
-        ${S.pairURL ? `<div class="muted" style="max-width:240px;text-align:center;word-break:break-all;user-select:text;${f(13, 4)}">Sans l'app PapAI : ${esc(S.pairURL)}</div>` : ''}
-        <button class="muted" data-act="stopPair" style="${f(17, 6)}">Annuler</button>
-      </div>` : '';
-    return `<div class="row" style="align-items:flex-start;gap:28px">
-      <div class="col grow" style="gap:20px">
-        <div style="${f(onb ? 44 : 34, 6)};letter-spacing:-0.6px;line-height:1.1">${onb ? 'Qui va vous aider ?' : 'Mon support'}</div>
-        <div class="muted" style="${f(20, 4)}">Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.</div>
-        ${added}${rows}${add}
-      </div>${code}</div>`;
-  }
-
-  // ------------------------------------------------------------- PairRequest
-  function pairAsk() {
-    const r = S.pairRequest;
-    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Nouveau support</span></div>
-      <div class="col" style="gap:8px"><div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.name)} veut devenir votre support</div>
-      ${r.relation ? `<div class="muted" style="${f(17, 4)}">${esc(r.relation)}</div>` : ''}</div>
-      ${lead("Acceptez seulement si vous connaissez cette personne.")}
-      ${lead("Si quelqu'un vous a appelé ou écrit pour vous demander ce code, refusez.")}`, 40, 22) +
-      `<div class="row" style="gap:14px;margin-top:18px">
-        ${pill('Refuser', 'refusePair', { filled: false, height: 78, grow: true, arg: r.req })}
-        ${pill("Accepter", 'acceptPair', { height: 78, grow: true, disabled: !S.connected, arg: r.req })}
-      </div>`;
-  }
 
   // ------------------------------------------------- Demande en attente (ticket)
   function rdvText(at) {
@@ -475,38 +373,41 @@
   }
 
   // ------------------------------------------------------------------ Feuilles
+  // « Mon support » : l'organisation rattachée par les stratégies de groupe, en lecture seule.
+  function supportInfo() {
+    if (!S.orgConfigured && !S.orgName) {
+      return `<div class="card row" style="gap:14px;padding:16px">
+        <span class="muted">${icon('exclam', 22)}</span>
+        <span style="${f(17, 5)}">Aucune organisation configurée : contactez votre service informatique.</span></div>`;
+    }
+    const online = S.connected && !!S.orgName;
+    const status = !S.orgName ? 'Rattachement en cours…' : online ? 'En ligne' : 'Hors ligne pour le moment';
+    return `<div class="card row" style="gap:14px;padding:16px">
+      <span class="circle" style="width:42px;height:42px;background:var(--mint);color:var(--accent)">${icon('personWave', 22)}</span>
+      <div class="col grow" style="gap:4px">
+        <div style="${f(18, 6)}">Support IT${S.orgName ? ' · ' + esc(S.orgName) : ''}</div>
+        <div class="row muted" style="gap:8px;${f(15, 5)}"><span class="dot" style="background:${online ? 'var(--accent)' : 'rgba(122,128,124,.5)'}"></span>${esc(status)}</div>
+      </div></div>
+      <div class="muted" style="${f(15, 4)}">Réglé par votre service informatique : rien à faire sur cet ordinateur.</div>`;
+  }
+
   function settingsSheet() {
-    const field = (label, id, val, ph) => `<div class="col" style="gap:8px">
-      <div class="muted" style="${f(15, 6)}">${label}</div>
-      <input id="${id}" value="${esc(val)}" placeholder="${esc(ph)}" autocomplete="off"
-        style="background:var(--card);border-radius:18px;padding:16px;${f(18, 5)}"></div>`;
     const seg = S.textScales.map(([label, v]) =>
       `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
     return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--bg)">
       <div style="${f(30, 6)}">Réglages</div>
-      ${S.orgName ? `<div class="muted" style="${f(15, 5)}">Poste géré par ${esc(S.orgName)}</div>` : ''}
-      ${field('Prénom', 'setName', ui.settings.name, 'Jeanne')}
-      ${field('Serveur', 'setServer', ui.settings.server, 'serveur PapAI officiel')}
+      <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Mon support</div>${supportInfo()}</div>
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Taille du texte</div><div class="seg">${seg}</div></div>
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Protection en temps réel</div>
         <div class="seg"><button class="${S.realtimeProtection ? 'on' : ''}" data-act="protection" data-arg="1">Activée</button><button class="${S.realtimeProtection ? '' : 'on'}" data-act="protection" data-arg="0">Coupée</button></div>
         <div class="muted" style="${f(15, 4)}">${S.realtimeProtection
           ? "PapAI repère les arnaques à partir des applications ouvertes et du titre de la fenêtre. Jamais l'écran, jamais vos mots de passe."
           : "Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées."}</div></div>
-      <div class="row" style="gap:12px">
-        ${pill(`Mon support (${S.helpers.length})`, 'openHelpers', { filled: false, height: 50 })}
-        ${pill("Revoir l'accueil", 'replayOnboarding', { filled: false, height: 50 })}
+      <div class="row" style="gap:8px">
         ${S.screenConsent ? pill("Retirer l'accord de partage", 'revokeConsent', { filled: false, height: 50 }) : ''}
-      </div>
-      <div class="row" style="gap:8px"><div class="spacer"></div>
-        ${pill('Annuler', 'closeSheet', { filled: false, height: 50 })}
-        ${pill('Enregistrer', 'saveSettings', { height: 50 })}
+        <div class="spacer"></div>
+        ${pill('Fermer', 'closeSheet', { height: 50 })}
       </div></div>`;
-  }
-  function helpersSheet() {
-    return `<div class="sheet col" style="width:820px;min-height:460px;padding:36px;gap:18px;background:var(--mint)">
-      ${helpersPanel(false)}<div class="spacer"></div>
-      <div class="row"><div class="spacer"></div>${pill('Fermer', 'closeHelpers', { height: 54 })}</div></div>`;
   }
 
   // Alerte du gardien (PROTOCOL.md) : elle passe devant tout.
@@ -524,7 +425,6 @@
 
   // ------------------------------------------------------------------- rendu
   function body() {
-    if (!S.onboarded) return onboarding();
     if (S.remoteRequest) return remote();
     if (S.queued && S.queued.show) return queued();
     if (S.screen === 'consent') return consent();
@@ -545,19 +445,15 @@
     const a = document.activeElement;
     const focusId = a && a.id ? a.id : null;
     const sel = focusId && a.setSelectionRange ? [a.selectionStart, a.selectionEnd] : null;
-    const compact = S.compact && S.screen === 'session' && S.onboarded && !S.remoteRequest && !S.pairRequest;
+    const compact = S.compact && S.screen === 'session' && !S.remoteRequest;
     if (document.body) document.body.classList.toggle('compact', compact);
     document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${body()}</div>`;
-    document.getElementById('root').inert = !!S.pairRequest;
     document.getElementById('sheet').innerHTML =
-      S.alert ? alertSheet() : S.pairRequest ? `<div class="sheet col" id="pairDialog" role="dialog" aria-modal="true"
-        aria-label="Nouveau support" tabindex="-1" style="width:min(820px,calc(100vw - 56px));height:min(580px,calc(100vh - 56px));padding:24px;background:var(--bg)">${pairAsk()}</div>` : ui.sheet === 'settings' ? settingsSheet()
-        : ui.sheet === 'helpers' ? helpersSheet() : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
+      S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
+        : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
     const req = document.getElementById('req');
     if (req) autosize(req);
-    if (S.pairRequest && !S.alert) {
-      document.getElementById('pairDialog')?.focus();
-    } else if (focusId) {
+    if (focusId) {
       const el = document.getElementById(focusId);
       if (el) { el.focus(); if (sel && el.setSelectionRange) el.setSelectionRange(sel[0], sel[1]); }
     }
@@ -565,7 +461,7 @@
 
   // ----------------------------------------------------------------- gestes
   function submit() {
-    if (S.dictation.phase !== 'idle' || ui.dictating || ui.submitting || S.screen !== 'home' || S.remoteRequest || S.pairRequest || S.alert) return;
+    if (S.dictation.phase !== 'idle' || ui.dictating || ui.submitting || S.screen !== 'home' || S.remoteRequest || S.alert) return;
     const t = ui.request.trim();
     if (!t) { ui.warning = 'Dites en quelques mots ce qui ne va pas.'; render(); focus('req'); return; }
     if (!S.connected) { ui.warning = `Je ne joins pas ${S.helperName} pour le moment. Réessayez dans un instant.`; render(); return; }
@@ -578,17 +474,6 @@
     });
   }
   function focus(id) { const el = document.getElementById(id); if (el) el.focus(); }
-  function setStep(n) { S.onboardingStep = n; render(); call('set_onboarding_step', n); }
-  function onbNext() {
-    const step = S.onboardingStep;
-    if (step === 1) {
-      const n = (ui.name || '').trim();
-      if (!n) { focus('name'); return; }
-      call('set_first_name', n);
-    }
-    if (step >= ONB - 1) { call('finish_onboarding'); return; }
-    setStep(step + 1);
-  }
   function lessonNext() {
     const n = (S.lesson.steps || []).length;
     if (ui.lessonIndex >= n - 1) call('close_lesson'); else { ui.lessonIndex += 1; render(); }
@@ -612,13 +497,9 @@
       else if (result && result.message) ui.warning = result.message;
       render();
     },
-    openSettings: () => { ui.settings = { name: S.storedFirstName || S.firstName, server: S.server }; ui.sheet = 'settings'; render(); },
+    openSettings: () => { ui.sheet = 'settings'; render(); },
     closeSheet: () => { ui.sheet = null; render(); },
     dismissAlert: () => { if (!S.alert?.blocked) { S.alert = null; render(); call('dismiss_alert'); } },
-    openHelpers: () => { ui.sheet = 'helpers'; render(); },
-    closeHelpers: () => { call('stop_pairing'); ui.sheet = null; render(); },
-    replayOnboarding: () => { ui.sheet = null; ui.name = null; call('reset_onboarding'); render(); },
-    saveSettings: () => { call('save_settings', ui.settings.name, ui.settings.server); ui.sheet = null; render(); },
     scale: (v) => { S.textScale = parseFloat(v); render(); call('set_text_scale', parseFloat(v)); },
     protection: (v) => { S.realtimeProtection = v === '1'; render(); call('set_realtime_protection', S.realtimeProtection); },
     shortcut: (id) => call('run_shortcut', id),
@@ -641,18 +522,6 @@
     closeLesson: () => call('close_lesson'),
     prevStep: () => { ui.lessonIndex = Math.max(0, ui.lessonIndex - 1); render(); },
     nextStep: lessonNext,
-    onbBack: () => setStep(Math.max(0, S.onboardingStep - 1)),
-    onbNext,
-    pair: () => { ui.inviteCopied = null; call('start_pairing'); },
-    stopPair: () => { ui.inviteCopied = null; call('stop_pairing'); },
-    shareInvite: () => Promise.resolve(call('copy_invitation')).then((ok) => {
-      ui.inviteCopied = ok ? "Invitation copiée : collez-la dans un SMS, WhatsApp ou un mail."
-        : "Copie impossible : recopiez le lien ci-dessous.";
-      render();
-    }),
-    removeHelper: (id) => call('remove_helper', id),
-    acceptPair: (id) => call('answer_pair', true, id),
-    refusePair: (id) => call('answer_pair', false, id),
     acceptRemote: () => call('accept_remote'),
     scheduleTicket: (slot) => call('schedule_ticket', slot),
     closeQueued: () => call('close_queued'),
@@ -663,46 +532,26 @@
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
     if (!b || b.disabled) return;
-    if (S.pairRequest && !S.alert && !['acceptPair', 'refusePair'].includes(b.dataset.act)) return;
     const fn = acts[b.dataset.act];
     if (fn) fn(b.dataset.arg);
   });
   document.addEventListener('input', (e) => {
-    if (S.pairRequest) return;
     const t = e.target;
     if (t.id === 'req') { ui.request = t.value; autosize(t); }
-    else if (t.id === 'name') ui.name = t.value;
     else if (t.id === 'seniorReply') {
       const was = !(ui.seniorText || '').trim(), now = !t.value.trim();
       ui.seniorText = t.value;
       if (was !== now) render();
     }
-    else if (t.id === 'setName') ui.settings.name = t.value;
-    else if (t.id === 'setServer') ui.settings.server = t.value;
   });
   // keyboardShortcut(.cancelAction) / (.defaultAction) des vues Mac
   document.addEventListener('keydown', (e) => {
     if (!S) return;
-    if (S.pairRequest && !S.alert) {
-      if (e.key === 'Enter') { e.preventDefault(); return; }
-      if (e.key === 'Escape') { e.preventDefault(); acts.refusePair(S.pairRequest.req); return; }
-      if (e.key === 'Tab') {
-        e.preventDefault();
-        const buttons = document.getElementById('pairDialog')?.querySelectorAll('button');
-        if (buttons?.length) {
-          const index = Array.from(buttons).indexOf(document.activeElement);
-          buttons[(index + (e.shiftKey ? buttons.length - 1 : 1)) % buttons.length].focus();
-        }
-      }
-      return;
-    }
     const t = e.target;
     if (S.alert && (e.key === 'Enter' || e.key === 'Escape')) { e.preventDefault(); return; }
     if (e.key === 'Escape') {
-      if (S.onboarded && S.screen === 'session' && S.sessionOpen) { ui.sheet = null; return acts.stop(); }
-      if (ui.sheet) { ui.sheet === 'helpers' ? acts.closeHelpers() : acts.closeSheet(); return; }
-      if (S.pairRequest) return acts.refusePair();
-      if (!S.onboarded) return;
+      if (S.screen === 'session' && S.sessionOpen) { ui.sheet = null; return acts.stop(); }
+      if (ui.sheet) { acts.closeSheet(); return; }
       if (S.remoteRequest) return acts.refuseRemote();
       if (S.screen === 'consent') return acts.cancelConsent();
       if (S.screen === 'lesson') return acts.closeLesson();
@@ -712,8 +561,6 @@
     if (t && t.tagName === 'BUTTON') return;
     if (t && t.id === 'req') { e.preventDefault(); submit(); return; }
     if (t && t.id === 'seniorReply') { e.preventDefault(); acts.seniorReply(); return; }
-    if (S.pairRequest) return;
-    if (!S.onboarded) { e.preventDefault(); onbNext(); return; }
     if (S.remoteRequest) return;
     if (S.screen === 'consent' && S.connected) acts.share();
     else if (S.screen === 'lesson') lessonNext();
@@ -729,7 +576,6 @@
       if (m && m !== ui.lastDictMsg) ui.warning = m;
       if (m && S.dictation.phase === 'idle') ui.dictating = false;
       ui.lastDictMsg = m || null;
-      if (S.onboarded) ui.name = null;
       // Holo peut reposer la même question plus tard : la réponse vaut pour une seule question.
       if (!(S.questionForMe && S.question && S.state === 'awaiting_helper')) ui.seniorSent = null;
       if (was && was !== S.screen && S.screen === 'home') {
@@ -741,7 +587,7 @@
       if (id === ui.lastDictation) return;
       ui.lastDictation = id;
       ui.dictating = false;
-      if (!text.trim() || S.screen !== 'home' || S.remoteRequest || S.pairRequest || S.alert) { render(); return; }
+      if (!text.trim() || S.screen !== 'home' || S.remoteRequest || S.alert) { render(); return; }
       ui.request = ui.request.trim() ? ui.request.trim() + ' ' + text.trim() : text.trim();
       submit();
       render();
@@ -751,7 +597,6 @@
   // Aperçu dans un navigateur (python -m papai.preview) : l'état de démo vient
   // de Model en mode démonstration ; les gestes ne font que naviguer.
   const preview = {
-    answer_pair: () => { S.pairRequest = null; render(); },
     request_consent: (t) => { S.pendingTask = t; S.screen = 'session'; S.state = 'planning'; render(); },
     cancel_consent: () => { S.screen = 'home'; render(); },
     give_consent: () => { S.screenConsent = true; S.screen = 'session'; S.state = 'planning'; render(); },
@@ -764,7 +609,6 @@
     set_realtime_protection: () => {},
     expand_window: () => { S.compact = false; render(); },
     answer_senior: () => {},
-    finish_onboarding: () => { S.onboarded = true; render(); },
     add_home_folder: () => ({ ok: false, message: "Le choix d'un dossier se fait dans l'app Windows." }),
   };
 
@@ -777,10 +621,7 @@
     const q = new URLSearchParams(location.search);
     if (q.has('demo')) {
       fetch('state.json?' + q.toString()).then((r) => r.json()).then((snap) => {
-        if (q.get('sheet')) {
-          ui.sheet = q.get('sheet');
-          ui.settings = { name: snap.firstName, server: snap.server };
-        }
+        if (q.get('sheet')) ui.sheet = q.get('sheet');
         if (q.get('dictation')) snap.dictation = { phase: q.get('dictation'), message: null };
         if (q.get('request')) ui.request = q.get('request');
         if (q.get('connected') === '0') snap.connected = false;

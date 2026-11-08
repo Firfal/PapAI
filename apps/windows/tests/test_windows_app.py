@@ -216,7 +216,8 @@ def unit() -> None:
     pm.set_realtime_protection(False)
     check(settings.load().get("realtimeProtection") is False and not pm.snapshot()["realtimeProtection"],
           "protection coupée gardée sur le disque")
-    check(sent_p and sent_p[-1] == {"type": "profile", "protection": False}, "le serveur apprend que la protection est coupée")
+    check(sent_p and sent_p[-1].get("type") == "profile" and sent_p[-1]["protection"] is False,
+          "le serveur apprend que la protection est coupée")
     check(Model(demo="").realtime_protection is False, "l'état survit au redémarrage de l'app")
     pm.set_realtime_protection(True)
 
@@ -420,71 +421,104 @@ def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
     asyncio.run(aidant())
 
 
-def pairing() -> None:
-    """Ajout d'un support identique au Mac : QR papai://, invitation 24 h, lien en texte."""
-    sent = []
-    m = Model()
-    m._send = sent.append
-    m.start_pairing()
-    check(sent and sent[-1] == {"type": "pair_start", "long": True}, "pair_start long, comme le Mac")
-    m._handle({"type": "pair_code", "code": "482913", "url": "https://h/k/c/p/482913",
-               "app_url": "papai://pair?u=x&n=Jeanne", "expires_in": 86400, "long": True})
-    snap = m.snapshot()
-    check(m.pair_app_url == "papai://pair?u=x&n=Jeanne" and snap["pairLong"] and snap["pairExpires"] == 86400,
-          "le QR porte app_url, invitation 24 h")
-    check(m.pair_url == "https://h/p/482913", "ancien lien partagé débarrassé de la clé")
-    legacy_app = Model.app_pairing_url("https://h/k/cle-secrete/p/482913")
-    check("cle-secrete" not in legacy_app and "%2Fk%2F" not in legacy_app, "QR de secours sans clé")
-    legacy_app = Model.pairing_url_without_key("papai://pair?u=https%3A%2F%2Fh%2Fk%2Fcle-secrete%2Fp%2F482913&n=Jeanne")
-    check("cle-secrete" not in legacy_app and "n=Jeanne" in legacy_app, "ancien lien d'app nettoyé, prénom conservé")
-    invite_url = "https://h/i/Abc_def-123456789012345"
-    m._handle({"type": "pair_code", "code": None, "url": invite_url,
-               "app_url": Model.app_pairing_url(invite_url), "long": True, "expires_in": 86400})
-    snap = m.snapshot()
-    check(snap["pairCode"] is None and snap["pairURL"] == invite_url and snap["pairQR"] and snap["pairLong"],
-          "invitation opaque sans code : URL, QR code et durée disponibles")
-    check(Model.pairing_url_without_key("") == "", "lien vide reste vide")
-    m._handle({"type": "pair_code", "code": "111222", "url": "http://h:8000/p/111222"})
-    check(m.pair_app_url == "papai://pair?u=http%3A%2F%2Fh%3A8000%2Fp%2F111222" and not m.pair_long,
-          "ancien serveur sans app_url : lien papai:// construit")
-    check("valable 10 minutes" in m.invitation_text, "code de 10 minutes : l'invitation le dit")
-    m.pair_long = True
-    check("valable 24 heures" in m.invitation_text, "invitation de 24 heures, texte du Mac")
-    m.stop_pairing()
-    check(m.pair_code is None and m.pair_app_url is None and not m.pair_long, "Annuler efface tout")
+class FakeWinreg:
+    """Registre simulé : `HKLM` et `HKCU\\SOFTWARE\\Policies\\PapAI`."""
+    HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER, REG_SZ, REG_EXPAND_SZ, REG_DWORD = "HKLM", "HKCU", 1, 2, 4
 
-    # Code tapé sans clé : la personne accepte ce support sur son écran.
-    m._handle({"type": "pair_confirm", "req": 7, "name": "Claire", "relation": "Service informatique"})
-    check(m.snapshot()["pairRequest"] == {"req": 7, "name": "Claire", "relation": "Service informatique"},
-          "demande d'un nouveau support affichée")
-    m.answer_pair(True)
-    check(sent[-1] == {"type": "pair_decision", "req": 7, "accept": True} and m.pair_request is None,
-          "Accepter envoie pair_decision")
-    m._handle({"type": "pair_confirm", "req": 8, "name": "Intrus"})
-    m.answer_pair(False)
-    check(sent[-1] == {"type": "pair_decision", "req": 8, "accept": False}, "Refuser envoie pair_decision")
-    m._handle({"type": "pair_confirm", "req": "a", "name": "Marc"})
+    def __init__(self, values: dict) -> None:
+        self.values = values
+
+    def OpenKey(self, root, path):  # noqa: N802
+        if path != settings.POLICY_KEY or root not in self.values:
+            raise OSError("clé absente")
+        vals = self.values[root]
+
+        class Key:
+            def __enter__(self): return vals
+            def __exit__(self, *a): return False
+        return Key()
+
+    def QueryValueEx(self, key, name):  # noqa: N802
+        if name not in key:
+            raise OSError("valeur absente")
+        v = key[name]
+        return v, (self.REG_DWORD if isinstance(v, int) else self.REG_SZ)
+
+
+def entreprise() -> None:
+    """Poste d'entreprise : nom du compte Windows, organisation par stratégie de groupe,
+    aucune liaison possible depuis le poste."""
+    check(settings.policy() == {} or sys.platform == "win32", "hors Windows : pas de lecture du registre")
+    fake = FakeWinreg({
+        "HKLM": {"OrgToken": "ins-jeton-machine", "Server": "https://papai.acme.fr", "Role": 3},
+        "HKCU": {"OrgToken": "ins-jeton-utilisateur", "DisplayName": "Jeanne Martin", "Role": "Comptabilité"},
+    })
+    with patch.object(settings.sys, "platform", "win32"), patch.dict(sys.modules, {"winreg": fake}):
+        pol = settings.policy()
+        check(pol == {"OrgToken": "ins-jeton-machine", "Server": "https://papai.acme.fr",
+                      "DisplayName": "Jeanne Martin", "Role": "Comptabilité"},
+              "stratégie ordinateur (HKLM) avant stratégie utilisateur (HKCU), valeurs non texte ignorées")
+        os.environ["PAPAI_ORG"] = "ins-jeton-de-repli"
+        try:
+            check(settings.org_token() == "ins-jeton-machine", "jeton de la stratégie avant PAPAI_ORG")
+        finally:
+            os.environ.pop("PAPAI_ORG", None)
+        check(settings.enroll_base() == "https://papai.acme.fr", "serveur d'inscription donné par la stratégie")
+        check(settings.display_name() == "Jeanne", "« Bonjour Jeanne » : premier mot du nom imposé")
+        check(settings.machine_name().startswith("Jeanne Martin · Comptabilité"), "le support voit nom et service")
+        saved = os.environ.pop("PAPAI_SERVER", None)
+        try:
+            settings.save({"server": "wss://papai-officiel/k/cle/ws/bridge"})
+            check(settings.needs_space(), "stratégie vers un autre serveur : nouvel espace sur celui-ci")
+            settings.save({"server": "wss://papai.acme.fr/k/cle/ws/bridge"})
+            check(not settings.needs_space(), "espace déjà sur le serveur de la stratégie : rien à refaire")
+        finally:
+            settings.save({"server": ""})
+            if saved is not None:
+                os.environ["PAPAI_SERVER"] = saved
+        fake.values = {"HKCU": {"OrgToken": "pas-un-jeton", "Server": "wss://srv/k/cle/ws/bridge"}}
+        check(settings.org_token() == "" and settings.enroll_base() == settings.OFFICIAL_HTTP,
+              "jeton mal formé et adresse avec clé ignorés")
+
+    with patch.object(settings, "policy", lambda: {}), \
+            patch.object(settings, "_windows_display_name", lambda: "Martin, Jeanne"):
+        check(settings.display_name() == "Jeanne", "nom d'annuaire « Martin, Jeanne » : Jeanne")
+    with patch.object(settings, "policy", lambda: {}), \
+            patch.object(settings, "_windows_display_name", lambda: ""), \
+            patch.object(settings, "_login_name", lambda: "jean.dupont"):
+        check(settings.display_name() == "Jean", "sans nom complet : identifiant Windows, premier mot")
+    with patch.object(settings, "policy", lambda: {}), \
+            patch.object(settings, "_windows_display_name", lambda: ""), \
+            patch.object(settings, "_login_name", lambda: ""):
+        check(settings.display_name() == "", "aucun nom : « Bonjour » seul")
+
+    sent = []
+    with patch.object(settings, "display_name", lambda: "Jeanne"):
+        m = Model()
+    m._send = sent.append
+    snap = m.snapshot()
+    check(snap["firstName"] == "Jeanne", "le nom vient de Windows, rien à saisir")
+    check(not any(k.startswith(("pair", "onboard")) or k == "storedFirstName" for k in snap),
+          "plus d'accueil en étapes, de prénom saisi ni de liaison dans l'état")
+    for gone in ("set_first_name", "start_pairing", "copy_invitation", "answer_pair", "finish_onboarding",
+                 "save_settings", "remove_helper"):
+        check(not hasattr(m, gone), f"parcours particulier retiré : {gone}")
+    m._send_profile()
+    check(sent[-1] == {"type": "profile", "protection": True, "name": "Jeanne"}, "le support lit le nom Windows")
+    m._handle({"type": "pair_confirm", "req": 7, "name": "Intrus", "relation": "Service informatique"})
+    check(sent[-1] == {"type": "pair_decision", "req": 7, "accept": False} and "pairRequest" not in m.snapshot(),
+          "code tapé sur un téléphone : refusé d'office, rien à l'écran")
     n = len(sent)
-    m._handle({"type": "pair_confirm_closed", "req": "autre"})
-    check(m.pair_request["req"] == "a", "fermeture inconnue ignorée")
-    m._handle({"type": "pair_confirm_closed", "req": "a"})
-    check(m.pair_request is None and len(sent) == n, "expiration ferme sans répondre")
-    m._handle({"type": "pair_confirm", "req": "b", "name": "Marc"})
-    m._handle({"type": "pair_confirm", "req": "c", "name": "Claire"})
-    check(sent[-1] == {"type": "pair_decision", "req": "b", "accept": False} and m.pair_request["req"] == "c", "nouvelle demande refuse et remplace l'ancienne")
-    n = len(sent)
-    m.answer_pair(True, "b")
-    m.answer_pair("true", "c")
-    m._handle({"type": "pair_confirm", "req": "c", "name": "Claire"})
-    check(len(sent) == n and m.pair_request["req"] == "c", "clic périmé, réponse mal formée et doublon ignorés")
-    m._connection(False)
-    check(m.pair_request is None and len(sent) == n, "déconnexion ferme sans réponse")
-    demo = Model(demo="pair_request")
+    m._handle({"type": "pair_code", "code": "482913", "url": "https://h/p/482913"})
+    check(len(sent) == n and "pairCode" not in m.snapshot(), "aucun code de liaison affiché")
+    check(not m.org_configured or settings.org_token(), "sans jeton : poste non configuré")
+    m.prefs["orgName"] = "Acme"
+    check(m.snapshot()["orgConfigured"] and m.snapshot()["orgName"] == "Acme", "organisation rattachée visible")
+    demo = Model(demo="home")
     demo.start()
-    check(demo.snapshot()["pairRequest"] == {"req": "demo", "name": "Marc", "relation": "Service informatique"}, "démo de demande de liaison")
+    check(demo.snapshot()["orgName"] == "Acme" and demo.snapshot()["firstName"] == "Jeanne", "démo : Jeanne chez Acme")
 
     # Premier lancement sans serveur réglé : l'espace est créé, l'adresse gardée.
-    from papai import settings
     saved = os.environ.pop("PAPAI_SERVER", None)
     try:
         settings.save({"server": ""})
@@ -568,7 +602,7 @@ def pairing() -> None:
 
 if __name__ == "__main__":
     unit()
-    pairing()
+    entreprise()
     if "--serveur" in sys.argv:
         with_server()
     print(f"{ok} vérifications passées")
