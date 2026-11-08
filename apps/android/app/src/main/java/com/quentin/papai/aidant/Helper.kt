@@ -679,6 +679,8 @@ object Helper {
         when (m.text("type")) {
             "hello" -> {
                 setSenior(m.text("senior"))
+                // Une alerte encore ouverte est renvoyée juste après `hello` ; sinon elle a été réglée hors connexion.
+                guardAlertId = null; guardTask = ""; guardAcknowledged = false
                 // Le serveur renvoie status et capture juste après s'il y a une session :
                 // sans session (serveur redémarré), il ne reste rien de l'ancienne demande.
                 state = null; frame = null; frameId = null; frameAt = null
