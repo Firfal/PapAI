@@ -40,6 +40,8 @@ data class PairLink(
 }
 
 object PairingPolicy {
+    const val waiting = "En attente de l'accord sur l'ordinateur…"
+    fun isSuccess(status: Int, ok: Any?): Boolean = status == 200 && ok == true
     const val refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
     const val officialHost = "papai-450417131702.europe-west1.run.app"
 

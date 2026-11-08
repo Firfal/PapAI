@@ -106,6 +106,7 @@ object Helper {
     var sheet by mutableStateOf<AppSheet?>(null)
     var pairBusy by mutableStateOf(false)
     var pairError by mutableStateOf<String?>(null)
+    var pairRefused by mutableStateOf(false)
     var pairDone by mutableStateOf(false)
     var pairingRefused by mutableStateOf(false)
 
@@ -394,6 +395,7 @@ object Helper {
                             }
                         }
                         "alert_cleared" -> othersAsking[p.key] = false
+                        "helper_added" -> showToast("${m.text("name")} a été ajouté comme support.")
                         "alert" -> {
                             othersAsking[p.key] = true
                             notifyLocal("$who : ${m.text("title").ifEmpty { "alerte" }}", m.text("detail"), otherNotificationId(p.key))
@@ -566,7 +568,7 @@ object Helper {
         if (pairBusy) return
         PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairingRefused = true; return }
         pairingRefused = false
-        pairDone = false; pairError = null; pairBusy = false
+        pairDone = false; pairError = null; pairBusy = false; pairRefused = false
         sheet = AppSheet.Pair(link)
     }
 
@@ -577,6 +579,7 @@ object Helper {
     /** POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur. */
     fun submitPair(link: PairLink, code: String?, name: String, relation: String) {
         if (pairBusy) return
+        pairRefused = false
         PairingPolicy.error(link.base, BuildConfig.DEBUG)?.let { pairError = it; return }
         val c = (link.code ?: code ?: "").filter { it.isDigit() }
         val n = cleanText(name)
@@ -588,7 +591,7 @@ object Helper {
             Request.Builder().url(link.base + "/p/" + c).post(body).build()
         } catch (_: IllegalArgumentException) { pairError = "Adresse invalide."; return }
         pairBusy = true; pairError = null
-        rest.newBuilder().followRedirects(false).followSslRedirects(false).build().newCall(req).enqueue(object : Callback {
+        rest.newBuilder().readTimeout(150, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build().newCall(req).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 main.post { pairBusy = false; pairError = "Le serveur ne répond pas à ${link.host}." }
             }
@@ -597,7 +600,8 @@ object Helper {
                 val r = try { JSONObject(response.body?.string() ?: "{}") } catch (_: Exception) { JSONObject() }
                 main.post {
                     pairBusy = false
-                    if (!r.optBoolean("ok")) {
+                    if (!PairingPolicy.isSuccess(response.code, r.opt("ok"))) {
+                        pairRefused = r.opt("refused") == true
                         pairError = r.text("error").ifEmpty { "Le serveur a refusé la liaison." }
                         return@post
                     }
@@ -795,6 +799,7 @@ object Helper {
                 savedTitle = m.optJSONObject("lesson")?.text("title")?.ifEmpty { null } ?: draftTitle
                 loadLessons()
             }
+            "helper_added" -> showToast("${m.text("name")} a été ajouté comme support.")
         }
     }
 

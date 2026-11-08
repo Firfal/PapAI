@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -196,7 +197,21 @@ fun PairSheet(link: PairLink) {
                         .clickable { relation = if (on) "" else value }.padding(horizontal = 16.dp, vertical = 10.dp))
             }
         }
-        m.pairError?.let { T(it, 15.sp, FontWeight.SemiBold, Soin.danger) }
+        if (m.pairBusy) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CircularProgressIndicator(Modifier.size(22.dp), color = Soin.ink, strokeWidth = 2.dp)
+                T(PairingPolicy.waiting, 15.sp, color = Soin.ink)
+            }
+        }
+        m.pairError?.let {
+            if (m.pairRefused) {
+                Column(Modifier.fillMaxWidth().background(Soin.card, RoundedCornerShape(18.dp)).padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    T("Demande refusée", 22.sp, FontWeight.Bold, Soin.ink)
+                    T(it, 15.sp, color = Soin.ink)
+                }
+            } else T(it, 15.sp, FontWeight.SemiBold, Soin.danger)
+        }
         CapsuleButton("Rejoindre", enabled = !m.pairBusy && policyError == null, content = if (m.pairBusy) {
             { CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) }
         } else null) {

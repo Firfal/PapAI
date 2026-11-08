@@ -5,6 +5,15 @@ import org.junit.Test
 import java.net.URLEncoder
 
 class PairingPolicyTest {
+    @Test fun successRequiresHttp200AndBooleanOk() {
+        assertTrue(PairingPolicy.isSuccess(200, true))
+        for (status in listOf(400, 403, 408, 409, 429, 500)) assertFalse(PairingPolicy.isSuccess(status, true))
+        for (ok in listOf(null, false, "true", "", 1)) assertFalse(PairingPolicy.isSuccess(200, ok))
+    }
+
+    @Test fun waitingCopy() {
+        assertEquals("En attente de l'accord sur l'ordinateur…", PairingPolicy.waiting)
+    }
     @Test fun officialServerRequiresExactHttpsOrigin() {
         val host = PairingPolicy.officialHost
         assertTrue(PairingPolicy.isOfficial("https://$host"))
