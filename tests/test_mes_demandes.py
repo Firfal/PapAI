@@ -89,6 +89,7 @@ async def parcours(base):
         check(f"poste {index} : liste blanche sans capture ni secrets", all(set(r) == FIELDS for r in rows)
               and not any(word in json.dumps(data).lower() for word in
                           ("image", "png", "jpg", "data:", "screenshot", "note secr", "token", "linkup_query")))
+    check("en ligne, /requests sans clé refusé", http(f"{base}/requests")[0] == 404)
     check("clé inconnue refusée", http(f"{base}/k/inconnue/requests") == (404, {"error": "Lien invalide."}))
     _, support = http(f"{base}/o/{org['support_token']}/supports", {"name": "Alice"})
     _, spaces = http(f"{base}/o/{support['token']}/spaces")

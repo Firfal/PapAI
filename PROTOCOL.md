@@ -623,6 +623,8 @@ d'organisation → HTTP 404 `{"error":"Lien invalide."}`. Aucun ticket d'un autr
 Réponse : `{"requests":[{"id":"…","number":1,"created":0,"updated":0,"task":"…",
 "status":"resolu","solution":null,"relaunch":null}]}` (100 plus récentes par `created`,
 d'abord les plus récentes ; liste vide si aucune). Statut brut conservé.
+En local, `GET /requests` sans clé répond la même chose, seulement à une app lancée sur la
+machine du serveur (comme `/lessons`) ; en ligne (`PAPAI_PUBLIC=1`) → 404.
 
 `solution`, par priorité :
 - `{"kind":"automate","lesson":"…","title":"…"}` si la demande est `resolu` et que `automation` (posé au lancement
