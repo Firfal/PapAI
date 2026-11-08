@@ -135,6 +135,19 @@ class Workflow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ticket["linkup_answer"]["content"], "Réponse validée")
         self.assertTrue(any(c.args[0]["type"] == "linkup_answer" for c in self.sp.bridge.send.call_args_list))
 
+    async def test_ticket_failure_does_not_hide_approved_answer(self):
+        await self.search()
+        with patch.object(self.sp.tickets, "update", side_effect=OSError("disk unavailable")):
+            await self.approve(text="Réponse validée")
+        self.assertEqual(self.s.state, State.DONE)
+        for send in (self.sp.bridge.send, self.ws.send_json):
+            answers = [c.args[0] for c in send.call_args_list if c.args[0]["type"] == "linkup_answer"]
+            self.assertEqual(len(answers), 1)
+            self.assertEqual(answers[0]["content"], "Réponse validée")
+            self.assertTrue(any(c.args[0].get("state") == "done" for c in send.call_args_list))
+        self.assertTrue(any(e["kind"] == "linkup_ticket_failed" and e["error"] == "OSError"
+                            for e in self.s.journal))
+
     async def test_approve_before_search(self):
         await self.approve()
         self.sp.bridge.send.assert_not_called()

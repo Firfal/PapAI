@@ -425,8 +425,8 @@ def helper_can_access_alert(ws: WebSocket, alert: dict) -> bool:
     return scope is None or scope == alert.get("session")
 
 
-async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
-    if payload.get("type") == "status":
+async def broadcast_helper(payload: dict, *, to_bridge: bool = True, sync_ticket: bool = True) -> None:
+    if sync_ticket and payload.get("type") == "status":
         await _sync_ticket(payload)
     if to_bridge and S().bridge is not None and payload.get("type") in BRIDGE_TYPES:
         await S().bridge.send(payload)
@@ -1026,17 +1026,21 @@ async def handle_linkup_approve(session, msg: dict, ws: WebSocket) -> None:
     answer = {"type": "linkup_answer", "session": session.id, "content": text,
               "sources": result["sources"]}
     session.finish(text)
-    ticket = S().tickets.get(session.ticket)
-    if ticket is not None:
-        S().tickets.update(ticket, linkup_answer={"content": text, "sources": result["sources"],
-                                                 "query": session.linkup_query, "by": who})
-        await _tickets_changed()
     session.helper_name = who
     session.log("linkup_approved", by=who)
     if S().bridge is not None:
         await S().bridge.send(answer)
     await broadcast_helper(answer, to_bridge=False)
-    await broadcast_helper(session.status())
+    try:
+        ticket = S().tickets.get(session.ticket)
+        if ticket is not None:
+            S().tickets.update(ticket, linkup_answer={"content": text, "sources": result["sources"],
+                                                     "query": session.linkup_query, "by": who})
+            await _tickets_changed()
+        await _sync_ticket(session.status())
+    except Exception as e:
+        session.log("linkup_ticket_failed", error=type(e).__name__)
+    await broadcast_helper(session.status(), sync_ticket=False)
 
 
 def _session_by_token(token: str):
