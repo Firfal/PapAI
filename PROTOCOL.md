@@ -626,12 +626,19 @@ d'abord les plus récentes ; liste vide si aucune). Statut brut conservé.
 
 `solution`, par priorité :
 - `{"kind":"automate","lesson":"…","title":"…"}` si la demande est `resolu` et que `automation` (posé au lancement
-  `run_automation`) ou `suggestion_lancee` est renseigné. Titre du catalogue courant du poste
-  (automates locaux et organisation), sinon titre de la suggestion, sinon chaîne vide.
+  `run_automation`) est renseigné, ou `suggestion_lancee` sans mot du support à la clôture
+  (un automate suggéré seulement lancé ne vaut pas solution si le support a clos avec un texte).
+  Titre du catalogue courant du poste (automates locaux et organisation), sinon titre de la
+  suggestion, sinon chaîne vide.
+- `{"kind":"answer","text":"…","sources":[]}` : mot du support à la clôture (`solution`
+  du ticket, demande `resolu`).
 - `{"kind":"answer","text":"…","sources":[{"title":"…","url":"…"}]}` pour une
   `linkup_answer` validée par le support (jamais la requête ni l'auteur internes).
 - `{"kind":"plan","steps":["…"]}` seulement si `end == "done"` et plan texte non vide.
-- Sinon `null`. L'automate prime donc sur la réponse, qui prime sur le plan exécuté.
+- Sinon `null`. L'automate prime donc sur le mot du support, puis la réponse validée, puis le plan exécuté.
+
+Une demande réglée qu'on rouvre (`help_request` avec `reopen`) perd `linkup_answer` et
+`suggestion_lancee` : l'ancienne réponse ne s'affiche plus tant que la demande est ouverte.
 
 `relaunch` est l'id de l'automate seulement si le statut est `resolu`, la solution un
 automate et cet id existe encore dans le catalogue courant ; sinon `null`.

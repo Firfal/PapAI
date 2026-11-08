@@ -28,6 +28,11 @@ def projections():
     attente = for_user({"id": "s", "task": "Imprimer", "status": "en_attente", "suggestion_lancee": "auto"}, [lesson])
     check("automate suggéré lancé, demande en attente : pas présenté comme solution",
           attente["solution"] is None and attente["relaunch"] is None)
+    clos = for_user({"status": "resolu", "suggestion_lancee": "auto", "solution": "Pilote réinstallé"}, [lesson])
+    check("automate suggéré puis clôture du support avec un mot : le mot du support est la solution",
+          clos["solution"] == {"kind": "answer", "text": "Pilote réinstallé", "sources": []} and clos["relaunch"] is None)
+    check("mot du support prioritaire sur la réponse validée",
+          for_user({"status": "resolu", "solution": "Fait", "linkup_answer": {"content": "Vieux"}}, [])["solution"]["text"] == "Fait")
     echec = for_user({"status": "a_reprendre", "automation": "auto"}, [lesson])
     check("automate interrompu : pas présenté comme solution", echec["solution"] is None and echec["relaunch"] is None)
     del t["automation"], t["suggestion_lancee"]
