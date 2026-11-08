@@ -1105,13 +1105,9 @@ final class AppModel {
         }
         // Ni accord ni support en direct : l'automate a été validé par le support à sa création.
         let holo = acts.first { $0.kind == "holo" }
-        if holo != nil && !screenConsent {
-            pendingAutomation = l
-            pendingAutomationTicket = launchTicket
-            pendingTask = l.title
-            screen = .consent
-            return
-        }
+        // Un automate tourne directement chez l'utilisateur, sans écran d'accord :
+        // il a été validé par le support. Seule une demande d'assistance passe par un ticket.
+        _ = holo
         if let launchTicket {
             client.send(["type": "ticket_automate_launched", "ticket": launchTicket, "lesson": l.id])
             if queued?.ticket == launchTicket { queued?.suggestionLancee = l.id }
