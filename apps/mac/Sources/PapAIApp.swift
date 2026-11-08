@@ -3,14 +3,29 @@ import SwiftUI
 @main
 struct PapAIApp: App {
     @State private var model = AppModel()
+    /// Rôle de ce Mac : rien tant qu'il n'est pas choisi (voir `AppRole`).
+    @State private var role = AppRole.saved
 
     var body: some Scene {
         WindowGroup("PapAI") {
-            RootView()
-                .environment(model)
-                .preferredColorScheme(.light)
-                .frame(minWidth: 900, minHeight: 640)
-                .onAppear { model.start(); Snapshot.scheduleIfAsked(model) }
+            Group {
+                switch role {
+                case .aide:
+                    // L'app de la personne aidée, inchangée.
+                    RootView()
+                        .environment(model)
+                        .onAppear { model.start(); Snapshot.scheduleIfAsked(model) }
+                case .support:
+                    SupportApp()
+                case nil:
+                    RoleChoiceView { r in
+                        UserDefaults.standard.set(r.rawValue, forKey: AppRole.key)
+                        withAnimation(.easeInOut(duration: 0.25)) { role = r }
+                    }
+                }
+            }
+            .preferredColorScheme(.light)
+            .frame(minWidth: 900, minHeight: 640)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1100, height: 720)
