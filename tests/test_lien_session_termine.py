@@ -85,6 +85,9 @@ async def scenario(base, fin):
             etat = "done" if fin == "done" else "stopped"
             assert await support.attendre("status", state=etat), "fin absente"
             check(f"{fin} : le lien reçoit sa propre fin", bool(await lien.attendre("status", state=etat)))
+            if fin == "done":
+                check("done : le lien reçoit la réponse finale de Holo",
+                      any(m.get("type") == "answer" and m.get("content") == "Terminé." for m in lien.tous))
             if fin == "alerte":
                 await support.envoyer({"type": "dismiss_alert", "alert_id": alerte["alert_id"]})
                 assert await support.attendre("alert_cleared")
@@ -105,13 +108,13 @@ async def scenario(base, fin):
                     assert await support.attendre("status", state="awaiting_approval")
                     await support.envoyer({"type": "refresh"})
                     assert await support.attendre("frame"), "le support doit recevoir la nouvelle capture"
+                    await support.envoyer({"type": "approve_plan"})
+                    assert await support.attendre("status", state="done"), "nouvelle fin absente"
                     await asyncio.sleep(0.2)
                     for nom, messages in (("ancien lien", lien.tous[debut:]), ("reconnexion", relie.tous)):
-                        fuites = [m["type"] for m in messages if m["type"] == "frame" or
+                        fuites = [m["type"] for m in messages if m["type"] in ("frame", "answer") or
                                   (m["type"] == "status" and m.get("session") != session["id"])]
                         check(f"{fin} : {nom} isolé de la nouvelle assistance", not fuites, fuites)
-                    await mac.envoyer({"type": "stop"})
-                    assert await support.attendre("status", state="stopped")
             finally:
                 if fin == "déconnexion":
                     await wm.close()

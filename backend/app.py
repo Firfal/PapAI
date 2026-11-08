@@ -439,7 +439,9 @@ def _session_socket_live(ws: WebSocket, payload: dict) -> bool:
     ):
         return helper_can_access_alert(ws, payload)
     session = current_session()
-    return session is not None and session.id == scope and session.is_open
+    return session is not None and session.id == scope and (
+        session.is_open or payload.get("type") == "answer"
+    )
 
 
 async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
