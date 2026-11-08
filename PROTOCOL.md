@@ -41,7 +41,8 @@ Envoie :
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
 - `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt, alerte du gardien affichée ou absence de plan validé (état requis : `active` ou `awaiting_helper`). Sur Mac et Windows, un refus local d'action sensible ajoute `"blocked":"sensitive"` avec `refused:false` : la session reste ouverte, le texte demande à Holo de ne pas réessayer et d'appeler `ask_helper`.
   Le serveur transmet ce refus comme résultat d'outil à Holo et journalise `sensitive_blocked`. Tant que le support n'a pas répondu à `ask_helper`, toute nouvelle action d'écran proposée par Holo (`click`, `double_click`, `type_text`, `press_key`, `scroll`) est remplacée côté serveur par une question au support, sans envoi au pont ni arrêt de session. `refused:true` conserve sa priorité et entraîne l'arrêt habituel.
-- `{"type":"automation_failed","title":"…","detail":"…"}` quand un automate ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
+- `{"type":"automation_failed","id":"imp-…","step":N,"title":"…","detail":"…"}` quand un automate ne peut pas se rejouer (dossier absent, action refusée). `step` : numéro (à partir de 1) de l'action locale qui a échoué ; `id` et `step` facultatifs (anciennes apps). **Personne n'est appelé** : le serveur ouvre un ticket `automatisme` à reprendre (`a_reprendre`, `stopped_by:"blocage"`) qui garde l'étape dans `blocked`, et répond `{"type":"automation_ticket","ticket","number","blocked"}`.
+- `{"type":"support_request","ticket":"…"}` : bouton discret « Demander une assistance », en haut à droite d'un automate en cours ou arrêté. Sans `ticket`, celui de la session en cours. Seule façon de faire venir le support sur un automate. Réponse `{"type":"support_requested","ticket","number"}` ou `{"type":"ticket_refused","ticket","reason"}` (ticket inconnu, clos ou pas un automate). Automate en cours : la session passe `support_requested:true` (Holo peut alors interroger le support par `ask_helper`). Automate arrêté : le ticket passe `en_attente` et il est proposé au support comme une demande. Dans les deux cas, note « Demande une assistance à l'étape N (…) » et `ticket_due` avec `"reason":"support_request"` aux supports.
 - `{"type":"pair_start"}` pour ajouter un support (QR code, 10 min) ; `{"type":"pair_start","long":true}` pour une **invitation opaque à envoyer** par SMS, WhatsApp, Mail… (24 h). Le serveur répond `pair_code`.
 - `{"type":"remove_helper","id":"…"}` retire un proche.
 - `{"type":"remote_answer","accepted":false}` refus d'une session proposée par un proche. En cas d'accord, l'app envoie directement `help_request` avec `"requested_by":"Claire"`.
@@ -396,8 +397,12 @@ Lancement, côté app :
    puis `{"type":"run_automation","id":"imp-…"}` sur `/ws/bridge`.
    Le serveur ouvre une session dont le plan est déjà validé
    (`plan_approved:true`, journal `plan_preapproved` avec `by`), répond
-   `{"type":"session","id":"…","helper_url":"…","automation":"imp-…"}` et
-   l'agent agit aussitôt. Arrêter, les actions sensibles bloquées et
+   `{"type":"session","id":"…","helper_url":"…","automation":"imp-…","ticket":"…","number":N}` et
+   l'agent agit aussitôt, **sans support** : le statut porte `automation`, `support_requested` et
+   `blocked`. Tant que l’utilisateur n'a pas demandé d'assistance, un `ask_helper` de Holo (ou son
+   budget épuisé) arrête l'automate (`stopped_by:"blocage"`) au lieu d'attendre un support :
+   `blocked` `{"step","label","reason"}` dit l'étape du plan et la raison, gardés sur le ticket.
+   `ask_senior` reste possible (une information que seul l’utilisateur connaît). Arrêter, les actions sensibles bloquées et
    l'exclusion de la fenêtre PapAI s'appliquent comme pour une demande.
    Automate inconnu, sans `holo` ou d'une autre plateforme :
    `{"type":"automation_refused","id":"…","reason":"…"}`.
@@ -611,9 +616,33 @@ Chaque demande devient un ticket, gardé dans `<espace>/tickets.json` (500 derni
 aucune capture). Numéro `number` par espace, ou unique dans l’organisation (`orgs/<id>/tickets_seq`), affiché `T-0001`. Statuts : `nouveau`, `en_attente`
 (aucun support disponible), `rdv`, `en_cours`, `a_reprendre` (session arrêtée ou échouée), `resolu`.
 `source` : `personne`, `support` ou `automatisme`. Le ticket suit la session (`plan`, `steps_done`,
-`helper`, `stopped_by`, `tokens`) ; `assignee`, `closed_by`, `notes` [{t, by, text}], `rdv` (secondes Unix).
+`helper`, `stopped_by`, `tokens`, `blocked` {step, label, reason} : où un automate s'est arrêté) ; `assignee`, `closed_by`, `notes` [{t, by, text}], `rdv` (secondes Unix).
 Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus deux) et
 `suggestion_lancee` (`id` ou `null`).
+
+### Mes demandes (utilisateur)
+
+`GET /k/{fam}/requests` est en lecture seule et exige la clé réelle du poste
+(`_key_ok(fam, support=False)`) : clé inconnue ou clé dérivée d'un support
+d'organisation → HTTP 404 `{"error":"Lien invalide."}`. Aucun ticket d'un autre espace.
+Réponse : `{"requests":[{"id":"…","number":1,"created":0,"updated":0,"task":"…",
+"status":"resolu","solution":null,"relaunch":null}]}` (100 plus récentes par `created`,
+d'abord les plus récentes ; liste vide si aucune). Statut brut conservé.
+
+`solution`, par priorité :
+- `{"kind":"automate","lesson":"…","title":"…"}` si la demande est `resolu` et que `automation` (posé au lancement
+  `run_automation`) ou `suggestion_lancee` est renseigné. Titre du catalogue courant du poste
+  (automates locaux et organisation), sinon titre de la suggestion, sinon chaîne vide.
+- `{"kind":"answer","text":"…","sources":[{"title":"…","url":"…"}]}` pour une
+  `linkup_answer` validée par le support (jamais la requête ni l'auteur internes).
+- `{"kind":"plan","steps":["…"]}` seulement si `end == "done"` et plan texte non vide.
+- Sinon `null`. L'automate prime donc sur la réponse, qui prime sur le plan exécuté.
+
+`relaunch` est l'id de l'automate seulement si le statut est `resolu`, la solution un
+automate et cet id existe encore dans le catalogue courant ; sinon `null`.
+Liste blanche stricte à chaque niveau : texte seulement, aucun objet d'étape/capture,
+image, note interne, token, assignation, catégorie ni suggestion complète.
+Relancer = `run_automation` existant (ou lancement local existant), pas de nouveau chemin.
 
 **Ordinateur aidé (`/ws/bridge`)**
 - `help_request` peut porter `"ticket"` (reprise d'un ticket proposé par `remote_request`).
@@ -627,6 +656,20 @@ Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus 
   `{"type":"ticket_automate_launched","ticket","lesson"}`. Seul un ID suggéré pour ce ticket est accepté ;
   le serveur mémorise `suggestion_lancee`, ajoute la note « Automate proposé lancé : <titre> » et garde
   le statut du ticket.
+- **Pas de ticket en double.** Avant d'ouvrir un ticket pour une demande de l'utilisateur (ni
+  `ticket`, ni `requested_by`, ni `new`, ni `tidy`), le serveur cherche un ticket de l'espace qui porte déjà
+  cette demande (mêmes mots, sans accents ni mots vides, radical de 5 lettres ; tickets
+  d'automates exclus) : ouvert d'abord, sinon réglé depuis moins de 90 jours. Pas de session.
+  - Ouvert → `{"type":"ticket_exists","ticket","number","task","status","rdv"}` ; le ticket reçoit
+    la note « Demandé à nouveau par l’utilisateur. » (un `en_cours` sans session vivante passe
+    `a_reprendre` ; un `en_attente` est reproposé si un support est là).
+  - Réglé → `{"type":"ticket_solved","ticket","number","task","solution":{"note","steps","by","at"}}` :
+    `note` = mot du support à la clôture (`close` avec `text`, gardé dans `solution`), `steps` = plan
+    si Holo est allé au bout (`end` = `done`).
+  - L'app affiche l'état ou la solution. « C’est une autre demande » = `help_request` avec
+    `"new": true` (nouveau ticket). « Refaire avec Holo » = `help_request` avec `"reopen": "<id>"` :
+    le même ticket est rouvert (note « Le problème est revenu. »), puis attente ou session comme
+    d'habitude ; Holo reçoit ce qui l'avait réglé (`session.reprise`).
 - `session` porte en plus `"ticket"` et `"number"`.
 - App → `{"type":"ticket_schedule","ticket","at"}` (entre 1 min et 30 jours) →
   `{"type":"ticket_scheduled","ticket","number","at"}` ou `{"type":"ticket_refused","ticket","reason"}`.
@@ -639,7 +682,8 @@ Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus 
   (note « Pas disponible » sur le ticket, qui reste en attente).
 
 **Support (`/ws/aidant`)** : `hello` porte `tickets_waiting` (nombre en attente ou rendez-vous échu).
-Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_due","ticket","number","task"}`.
+Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_due","ticket","number","task"}`
+(`"reason":"support_request"` quand l’utilisateur demande une assistance sur un automate).
 
 **HTTP**
 - `GET /k/<clé>/tickets` → `{"tickets":[…]}` (200 plus récents d'abord).
@@ -674,9 +718,19 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
   Réglé par un automate = ticket résolu de `source` `automatisme`. `resolution_s` : durées de résolution (s) de la catégorie, pour fusionner les médianes de plusieurs utilisateurs ; le mois glissant compte même si `weeks` couvre moins de 30 jours. Suggestion à partir de 5 demandes des
   30 derniers jours hors automates (pas pour « autre ») : « 12 demandes Wi-Fi ce mois-ci : créer un
   automate ? » ; `draft` préremplit la création d'automate, rien n'est créé sans le support.
+- **Point de la semaine (8 nov.)** : même réponse, champ `"week"` ajouté (même calcul, pas de route nouvelle,
+  accès inchangé : `_key_ok` pour `/k`, `orgs.auth` pour `/o`) → `{"since","days":7,"count","resolved","by_automate",
+  "automate_share","mean_resolution_s","resolution_total_s","by":{catégorie: n},"top":[{"id","label","count"}],
+  "automates":[{"key","title","count"}],"automate":{"key","title","count"}|null,"suggestion":<1re suggestion>|null}`.
+  7 derniers jours glissants : reçues = créées dans la période ; réglées = passées à `resolu` dans la période
+  (`resolved`, sinon `updated`), même arrivées avant ; temps moyen sur ces réglées ; 3 catégories en tête ;
+  automate le plus utile = celui qui a réglé le plus de tickets (`source` `automatisme`), repéré par le champ
+  `automation` du ticket (id de l'automate, posé à son lancement) ou, pour les anciens tickets, par `titre:<titre>`.
+  `by`, `resolution_total_s` et `automates` servent à additionner plusieurs utilisateurs (Mac). Rien n'est envoyé par mail.
+- Champ ajouté au ticket : `automation` (id de l'automate lancé par `run_automation`).
 - `GET /ticket_stats.js` : graphiques SVG (page du support et organisation), sans bibliothèque.
 - Mac support : `TicketStats.merge` additionne les statistiques de tous les utilisateurs reliés.
-- Tests : `python tests/test_ticket_categories.py`, `apps/mac/tests/ticket_stats_test.swift`.
+- Tests : `python tests/test_ticket_categories.py`, `python tests/test_point_semaine.py`, `node --test tests/test_ticket_stats_js.js`, `apps/mac/tests/ticket_stats_test.swift`.
 
 ## Prénom et invitation (7 novembre au soir)
 

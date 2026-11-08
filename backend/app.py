@@ -424,6 +424,33 @@ async def _holo_category(sp, t: dict) -> None:
         await _tickets_changed()
 
 
+def _reprise(t: dict) -> str:
+    sol = tickets_mod.solution(t)
+    parts = [f"Ce que son support avait noté : {sol['note']}"] if sol["note"] else []
+    if sol["steps"]:
+        parts.append("Étapes qui l'avaient réglée : " + " ; ".join(sol["steps"]))
+    return " ".join(parts)[:1500]
+
+
+async def _same_ticket(ws, t: dict) -> None:
+    """La demande a déjà son ticket : pas de nouveau ticket. Ouvert, on le dit ;
+    réglé, on montre ce qui l'avait réglé."""
+    head = {"ticket": t["id"], "number": t["number"], "task": t["task"]}
+    live = S().registry.get(str(t.get("session") or ""))
+    if t["status"] == "en_cours" and (live is None or not live.is_open):
+        S().tickets.update(t, status="a_reprendre")
+    if t["status"] == "resolu":
+        await ws.send_json({"type": "ticket_solved", **head, "solution": tickets_mod.solution(t)})
+        return
+    S().tickets.note(t, S().family.senior or "L’utilisateur", tickets_mod.REDEMANDE)
+    if t["status"] == "en_attente":
+        S().tickets.update(t, offered=0)
+    await ws.send_json({"type": "ticket_exists", **head, "status": t["status"], "rdv": t.get("rdv")})
+    await _tickets_changed()
+    if t["status"] == "en_attente" and _support_available():
+        _later(_offer_next(space.current()))
+
+
 async def _tickets_changed() -> None:
     await broadcast_helper({"type": "tickets_changed"}, to_bridge=False)
 
@@ -438,6 +465,73 @@ async def _sync_ticket(st: dict) -> None:
         await _tickets_changed()
         if t["status"] in ("resolu", "a_reprendre"):
             _later(_offer_next(space.current()))
+
+
+def _action_label(a: dict) -> str:
+    do = str(a.get("do") or "")
+    if do == "open_folder":
+        where = " › ".join(str(x) for x in (a.get("folder"), a.get("subfolder")) if x)
+        return f"Ouvrir le dossier {where}".strip()
+    if do == "open_settings":
+        return f"Ouvrir les Réglages ({a.get('page') or '?'})"
+    if do == "open_url":
+        return f"Ouvrir {urlsplit(str(a.get('url') or '')).hostname or 'le lien'}"
+    if do == "install_templates":
+        return "Installer les modèles Word"
+    if do == "antivirus_scan":
+        return "Analyse antivirus"
+    if do == "holo":
+        return str(a.get("goal") or "Holo")[:200]
+    return do[:80]
+
+
+async def _automation_failed(msg: dict) -> dict:
+    title = str(msg.get("title") or "Un automate")[:MAX_TASK]
+    lesson = automations.load(str(msg.get("id") or "")) if msg.get("id") else None
+    acts = [a for a in (lesson or {}).get("actions") or [] if isinstance(a, dict)]
+    try:
+        n = int(msg.get("step") or 1)
+    except (TypeError, ValueError):
+        n = 1
+    n = min(max(n, 1), max(len(acts), 1))
+    blocked = {"step": n, "label": _action_label(acts[n - 1]) if acts else title,
+               "reason": str(msg.get("detail") or "")[:300]}
+    t = _open_ticket(title, "automatisme", status="a_reprendre", by=S().family.senior)
+    S().tickets.update(t, blocked=blocked, end="stopped", stopped_by="blocage")
+    await _tickets_changed()
+    print(f"[tickets] automate arrêté, demande n° {t['number']}")
+    return t
+
+
+async def _support_request(tid: str) -> dict | None:
+    """L’utilisateur demande lui-même l'aide du support pour un automate :
+    le ticket (et l'étape où ça bloque) part au support."""
+    s = current_session()
+    t = S().tickets.get(tid or (s.ticket if s is not None else ""))
+    if t is None or t.get("source") != "automatisme" or t["status"] == "resolu":
+        return None
+    who = S().family.senior or "L’utilisateur"
+    live = s is not None and s.is_open and s.ticket == t["id"]
+    if live:
+        s.support_requested = True
+        s.log("support_requested")
+        n = s.plan_step
+        b = {"step": n, "label": s.plan[n - 1] if n and s.plan else ""}
+    else:
+        if t["status"] != "en_attente":
+            S().tickets.update(t, status="en_attente", offered=0)
+        b = t.get("blocked") or {}
+    where = f" à l'étape {b['step']} ({b.get('label') or '?'})" if b.get("step") else ""
+    S().tickets.note(t, who, f"Demande une assistance{where}.")
+    if live:
+        await broadcast_helper(s.status())
+    await broadcast_helper({"type": "ticket_due", "ticket": t["id"], "number": t["number"],
+                            "task": t["task"], "reason": "support_request"}, to_bridge=False)
+    await _tickets_changed()
+    if not live:
+        _later(_offer_next(space.current()))
+    print(f"[tickets] demande n° {t['number']} : assistance demandée")
+    return t
 
 
 async def _offer_waiting(who: str = "") -> bool:
@@ -728,14 +822,32 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 ticket = S().tickets.get(str(msg.get("ticket") or ""))
                 if ticket is not None and ticket["status"] == "resolu":
                     ticket = None
-                if ticket is None and not by and _support_expected() and not _support_available():
+                reprise, reopened = "", False
+                again = S().tickets.get(str(msg.get("reopen") or ""))
+                if ticket is None and again is not None and again["status"] == "resolu":
+                    # Réglée une fois, le problème est revenu : le même ticket
+                    # est rouvert, Holo repart de ce qui avait été fait.
+                    reprise = _reprise(again)
+                    S().tickets.note(again, S().family.senior or "L’utilisateur", "Le problème est revenu.")
+                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="", reprise=reprise)
+                    ticket, reopened = again, True
+                if ticket is None and not by and not msg.get("new") and "tidy" not in msg:
+                    same = S().tickets.same(task)
+                    if same is not None:
+                        await _same_ticket(ws, same)
+                        continue
+                if (ticket is None or reopened) and not by and _support_expected() and not _support_available():
                     # Aucun support disponible : la demande attend, la personne
                     # sera reprévenue dès qu'un support est là (ou au rendez-vous).
-                    suggestions = _ticket_suggestions(task)
-                    ticket = _open_ticket(
-                        task, "personne", status="en_attente", by=S().family.senior,
-                        suggestions=suggestions,
-                    )
+                    if ticket is None:
+                        suggestions = _ticket_suggestions(task)
+                        ticket = _open_ticket(
+                            task, "personne", status="en_attente", by=S().family.senior,
+                            suggestions=suggestions,
+                        )
+                    else:
+                        suggestions = list(ticket.get("suggestions") or [])
+                        S().tickets.update(ticket, status="en_attente", offered=0)
                     await ws.send_json({"type": "ticket_queued", "ticket": ticket["id"],
                                         "number": ticket["number"], "task": task,
                                         "suggestions": suggestions})
@@ -751,6 +863,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if ticket is None:
                     ticket = _open_ticket(task, "support" if by else "personne", by=by or S().family.senior)
                 session.ticket = ticket["id"]
+                session.reprise = ticket.get("reprise") or ""
                 S().tickets.update(ticket, session=session.id, status="en_cours", rdv=None)
                 await _tickets_changed()
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
@@ -781,15 +894,17 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 session = S().registry.create(goal[:MAX_TASK])
                 session.grant_consent()
                 session.preapprove_plan(steps, by=lesson.get("approved_by", ""))
+                session.automation = lesson["id"]
                 session.log("automation", id=lesson["id"], title=lesson.get("title", ""))
                 ticket = _open_ticket(lesson.get("title") or goal[:MAX_TASK], "automatisme",
                                           status="en_cours", by=S().family.senior)
                 session.ticket = ticket["id"]
-                S().tickets.update(ticket, session=session.id)
+                S().tickets.update(ticket, session=session.id, automation=lesson["id"])
                 await _tickets_changed()
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
                 await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
-                                    "automation": lesson["id"]})
+                                    "automation": lesson["id"], "ticket": ticket["id"],
+                                    "number": ticket["number"]})
                 print(f"[session {session.id}] automate importé {lesson['id']}")
                 await broadcast_helper(session.status())
                 if S().agent_task and not S().agent_task.done():
@@ -798,13 +913,22 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "automation_failed":
-                # Un automate n'a pas pu se rejouer : l'écran ou le dossier a
-                # changé. On ne tente rien à l'aveugle, on prévient l'aidant.
-                await broadcast_helper({
-                    "type": "alert",
-                    "title": str(msg.get("title", "Un automate"))[:200],
-                    "detail": str(msg.get("detail", ""))[:1000],
-                }, to_bridge=False)
+                # Un automate n'a pas pu se rejouer (dossier absent, page
+                # introuvable). Personne n'est appelé : l'étape est notée sur
+                # un ticket, l’utilisateur demande une assistance s'il le veut.
+                ticket = await _automation_failed(msg)
+                await ws.send_json({"type": "automation_ticket", "ticket": ticket["id"],
+                                    "number": ticket["number"], "blocked": ticket["blocked"]})
+                continue
+
+            if kind == "support_request":
+                # Bouton discret « Demander une assistance » pendant ou après un automate.
+                t = await _support_request(str(msg.get("ticket") or ""))
+                if t is None:
+                    await ws.send_json({"type": "ticket_refused", "ticket": str(msg.get("ticket") or "")[:40],
+                                        "reason": "Aucun automate à signaler."})
+                else:
+                    await ws.send_json({"type": "support_requested", "ticket": t["id"], "number": t["number"]})
                 continue
 
             if kind == "guard":
@@ -2304,6 +2428,15 @@ def _sessions_journal():
 
 # --- Tickets : vus et traités par le support (page web, apps, organisation) ---
 
+@app.get("/k/{fam}/requests")
+async def user_requests(fam: str):
+    if not _key_ok(fam, support=False):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    o = orgs.get(S().org) if getattr(S(), "org", "") else None
+    lessons = (o.automations() if o else []) + list_lessons()
+    items = sorted(S().tickets.all(), key=lambda t: t.get("created", 0), reverse=True)[:100]
+    return {"requests": [tickets_mod.for_user(t, lessons) for t in items]}
+
 async def _ticket_action(tid: str, body: dict):
     t = S().tickets.get(tid)
     if t is None:
@@ -2319,13 +2452,14 @@ async def _ticket_action(tid: str, body: dict):
     elif act == "close":
         if t["status"] == "en_cours":
             return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
-        S().tickets.update(t, status="resolu", closed_by=by or "Support", rdv=None)
+        S().tickets.update(t, status="resolu", closed_by=by or "Support", rdv=None,
+                           **({"solution": text[:1000]} if text else {}))
         if text:
             S().tickets.note(t, by, text)
     elif act == "reopen":
         if t["status"] == "en_cours":
             return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
-        S().tickets.update(t, status="en_attente", offered=0, rdv=None, closed_by="")
+        S().tickets.update(t, status="en_attente", offered=0, rdv=None, closed_by="", solution="")
     elif act == "schedule":
         at = _rdv_at(body.get("at"))
         if at is None or t["status"] in ("en_cours", "resolu"):
