@@ -7,7 +7,7 @@ struct RootView: View {
         ZStack(alignment: .bottom) {
             SoinBackground()
             VStack(spacing: 0) {
-                Header(name: model.helperName ?? "Support", onAvatar: { model.sheet = .settings })
+                Header(name: model.helperName ?? model.orgTitle, onAvatar: { model.sheet = .settings })
                     .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 20)
                     .background { SoinHeaderBackground() }
                     .padding(.bottom, 14)
@@ -40,24 +40,17 @@ struct RootView: View {
         }
         .animation(.spring(duration: 0.35), value: model.toast)
         .animation(.spring(duration: 0.35), value: model.screen)
-        .sheet(item: $model.sheet, onDismiss: {
-            if !model.isConfigured && model.sheet == nil { model.sheet = .settings }
-        }) { s in
-            switch s {
-            case .settings: SettingsView(model: model)
-            case .scanner: ScannerSheet(model: model)
-            case .pair(let l): PairSheet(model: model, link: l)
-            }
-        }
-        .onAppear { if !model.isConfigured && model.sheet == nil { model.sheet = .settings } }
+        .sheet(item: $model.sheet) { _ in SettingsView(model: model) }
         .fullScreenCover(isPresented: Binding(get: { model.guardAlertId != nil }, set: { _ in })) {
             GuardRequestView(model: model).interactiveDismissDisabled()
         }
     }
 
     @ViewBuilder private var content: some View {
-        if !model.isConfigured {
-            Spacer()
+        if !model.orgConfigured {
+            NoOrgView()
+        } else if !model.isConfigured {
+            NoPosteView(model: model)
         } else {
             switch model.screen {
             case .idle: IdleView(model: model)
@@ -115,7 +108,7 @@ struct LostBanner: View {
                 Spacer(minLength: 0)
             }
             if model.linkError != nil {
-                Button("Vérifier les réglages") { model.sheet = .settings }
+                Button("Réessayer maintenant") { model.reconnect() }
                     .font(.system(size: 14, weight: .semibold))
                     .padding(.horizontal, 14).padding(.vertical, 7)
                     .background(.white.opacity(0.18), in: Capsule())
@@ -138,88 +131,87 @@ enum ConnectionText {
     }
 }
 
+/// Sans jeton d'organisation : rien à saisir, l'administrateur configure le téléphone.
+struct NoOrgView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Aucune organisation configurée").font(.system(size: 26, weight: .bold)).foregroundStyle(Soin.ink)
+            Text("Contactez votre administrateur : il installe la configuration du support de votre organisation sur ce téléphone.")
+                .font(.system(size: 17)).foregroundStyle(Soin.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(radius: 24)
+        .padding(.horizontal, 20)
+        Spacer()
+    }
+}
+
+/// Organisation configurée, mais aucun poste à suivre (pas encore lu, vide, ou serveur injoignable).
+struct NoPosteView: View {
+    let model: HelperModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !model.orgLoaded && model.orgError == nil {
+                HStack(spacing: 10) {
+                    ProgressView().tint(Soin.accent)
+                    Text("Chargement des postes…").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
+                }
+            } else {
+                Text(model.orgError == nil ? "Aucun poste inscrit pour l’instant" : "Postes indisponibles")
+                    .font(.system(size: 26, weight: .bold)).foregroundStyle(Soin.ink)
+                Text(model.orgError ?? "Les postes de l’organisation apparaissent ici dès que PapAI y est installé.")
+                    .font(.system(size: 17)).foregroundStyle(Soin.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(radius: 24)
+        .padding(.horizontal, 20)
+        .refreshable { await model.refreshOrg() }
+        Spacer()
+    }
+}
+
+/// Réglages en lecture seule : tout vient de la configuration de l'organisation.
 struct SettingsView: View {
     @Bindable var model: HelperModel
     @Environment(\.dismiss) private var dismiss
-    @State private var server = ""
-    @State private var key = ""
-    @State private var org = ""
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Connexion").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
-                Text("Le plus simple : scannez le QR code affiché sur l’ordinateur de \(model.senior) (Mon support › Ajouter un support).")
-                    .font(.system(size: 15)).foregroundStyle(Soin.secondary)
-                Button { model.sheet = .scanner } label: { Label("Scanner le QR code de l’ordinateur", systemImage: "qrcode.viewfinder") }
-                    .buttonStyle(CapsuleButtonStyle(fill: Soin.accent))
-                if let l = model.manualPairLink() {
-                    Button("Entrer le code à 6 chiffres") { model.openPair(l) }
+                Text("Réglages").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Organisation").font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.secondary)
+                    Text(model.orgConfigured ? model.orgTitle : "Aucune organisation configurée")
+                        .font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
+                    if let o = model.org {
+                        Text(URL(string: o.server)?.host ?? o.server).font(.system(size: 15)).foregroundStyle(Soin.secondary)
+                        Text("\(model.people.count) poste\(model.people.count > 1 ? "s" : "")")
+                            .font(.system(size: 15)).foregroundStyle(Soin.secondary)
+                    }
+                    if let e = model.orgError {
+                        Text(e).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.danger)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading).padding(18).soinCard()
+                Text(model.orgConfigured ? "Configuré par votre administrateur. Rien à régler sur ce téléphone."
+                     : "Contactez votre administrateur : il installe la configuration du support sur ce téléphone.")
+                    .font(.system(size: 15)).foregroundStyle(Soin.secondary).fixedSize(horizontal: false, vertical: true)
+                if model.isConfigured {
+                    HStack(alignment: .top, spacing: 6) {
+                        Circle().fill(model.connected ? Soin.online : (model.linkError == nil ? Soin.secondary : Soin.danger))
+                            .frame(width: 8, height: 8).padding(.top, 5)
+                        TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                            Text(ConnectionText.line(model, now: ctx.date))
+                                .font(.system(size: 14)).foregroundStyle(Soin.secondary)
+                        }
+                    }
+                    Button("Réessayer maintenant") { model.reconnect(); Task { await model.refreshOrg() } }
                         .buttonStyle(CapsuleButtonStyle(fill: Soin.card, text: Soin.ink))
                 }
-                Text("Service informatique").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink).padding(.top, 8)
-                Text("Collez le lien d’organisation donné par l’IT : tous les postes s’ajoutent, sans code.")
-                    .font(.system(size: 15)).foregroundStyle(Soin.secondary)
-                field("Lien d’organisation", text: $org, prompt: "https://…/o/sup-…", icon: "building.2")
-                if let e = model.orgError {
-                    Text(e).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.danger)
-                }
-                Button(model.orgBusy ? "Ajout…" : "Ajouter les postes") {
-                    Task { if await model.addOrg(org) { dismiss() } }
-                }
-                    .buttonStyle(CapsuleButtonStyle(fill: Soin.card, text: Soin.ink))
-                    .disabled(org.trimmingCharacters(in: .whitespaces).isEmpty || model.orgBusy)
-                Text("Ou à la main").font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink).padding(.top, 8)
-                field("Adresse du serveur", text: $server, prompt: "https://…/k/<clé de l'espace>", icon: "server.rack")
-                field("Clé support", text: $key, prompt: "demo", icon: "key")
-                HStack(alignment: .top, spacing: 6) {
-                    Circle().fill(model.connected ? Soin.online : (model.linkError == nil ? Soin.secondary : Soin.danger))
-                        .frame(width: 8, height: 8).padding(.top, 5)
-                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                        Text(model.isConfigured ? ConnectionText.line(model, now: ctx.date) : "Non configuré")
-                            .font(.system(size: 14)).foregroundStyle(Soin.secondary)
-                    }
-                }
-                if let g = model.lastGood, g.server != model.serverURL || g.key != model.helperKey {
-                    Button("Revenir au dernier réglage qui marchait") {
-                        server = g.server; key = g.key
-                        model.applySettings(server: g.server, key: g.key)
-                    }
-                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.accent)
-                }
-                if let error = model.pairError {
-                    Text(error).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.danger)
-                }
-                Button("Enregistrer et se connecter") {
-                    if model.applySettings(server: server, key: key) { dismiss() }
-                }
-                    .buttonStyle(CapsuleButtonStyle())
-                    .disabled(server.trimmingCharacters(in: .whitespaces).isEmpty || key.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .padding(.top, 8)
-                if model.isConfigured {
-                    Button("Réessayer maintenant") { model.reconnect() }
-                        .font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.secondary)
-                        .frame(maxWidth: .infinity)
-                }
+                Button("Fermer") { dismiss() }.buttonStyle(CapsuleButtonStyle()).padding(.top, 8)
             }
             .padding(24)
         }
-        .scrollDismissesKeyboard(.interactively)
         .background { SoinBackground() }
         .presentationDetents([.large])
-        .interactiveDismissDisabled(!model.isConfigured)
-        .onAppear { server = model.serverURL; key = model.helperKey }
-    }
-    private func field(_ title: String, text: Binding<String>, prompt: String, icon: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.ink)
-            HStack(spacing: 10) {
-                Image(systemName: icon).font(.system(size: 16)).foregroundStyle(Soin.secondary).accessibilityHidden(true)
-                TextField(prompt, text: text)
-                    .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                    .font(.system(size: 17))
-            }
-            .padding(16).soinField()
-        }
     }
 }
 
@@ -245,7 +237,7 @@ struct IdleView: View {
                     .padding(22).soinCard(Soin.accentSoft, radius: 24)
                 } else {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Liaison interrompue").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
+                        Text("Connexion interrompue").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
                         Text("Impossible de recevoir les demandes d’aide de \(model.senior) pour le moment.")
                             .font(.system(size: 17, weight: .medium)).foregroundStyle(Soin.ink)
                             .fixedSize(horizontal: false, vertical: true)
@@ -386,42 +378,36 @@ struct RequestCard: View {
     }
 }
 
-/// Mes personnes aidées : qui suivre en détail, qui demande une assistance, ajouter ou retirer.
+/// Les postes de l'organisation : lequel suivre en détail, lequel demande une assistance.
 struct PeopleRow: View {
     @Bindable var model: HelperModel
-    @State private var forget: Person?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(model.people) { p in chip(p) }
-                Button { model.sheet = .settings } label: {
-                    Text("+ Ajouter une personne").font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.accent)
-                        .lineLimit(1).padding(.horizontal, 16).frame(minHeight: 44)
-                        .background(Soin.card, in: Capsule()).overlay(Capsule().strokeBorder(Soin.hairline, lineWidth: 1))
-                }
             }
             .padding(.horizontal, 20)
         }
         .padding(.bottom, 12)
-        .alert("Retirer \(forget.map { $0.name.isEmpty ? "cette personne" : $0.name } ?? "") ?",
-               isPresented: Binding(get: { forget != nil }, set: { if !$0 { forget = nil } })) {
-            Button("Retirer", role: .destructive) { if let p = forget { model.forget(p) }; forget = nil }
-            Button("Annuler", role: .cancel) { forget = nil }
-        } message: {
-            Text("Ses demandes n’arriveront plus sur ce téléphone. Vous pourrez la rajouter avec un nouveau code.")
-        }
+        .accessibilityLabel("Postes")
     }
 
     private func chip(_ p: Person) -> some View {
         let here = model.isCurrent(p)
         let asking = !here && model.othersAsking[p.key] == true
-        let name = p.name.isEmpty ? "Personne aidée" : p.name
+        let name = People.title(p)
+        let detail = People.detail(p)
         return Button { model.switchTo(p) } label: {
             HStack(spacing: 8) {
                 Text(String(name.prefix(1)).uppercased()).font(.system(size: 15, weight: .bold)).foregroundStyle(Soin.accent)
                     .frame(width: 32, height: 32).background(here ? Soin.card : Soin.accentSoft, in: Circle())
-                Text(name).font(.system(size: 15, weight: .semibold)).foregroundStyle(here ? Color.white : Soin.ink).lineLimit(1)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(name).font(.system(size: 15, weight: .semibold)).foregroundStyle(here ? Color.white : Soin.ink).lineLimit(1)
+                    if let detail {
+                        Text(detail).font(.system(size: 12)).foregroundStyle(here ? Color.white.opacity(0.85) : Soin.secondary).lineLimit(1)
+                    }
+                }
                 if !here {
                     Circle().fill(model.othersOnline[p.key] == true ? Soin.online : Soin.secondary).frame(width: 8, height: 8)
                     if asking {
@@ -433,7 +419,6 @@ struct PeopleRow: View {
             .background(here ? AnyShapeStyle(Soin.primary) : AnyShapeStyle(Soin.card), in: Capsule())
             .overlay(Capsule().strokeBorder(asking ? Soin.danger : here ? Color.clear : Soin.hairline, lineWidth: asking ? 2 : 1))
         }
-        .contextMenu { Button("Retirer", role: .destructive) { forget = p } }
-        .accessibilityLabel(asking ? "\(name), demande une assistance" : name)
+        .accessibilityLabel([name, detail, asking ? "demande une assistance" : nil].compactMap { $0 }.joined(separator: ", "))
     }
 }

@@ -22,3 +22,7 @@ logs/
 family.json
 tickets.json
 data/
+
+# jeton support de démo (iPhone, Android) : jamais commité
+apps/ios/Config/Support.local.xcconfig
+apps/android/support.local.properties

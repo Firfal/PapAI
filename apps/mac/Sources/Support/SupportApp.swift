@@ -61,7 +61,11 @@ struct SupportRoot: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             SupportHeader(model: model)
-            if model.isConfigured {
+            if !model.orgConfigured {
+                SupportNoOrg()
+            } else if !model.isConfigured {
+                SupportNoPoste(model: model)
+            } else {
                 HStack(alignment: .top, spacing: 22) {
                     PeopleSidebar(model: model).frame(width: 236)
                     VStack(alignment: .leading, spacing: 12) {
@@ -71,8 +75,6 @@ struct SupportRoot: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
-            } else {
-                SupportWelcome(model: model)
             }
         }
         .padding(.horizontal, 28).padding(.bottom, 28)
@@ -84,12 +86,7 @@ struct SupportRoot: View {
         .overlay(alignment: .bottom) { toast }
         .animation(.spring(duration: 0.35), value: model.toast)
         .animation(.easeInOut(duration: 0.25), value: model.screen)
-        .sheet(item: $model.sheet) { s in
-            switch s {
-            case .pair(let l): SupportPairSheet(model: model, link: l)
-            case .settings, .scanner: SupportSettings(model: model)
-            }
-        }
+        .sheet(item: $model.sheet) { _ in SupportSettings(model: model) }
     }
 
     @ViewBuilder private var content: some View {
@@ -136,7 +133,7 @@ struct SupportHeader: View {
     var body: some View {
         HStack(spacing: 14) {
             LogotypePapai().frame(height: 36)
-            Pastille(texte: "Support", icone: "person.2.fill", ton: .bleu, taille: 14)
+            Pastille(texte: model.orgTitle, icone: "building.2.fill", ton: .bleu, taille: 14)
             Spacer()
             if model.isConfigured {
                 if model.connected {
@@ -177,7 +174,7 @@ struct LostBar: View {
             }
             Spacer()
             if model.linkError != nil {
-                Button("Vérifier les réglages") { model.sheet = .settings }
+                Button("Réessayer maintenant") { model.reconnect() }
                     .buttonStyle(.plain).font(rounded(14, .semibold))
                     .padding(.horizontal, 14).padding(.vertical, 7)
                     .background(Capsule().fill(.white.opacity(0.18)))
@@ -189,16 +186,18 @@ struct LostBar: View {
     }
 }
 
-/// Mes personnes aidées : qui suivre en détail, qui demande une assistance, ajouter ou retirer.
+/// Les postes de l'organisation : lequel suivre en détail, lequel demande une assistance.
+/// La liste vient du serveur : rien à ajouter ni à retirer ici.
 struct PeopleSidebar: View {
     @Bindable var model: HelperModel
-    @State private var forget: Person?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "person.2").font(rounded(18, .semibold)).foregroundStyle(T.accent)
-                Text("Mes personnes aidées").font(rounded(18, .bold)).lineLimit(1).minimumScaleFactor(0.8)
+                Image(systemName: "desktopcomputer").font(rounded(18, .semibold)).foregroundStyle(T.accent)
+                Text("Postes").font(rounded(18, .bold)).lineLimit(1)
+                Spacer(minLength: 0)
+                Text("\(model.people.count)").font(rounded(14, .semibold)).foregroundStyle(T.muted)
             }
             .accessibilityAddTraits(.isHeader)
             ScrollView(showsIndicators: false) {
@@ -208,23 +207,6 @@ struct PeopleSidebar: View {
                 .padding(4)
             }
             .frame(maxHeight: .infinity)
-            Button {
-                if let l = model.manualPairLink() { model.openPair(l) } else { model.sheet = .settings }
-            } label: {
-                Label("Ajouter une personne", systemImage: "plus")
-                    .font(rounded(16, .semibold)).foregroundStyle(T.leaf)
-                    .frame(maxWidth: .infinity, minHeight: 46)
-                    .background(Capsule().fill(T.card).overlay(Capsule().strokeBorder(T.line, lineWidth: 1.5)))
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(PressStyle())
-        }
-        .alert("Retirer \(forget.map { $0.name.isEmpty ? "cette personne" : $0.name } ?? "") ?",
-               isPresented: Binding(get: { forget != nil }, set: { if !$0 { forget = nil } })) {
-            Button("Retirer", role: .destructive) { if let p = forget { model.forget(p) }; forget = nil }
-            Button("Annuler", role: .cancel) { forget = nil }
-        } message: {
-            Text("Ses demandes n’arriveront plus sur ce Mac. Vous pourrez la rajouter avec un nouveau code.")
         }
     }
 
@@ -232,7 +214,9 @@ struct PeopleSidebar: View {
         let here = model.isCurrent(p)
         let asking = !here && model.othersAsking[p.key] == true
         let online = here ? (model.seniorOnline == true) : (model.othersOnline[p.key] == true)
-        let name = p.name.isEmpty ? "Personne aidée" : p.name
+        let name = People.title(p)
+        let detail = People.detail(p)
+        let state = asking ? "Demande une assistance" : online ? "En ligne" : "Hors ligne"
         return Button { model.switchTo(p) } label: {
             HStack(spacing: 12) {
                 Text(String(name.prefix(1)).uppercased()).font(rounded(17, .bold))
@@ -241,7 +225,7 @@ struct PeopleSidebar: View {
                     .background(Circle().fill(here ? Color.white : T.mint))
                 VStack(alignment: .leading, spacing: 3) {
                     Text(name).font(rounded(17, .semibold)).lineLimit(1)
-                    Text(asking ? "Demande une assistance" : online ? "Ordinateur allumé" : "Ordinateur éteint")
+                    Text(detail.map { "\($0) · \(state)" } ?? state)
                         .font(rounded(13, .medium)).lineLimit(1)
                         .foregroundStyle(here ? Color.white.opacity(0.9) : asking ? T.danger : T.muted)
                 }
@@ -260,8 +244,7 @@ struct PeopleSidebar: View {
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(PressStyle())
-        .contextMenu { Button("Retirer", role: .destructive) { forget = p } }
-        .accessibilityLabel(asking ? "\(name), demande une assistance" : name)
+        .accessibilityLabel([name, detail, state].compactMap { $0 }.joined(separator: ", "))
     }
 }
 

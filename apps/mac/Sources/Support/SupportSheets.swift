@@ -101,293 +101,84 @@ struct SupportStepEditSheet: View {
     }
 }
 
-// MARK: - Liaison
+// MARK: - Sans organisation, sans poste
 
-/// « Relier ce Mac » : code à 6 chiffres (ou lien d'invitation collé), prénom, lien avec la personne.
-struct SupportPairSheet: View {
-    @Bindable var model: HelperModel
-    @State var link: PairLink
-    @State private var name = ""
-    @State private var relation = ""
-    @State private var code = ""
-    @State private var pasted = ""
-    @State private var pastedError: String?
-    @Environment(\.dismiss) private var dismiss
-
+/// Sans jeton support : rien à saisir, l'administrateur configure ce Mac.
+struct SupportNoOrg: View {
     var body: some View {
-        if model.pairDone { done } else { form }
-    }
-
-    private var form: some View {
-        SupportSheet(titre: "Relier ce Mac",
-                     sousTitre: "Vous serez prévenu dès qu’une demande d’aide arrive sur l’ordinateur de la personne aidée. Rien ne bouge sans votre accord.",
-                     width: 680, height: 640) {
-            if link.isManual {
-                sheetLabel("Code affiché sur l’ordinateur de la personne aidée")
-                TextField("000000", text: $code)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 34, weight: .semibold, design: .rounded)).tracking(10)
-                    .multilineTextAlignment(.center)
-                    .padding(16).champ(actif: code.count == 6)
-                    .onChange(of: code) { _, v in
-                        let f = String(v.filter { $0.isASCII && $0.isNumber }.prefix(6))
-                        if f != v { code = f }
-                        if !f.isEmpty { model.pairNeedsNew = false }
-                    }
-                sheetLabel("Ou collez le lien d’invitation reçu")
-                HStack(spacing: 10) {
-                    TextField("https://…/p/123456 ou papai://pair?…", text: $pasted)
-                        .textFieldStyle(.plain).font(rounded(16)).padding(14).champ()
-                        .onSubmit(usePasted)
-                    Button("Utiliser") { usePasted() }.buttonStyle(supportSecondary(48))
-                        .disabled(pasted.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-                if let pastedError {
-                    Text(pastedError).font(rounded(14, .semibold)).foregroundStyle(T.danger)
-                }
-            } else {
-                Pastille(texte: link.token != nil ? "Lien d’invitation reconnu" : "Code \(link.code ?? "") reconnu",
-                         icone: "link", ton: .bleu, taille: 15)
+        Panneau {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Aucune organisation configurée").font(rounded(32, .bold))
+                Text("Contactez votre administrateur.").font(rounded(18, .medium)).opacity(0.92)
             }
-            sheetLabel("Votre prénom")
-            TextField("Claire", text: $name).textFieldStyle(.plain).font(rounded(18)).padding(14).champ()
-            sheetLabel("Votre lien avec la personne aidée")
-            FlowLayout(spacing: 8) {
-                ForEach(PairServer.relations, id: \.value) { r in
-                    let on = relation == r.value
-                    Button { relation = on ? "" : r.value } label: {
-                        Text(r.label).font(rounded(15, .medium))
-                            .foregroundStyle(on ? Color.white : T.ink)
-                            .padding(.horizontal, 16).frame(minHeight: 40)
-                            .background(Capsule().fill(on ? AnyShapeStyle(T.primary) : AnyShapeStyle(T.card))
-                                .overlay(Capsule().strokeBorder(on ? Color.clear : T.line)))
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            if model.pairBusy {
-                HStack(spacing: 10) {
-                    ProgressView().controlSize(.small)
-                    Text("En attente de l'accord sur l'ordinateur…").font(rounded(17, .semibold))
-                }
-                Text("Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).")
-                    .font(rounded(16))
-            }
-            if let e = model.pairError {
-                if model.pairRefused {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Demande refusée").font(rounded(20, .bold))
-                        Text(verbatim: e).font(rounded(15))
-                    }
-                    .padding(16).frame(maxWidth: .infinity, alignment: .leading).carte()
-                } else {
-                    Text(verbatim: e).font(rounded(15, .semibold)).foregroundStyle(T.danger)
-                }
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                if link.isOfficial {
-                    Text("Serveur PapAI officiel").font(rounded(17, .bold))
-                } else {
-                    Label("Serveur inconnu : ne continuez que si la personne aidée vous a donné ce lien elle-même",
-                          systemImage: "exclamationmark.triangle.fill")
-                        .font(rounded(17, .bold)).foregroundStyle(T.danger)
-                }
-                Text(link.host).font(rounded(13)).foregroundStyle(T.muted)
-            }
-            .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(link.isOfficial ? T.mint : T.danger.opacity(0.08)))
-        } bas: {
-            Spacer()
-            Button("Annuler") { dismiss() }.buttonStyle(supportSecondary(50))
-                .keyboardShortcut(.cancelAction).disabled(model.pairBusy)
-            Button {
-                Task { await model.submitPair(link, code: code, name: name, relation: relation) }
-            } label: {
-                HStack(spacing: 8) {
-                    if model.pairBusy { ProgressView().controlSize(.small).tint(.white) }
-                    Text("Rejoindre")
-                }
-            }
-            .buttonStyle(PillStyle(height: 50, icone: model.pairBusy ? nil : "link"))
-            .keyboardShortcut(.defaultAction)
-            .disabled(model.pairBusy || model.pairNeedsNew || (link.isManual && code.count != 6))
-        }
-        .onAppear { if name.isEmpty { name = model.helperName ?? "" } }
-        .onChange(of: model.pairNeedsNew) { _, n in if n { code = "" } }
-        .interactiveDismissDisabled(model.pairBusy)
-    }
-
-    private func usePasted() {
-        let t = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Un lien d'organisation (service IT) ajoute tous ses postes.
-        if Orgs.parse(t, officialHost: PairServer.officialHost) != nil {
-            Task { if await model.addOrg(t) { dismiss() } else { pastedError = model.orgError } }
-            return
-        }
-        guard let l = PairLink.parse(t) else { pastedError = PairServer.refusal; return }
-        pastedError = nil
-        link = l
-        if let c = l.code { code = c }
-    }
-
-    private var done: some View {
-        SupportSheet(titre: "Vous êtes relié à \(model.senior)", width: 680, height: 420) {
-            HStack(spacing: 16) {
-                Image(systemName: "checkmark").font(.system(size: 26, weight: .bold)).foregroundStyle(T.leaf)
-                    .frame(width: 72, height: 72).background(Circle().fill(T.mint))
-                VStack(alignment: .leading, spacing: 8) {
-                    if model.connected {
-                        Text("Connecté. Vous serez prévenu dès qu’une demande d’aide arrive.").font(rounded(18, .semibold))
-                    } else if let e = model.linkError {
-                        Text(e).font(rounded(17, .semibold)).foregroundStyle(T.danger)
-                    } else {
-                        HStack { ProgressView().controlSize(.small); Text("Connexion au serveur…").font(rounded(17)) }
-                    }
-                    Text("Gardez PapAI ouvert sur ce Mac : les demandes s’affichent en notification.")
-                        .font(rounded(15)).foregroundStyle(T.muted)
-                }
-            }
-        } bas: {
-            Spacer()
-            Button("Terminer") { model.sheet = nil }.buttonStyle(PillStyle(height: 50)).keyboardShortcut(.defaultAction)
+        } corps: {
+            Text("Votre service informatique dépose sur ce Mac le jeton du support de votre organisation. Les postes et leurs demandes apparaissent alors ici, sans rien saisir.")
+                .font(rounded(18)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
         }
     }
 }
 
-// MARK: - Premier lancement du mode support
-
-struct SupportWelcome: View {
-    @Bindable var model: HelperModel
-    @State private var pasted = ""
-    @State private var error: String?
-
+/// Organisation configurée, mais aucun poste à suivre : chargement, liste vide ou serveur injoignable.
+struct SupportNoPoste: View {
+    let model: HelperModel
     var body: some View {
         Panneau {
-            HStack(alignment: .center, spacing: 18) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Relier PapAI à la personne que vous aidez").font(rounded(32, .bold))
-                    Text("Vous recevrez ses demandes ici, validerez le plan de Holo et suivrez l’assistance en direct.")
-                        .font(rounded(18, .medium)).opacity(0.92)
-                }
-                Spacer(minLength: 0)
-                Mascotte(humeur: .joyeuse, anime: false).frame(width: 80, height: 80)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(model.orgTitle).font(rounded(32, .bold))
+                Text(!model.orgLoaded && model.orgError == nil ? "Chargement des postes…"
+                     : model.orgError == nil ? "Aucun poste inscrit pour l’instant" : "Postes indisponibles")
+                    .font(rounded(18, .medium)).opacity(0.92)
             }
         } corps: {
-            HStack(alignment: .top, spacing: 34) {
-                VStack(alignment: .leading, spacing: 16) {
-                    etape(1, "Sur l’ordinateur de la personne aidée, ouvrez Réglages › Mon support › Ajouter un support.")
-                    etape(2, "Un code à 6 chiffres s’affiche, avec un QR code et un lien à envoyer.")
-                    etape(3, "Tapez ce code ici, ou collez le lien reçu. La personne aidée accepte sur son écran.")
-                    Spacer(minLength: 0)
+            HStack(spacing: 16) {
+                if !model.orgLoaded && model.orgError == nil { ProgressView().controlSize(.small) }
+                Text(model.orgError ?? "Les postes de l’organisation apparaissent ici dès que PapAI y est installé.")
+                    .font(rounded(18)).foregroundStyle(model.orgError == nil ? T.muted : T.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                if model.orgError != nil {
+                    Button("Réessayer") { Task { await model.refreshOrg() } }.buttonStyle(supportSecondary(48))
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .leading, spacing: 14) {
-                    Button("Entrer le code à 6 chiffres") {
-                        if let l = model.manualPairLink() { model.openPair(l) }
-                    }
-                    .buttonStyle(PillStyle(height: 58, icone: "number", plein: true))
-                    Text("Ou collez le lien d’invitation, ou le lien d’organisation de votre service informatique")
-                        .font(rounded(14, .semibold)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                    TextField("https://…", text: $pasted).textFieldStyle(.plain).font(rounded(16)).padding(14).champ()
-                        .onSubmit(open)
-                    Button("Ouvrir le lien") { open() }.buttonStyle(supportSecondary(50, icone: "link"))
-                        .disabled(pasted.trimmingCharacters(in: .whitespaces).isEmpty || model.orgBusy)
-                    if let error { Text(error).font(rounded(14, .semibold)).foregroundStyle(T.danger).fixedSize(horizontal: false, vertical: true) }
-                    Button("Réglage à la main…") { model.sheet = .settings }
-                        .buttonStyle(.plain).font(rounded(14, .medium)).foregroundStyle(T.muted)
-                }
-                .frame(width: 360)
             }
         }
-    }
-
-    private func etape(_ n: Int, _ t: String) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            Text("\(n)").font(rounded(17, .bold)).foregroundStyle(T.leaf)
-                .frame(width: 36, height: 36).background(Circle().fill(T.mint))
-            Text(t).font(rounded(18)).fixedSize(horizontal: false, vertical: true).padding(.top, 6)
-        }
-    }
-
-    private func open() {
-        let t = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { return }
-        if Orgs.parse(t, officialHost: PairServer.officialHost) != nil {
-            Task { if !(await model.addOrg(t)) { error = model.orgError } }
-            return
-        }
-        guard let l = PairLink.parse(t) else { error = PairServer.refusal; return }
-        error = nil
-        model.openPair(l)
     }
 }
 
 // MARK: - Réglages
 
+/// Réglages en lecture seule : tout vient de la configuration de l'organisation.
 struct SupportSettings: View {
     @Bindable var model: HelperModel
     @Environment(\.dismiss) private var dismiss
-    @State private var server = ""
-    @State private var key = ""
-    @State private var org = ""
 
     var body: some View {
-        SupportSheet(titre: "Réglages", sousTitre: model.helperName.map { "Support : \($0)" }, width: 640, height: 640) {
-            Text("Liaison").font(rounded(20, .bold))
-            Text("Le plus simple : tapez le code à 6 chiffres affiché sur l’ordinateur de \(model.senior) (Mon support › Ajouter un support).")
-                .font(rounded(15)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-            if let l = model.manualPairLink() {
-                Button("Entrer le code à 6 chiffres") { model.openPair(l) }.buttonStyle(PillStyle(height: 50, icone: "number"))
-            }
-            Text("Service informatique").font(rounded(20, .bold)).padding(.top, 6)
-            Text("Collez le lien d’organisation donné par l’IT : tous les postes s’ajoutent, sans code.")
-                .font(rounded(15)).foregroundStyle(T.muted)
-            HStack(spacing: 10) {
-                TextField("https://…/o/sup-…", text: $org).textFieldStyle(.plain).font(rounded(16)).padding(14).champ()
-                Button(model.orgBusy ? "Ajout…" : "Ajouter les postes") {
-                    Task { if await model.addOrg(org) { dismiss() } }
-                }
-                .buttonStyle(supportSecondary(48))
-                .disabled(org.trimmingCharacters(in: .whitespaces).isEmpty || model.orgBusy)
+        SupportSheet(titre: "Réglages", sousTitre: model.helperName.map { "Support : \($0)" }, width: 560, height: 420) {
+            sheetLabel("Organisation")
+            Text(model.orgConfigured ? model.orgTitle : "Aucune organisation configurée").font(rounded(20, .bold))
+            if let o = model.org {
+                Text(URL(string: o.server)?.host ?? o.server).font(rounded(15)).foregroundStyle(T.muted)
+                Text("\(model.people.count) poste\(model.people.count > 1 ? "s" : "")").font(rounded(15)).foregroundStyle(T.muted)
             }
             if let e = model.orgError { Text(e).font(rounded(14, .semibold)).foregroundStyle(T.danger) }
-            Text("À la main").font(rounded(20, .bold)).padding(.top, 6)
-            sheetLabel("Adresse du serveur")
-            TextField("https://…/k/<clé de l'espace>", text: $server).textFieldStyle(.plain).font(rounded(16)).padding(14).champ()
-            sheetLabel("Clé support")
-            TextField("demo", text: $key).textFieldStyle(.plain).font(rounded(16)).padding(14).champ()
-            HStack(spacing: 8) {
-                Circle().fill(model.connected ? Color(hex: 0x12A15E) : (model.linkError == nil ? T.muted : T.danger))
-                    .frame(width: 8, height: 8)
-                TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                    Text(model.isConfigured ? SupportConnection.line(model, now: ctx.date) : "Non configuré")
-                        .font(rounded(14)).foregroundStyle(T.muted)
-                }
-            }
-            if let g = model.lastGood, g.server != model.serverURL || g.key != model.helperKey {
-                Button("Revenir au dernier réglage qui marchait") {
-                    server = g.server; key = g.key
-                    model.applySettings(server: g.server, key: g.key)
-                }
-                .buttonStyle(.plain).font(rounded(15, .semibold)).foregroundStyle(T.leaf)
-            }
-            if let e = model.pairError { Text(e).font(rounded(14, .semibold)).foregroundStyle(T.danger) }
-            HStack(spacing: 10) {
-                Button("Enregistrer et se connecter") {
-                    if model.applySettings(server: server, key: key) { dismiss() }
-                }
-                .buttonStyle(PillStyle(height: 48))
-                .disabled(server.trimmingCharacters(in: .whitespaces).isEmpty || key.trimmingCharacters(in: .whitespaces).isEmpty)
-                if model.isConfigured {
-                    Button("Réessayer maintenant") { model.reconnect() }.buttonStyle(supportSecondary(48))
+            Text(model.orgConfigured ? "Configuré par votre administrateur. Rien à régler sur ce Mac."
+                 : "Contactez votre administrateur : il dépose le jeton du support de votre organisation sur ce Mac.")
+                .font(rounded(15)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+            if model.isConfigured {
+                HStack(spacing: 8) {
+                    Circle().fill(model.connected ? Color(hex: 0x12A15E) : (model.linkError == nil ? T.muted : T.danger))
+                        .frame(width: 8, height: 8)
+                    TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                        Text(SupportConnection.line(model, now: ctx.date)).font(rounded(14)).foregroundStyle(T.muted)
+                    }
                 }
             }
         } bas: {
+            if model.orgConfigured {
+                Button("Réessayer maintenant") { model.reconnect(); Task { await model.refreshOrg() } }
+                    .buttonStyle(supportSecondary(50))
+            }
             Spacer()
             Button("Fermer") { dismiss() }.buttonStyle(PillStyle(height: 50)).keyboardShortcut(.cancelAction)
         }
-        .onAppear { server = model.serverURL; key = model.helperKey }
     }
 }
