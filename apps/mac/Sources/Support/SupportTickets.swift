@@ -195,14 +195,17 @@ struct SupportTickets: View {
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 8) {
                 if t.isOpen && t.plan != nil {
+                    // Trois boutons de même taille, empilés et alignés.
                     Button(busy == t.id ? "…" : "Valider") { Task { await act(t, "validate") } }
-                        .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
+                        .buttonStyle(PillStyle(height: 40, icone: "checkmark.circle", plein: true)).frame(width: 190)
+                        .disabled(busy != nil)
                         .help("Crée l’automate chez l’utilisateur")
                     Button("Modifier") { editing = t }
-                        .buttonStyle(PillStyle(filled: false, height: 36)).disabled(busy != nil)
+                        .buttonStyle(PillStyle(filled: false, height: 40, icone: "pencil", plein: true)).frame(width: 190)
+                        .disabled(busy != nil)
                         .help("Corriger le plan proposé par Holo avant de le valider")
-                    Button(busy == t.id ? "…" : "Chercher avec Linkup") { Task { await act(t, "linkup") } }
-                        .buttonStyle(.plain).font(rounded(13, .semibold)).foregroundStyle(T.accent)
+                    Button(busy == t.id ? "…" : "Linkup") { Task { await act(t, "linkup") } }
+                        .buttonStyle(PillStyle(filled: false, height: 40, icone: "magnifyingglass", plein: true)).frame(width: 190)
                         .disabled(busy != nil)
                         .help("Recherche documentaire : Holo refait le plan avec les sources trouvées")
                 } else if t.isOpen && t.status != "en_cours" {

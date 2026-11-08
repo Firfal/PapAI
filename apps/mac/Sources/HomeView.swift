@@ -94,6 +94,15 @@ struct HomeView: View {
                         .padding(.horizontal, 18).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 }
+                // Juste sous la ligne de saisie : la confirmation de ce qui vient d'être envoyé.
+                if let n = model.notice {
+                    Label(n, systemImage: "checkmark.circle.fill").font(rounded(17, .medium))
+                        .foregroundStyle(T.leaf)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 18).padding(.vertical, 12)
+                        .frame(maxWidth: largeur ?? .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                }
                 if !trouves.isEmpty || prepare || proposition != nil {
                     ResultatsRecherche(trouves: trouves, prepare: prepare, proposition: proposition, fermer: fermerRecherche)
                         .frame(maxWidth: largeur ?? .infinity)
@@ -297,13 +306,6 @@ struct HomeView: View {
         let liste = tous ? model.lessons : Array(model.lessons.prefix(Self.derniers))
         return VStack(alignment: .leading, spacing: 14) {
             if titre { titreSection("sparkles", "Derniers automates") }
-            if let n = model.notice {
-                Label(n, systemImage: "info.circle.fill").font(rounded(17, .medium))
-                    .foregroundStyle(T.leaf)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
-            }
             if let t = model.lastTidy { annulerRangement(t) }
             Group {
                 if model.lessons.isEmpty {
