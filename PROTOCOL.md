@@ -109,8 +109,10 @@ Les messages suivants passent uniquement sur les canaux support authentifiés :
   `awaiting_approval`, jamais après validation d'un plan. Remplace le plan en
   attente, sans exécuter de geste. Délai fournisseur de 12 secondes maximum.
 - Serveur → support : `{"type":"linkup_result","session":"…","id":"…","query":"…","summary":"…","sources":[{"name":"…","url":"https://…","excerpt":"…"}]}`.
-  En cas d'échec : `error` = `disabled`, `empty_query`, `timeout`,
-  `invalid_response` ou `unavailable`, sans résumé ni sources. `id` peut manquer
+  En cas d'échec : `error` = `disabled`, `empty_query`, `personal_data`, `timeout`,
+  `invalid_response` ou `unavailable`, sans résumé ni sources. `personal_data` :
+  la requête contient un mail, une longue suite de chiffres (téléphone, carte,
+  IBAN) ou une adresse postale ; elle n'est pas envoyée à Linkup. `id` peut manquer
   si la fonction est désactivée. Aucune erreur fournisseur brute n'est envoyée.
 - Support → serveur : `{"type":"linkup_approve","session":"…","id":"…","approved":true,"text":"réponse corrigée"}`.
   `text` facultatif : le résumé est conservé si absent. Texte vide refusé.

@@ -11,6 +11,23 @@ import httpx
 
 TIMEOUT_S = 12.0
 
+# Refus avant tout envoi : mail, longue suite de chiffres (téléphone, carte, IBAN), adresse postale.
+# Les noms ne se repèrent pas de façon fiable : la consigne de Holo et la carte du support les interdisent.
+_NUM = r"\b\d{1,4}\s*(?i:bis|ter)?\s*,?\s*"
+# Types de voie sans autre sens courant : le numéro suffit.
+_VOIE = (r"(?i:rue|avenue|av|boulevard|bd|blvd|chemin|allée|allee|impasse|quai|résidence|residence"
+         r"|hameau|lieu-dit|faubourg|fbg|sentier|esplanade|parvis|rond-point|lotissement)\b")
+# Mots qui ont aussi un autre sens (« 3 cours gratuits ») : il faut un nom propre après.
+_VOIE_AMBIGUE = (r"(?i:place|route|rte|passage|cours|square|villa|cité|cite|voie|traverse|montée)"
+                 r"\s+(?:(?i:de|du|des|la|le|les)\s+){0,2}(?:(?i:d|l)['’])?[A-ZÀ-Ý]")
+_PERSONAL = re.compile(
+    r"(?i:\S+@\S+\.\S+|\bFR\d{2})|(?<!\w)\d(?:[\s./-]?\d){5,}"
+    rf"|{_NUM}{_VOIE}|{_NUM}{_VOIE_AMBIGUE}")
+
+
+def personal(query: str) -> bool:
+    return bool(_PERSONAL.search(query))
+
 
 def enabled() -> bool:
     return bool(os.environ.get("LINKUP_API_KEY", "").strip())
@@ -41,6 +58,8 @@ async def search(query: str) -> dict:
     query = plain(query, 1000)
     if not query:
         return {"error": "empty_query"}
+    if personal(query):
+        return {"error": "personal_data"}
     base = os.environ.get("LINKUP_BASE_URL", "https://api.linkup.so").rstrip("/")
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT_S, follow_redirects=False) as client:

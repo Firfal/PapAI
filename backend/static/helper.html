@@ -1144,7 +1144,9 @@ function onMessage(ev) {
   }
   else if (m.type === 'linkup_result' && m.session === sessionId) {
     linkupVisible = true; linkupBusy = false; linkupId = m.id || '';
-    $('linkupMessage').textContent = m.error ? 'Recherche indisponible pour le moment' : '';
+    $('linkupMessage').textContent = m.error === 'personal_data'
+      ? 'Retirez le mail, le numéro ou l’adresse de la question, puis relancez la recherche'
+      : m.error ? 'Recherche indisponible pour le moment' : '';
     $('linkupText').value = m.summary || '';
     $('linkupSources').replaceChildren();
     for (const source of m.sources || []) {
