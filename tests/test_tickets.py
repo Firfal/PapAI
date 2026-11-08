@@ -71,6 +71,13 @@ async def parcours(base: str) -> None:
     st, o = http(f"{base}/orgs", {"name": "Acme"})
     st, a = http(f"{base}/spaces", {"org": o["enroll_token"], "name": "Poste compta"})
     key = a["key"]
+    st, automate = http(f"{base}/o/{o['support_token']}/automations", {
+        "papai": 1, "title": "Imprimer un document", "description": "Configurer une imprimante",
+        "publisher": "Service IT", "platforms": ["windows"],
+        "actions": [{"do": "open_settings", "page": "printers"}],
+    })
+    check("le support importe un automate pour le poste",
+          st == 200 and automate.get("id") and automate.get("title") == "Imprimer un document")
     async with websockets.connect(a["bridge_url"]) as wa:
         await wa.send(json.dumps({"type": "hello", "os": "windows"}))
         await drain(wa, 0.5)
@@ -79,10 +86,32 @@ async def parcours(base: str) -> None:
         q = await attendre(wa, "ticket_queued")
         check("aucun support connecté : la demande attend, avec un numéro",
               q is not None and q["number"] == 1 and q["task"] == "Imprimer un document")
+        proposed = [{"id": automate["id"], "title": automate["title"]}]
+        check("ticket_queued propose l'automate correspondant",
+              q is not None and q.get("suggestions") == proposed)
         lst = tickets(base, key)
         check("le ticket est enregistré « en attente »",
               len(lst) == 1 and lst[0]["status"] == "en_attente" and lst[0]["source"] == "personne")
         tid = lst[0]["id"]
+        check("les suggestions sont gardées dans le ticket",
+              lst[0].get("suggestions") == proposed and lst[0].get("suggestion_lancee") is None)
+
+        await wa.send(json.dumps({"type": "ticket_automate_launched", "ticket": tid, "lesson": "imp-not-proposed"}))
+        await asyncio.sleep(0.2)
+        t = tickets(base, key)[0]
+        check("un automate non proposé ne peut pas être enregistré",
+              t.get("suggestion_lancee") is None and not any("Automate proposé lancé" in n.get("text", "")
+                                                              for n in t.get("notes", [])))
+
+        await wa.send(json.dumps({"type": "ticket_automate_launched", "ticket": tid, "lesson": automate["id"]}))
+        for _ in range(20):
+            t = tickets(base, key)[0]
+            if t.get("suggestion_lancee") == automate["id"]:
+                break
+            await asyncio.sleep(0.1)
+        check("l'automate proposé lancé est noté sans fermer le ticket",
+              t.get("suggestion_lancee") == automate["id"] and t["status"] == "en_attente"
+              and any(n.get("text") == f"Automate proposé lancé : {automate['title']}" for n in t.get("notes", [])))
 
         async with websockets.connect(f"{wsb}/k/{key}/ws/aidant/{key}") as ha:
             hello = json.loads(await asyncio.wait_for(ha.recv(), 5))

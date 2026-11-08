@@ -1,5 +1,10 @@
 import SwiftUI
 
+struct SupportTicketSuggestion: Identifiable {
+    var id: String
+    var title: String
+}
+
 /// Un ticket d'un utilisateur (`GET …/k/<clé>/tickets`), avec la personne d'où il vient.
 struct SupportTicket: Identifiable {
     var id: String { person.key + "/" + tid }
@@ -12,6 +17,8 @@ struct SupportTicket: Identifiable {
     var created: Double
     var rdv: Double?
     var assignee: String
+    var suggestions: [SupportTicketSuggestion] = []
+    var suggestionLancee: String?
     var person: Person
 
     var label: String { String(format: "T-%04d", number) }
@@ -28,6 +35,11 @@ struct SupportTicket: Identifiable {
         created = (d["created"] as? NSNumber)?.doubleValue ?? updated
         rdv = (d["rdv"] as? NSNumber)?.doubleValue
         assignee = d["assignee"] as? String ?? ""
+        suggestions = (d["suggestions"] as? [[String: Any]] ?? []).compactMap { item in
+            guard let id = item["id"] as? String, let title = item["title"] as? String else { return nil }
+            return SupportTicketSuggestion(id: id, title: title)
+        }
+        suggestionLancee = d["suggestion_lancee"] as? String
         self.person = person
     }
 }
@@ -110,6 +122,11 @@ struct SupportTickets: View {
                 }
                 Text(t.task.isEmpty ? "Demande sans texte" : "« \(t.task) »").font(rounded(18, .semibold))
                     .fixedSize(horizontal: false, vertical: true)
+                ForEach(t.suggestions) { suggestion in
+                    Text("Automate proposé : \(suggestion.title) · \(t.suggestionLancee == suggestion.id ? "lancé" : "pas lancé")")
+                        .font(rounded(14)).foregroundStyle(T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Text(when(t)).font(rounded(13)).foregroundStyle(T.muted)
             }
             Spacer(minLength: 0)

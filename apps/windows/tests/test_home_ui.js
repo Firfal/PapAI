@@ -9,9 +9,9 @@ async function home(microPresent = true) {
   let state = { connected: true, screen: 'home', state: null,
     firstName: '', helperName: 'Claire', textScale: 1, textScales: [['Grande', 1], ['Très grande', 1.18]],
     orgName: '', orgConfigured: false, realtimeProtection: true, screenConsent: false,
-    lessons: [], notice: null, homeShortcuts: [], microPresent,
+    lessons: [], notice: null, homeShortcuts: [], queued: null, microPresent,
     dictation: { phase: 'idle', message: null } };
-  const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [], actions = [], calls = [];
+  const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [], actions = [], calls = [], automationCalls = [];
   const root = { innerHTML: '' }, sheet = { innerHTML: '' };
   const dialog = { focus() { document.activeElement = dialog; } };
   const document = { activeElement: null, documentElement: { style: { setProperty() {} } },
@@ -23,6 +23,7 @@ async function home(microPresent = true) {
     dictation_toggle: () => {},
     open_home_shortcut: id => { shortcuts.push(id); },
     remove_home_shortcut: id => { removed.push(id); },
+    run_suggested_automation: (id, ticket) => { automationCalls.push([id, ticket]); },
     dismiss_alert: () => { actions.push('dismiss_alert'); },
     stop: () => { actions.push('stop'); },
     toggle_pause: () => { calls.push(['toggle_pause']); },
@@ -34,13 +35,13 @@ async function home(microPresent = true) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../ui/app.js'), 'utf8'), context);
   await new Promise(resolve => setImmediate(resolve));
   const update = changes => { state = { ...state, ...changes }; window.PapAI.update(state); };
-  const click = (act, arg) => listeners.click({ target: { closest: () => ({ dataset: { act, arg } }) } });
+  const click = (act, arg, ticket) => listeners.click({ target: { closest: () => ({ dataset: { act, arg, ticket } }) } });
   const type = text => listeners.input({ target: { id: 'req', value: text,
     style: {}, scrollHeight: 30 } });
   context.getComputedStyle = () => ({ lineHeight: '22' });
   const enter = () => listeners.keydown({ key: 'Enter', target: { id: 'req' }, preventDefault() {} });
   return { state, root, sheet, dialog, document, update, click, type, enter, sent, shortcuts, removed, calls, window, listeners,
-    actions, key: event => listeners.keydown(event) };
+    automationCalls, actions, key: event => listeners.keydown(event) };
 }
 
 test("accueil direct : « Bonjour <nom Windows> », sans étapes d'accueil ni liaison", async () => {
@@ -52,6 +53,21 @@ test("accueil direct : « Bonjour <nom Windows> », sans étapes d'accueil ni li
   assert.match(h.root.innerHTML, /(Bonjour|Bonsoir)<\/div>/);
   const js = fs.readFileSync(path.join(__dirname, '../ui/app.js'), 'utf8');
   assert.doesNotMatch(js, /pairDialog|start_pairing|copy_invitation|answer_pair|onboarding|WhatsApp|SMS|Ajouter un support/);
+});
+
+test("attente d'un support : automates proposés et lancement rattaché au ticket", async () => {
+  const h = await home();
+  const queued = { ticket: 'ticket-1', number: 7, task: 'Imprimer une facture', show: true,
+    suggestions: [{ id: 'auto-1', title: 'Imprimer le document' }], suggestion_lancee: null };
+  h.update({ queued });
+  assert.match(h.root.innerHTML, /En attendant, vous pouvez essayer :/);
+  assert.match(h.root.innerHTML, /Imprimer le document/);
+  assert.match(h.root.innerHTML, /data-act="runSuggested" data-arg="auto-1"[\s\S]*data-ticket="ticket-1"/);
+  h.click('runSuggested', 'auto-1', 'ticket-1');
+  assert.deepEqual(h.automationCalls, [['auto-1', 'ticket-1']]);
+  h.update({ queued: { ...queued, suggestion_lancee: 'auto-1' } });
+  assert.match(h.root.innerHTML, />\s*Lancé<\/button>/);
+  assert.match(h.root.innerHTML, /data-act="runSuggested"[^>]*disabled/);
 });
 
 test("Réglages : « Mon support » en lecture seule, organisation en ligne ou non", async () => {

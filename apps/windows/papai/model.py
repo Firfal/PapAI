@@ -77,6 +77,7 @@ class Model:
         self.queued: dict | None = None
         self.pending_task = ""
         self.pending_automation: str | None = None
+        self.pending_automation_ticket: str | None = None
         self.automation_running: str | None = None
         self.apps: list[dict] = []
         self.dictation = {"phase": "idle", "message": None}
@@ -441,9 +442,10 @@ class Model:
         self.save_prefs(screenConsent=True)
         if self.pending_automation:
             lesson_id, self.pending_automation = self.pending_automation, None
+            ticket_id, self.pending_automation_ticket = self.pending_automation_ticket, None
             self.pending_task = ""
             self.screen = "home"
-            self.run_automation(lesson_id)
+            self.run_automation(lesson_id, ticket_id=ticket_id)
             return
         self.ask_help(self.pending_task)
 
@@ -454,6 +456,7 @@ class Model:
     def cancel_consent(self) -> None:
         self.pending_task = ""
         self.pending_automation = None
+        self.pending_automation_ticket = None
         self.screen = "home"
         self.push()
 
@@ -550,9 +553,15 @@ class Model:
             return
         elif kind == "ticket_queued":
             # Aucun support disponible : la demande attend, on revient à l'accueil.
+            suggestions = m.get("suggestions")
+            suggestions = [
+                {"id": str(x["id"]), "title": str(x["title"])}
+                for x in suggestions if isinstance(x, dict) and x.get("id") and x.get("title")
+            ] if isinstance(suggestions, list) else []
             with self._lock:
                 self.queued = {"ticket": str(m.get("ticket") or ""), "number": m.get("number"),
-                               "task": str(m.get("task") or self.task), "rdv": None, "show": True}
+                               "task": str(m.get("task") or self.task), "rdv": None, "show": True,
+                               "suggestions": suggestions, "suggestion_lancee": None}
                 self.state, self.screen = None, "home"
             self._level()
         elif kind == "ticket_scheduled":
@@ -638,24 +647,42 @@ class Model:
             self._send({"type": "automation_failed", "title": lesson.get("title") or "",
                         "detail": detail})
 
-    def run_automation(self, lesson_id: str) -> None:
+    def run_suggested_automation(self, lesson_id: str, ticket_id: str) -> None:
+        q = self.queued
+        if not q or q.get("ticket") != ticket_id or not any(
+            x.get("id") == lesson_id for x in q.get("suggestions", []) if isinstance(x, dict)
+        ):
+            return
+        self.run_automation(lesson_id, ticket_id=ticket_id)
+
+    def run_automation(self, lesson_id: str, ticket_id: str | None = None) -> None:
         """Un automate importé par un support, lancé en un clic. Pas de
         validation à chaque fois : le support l'a validé à l'import."""
+        lesson_id = str(lesson_id or "")
         lesson = self._find_lesson(lesson_id)
         if lesson is None or not lesson.get("actions"):
             return
+        if ticket_id and (not self.queued or self.queued.get("ticket") != ticket_id
+                          or not any(x.get("id") == lesson_id for x in self.queued.get("suggestions", [])
+                                     if isinstance(x, dict))):
+            ticket_id = None
         if "windows" not in (lesson.get("platforms") or ["windows"]):
             self.show_notice("Cet automate est prévu pour un autre ordinateur.")
             return
         holo = any(a.get("do") == "holo" for a in lesson["actions"])
         if holo and not self.screen_consent:
             self.pending_automation = lesson_id
+            self.pending_automation_ticket = ticket_id
             self.pending_task = str(lesson.get("title") or "")
             self.screen = "consent"
             self.push()
             return
         if self.automation_running:
             return
+        if ticket_id:
+            self._send({"type": "ticket_automate_launched", "ticket": ticket_id, "lesson": lesson_id})
+            if self.queued and self.queued.get("ticket") == ticket_id:
+                self.queued["suggestion_lancee"] = lesson_id
         self.gate.reset()
         self.automation_running = str(lesson.get("title") or "Automate")
         self.show_notice(f"C'est parti : {lesson.get('title') or 'automate'}…")

@@ -140,10 +140,24 @@ def unit() -> None:
     t = Model(demo="", on_compact=lambda _c: None)
     t.bridge = TicketBridge()
     t.ask_help("Imprimer")
-    t._handle({"type": "ticket_queued", "ticket": "t1", "number": 4, "task": "Imprimer"})
+    suggestions = [{"id": "auto-1", "title": "Imprimer une facture"}]
+    t.lessons = [{"id": "auto-1", "title": "Imprimer une facture", "platforms": ["windows"],
+                  "actions": [{"do": "open_settings", "page": "printers"}]}]
+    t._handle({"type": "ticket_queued", "ticket": "t1", "number": 4, "task": "Imprimer",
+               "suggestions": suggestions})
     snap = t.snapshot()
     check(snap["queued"]["number"] == 4 and snap["queued"]["show"] and snap["screen"] == "home" and not snap["sessionOpen"],
           "aucun support disponible : la demande attend, retour à l'accueil")
+    check(snap["queued"]["suggestions"] == suggestions and snap["queued"]["suggestion_lancee"] is None,
+          "l'automate suggéré est transmis à l'écran d'attente")
+    with patch("papai.model.play_actions", return_value=(True, "")):
+        t.run_suggested_automation("auto-1", "t1")
+        fin = time.time() + 2
+        while t.automation_running is not None and time.time() < fin:
+            time.sleep(0.01)
+    check(out[-1] == {"type": "ticket_automate_launched", "ticket": "t1", "lesson": "auto-1"}
+          and t.queued["suggestion_lancee"] == "auto-1",
+          "Lancer démarre l'automate et signale son ticket")
     t.schedule_ticket("demain9")
     check(out[-1]["type"] == "ticket_schedule" and out[-1]["ticket"] == "t1" and out[-1]["at"] > time.time(),
           "rendez-vous demandé au serveur")

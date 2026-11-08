@@ -118,5 +118,6 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Accueil Mac en deux colonnes (60/40) : barre de demande réduite puis « Mes automates » à gauche ; « Applications récentes » (6 dernières applications utilisées) au milieu à droite.
 - [x] Notion du hackathon avec la base Features, mise à jour le 7 novembre à 18 h 30 selon l'état réel.
 - [x] Tickets : chaque demande d'assistance suivie (numéro, statut, plan, fin), demande en attente quand aucun support n'est là, personne reprévenue dès qu'un support arrive, rendez-vous et rappel ; onglet Tickets de l'organisation (filtres, CSV) et liste sur la page du support (`tests/test_tickets.py`).
+- [x] Tickets : pendant l'attente d'un support, proposer jusqu'à deux automates de l'organisation ou de l'espace ; lancement suivi sur le ticket et indiqué à l'utilisateur sur Windows/Mac et au support sur le web/Mac (`tests/test_suggestions.py`, `tests/test_tickets.py`).
 - [ ] Tickets dans les apps Android et iPhone du support (aujourd'hui : page web seulement).
 - [x] Automates sans Holo disponibles hors ligne sur Mac et Windows (liste gardée sur l'ordinateur, sans Holo ni fichier du serveur). Les images du « Montrez-moi » restent sur le serveur.

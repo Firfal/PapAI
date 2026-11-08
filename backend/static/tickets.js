@@ -65,6 +65,15 @@
       head.append(el('span', 'tk-num', num(t)), el('span', 'tk-st ' + t.status, STATUS[t.status] || t.status),
                   el('span', 'tk-task', t.task || '(sans texte)'));
       c.append(head, el('div', 'tk-meta', meta(t)));
+      if (Array.isArray(t.suggestions) && t.suggestions.length) {
+        const suggestions = el('div', 'tk-meta', '');
+        for (const suggestion of t.suggestions) {
+          if (!suggestion || !suggestion.title) continue;
+          const state = suggestion.id === t.suggestion_lancee ? 'lancé' : 'pas lancé';
+          suggestions.append(el('div', '', `Automate proposé : ${suggestion.title} · ${state}`));
+        }
+        c.append(suggestions);
+      }
       if (t.notes && t.notes.length) {
         const ul = el('ul', 'tk-notes');
         for (const n of t.notes.slice(-3)) ul.append(el('li', '', `${n.by ? n.by + ' : ' : ''}${n.text}`));
