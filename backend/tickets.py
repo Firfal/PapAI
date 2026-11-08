@@ -57,7 +57,8 @@ class Tickets:
         t = {"id": secrets.token_hex(6), "number": number,
              "task": task, "source": source, "by": by[:40], "status": status, "created": now, "updated": now,
              "session": "", "plan": [], "steps_done": 0, "helper": "", "end": "", "stopped_by": "",
-             "rdv": None, "rdv_notified": False, "offered": 0, "assignee": "", "notes": [], "tokens": 0}
+             "rdv": None, "rdv_notified": False, "offered": 0, "assignee": "", "notes": [], "tokens": 0,
+             "blocked": None}
         items.append(t)
         self._save()
         return t
@@ -97,7 +98,8 @@ class Tickets:
                "helper": st.get("helper_name") or t.get("helper", ""),
                "end": state if state in ("done", "stopped") else "",
                "stopped_by": st.get("stopped_by") or "",
-               "tokens": int((st.get("usage") or {}).get("total") or t.get("tokens") or 0)}
+               "tokens": int((st.get("usage") or {}).get("total") or t.get("tokens") or 0),
+               "blocked": st.get("blocked") or t.get("blocked")}
         if state == "done" and t.get("plan"):
             new["steps_done"] = len(new["plan"])
         if all(t.get(k) == v for k, v in new.items()):

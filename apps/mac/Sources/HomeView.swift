@@ -136,6 +136,10 @@ struct HomeView: View {
                 Text("Que voulez-vous faire ?").font(rounded(19, .medium)).foregroundStyle(.white.opacity(0.92))
             }
             .foregroundStyle(.white)
+            if model.automationRun?.local == true {
+                Spacer(minLength: 0)
+                AssistanceDiscrete().frame(maxHeight: .infinity, alignment: .top)
+            }
         }
     }
 

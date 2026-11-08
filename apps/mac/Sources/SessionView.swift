@@ -71,6 +71,8 @@ struct SessionView: View {
 
     private var state: SessionState { model.state ?? .planning }
     private var guardStopped: Bool { state == .stopped && model.stoppedBy == "gardien" }
+    /// Automate : il se joue seul, sans support, sauf si l’utilisateur le demande.
+    private var automate: AppModel.AutomationRun? { model.automationRun.flatMap { $0.local ? nil : $0 } }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -130,7 +132,13 @@ struct SessionView: View {
         Panneau(alerte: guardStopped, padding: compact ? 24 : 34) {
             HStack(alignment: .center, spacing: 20) {
                 VStack(alignment: .leading, spacing: 14) {
-                    if model.sessionOpen { sharedBanner }
+                    if model.sessionOpen || automate != nil {
+                        HStack(alignment: .center, spacing: 12) {
+                            if model.sessionOpen { sharedBanner }
+                            Spacer(minLength: 0)
+                            if automate != nil { AssistanceDiscrete() }
+                        }
+                    }
                     Text(title).font(rounded(guardStopped || compact ? 32 : 38, .bold)).tracking(-0.6)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -184,6 +192,17 @@ struct SessionView: View {
 
     private var title: String {
         if model.paused && model.sessionOpen { return "L'aide est en pause" }
+        if let a = automate {
+            switch state {
+            case .planning, .awaiting_approval: return "Holo prépare « \(a.title) »…"
+            case .active: return "Holo s'occupe de « \(a.title) »"
+            case .awaiting_helper: return a.asked ? "\(model.HelperName) vous aide" : "Holo a une question"
+            case .done: return "C'est fait !"
+            case .stopped where !guardStopped:
+                return a.step != nil && model.stoppedBy == "blocage" ? "L'automate s'est arrêté" : "L'automate est arrêté."
+            default: break
+            }
+        }
         switch state {
         case .planning: return "Holo regarde votre écran…"
         case .awaiting_approval: return "\(model.HelperName) vérifie votre demande"
@@ -198,6 +217,10 @@ struct SessionView: View {
     private var subtitle: String? {
         if model.paused && model.sessionOpen {
             return "Vous pouvez utiliser votre ordinateur. Appuyez sur Reprendre quand vous voulez."
+        }
+        if let a = automate, state == .stopped, !guardStopped, model.stoppedBy == "blocage" {
+            let ou = a.step.map { "à l'étape \($0)" } ?? "en route"
+            return "Holo n'a pas pu continuer seul \(ou)\(a.reason.map { " : \($0)" } ?? ".")"
         }
         switch state {
         case .planning: return "Un instant, je prépare ce qu'il faut faire."
@@ -214,12 +237,12 @@ struct SessionView: View {
     @ViewBuilder private var content: some View {
         switch state {
         case .planning, .awaiting_approval, .active:
-            Progress(fraction: fraction, phase: phase, helper: model.HelperName, carer: model.carer)
+            Progress(fraction: fraction, phase: phase, helper: model.HelperName, carer: model.carer, automate: automate != nil)
         case .awaiting_helper:
             if model.questionForMe, let q = model.question {
                 SeniorQuestion(question: q, options: model.questionOptions) { model.answerSenior($0) }
             } else {
-                Progress(fraction: fraction, phase: 2, helper: model.HelperName, carer: model.carer)
+                Progress(fraction: fraction, phase: 2, helper: model.HelperName, carer: model.carer, automate: automate != nil)
             }
         case .done:
             VStack(alignment: .leading, spacing: 16) {
@@ -252,8 +275,15 @@ struct SessionView: View {
             .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(Color(hex: 0xFDECEA)))
             .overlay(RoundedRectangle(cornerRadius: T.r, style: .continuous).strokeBorder(T.danger.opacity(0.35), lineWidth: 1.5))
         case .stopped:
-            if model.sessionWhere == "web" {
-                endNote("globe", "Holo a fermé sa fenêtre Chrome.")
+            VStack(alignment: .leading, spacing: 16) {
+                if let a = automate {
+                    endNote("doc.text", a.asked
+                        ? "\(model.HelperName) a reçu la demande\(a.number.map { " n° \($0)" } ?? ""), avec l'étape où l'automate s'est arrêté."
+                        : "L'étape est notée\(a.number.map { " sur la demande n° \($0)" } ?? ""). Rien n'est envoyé à \(model.helperName) sans votre accord.")
+                }
+                if model.sessionWhere == "web" {
+                    endNote("globe", "Holo a fermé sa fenêtre Chrome.")
+                }
             }
         }
     }
@@ -297,6 +327,7 @@ private struct Progress: View {
     let phase: Int
     let helper: String
     let carer: String
+    var automate = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -312,9 +343,15 @@ private struct Progress: View {
             .accessibilityLabel("Avancement")
             .accessibilityValue("\(Int(fraction * 100)) %")
 
-            step(0, "Holo regarde votre écran et prépare la suite")
-            step(1, "\(helper) vérifie et donne son accord")
-            step(2, "\(carer) s'en occupe, avec Holo")
+            if automate {
+                step(0, "Holo regarde votre écran")
+                step(1, "L'automate est déjà validé")
+                step(2, "Holo s'en occupe, seul")
+            } else {
+                step(0, "Holo regarde votre écran et prépare la suite")
+                step(1, "\(helper) vérifie et donne son accord")
+                step(2, "\(carer) s'en occupe, avec Holo")
+            }
         }
         .padding(22)
         .champ(T.r)
@@ -379,5 +416,29 @@ private struct SeniorQuestion: View {
         let v = t.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !v.isEmpty else { return }
         send(v); sent = true
+    }
+}
+
+/// « Demander une assistance », discret, en haut à droite d'un automate :
+/// le support n'est prévenu que sur ce geste, avec l'étape où ça bloque.
+struct AssistanceDiscrete: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if model.automationRun?.asked == true {
+            Label("Assistance demandée", systemImage: "checkmark")
+                .font(rounded(15, .semibold)).foregroundStyle(.white.opacity(0.9))
+                .padding(.horizontal, 14).frame(minHeight: 36)
+        } else if model.canAskAutomationSupport {
+            Button { model.askAutomationSupport() } label: {
+                Label("Demander une assistance", systemImage: "person.wave.2")
+                    .font(rounded(15, .semibold)).foregroundStyle(.white)
+                    .padding(.horizontal, 14).frame(minHeight: 36)
+                    .background(Capsule().strokeBorder(.white.opacity(0.55), lineWidth: 1.2))
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(PressStyle())
+            .accessibilityHint("Prévient votre support, avec l'étape où l'automate s'est arrêté")
+        }
     }
 }

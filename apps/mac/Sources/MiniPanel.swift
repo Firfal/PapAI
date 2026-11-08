@@ -130,6 +130,9 @@ private struct MiniView: View {
             return "Holo travaille dans Chrome PapAI"
         }
         if model.paused && model.sessionOpen { return "L'aide est en pause" }
+        if let a = model.automationRun, !a.local, !a.asked, model.state == .active || model.state == .awaiting_helper {
+            return model.state == .active ? "Holo s'occupe de l'automate" : "Holo a une question"
+        }
         switch model.state {
         case .planning: return "Holo prépare la suite…"
         case .awaiting_approval: return "\(model.HelperName) vérifie"

@@ -57,6 +57,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 ## Support informatique de niveau 1 (7 novembre au soir)
 
 - [x] Automates importés par un support (`.papai`) : import et retrait (page aidant, `POST /k/CLÉ/automations`), actions de premier niveau, lancement en un clic sans validation à chaque fois, 7 exemples dans `automations/` (dont démos Wi-Fi, bloqueur de publicités, navigateur remis à zéro). Tests : `tests/test_automatismes.py` (40 contrôles) et `apps/windows/tests/test_windows_app.py`.
+- [x] Automates autonomes : pas de « le support s'en occupe », bouton discret « Demander une assistance » en haut à droite (Mac, Windows), étape bloquante gardée sur le ticket (`blocked`). Reste : afficher `blocked` et le bouton sur l'iPhone et Android, compiler et essayer à l'écran sur Mac.
 - [ ] Charger les 7 exemples d'automates dans un nouvel espace (aujourd'hui il faut les importer à la main). Touche `backend/space.py`, réservé par Devin (multi-espaces).
 - [x] Réglages Mac : sans taille du texte, sans changement de rôle, sans lien de parenté (`claude/reglages-connexion`).
 - [x] Accueil support Mac : onglets Tickets (tous les utilisateurs), Utilisateurs, Mes automates (`claude/support-tickets`). Reste : même organisation sur l'iPhone et Android.

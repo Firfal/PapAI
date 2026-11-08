@@ -91,6 +91,7 @@ class Api:
     def stop(self): self._model.stop()
     def back_home(self): self._model.back_home()
     def toggle_pause(self): self._model.toggle_pause()
+    def ask_automation_support(self): self._model.ask_automation_support()
     def answer_senior(self, text): self._model.answer_senior(text)
     def expand_window(self): self._model.expand_window()
     def run_shortcut(self, lesson_id): self._model.run_shortcut(lesson_id)

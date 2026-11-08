@@ -51,6 +51,9 @@ class FauxHolo(BaseHTTPRequestHandler):
             faits = sum(1 for m in req["messages"] if m.get("role") == "tool")
             nom, args = (("click", {"element": "Paramètres", "x": 500, "y": 500, "plan_step": 1})
                          if faits == 0 else ("answer", {"content": "Google est de nouveau le moteur."}))
+            if "Bouton introuvable" in json.dumps(req["messages"], ensure_ascii=False):
+                nom, args = (("click", {"element": "Réglages", "x": 10, "y": 10, "plan_step": 1}) if faits == 0
+                             else ("ask_helper", {"question": "Le bouton Partager n'existe pas sur cet écran."}))
             msg["tool_calls"] = [{"id": f"c{faits}", "type": "function",
                                   "function": {"name": nom, "arguments": json.dumps(args)}}]
         corps = json.dumps({
@@ -205,6 +208,7 @@ async def parcours(base: str) -> None:
         await pc.envoyer({"type": "run_automation", "id": ids["google-moteur-de-recherche.papai"]})
         s = await pc.attendre("session", 10)
         check("une session s'ouvre pour l'automatisme", s and s.get("automation") == ids["google-moteur-de-recherche.papai"], s)
+        check("la session de l'automate porte son ticket", s and s.get("ticket"), s)
         fin = time.monotonic() + 30
         while time.monotonic() < fin and "click" not in pc.actions:
             await asyncio.sleep(0.2)
@@ -218,6 +222,51 @@ async def parcours(base: str) -> None:
         journal = [e.get("kind") for e in derniere.get("journal", [])]
         check("le journal dit qui a validé le plan", "plan_preapproved" in journal, journal)
         check("jamais d'attente d'un aidant", "plan_proposed" not in journal)
+
+        print("\n4 bis. Un automate bloqué : rien n'est demandé au support, l'étape est notée")
+        tks = lambda: {t["id"]: t for t in json.loads(tp.get(f"{k}/tickets"))["tickets"]}
+        await pc.envoyer({"type": "automation_failed", "id": ids["scan-antivirus.papai"], "step": 1,
+                          "title": "Analyse antivirus", "detail": "Microsoft Defender ne répond pas."})
+        at = await pc.attendre("automation_ticket", 10)
+        check("échec local : un ticket est créé et renvoyé", at and at.get("ticket") and at.get("number"), at)
+        t = tks().get((at or {}).get("ticket"), {})
+        check("le ticket est à reprendre, pas en attente du support", t.get("status") == "a_reprendre", t.get("status"))
+        check("l'étape bloquante est gardée", (t.get("blocked") or {}).get("step") == 1
+              and (t.get("blocked") or {}).get("label") == "Analyse antivirus"
+              and "Defender" in (t.get("blocked") or {}).get("reason", ""), t.get("blocked"))
+        await pc.envoyer({"type": "support_request", "ticket": t.get("id")})
+        sr = await pc.attendre("support_requested", 10)
+        check("bouton « Demander une assistance » : accusé reçu", sr and sr.get("ticket") == t.get("id"), sr)
+        t = tks().get(t.get("id"), {})
+        check("le ticket part alors au support", t.get("status") == "en_attente", t.get("status"))
+        check("la note dit l'étape", any("étape 1" in n.get("text", "") for n in t.get("notes", [])), t.get("notes"))
+        await pc.envoyer({"type": "support_request", "ticket": "inconnu"})
+        check("ticket inconnu : refusé", await pc.attendre("ticket_refused", 10))
+
+        pack = {"papai": 1, "title": "Partager une photo", "publisher": "IT", "platforms": ["windows"],
+                "actions": [{"do": "holo", "goal": "Partager la dernière photo. Bouton introuvable possible.",
+                             "steps": ["Ouvrir Photos", "Cliquer sur Partager"]}]}
+        st, r = envoyer(f"{k}/automations", pack)
+        check("import de l'automate qui va bloquer", st == 200, (st, r))
+        await pc.envoyer({"type": "run_automation", "id": r.get("id", "")})
+        s = await pc.attendre("session", 10)
+        fin = time.monotonic() + 20
+        sess = {}
+        while time.monotonic() < fin:
+            sess = next((x for x in json.loads(tp.get(f"{k}/sessions")) if x.get("session") == (s or {}).get("id")), {})
+            if sess.get("state") in ("stopped", "done"):
+                break
+            await asyncio.sleep(0.3)
+        check("Holo bloqué : l'automate s'arrête seul, sans attendre le support",
+              sess.get("state") == "stopped" and sess.get("stopped_by") == "blocage", sess.get("state"))
+        await asyncio.sleep(0.5)
+        t = tks().get((s or {}).get("ticket"), {})
+        b = t.get("blocked") or {}
+        check("le ticket garde l'étape de Holo", b.get("step") == 1 and b.get("label") == "Ouvrir Photos"
+              and "Partager" in b.get("reason", ""), b)
+        check("ticket à reprendre", t.get("status") == "a_reprendre", t.get("status"))
+        brief = json.dumps(holo_vu[-1]["messages"], ensure_ascii=False)
+        check("Holo sait qu'aucun support n'est en ligne", "aucun support n'est en ligne" in brief)
 
         print("\n5. Arrêter et suppression")
         await pc.envoyer({"type": "run_automation", "id": ids["google-moteur-de-recherche.papai"]})

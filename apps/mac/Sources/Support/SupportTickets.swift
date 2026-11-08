@@ -12,6 +12,8 @@ struct SupportTicket: Identifiable {
     var created: Double
     var rdv: Double?
     var assignee: String
+    /// Où un automate s'est arrêté : « Étape 2 (Ouvrir Photos) : bouton introuvable ».
+    var blocked: String?
     var person: Person
 
     var label: String { String(format: "T-%04d", number) }
@@ -28,6 +30,11 @@ struct SupportTicket: Identifiable {
         created = (d["created"] as? NSNumber)?.doubleValue ?? updated
         rdv = (d["rdv"] as? NSNumber)?.doubleValue
         assignee = d["assignee"] as? String ?? ""
+        if let b = d["blocked"] as? [String: Any], let n = (b["step"] as? NSNumber)?.intValue {
+            let label = (b["label"] as? String).flatMap { $0.isEmpty ? nil : " (\($0))" } ?? ""
+            let reason = (b["reason"] as? String).flatMap { $0.isEmpty ? nil : " : \($0)" } ?? ""
+            blocked = "Bloqué à l’étape \(n)\(label)\(reason)"
+        }
         self.person = person
     }
 }
@@ -110,6 +117,10 @@ struct SupportTickets: View {
                 }
                 Text(t.task.isEmpty ? "Demande sans texte" : "« \(t.task) »").font(rounded(18, .semibold))
                     .fixedSize(horizontal: false, vertical: true)
+                if let b = t.blocked {
+                    Label(b, systemImage: "exclamationmark.circle").font(rounded(14, .medium))
+                        .foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
+                }
                 Text(when(t)).font(rounded(13)).foregroundStyle(T.muted)
             }
             Spacer(minLength: 0)
