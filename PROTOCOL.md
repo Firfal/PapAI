@@ -614,9 +614,15 @@ Le `support_token` ci-dessus est le **jeton de l'organisation** : il reste accep
 
 Chaque demande devient un ticket, gardé dans `<espace>/tickets.json` (500 derniers, texte seulement :
 aucune capture). Numéro `number` par espace, ou unique dans l’organisation (`orgs/<id>/tickets_seq`), affiché `T-0001`. Statuts : `nouveau`, `en_attente`
-(aucun support disponible), `rdv`, `en_cours`, `a_reprendre` (session arrêtée ou échouée), `resolu`.
+(aucun support disponible), `rdv`, `en_cours`, `a_reprendre` (session arrêtée ou échouée),
+`plan_valide` (le support a validé un plan que l'utilisateur peut lancer seul avec Holo), `resolu`.
 `source` : `personne`, `support` ou `automatisme`. Le ticket suit la session (`plan`, `steps_done`,
 `helper`, `stopped_by`, `tokens`, `blocked` {step, label, reason} : où un automate s'est arrêté) ; `assignee`, `closed_by`, `notes` [{t, by, text}], `rdv` (secondes Unix).
+Un brouillon Holo (`proposal`) contient `title`, `description`, `goal`, `steps`, `platforms`,
+`warning` et `note`. La décision du support (`decision`) vaut `{"kind":"plan","goal","steps","by","at"}`
+ou `{"kind":"live","slots":[…],"by","at","other":true?}` ; `rdv` contient le créneau live choisi,
+ou `null` tant qu'aucun n'est choisi. Les créneaux (1 à 3) sont des secondes Unix de 1 minute à
+30 jours dans le futur.
 Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus deux) et
 `suggestion_lancee` (`id` ou `null`).
 
@@ -626,8 +632,11 @@ Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus 
 (`_key_ok(fam, support=False)`) : clé inconnue ou clé dérivée d'un support
 d'organisation → HTTP 404 `{"error":"Lien invalide."}`. Aucun ticket d'un autre espace.
 Réponse : `{"requests":[{"id":"…","number":1,"created":0,"updated":0,"task":"…",
-"status":"resolu","solution":null,"relaunch":null}]}` (100 plus récentes par `created`,
+"status":"resolu","solution":null,"relaunch":null,"decision":null}]}` (100 plus récentes par `created`,
 d'abord les plus récentes ; liste vide si aucune). Statut brut conservé.
+`decision` est une liste blanche : un plan ouvert → `{"kind":"plan","by","steps"}` ; une assistance
+live en attente → `{"kind":"live","by","slots":[…],"rdv":…|null}` ; sinon `null`. Si aucun créneau
+ne convient, la décision live contient aussi `"other":true`.
 
 `solution`, par priorité :
 - `{"kind":"automate","lesson":"…","title":"…"}` si la demande est `resolu` et que `automation` (posé au lancement
@@ -641,7 +650,8 @@ d'abord les plus récentes ; liste vide si aucune). Statut brut conservé.
 `relaunch` est l'id de l'automate seulement si le statut est `resolu`, la solution un
 automate et cet id existe encore dans le catalogue courant ; sinon `null`.
 Liste blanche stricte à chaque niveau : texte seulement, aucun objet d'étape/capture,
-image, note interne, token, assignation, catégorie ni suggestion complète.
+image, note interne, token, assignation, catégorie ni suggestion complète ; `decision` est le seul
+champ de ticket additionnel, filtré comme décrit ci-dessus.
 Relancer = `run_automation` existant (ou lancement local existant), pas de nouveau chemin.
 
 **Ordinateur aidé (`/ws/bridge`)**
@@ -671,6 +681,18 @@ Relancer = `run_automation` existant (ou lancement local existant), pas de nouve
     le même ticket est rouvert (note « Le problème est revenu. »), puis attente ou session comme
     d'habitude ; Holo reçoit ce qui l'avait réglé (`session.reprise`).
 - `session` porte en plus `"ticket"` et `"number"`.
+- App → `{"type":"help_request","ticket":"…","task":"…"}` sur un ticket `plan_valide` dont la décision est `plan` :
+  le serveur démarre Holo sans support en ligne et répond `session` avec `"validated_plan":true`.
+  Holo suit les étapes prévalidées ; s'il bloque ou si l'utilisateur arrête, le ticket passe à
+  `a_reprendre`. `support_request` avec ce ticket demande au support de reprendre la main.
+- Pour une décision live, `help_request` avec le ticket est refusé :
+  `{"type":"ticket_refused","ticket","reason":"Votre support veut vous aider en direct : choisissez un créneau."}`.
+  App → `{"type":"ticket_slot","ticket":"…","at":<unix>}` choisit un créneau proposé ;
+  réponse `{"type":"ticket_scheduled","ticket","number","at"}` et le ticket garde le rendez-vous.
+  Un créneau absent ou passé reçoit `ticket_refused` (« Ce créneau n'est plus disponible. »).
+  `{"type":"ticket_slot","ticket":"…","other":true}` indique qu'aucun ne convient :
+  réponse `{"type":"ticket_slot_asked","ticket","number"}`, note au ticket et
+  `ticket_due` au support avec `"reason":"slot_other"`.
 - App → `{"type":"ticket_schedule","ticket","at"}` (entre 1 min et 30 jours) →
   `{"type":"ticket_scheduled","ticket","number","at"}` ou `{"type":"ticket_refused","ticket","reason"}`.
   `ticket_scheduled` arrive aussi quand le support fixe le rendez-vous (avec `by`).
@@ -689,9 +711,19 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
 - `GET /k/<clé>/tickets` → `{"tickets":[…]}` (200 plus récents d'abord).
 - `POST /k/<clé>/tickets/<id>` `{"action","by","text"?,"at"?}` → `{"ticket"}`. Actions : `take`
   (propose la session à la personne ; 409 si ordinateur hors ligne ou session en cours), `note`,
-  `schedule` (`at`), `close`, `reopen` (409 pendant une session).
+  `schedule` (`at`), `close`, `reopen` (409 pendant une session), `draft` (Holo rédige un plan depuis
+  la demande texte), `refine` (`text` obligatoire ; Holo reprend un plan avec cette précision),
+  `validate` (`steps` optionnelles pour valider explicitement des étapes, sinon celles de `proposal` ;
+  statut `plan_valide` et `ticket_plan`), `live` (`slots` : 1 à 3 dates Unix valides ; statut `rdv`,
+  `rdv` nul jusqu'au choix et `ticket_live`). `draft`/`refine` renvoient HTTP 502 avec `{"error":"…"}` si
+  Holo ne peut pas rédiger ; précision vide : 400 ; plan sans étape ou ticket en cours/résolu : 409 ;
+  créneaux invalides : 400.
 - `GET /o/<support_token>/tickets` → `{"org","tickets":[… + "space","poste","online"]}` ;
   `POST /o/<support_token>/tickets/<clé du poste>/<id>` : mêmes actions (404 hors organisation).
+- Au `hello` du bridge, les décisions actives sont renvoyées (au plus cinq) :
+  `{"type":"ticket_plan","ticket","number","task","by","steps"}` ou
+  `{"type":"ticket_live","ticket","number","task","by","slots"}`.
+- `ticket_plan` est aussi envoyé après `validate`. `ticket_live` est aussi envoyé après `live`.
 - `GET /tickets.js` : liste commune à la page du support et à celle de l'organisation (filtres, export CSV).
 - Test : `python tests/test_tickets.py`.
 
