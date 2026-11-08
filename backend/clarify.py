@@ -109,6 +109,12 @@ def _objet(texte: str) -> str:
     return t[:1].upper() + t[1:]
 
 
+def _objet_secours(demande: str, precisions: list[dict]) -> str:
+    """Sans Holo : les réponses de l'utilisateur titrent le ticket mieux qu'une demande vide."""
+    morceaux = [] if vague(demande) and precisions else [demande]
+    return _objet(" — ".join(morceaux + [p["a"] for p in precisions]))
+
+
 _client = None
 
 
@@ -145,7 +151,7 @@ async def evaluer(demande: str, precisions: list[dict] | None = None, force: boo
         print(f"[demande] clarification indisponible : {type(e).__name__}")
         if not dernier and not precisions and vague(demande):
             return {"clair": False, "question": QUESTION_GENERALE, "options": list(OPTIONS_GENERALES)}
-        return {"clair": True, "objet": _objet(demande)}
+        return {"clair": True, "objet": _objet_secours(demande, precisions)}
     question = str(data.get("question") or "").strip()[:300]
     if data["clair"] or dernier or not question:
         return {"clair": True, "objet": _objet(data.get("objet") or demande)}
