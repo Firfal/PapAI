@@ -45,13 +45,13 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794127230-linkup` | #80 : dépendance explicite, panne ticket et essai réel | `requirements-backend.txt`, `backend/app.py`, `tests/test_linkup.py` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 8 nov. | Devin | `devin/1794127230-linkup` | #80 : httpx 0.28.1 épinglé, import backend.app réussi dans un venv neuf installé uniquement depuis requirements-backend.txt ; réponse envoyée avant écriture du ticket, panne de persistance journalisée sans empêcher réponse ni état final. Linkup 22 tests OK. Essai réel de bout en bout : imprimante HP/Sonoma, résumé français de 1 097 caractères, 10 sources, 5,24 s, validation support puis réponse reçue et ticket résolu vérifiés, zéro action écran. Secret lié uniquement à l’environnement serveur, contrôles Git sans occurrence de la clé. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794127230-linkup` | Relecture #80 : fin atomique avant écriture du ticket, résultat support préservé au retour de planification Holo, recherche débloquée après échec d’envoi ou reconnexion sur Swift/Android/web, JSON fournisseur invalide classé invalid_response. Tests de régression serveur et web ajoutés. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794127230-linkup` | Interfaces Linkup : carte support iPhone/Mac/web/Android, recherche manuelle, correction et validation, erreurs simples ; réponse et sources Mac/Windows, réponse conservée affichée dans les tickets web (pas de vue détail Mac ajoutée). Sources en texte brut et liens HTTP(S). xcodegen et builds Mac/iOS simulateur réussis ; test Swift liaison réussi, Windows unittest 44 OK, Node Windows 15 cas réussis et helper/tickets 2 OK, Linkup faux serveur 19 OK. Android bloqué au téléchargement Gradle 8.9 (HTTP 504 GitHub), SDK absent ; test_windows_app interrompu à l’invitation opaque, module qrcode absent du venv Mac. Clé Linkup absente dans le nouveau shell, aucun appel réel. Aucun essai visuel. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794127230-linkup` | Étape serveur Linkup : clé serveur facultative, faux serveur local, recherche sourcée bornée, proposition Holo ou recherche support avant plan validé, validation/correction avant envoi à l’utilisateur et conservation dans le ticket. Protocole décrit. Interfaces et compilations restent pour l'étape suivante ; réservation conservée. |
