@@ -110,7 +110,10 @@ object TicketBoard {
     val openCount get() = tickets.count { it.isOpen }
 
     fun load(people: List<Person>) {
-        if (people.isEmpty()) { tickets.clear(); errors.clear(); return }
+        // Rien d'un poste qui n'est plus suivi (autre organisation, poste retiré) ne reste affiché.
+        val keys = people.map { it.key }.toSet()
+        tickets.removeAll { it.person.key !in keys }
+        if (people.isEmpty()) { errors.clear(); return }
         loading = true
         pool.execute {
             val results = pool.invokeAll(people.map { p -> Callable { fetch(p) } }).map { it.get() }
