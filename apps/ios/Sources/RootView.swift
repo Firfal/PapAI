@@ -16,7 +16,7 @@ struct RootView: View {
                 content
             }
             if let t = model.toast {
-                Text(t)
+                Text(verbatim: t)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
                     .multilineTextAlignment(.center)

@@ -133,8 +133,24 @@ struct PairSheet: View {
                 }
             }
         }
+        if model.pairBusy {
+            HStack {
+                ProgressView()
+                Text("En attente de l'accord sur l'ordinateur…")
+                    .font(.system(size: 15)).foregroundStyle(Soin.ink)
+            }
+        }
         if let e = model.pairError {
-            Text(e).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.danger)
+            if model.pairRefused {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Demande refusée").font(.system(size: 22, weight: .bold))
+                    Text(verbatim: e).font(.system(size: 15))
+                }
+                .foregroundStyle(Soin.ink).frame(maxWidth: .infinity, alignment: .leading)
+                .padding(18).soinCard()
+            } else {
+                Text(verbatim: e).font(.system(size: 15, weight: .semibold)).foregroundStyle(Soin.danger)
+            }
         }
         VStack(alignment: .leading, spacing: 8) {
             if link.isOfficial {
