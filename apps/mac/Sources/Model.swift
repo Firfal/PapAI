@@ -151,21 +151,13 @@ final class AppModel {
         while s.hasSuffix("/") { s.removeLast() }
         return s
     }
-<<<<<<< ours
-    var firstName: String {
-        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
-        return n
-=======
-    /// Propriété observée (et non lue dans UserDefaults à chaque fois) : l'accueil
-    /// « Bonsoir <prénom> » se met à jour dès qu'on change le prénom dans les Réglages.
-    var firstName = AppModel.storedFirstName
+    var firstName: String { AppModel.storedFirstName }
 
     /// Prénom par défaut tant que la personne n'en a pas choisi un dans les Réglages.
     static let defaultFirstName = "Christine"
     static var storedFirstName: String {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
         return n.isEmpty ? defaultFirstName : n
->>>>>>> theirs
     }
 
     /// Qui aide : toujours au singulier pour accorder le verbe qui suit.
@@ -200,7 +192,7 @@ final class AppModel {
     /// Le prénom réellement saisi (sans la valeur d'exemple), transmis au serveur
     /// pour que l'aidant lise « Vous allez aider Sophie » et non un nom figé.
     func sendProfile() {
-        let n = Self.storedFirstName
+        let n = AppModel.storedFirstName
         // Les proches connus voyagent avec le profil : le serveur les retrouve après un redémarrage.
         let known = helpers.isEmpty ? Self.cachedHelpers() : helpers.map { ["id": $0.id, "name": $0.name, "relation": $0.relation] }
         var msg: [String: Any] = ["type": "profile", "known_helpers": known, "protection": realtimeProtection]
@@ -244,13 +236,8 @@ final class AppModel {
 
     /// Le texte de l'invitation envoyée au proche, avec le lien d'appairage.
     var invitationText: String {
-<<<<<<< ours
-        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
+        let n = AppModel.storedFirstName
         let who = n.isEmpty ? "Votre support" : n
-=======
-        let n = Self.storedFirstName
-        let who = n.isEmpty ? "Une personne de votre entourage" : n
->>>>>>> theirs
         return "\(who) aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre téléphone pour vous relier (valable 24 heures) :"
     }
 
