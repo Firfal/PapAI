@@ -47,6 +47,22 @@ class Raccourcis(unittest.IsolatedAsyncioTestCase):
         with patch.object(caremamory.client.chat.completions, "create", side_effect=ValueError("indisponible")):
             self.assertIsNone(await caremamory._extract_shortcut(self.session))
 
+    async def test_brouillon_plateforme_et_validation(self):
+        for os_name, label, explorer in (("macOS", "macOS", "Finder"),
+                                         ("windows", "Windows", "Explorateur de fichiers")):
+            for sub in ("Noël 2025", "", "Facture.app", "../Photos"):
+                with self.subTest(os=os_name, subfolder=sub):
+                    responses = [SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
+                        content=json.dumps(data)))]) for data in (
+                            {"title": "Mes photos", "steps": ["Ouvrez Images."]},
+                            {"folder": "pictures", "subfolder": sub})]
+                    with patch.object(caremamory.client.chat.completions, "create", side_effect=responses) as create:
+                        lesson = await caremamory.draft_lesson(self.session, os_name)
+                    self.assertEqual(lesson["os"], label)
+                    self.assertEqual(lesson["shortcut"], {"folder": "pictures", "subfolder": sub}
+                                     if sub in ("Noël 2025", "") else None)
+                    self.assertIn(explorer, create.call_args.kwargs["messages"][0]["content"])
+
     def lesson(self, shortcut):
         return {"id": "test", "title": "Mes photos", "steps": [], "shortcut": shortcut}
 

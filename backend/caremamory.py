@@ -120,10 +120,11 @@ def _with_frames(text: str, ids: list[str], session: Session) -> dict:
     return {"role": "user", "content": content}
 
 
-SHORTCUT_PROMPT = """Regarde cette capture d'écran Windows, prise à la fin d'une manipulation réussie.
+SHORTCUT_PROMPT = """Regarde cette capture d'écran {os}, prise à la fin d'une manipulation réussie.
 
-Si un dossier est ouvert dans l'Explorateur de fichiers, dis LEQUEL des dossiers
-personnels de Windows il s'agit, et éventuellement dans quel sous-dossier on se
+Si un dossier est ouvert dans {explorer}, dis LEQUEL des dossiers
+personnels de l'ordinateur il s'agit (Téléchargements, Images, Documents, Bureau,
+Vidéos, Musique), et éventuellement dans quel sous-dossier on se
 trouve :
 {"folder": "pictures", "subfolder": "Photos vacances"}
 
@@ -134,11 +135,22 @@ downloads, pictures, documents, desktop, videos, music.
 oblique. Laisse-le vide si on est directement dans le dossier personnel.
 
 N'écris JAMAIS de chemin complet, jamais de lettre de lecteur, jamais
-« C:\\Users\\... » : c'est l'ordinateur qui sait où sont ses dossiers.
+« C:\\Users\\... » ni « /Users/... » : c'est l'ordinateur qui sait où sont ses dossiers.
 
 Si aucun dossier n'est ouvert, ou si tu hésites, réponds : {"folder": "none"}
 
 Ne réponds QUE par cet objet JSON, sans aucun texte autour. Ne devine pas."""
+
+def _is_mac(os_name: str) -> bool:
+    return (os_name or "").lower() in ("macos", "mac", "darwin")
+
+
+def _shortcut_prompt(os_name: str) -> str:
+    # .replace et non .format : le texte contient des accolades JSON.
+    mac = _is_mac(os_name)
+    return (SHORTCUT_PROMPT.replace("{os}", "Mac" if mac else "Windows")
+            .replace("{explorer}", "une fenêtre du Finder" if mac else "l'Explorateur de fichiers"))
+
 
 KNOWN_FOLDERS = {"downloads", "pictures", "documents", "desktop", "videos", "music"}
 
@@ -165,7 +177,7 @@ def valid_shortcut(value: object) -> dict | None:
     return {"folder": folder, "subfolder": sub}
 
 
-async def _extract_shortcut(session: Session) -> dict | None:
+async def _extract_shortcut(session: Session, os_name: str = "windows") -> dict | None:
     """Le chemin atteint à la fin, s'il est lisible.
 
     C'est ce qui permettra de refaire la manipulation sans rejouer un seul clic :
@@ -182,7 +194,7 @@ async def _extract_shortcut(session: Session) -> dict | None:
             client.chat.completions.create,
             model=MODEL,
             messages=[
-                {"role": "system", "content": SHORTCUT_PROMPT},
+                {"role": "system", "content": _shortcut_prompt(os_name)},
                 observation(last_b64),
             ],
             temperature=TEMPERATURE,
@@ -203,7 +215,7 @@ def _parse(raw: str) -> dict:
     return json.loads(m.group(0))
 
 
-async def draft_lesson(session: Session) -> dict:
+async def draft_lesson(session: Session, os_name: str = "windows") -> dict:
     """Produit un brouillon de fiche. Non validé, non écrit sur disque."""
     import asyncio
 
@@ -263,12 +275,12 @@ async def draft_lesson(session: Session) -> dict:
         "title": str(data.get("title", session.task)).strip(),
         "task": session.task,
         "session": session.id,
-        "os": "Windows",
+        "os": "macOS" if _is_mac(os_name) else "Windows",
         "approved_by_helper": False,
         "created_at": time.time(),
         "steps": steps,
         # Raccourci déterministe : refaire la manipulation sans rejouer un clic.
-        "shortcut": await _extract_shortcut(session),
+        "shortcut": await _extract_shortcut(session, os_name),
     }
     session.log("lesson_drafted", title=lesson["title"], steps=len(steps))
     return lesson
