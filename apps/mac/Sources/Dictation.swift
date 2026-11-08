@@ -229,7 +229,7 @@ final class Dictation {
         let now = Date()
         if !transcript.apple.isEmpty, let t = liveChangedAt, now.timeIntervalSince(t) >= wordsStill { stop(); return }
         if lastEvent == .endOfSpeech { stop(); return }
-        if live.isEmpty, lastEvent == .nothingHeard { stop(); return }
+        if !transcript.hasRecognizedSpeech, lastEvent == .nothingHeard { stop(); return }
         if now.timeIntervalSince(startedAt) >= maxDuration { stop(); return }
     }
 

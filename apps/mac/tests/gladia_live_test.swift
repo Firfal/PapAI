@@ -10,8 +10,10 @@ struct GladiaLiveTest {
         assert(phrases.update(id: "1", text: "Bon", final: false) == "Bonjour.")
         assert(phrases.update(id: "2", text: " Merci. ", final: true) == "Bonjour. Merci.")
         var selection = DictationText()
+        assert(!selection.hasRecognizedSpeech)
         selection.updateApple("Texte Apple incorrect")
         assert(selection.displayed.isEmpty)
+        assert(selection.hasRecognizedSpeech, "Apple évite rien-entendu même si Gladia n'affiche encore rien")
         selection.updateGladia("Texte Gladia")
         assert(selection.displayed == "Texte Gladia")
         selection.updateApple("Texte Apple corrigé")
@@ -22,6 +24,7 @@ struct GladiaLiveTest {
         assert(selection.displayed == "Texte Apple corrigé")
         var withoutApple = DictationText()
         withoutApple.updateGladia("Mots disponibles")
+        assert(withoutApple.hasRecognizedSpeech)
         withoutApple.fallback()
         assert(withoutApple.displayed == "Mots disponibles")
         assert(GladiaLive.endpoint(transcribe: URL(string: "https://exemple.fr/k/secret/transcribe"))?.absoluteString

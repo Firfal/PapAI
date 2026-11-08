@@ -20,6 +20,7 @@ struct DictationText {
     private(set) var apple = ""
     private(set) var gladia = ""
     var displayed: String { usingGladia ? gladia : (apple.isEmpty ? gladia : apple) }
+    var hasRecognizedSpeech: Bool { !apple.isEmpty || !gladia.isEmpty }
 
     mutating func updateApple(_ text: String) { apple = text }
     mutating func updateGladia(_ text: String) { gladia = text }

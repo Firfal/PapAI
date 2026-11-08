@@ -276,7 +276,7 @@ final class Dictation {
         let now = Date()
         if !transcript.apple.isEmpty, let t = liveChangedAt, now.timeIntervalSince(t) >= wordsStill { stop(); return }
         if let v = voiceAt, now.timeIntervalSince(v) >= quietAfterSpeech { stop(); return }
-        if live.isEmpty, now.timeIntervalSince(voiceAt ?? startedAt) >= nothingHeard { stop(); return }
+        if !transcript.hasRecognizedSpeech, now.timeIntervalSince(voiceAt ?? startedAt) >= nothingHeard { stop(); return }
         if now.timeIntervalSince(startedAt) >= maxDuration { stop(); return }
     }
 
