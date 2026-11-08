@@ -30,7 +30,7 @@ struct Pastille: View {
     var body: some View {
         HStack(spacing: 7) {
             if let icone { Image(systemName: icone).font(.system(size: taille - 2, weight: .semibold)) }
-            Text(texte).font(rounded(taille, .semibold))
+            Text(LocalizedStringKey(texte)).font(rounded(taille, .semibold))
         }
         .foregroundStyle(ton.texte)
         .padding(.horizontal, 12).padding(.vertical, 6)
@@ -172,7 +172,7 @@ struct Onglets<V: Hashable>: View {
                 let on = o.value == selection
                 Button { selection = o.value } label: {
                     VStack(spacing: 0) {
-                        Text(o.label).font(rounded(17, on ? .semibold : .medium))
+                        Text(LocalizedStringKey(o.label)).font(rounded(17, on ? .semibold : .medium))
                             .foregroundStyle(on ? T.leaf : T.muted)
                             .frame(maxWidth: .infinity, minHeight: 46)
                         Rectangle().fill(on ? T.accent : T.line).frame(height: on ? 3 : 1)

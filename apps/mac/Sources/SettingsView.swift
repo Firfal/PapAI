@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Réglages de l'employé : taille du texte et protection. Le nom affiché et le support
 /// viennent du poste (compte macOS, jeton de l'organisation) : rien à saisir ici.
@@ -20,6 +21,7 @@ struct SettingsView: View {
             .background(T.header)
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    LangueReglage()
                     Toggle("Lire à voix haute", isOn: Binding(
                         get: { model.narration.enabled }, set: { model.narration.enabled = $0 }))
                         .font(rounded(22, .semibold)).toggleStyle(.switch).tint(T.accent)
@@ -128,6 +130,33 @@ struct MonSupport: View {
         case .rattache:
             if !model.connected { return "Hors connexion pour le moment." }
             return enLigne ? "En ligne" : "Aucun agent en ligne : votre demande sera mise en attente."
+        }
+    }
+}
+
+
+/// Langue de l'app : français (par défaut) ou anglais. Elle s'applique au prochain lancement,
+/// PapAI se relance donc tout de suite.
+struct LangueReglage: View {
+    @State private var langue = (UserDefaults.standard.stringArray(forKey: "AppleLanguages")?.first ?? "fr").hasPrefix("en") ? "en" : "fr"
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Langue").font(rounded(22, .semibold))
+            Picker("Langue", selection: $langue) {
+                Text(verbatim: "Français").tag("fr")
+                Text(verbatim: "English").tag("en")
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            .onChange(of: langue) { _, l in
+                UserDefaults.standard.set([l], forKey: "AppleLanguages")
+                UserDefaults.standard.synchronize()
+                // Relance : la langue de l'interface se choisit au démarrage.
+                let url = Bundle.main.bundleURL
+                let conf = NSWorkspace.OpenConfiguration(); conf.createsNewApplicationInstance = true
+                NSWorkspace.shared.openApplication(at: url, configuration: conf) { _, _ in
+                    DispatchQueue.main.async { NSApp.terminate(nil) }
+                }
+            }
         }
     }
 }

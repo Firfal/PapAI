@@ -42,6 +42,9 @@ Extrais-en l'INTENTION, pas une suite de clics :
   avec le repère à l'écran quand c'est utile. Pas de coordonnées, pas de pixels.
 - `platforms` : les systèmes pour lesquels la source est valable, parmi "mac"
   et "windows". Si la source ne parle que d'un système, ne mets que celui-là.
+- Pour un réseau Wi-Fi, une étape doit nommer le réseau exact à rejoindre ; s'il n'est pas connu,
+  écris l'étape « Rejoindre le réseau Wi-Fi <nom à préciser par le support> » et signale-le dans `warning`.
+  Jamais d'étape qui bascule le Wi-Fi sans vérifier qu'il est déjà activé.
 - `warning` : vide, ou une phrase courte si la source est ambiguë, dépend d'une
   version précise d'un logiciel, ou demande un mot de passe (PapAI ne retient
   jamais d'identifiant : la personne le tapera elle-même).

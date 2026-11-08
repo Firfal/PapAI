@@ -134,7 +134,7 @@ struct HomeView: View {
             Image(systemName: symbol).font(rounded(20, .semibold)).foregroundStyle(T.accent)
                 .frame(width: 26)
                 .accessibilityHidden(true)
-            Text(text).font(rounded(22, .bold))
+            Text(LocalizedStringKey(text)).font(rounded(22, .bold))
         }
         .frame(minHeight: 32)
         .accessibilityAddTraits(.isHeader)
@@ -153,7 +153,9 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 TimelineView(.everyMinute) { ctx in
                     let hello = Greeting.word(at: ctx.date)
-                    Text(model.displayName.isEmpty ? hello : "\(hello) \(model.displayName) !")
+                    Group {
+                        if model.displayName.isEmpty { Text(verbatim: hello) } else { Text("\(hello) \(model.displayName) !") }
+                    }
                         .font(rounded(34, .bold)).tracking(-0.6)
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
@@ -171,7 +173,7 @@ struct HomeView: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass").font(rounded(16, .semibold)).foregroundStyle(T.muted)
                 .accessibilityHidden(true)
-            TextField(micro.microPresent ? "Écrivez ou dites ce que vous voulez faire" : "Écrivez ce que vous voulez faire",
+            TextField(LocalizedStringKey(micro.microPresent ? "Écrivez ou dites ce que vous voulez faire" : "Écrivez ce que vous voulez faire"),
                       text: $request)
                 .textFieldStyle(.plain).font(rounded(18)).focused($focused)
                 .focusEffectDisabled()
@@ -479,7 +481,7 @@ struct PressStyle: ButtonStyle {
 enum Greeting {
     static func word(at date: Date = Date()) -> String {
         let h = Calendar.current.component(.hour, from: date)
-        return (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour"
+        return (h >= 19 || h < 5) ? String(localized: "Bonsoir") : String(localized: "Bonjour")
     }
 }
 

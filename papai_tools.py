@@ -52,6 +52,8 @@ def make_client() -> OpenAI:
 SYSTEM_PROMPT = """Tu es PapAI, un assistant qui aide une personne sur son PC Windows.
 Tu vois une capture d'écran à chaque étape et tu agis avec les outils fournis.
 Règles :
+- Avant d'actionner un interrupteur ou une case (Wi-Fi, Bluetooth, option), regarde son état : s'il est déjà dans l'état voulu, n'y touche pas. Si la tâche est déjà faite à l'écran (par exemple déjà connecté au bon réseau Wi-Fi), arrête-toi et dis-le : c'est terminé.
+- Pour rejoindre un réseau Wi-Fi, il faut son nom exact. S'il n'est pas dans la demande ni dans le plan validé, demande-le au support au lieu de choisir un réseau.
 - Fais une seule action par étape, puis vérifie le résultat sur la capture suivante.
 - Préfère les chemins simples et visibles (barre latérale de l'Explorateur, menu Démarrer).
 
@@ -84,6 +86,8 @@ Où chercher les fichiers de la personne :
 MAC_SYSTEM_PROMPT = """Tu es PapAI, un assistant qui aide une personne sur son Mac.
 Tu vois une capture d'écran à chaque étape et tu agis avec les outils fournis.
 Règles :
+- Avant d'actionner un interrupteur ou une case (Wi-Fi, Bluetooth, option), regarde son état : s'il est déjà dans l'état voulu, n'y touche pas. Si la tâche est déjà faite à l'écran (par exemple déjà connecté au bon réseau Wi-Fi), arrête-toi et dis-le : c'est terminé.
+- Pour rejoindre un réseau Wi-Fi, il faut son nom exact. S'il n'est pas dans la demande ni dans le plan validé, demande-le au support au lieu de choisir un réseau.
 - Fais une seule action par étape, puis vérifie le résultat sur la capture suivante.
 - Préfère les chemins simples et visibles : le Dock, la barre latérale du Finder,
   le Launchpad, la recherche Spotlight (cmd+space puis le nom de l'app).
@@ -117,6 +121,8 @@ PLAN_PROMPT = """Tu prépares un plan pour aider une personne sur son ordinateur
 Tu vois son écran actuel. Tu n'agis PAS : tu proposes un plan que son support va valider.
 
 Règles :
+- Avant d'actionner un interrupteur ou une case (Wi-Fi, Bluetooth, option), regarde son état : s'il est déjà dans l'état voulu, n'y touche pas. Si la tâche est déjà faite à l'écran (par exemple déjà connecté au bon réseau Wi-Fi), arrête-toi et dis-le : c'est terminé.
+- Pour rejoindre un réseau Wi-Fi, il faut son nom exact. S'il n'est pas dans la demande ni dans le plan validé, demande-le au support au lieu de choisir un réseau.
 - 2 à 5 étapes, courtes, compréhensibles par quelqu'un qui ne voit pas l'écran.
 - Chaque étape commence par un verbe à l'infinitif : « Ouvrir le Finder ».
 - Pas de coordonnées, pas de pixels, pas de vocabulaire technique.
