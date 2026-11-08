@@ -25,6 +25,7 @@ _PERSONAL = re.compile(
     r"(?i:\S+@\S+\.\S+|\bFR\d{2})"
     rf"|{_NUM}{_VOIE}|{_NUM}{_VOIE_AMBIGUE}")
 _NUMBER = re.compile(r"(?<!\w)\d(?:[\s./-]?\d){5,}")
+_LONG_NUMBER = re.compile(r"(?<!\d)\d(?:[\s./-]*\d){8,}")
 _PHONE = re.compile(r"(?<!\w)(?:0[1-9](?:[\s./-]?\d){8}|(?:\+|00)33[\s./-]?[1-9](?:[\s./-]?\d){8})(?!\d)")
 _VERSION = re.compile(
     r"(?<![\w.])\d+(?:\.\d+)+(?![\w.])"
@@ -32,7 +33,7 @@ _VERSION = re.compile(
 
 
 def personal(query: str) -> bool:
-    if _PERSONAL.search(query) or _PHONE.search(query):
+    if _PERSONAL.search(query) or _PHONE.search(query) or _LONG_NUMBER.search(query):
         return True
     return bool(_NUMBER.search(_VERSION.sub(" ", query)))
 
