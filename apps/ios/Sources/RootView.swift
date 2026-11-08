@@ -201,11 +201,27 @@ struct IdleView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if model.lastAlert == nil && model.guardAlertId == nil {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Rien à signaler pour \(model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
-                    Text("Vous serez prévenu dès qu’une demande d’aide arrive.").font(.system(size: 16)).foregroundStyle(Soin.secondary)
+                // Hors connexion, on ne sait rien : pas de « Rien à signaler » ni de mascotte sereine.
+                if model.connected {
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Rien à signaler pour \(model.senior)").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Text("Vous serez prévenu dès qu’une demande d’aide arrive.").font(.system(size: 16)).foregroundStyle(Soin.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Mascotte(humeur: .calme).frame(width: Mascotte.Taille.carte, height: Mascotte.Taille.carte)
+                    }
+                    .padding(22).soinCard(Soin.accentSoft, radius: 28)
+                } else {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Liaison interrompue").font(.system(size: 28, weight: .bold)).foregroundStyle(Soin.ink)
+                        Text("Impossible de recevoir les demandes d’aide de \(model.senior) pour le moment.")
+                            .font(.system(size: 17, weight: .medium)).foregroundStyle(Soin.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(radius: 28)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading).padding(22).soinCard(Soin.accentSoft, radius: 28)
                 }
 
                 if let live = model.liveDictation {
@@ -256,9 +272,12 @@ struct WaitingView: View {
         ScrollView {
             VStack(spacing: 20) {
                 RequestCard(model: model)
-                HStack(spacing: 10) {
-                    ProgressView().tint(Soin.accent)
-                    Text(text).font(.system(size: 16, weight: .medium)).foregroundStyle(Soin.secondary)
+                VStack(spacing: 12) {
+                    Mascotte(humeur: .reflechit).frame(width: Mascotte.Taille.attente, height: Mascotte.Taille.attente)
+                    HStack(spacing: 10) {
+                        ProgressView().tint(Soin.accent)
+                        Text(text).font(.system(size: 17, weight: .semibold)).foregroundStyle(Soin.ink)
+                    }
                 }.padding(.top, 20)
             }.padding(.horizontal, 20)
         }
@@ -270,9 +289,13 @@ struct StoppedView: View {
     var body: some View {
         VStack(spacing: 10) {
             Spacer()
-            Image(systemName: model.iRefusedPlan ? "xmark" : "pause")
-                .font(.system(size: 22, weight: .semibold)).foregroundStyle(Soin.ink)
-                .frame(width: 64, height: 64).background(Soin.card, in: Circle())
+            if model.stoppedBy == "gardien" {
+                Image(systemName: "exclamationmark.shield.fill")
+                    .font(.system(size: 26, weight: .semibold)).foregroundStyle(Soin.danger)
+                    .frame(width: 64, height: 64).background(Soin.card, in: Circle())
+            } else {
+                Mascotte(humeur: .calme).frame(width: Mascotte.Taille.arret, height: Mascotte.Taille.arret)
+            }
             Text(model.stoppedBy == "gardien" ? "PapAI a arrêté l'assistance : démarche suspecte"
                  : model.iRefusedPlan ? "Vous avez refusé le plan" : "\(model.seniorTitle) a arrêté l’assistance")
                 .font(.system(size: 22, weight: .bold)).foregroundStyle(Soin.ink)
