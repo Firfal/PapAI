@@ -97,7 +97,8 @@ def install(app, find_org, members, public_url, org_by_id, all_orgs):
         org = get_org(token)
         state = read(org)
         key, price = config()
-        result = {"disponible": False, "gerable": bool(key and price and state.get("customer")),
+        result = {"disponible": False, "gerable": bool(key and price and state.get("customer")
+                  and state.get("statut") not in TERMINAL_STATUSES),
                   "postes": len(members(org)),
                   "abonne": bool(state.get("abonne")), "statut": state.get("statut", "inactif")}
         if key and price:

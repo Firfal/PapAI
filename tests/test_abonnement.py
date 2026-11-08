@@ -111,8 +111,9 @@ async function scenario(kind) {
   const message='Message HTTP '+kind;
   let calls=0;
   const context={document:{getElementById:node}, location:{pathname:'/o/test/abonnement',assign:()=>assert.fail('Redirection inattendue')}, Intl,
-    fetch:async()=>{
+    fetch:async url=>{
       calls++;
+      if(calls>1) assert.ok(url.endsWith(kind.startsWith('portal')?'/portal':'/checkout'));
       return calls===1 && kind!=='load'
         ? {ok:true,json:async()=>kind==='portal_without_price'
           ? {disponible:false,gerable:true,abonne:false,postes:2}
@@ -121,6 +122,10 @@ async function scenario(kind) {
     }};
   vm.runInNewContext(process.argv[1],context);
   await new Promise(setImmediate);
+  if(kind==='canceled'||kind==='incomplete_expired') {
+    assert.equal(node('details').hidden,false);
+    assert.equal(node('action').textContent,"S'abonner");
+  }
   if(kind==='portal_without_price') {
     assert.equal(node('details').hidden,false);
     assert.equal(node('action').textContent,'Gérer l’abonnement');
@@ -133,7 +138,7 @@ async function scenario(kind) {
   }
   assert.equal(node('error').textContent,message);
 }
-(async()=>{for(const kind of ['load','checkout','portal','portal_without_price']) await scenario(kind);
+(async()=>{for(const kind of ['load','checkout','portal','portal_without_price','canceled','incomplete_expired']) await scenario(kind);
 console.log('OK : detail affiché pour billing, checkout et portail');})().catch(e=>{console.error(e);process.exit(1)});
 ''', script], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -201,7 +206,11 @@ console.log('OK : detail affiché pour billing, checkout et portail');})().catch
                              (409, {"detail": "Déjà abonné : utilisez Gérer l'abonnement"}))
         self.assertEqual(self.fake.requests, [])
         for status in ("canceled", "incomplete_expired"):
-            billing.write(self.org, {"subscription": "sub_test", "statut": status, "abonne": False})
+            billing.write(self.org, {"subscription": "sub_test", "customer": "cus_test", "statut": status, "abonne": False})
+            state = self.request(self.path + "/billing")[1]
+            self.assertTrue(state["disponible"])
+            self.assertFalse(state["gerable"])
+            self.assertFalse(state["abonne"])
             self.assertEqual(self.request(self.path + "/billing/checkout", b"")[0], 200)
 
     def test_webhook_registre_en_memoire(self):

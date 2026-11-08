@@ -465,7 +465,8 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
   (`name` = prénom donné sur le poste, sinon `label`). Le support garde une liaison par `key`
   (`<server>/k/<key>`), comme après un appairage. Jeton inconnu → 404.
 - Abonnement entreprise, mode test uniquement : `GET /o/<support_token>/abonnement` sert la page ;
-  `GET /o/<support_token>/billing` renvoie `disponible`, `gerable` (portail accessible même sans prix),
+  `GET /o/<support_token>/billing` renvoie `disponible`, `gerable` (portail accessible même sans prix,
+  sauf après un statut terminal : proposer alors Checkout),
   `postes`, `abonne`, `statut` et, si disponible,
   `prix` (`unit_amount` en centimes, `currency`, `interval=month`). `POST …/billing/checkout`
   et `POST …/billing/portal` renvoient `{"url"}` (503 si non configuré ; portail 409 sans client ;
