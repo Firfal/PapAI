@@ -125,7 +125,7 @@ final class HelperModel {
     var lessonBusy = false
     var draftTitle = ""
     var draftSteps: [DraftStep] = []
-    /// Ce que la tuile ouvrira chez l’utilisateur (« Images › Noël 2025 »), à voir avant de valider.
+    /// Ce que la tuile ouvrira chez l’utilisateur (« Documents › Rapports 2026 »), à voir avant de valider.
     var draftTarget: String?
     var hasDraft = false
     var savedTitle: String?

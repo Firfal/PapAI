@@ -301,7 +301,7 @@ final class AppModel {
                 remoteRequest = RemoteRequest(from: "Marc", task: "Mettre à jour votre ordinateur")
                 return
             }
-            let json = #"[{"id":"a","title":"Mes photos de Noël","shortcut":{"folder":"pictures"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes documents","shortcut":{"folder":"documents"}}]"#
+            let json = #"[{"id":"a","title":"Mes rapports","shortcut":{"folder":"documents"},"steps":[{"instruction":"Ouvrez le Finder"}]},{"id":"b","title":"Mes téléchargements","shortcut":{"folder":"downloads"}}]"#
             lessons = (try? JSONDecoder().decode([Lesson].self, from: Data(json.utf8))) ?? []
             if demo == "home" { return }
             if demo == "home_empty" { lessons = []; return }
@@ -311,15 +311,15 @@ final class AppModel {
                                         detail: "Le logiciel « anydesk » est en marche. Il permet à une personne à distance de voir votre écran et de cliquer à votre place. Est-ce bien quelqu'un que vous connaissez ?")
                 return
             }
-            if demo == "consent" { pendingTask = "Je ne retrouve plus mes photos de Noël"; screen = .consent; return }
+            if demo == "consent" { pendingTask = "Je ne retrouve plus le rapport trimestriel"; screen = .consent; return }
             guard let s = SessionState(rawValue: demo) else { return }
-            task = "Je ne retrouve plus mes photos de Noël"
-            plan = ["Ouvrir le Finder", "Aller dans le dossier Images", "Ouvrir le dossier « Noël 2025 »"]
+            task = "Je ne retrouve plus le rapport trimestriel"
+            plan = ["Ouvrir le Finder", "Aller dans le dossier Documents", "Ouvrir le dossier « Rapports 2026 »"]
             planStep = 2
-            answer = "Vos photos de Noël sont ouvertes dans le dossier Images."
+            answer = "Le rapport trimestriel est ouvert dans le dossier Documents."
             currentAction = "Je clique sur l'icône du Finder"
             actions = ["J'ouvre la recherche du Mac", "J'écris « Finder »", "Je clique sur l'icône du Finder"]
-            question = "Je vois deux dossiers « Noël ». Lequel faut-il ouvrir ?"
+            question = "Je vois deux dossiers « Rapports ». Lequel faut-il ouvrir ?"
             state = s
             screen = .session
         }

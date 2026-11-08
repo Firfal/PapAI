@@ -814,11 +814,11 @@ class Model:
             self.remote_request = {"from": "Marc", "task": "Mettre à jour votre ordinateur"}
             return
         self.lessons = [
-            {"id": "a", "title": "Mes photos de Noël", "shortcut": {"folder": "pictures"},
-             "description": "Ouvre le dossier Images, où sont rangées vos photos de Noël.",
+            {"id": "a", "title": "Mes rapports", "shortcut": {"folder": "documents"},
+             "description": "Ouvre le dossier Documents, où sont rangés vos rapports.",
              "steps": [{"instruction": "Ouvrez l'Explorateur de fichiers"},
-                       {"instruction": "Cliquez sur « Images », à gauche"}]},
-            {"id": "b", "title": "Mes documents", "shortcut": {"folder": "documents"}},
+                       {"instruction": "Cliquez sur « Documents », à gauche"}]},
+            {"id": "b", "title": "Mes téléchargements", "shortcut": {"folder": "downloads"}},
             {"id": "c", "title": "Remettre Google en page d'accueil", "publisher": "Acme",
              "platforms": ["windows"], "actions": [{"do": "holo", "goal": "Remettre Google en page d'accueil"}]},
         ]
@@ -830,14 +830,14 @@ class Model:
         if demo in ("home", "home_no_org", "doc"):
             return
         if demo == "lesson":
-            self.lesson = {"id": "a", "title": "Mes photos de Noël", "steps": [
+            self.lesson = {"id": "a", "title": "Mes rapports", "steps": [
                 {"instruction": "Ouvrez l'Explorateur de fichiers",
                  "checkpoint": "une fenêtre avec vos dossiers à gauche"},
-                {"instruction": "Cliquez sur « Images »"}]}
+                {"instruction": "Cliquez sur « Documents »"}]}
             self.screen = "lesson"
             return
         if demo == "consent":
-            self.pending_task = "Je ne retrouve plus mes photos de Noël"
+            self.pending_task = "Je ne retrouve plus le rapport trimestriel"
             self.screen = "consent"
             return
         web = demo.startswith("web_")
@@ -848,19 +848,19 @@ class Model:
                  "compact": "active", "gardien": "stopped"}.get(demo, demo)
         if state not in STATES:
             return
-        self.task = "Je ne retrouve plus mes photos de Noël"
-        self.plan = ["Ouvrir l'Explorateur de fichiers", "Aller dans le dossier Images",
-                     "Ouvrir le dossier « Noël 2025 »"]
+        self.task = "Je ne retrouve plus le rapport trimestriel"
+        self.plan = ["Ouvrir l'Explorateur de fichiers", "Aller dans le dossier Documents",
+                     "Ouvrir le dossier « Rapports 2026 »"]
         self.plan_step = 2
-        self.answer = "Vos photos de Noël sont ouvertes dans le dossier Images."
+        self.answer = "Le rapport trimestriel est ouvert dans le dossier Documents."
         self.current_action = "Je clique sur l'icône de l'Explorateur"
         self.actions = ["J'ouvre la recherche de Windows", "J'écris « Explorateur »",
                         "Je clique sur l'icône de l'Explorateur"]
-        self.question = "Je vois deux dossiers « Noël ». Lequel faut-il ouvrir ?"
+        self.question = "Je vois deux dossiers « Rapports ». Lequel faut-il ouvrir ?"
         if demo == "senior_question":
-            self.question = "Vos photos de Noël sont-elles sur cet ordinateur ou sur une clé USB ?"
+            self.question = "Le rapport est-il sur cet ordinateur ou sur le serveur de l'entreprise ?"
             self.question_for_me = True
-            self.question_options = ["Sur l'ordinateur", "Sur une clé USB"]
+            self.question_options = ["Sur l'ordinateur", "Sur le serveur"]
         self.paused = demo == "paused"
         if demo == "gardien":
             self.stopped_by, self.guard_acknowledged = "gardien", True
