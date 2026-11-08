@@ -39,7 +39,7 @@ extension HelperModel {
                     else if l.hasPrefix("plan:") { plan = l.dropFirst(5).split(separator: ";").map(String.init) }
                     else if l.hasPrefix("lessons:") {
                         let items = l.dropFirst(8).split(separator: ";").map { ["title": String($0), "steps": [["instruction": ""], ["instruction": ""], ["instruction": ""]]] as [String: Any] }
-                        if let d = try? JSONSerialization.data(withJSONObject: items) { lessons = (try? JSONDecoder().decode([Lesson].self, from: d)) ?? [] }
+                        if let d = try? JSONSerialization.data(withJSONObject: items) { lessons = (try? JSONDecoder().decode([HelperLesson].self, from: d)) ?? [] }
                     }
                     else if l.hasPrefix("guard:") {
                         // guard:titre|détail|demande

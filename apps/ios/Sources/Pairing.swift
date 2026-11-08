@@ -1,5 +1,7 @@
 import SwiftUI
+#if os(iOS)
 import AVFoundation
+#endif
 
 enum PairServer {
     static let refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
@@ -92,10 +94,16 @@ struct PairLink: Identifiable, Equatable {
     }
 }
 
-private let relations: [(label: String, value: String)] = [
-    ("Fille", "sa fille"), ("Fils", "son fils"), ("Proche", "un proche"),
-    ("Collègue", "un collègue"), ("Service informatique", "le service informatique"), ("Voisin, voisine", "un voisin"),
-]
+extension PairServer {
+    /// Lien avec la personne aidée, proposé à la liaison (iPhone et Mac).
+    static let relations: [(label: String, value: String)] = [
+        ("Fille", "sa fille"), ("Fils", "son fils"), ("Proche", "un proche"),
+        ("Collègue", "un collègue"), ("Service informatique", "le service informatique"), ("Voisin, voisine", "un voisin"),
+    ]
+}
+
+// Feuilles de liaison et scanner : iPhone seulement (le Mac a les siennes, sans caméra).
+#if os(iOS)
 
 /// « Rejoindre <prénom> » : prénom et lien, puis POST et réglage automatique.
 struct PairSheet: View {
@@ -140,7 +148,7 @@ struct PairSheet: View {
             .textContentType(.givenName).font(.system(size: 17)).padding(16).soinField()
         label("Votre lien avec la personne aidée")
         FlowLayout(spacing: 8) {
-            ForEach(relations, id: \.value) { r in
+            ForEach(PairServer.relations, id: \.value) { r in
                 Button { relation = relation == r.value ? "" : r.value } label: {
                     Text(r.label).font(.system(size: 15, weight: .medium))
                         .foregroundStyle(relation == r.value ? .white : Soin.ink)
@@ -355,3 +363,4 @@ final class ScannerController: UIViewController, AVCaptureMetadataOutputObjectsD
         }
     }
 }
+#endif
