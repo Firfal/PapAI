@@ -119,4 +119,5 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Tickets : chaque demande d'assistance suivie (numéro, statut, plan, fin), demande en attente quand aucun support n'est là, personne reprévenue dès qu'un support arrive, rendez-vous et rappel ; onglet Tickets de l'organisation (filtres, CSV) et liste sur la page du support (`tests/test_tickets.py`).
 - [ ] Tickets dans les apps Android et iPhone du support (aujourd'hui : page web seulement).
   - [x] iPhone : accueil du support en trois onglets comme sur Mac (Tickets de tous les utilisateurs avec Ouverts/Tous, Prendre en charge / Clore / Rouvrir / Voir l’utilisateur ; Utilisateurs ; Mes automates avec import `.papai` et « Appliquer… »), palette du Mac (`devin/1794129480-iphone-support-onglets`). Essayé sur simulateur.
+  - [x] « Appliquer… » à toute une organisation d'un coup (iPhone et Mac), y compris les postes qui la rejoindront (`devin/1794129480-iphone-support-onglets`).
   - [ ] Android.
