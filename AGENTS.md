@@ -46,6 +46,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
+| Devin | `devin/1794128408-rangement-dossiers` | Rangement guidé des dossiers (Documents, Téléchargements, Bureau) : plan des déplacements validé par le support, exécution locale sans suppression, « Annuler le rangement » | `backend/rangement.py`, `tests/test_rangement.py`, `apps/mac/Sources/Rangement.swift`, `apps/mac/tests/rangement_test.swift` ; petites retouches : `backend/app.py` (branche `help_request`), `apps/mac/Sources/Model.swift`, `apps/mac/Sources/HomeView.swift`, `PROTOCOL.md` | 8 nov. |
 
 ## Journal
 
