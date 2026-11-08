@@ -47,7 +47,10 @@ async def search(query: str) -> dict:
             response = await client.post(f"{base}/v1/search", headers={"Authorization": f"Bearer {key}"},
                                          json={"q": query, "depth": "standard", "outputType": "sourcedAnswer"})
             response.raise_for_status()
-            data = response.json()
+            try:
+                data = response.json()
+            except ValueError:
+                return {"error": "invalid_response"}
         if not isinstance(data, dict):
             return {"error": "invalid_response"}
         summary = plain(data.get("answer"), 8000)

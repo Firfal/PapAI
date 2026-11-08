@@ -56,7 +56,7 @@ class Client(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await linkup.search("error"), {"error": "unavailable"})
 
     async def test_json_error(self):
-        self.assertEqual(await linkup.search("invalid"), {"error": "unavailable"})
+        self.assertEqual(await linkup.search("invalid"), {"error": "invalid_response"})
 
     async def test_timeout(self):
         with patch.object(linkup, "TIMEOUT_S", 0.02):

@@ -45,13 +45,13 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794127230-linkup` | Relecture PR #80 Linkup : courses, reconnexion, JSON | `backend/app.py`, `backend/linkup.py`, `tests/test_linkup.py`, `apps/ios/Sources/HelperModel.swift`, `apps/android/app/src/main/java/com/quentin/papai/aidant/Helper.kt`, `backend/static/helper.html`, `tests/test_helper_shortcut.js` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 8 nov. | Devin | `devin/1794127230-linkup` | Relecture #80 : fin atomique avant écriture du ticket, résultat support préservé au retour de planification Holo, recherche débloquée après échec d’envoi ou reconnexion sur Swift/Android/web, JSON fournisseur invalide classé invalid_response. Tests de régression serveur et web ajoutés. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794127230-linkup` | Interfaces Linkup : carte support iPhone/Mac/web/Android, recherche manuelle, correction et validation, erreurs simples ; réponse et sources Mac/Windows, réponse conservée affichée dans les tickets web (pas de vue détail Mac ajoutée). Sources en texte brut et liens HTTP(S). xcodegen et builds Mac/iOS simulateur réussis ; test Swift liaison réussi, Windows unittest 44 OK, Node Windows 15 cas réussis et helper/tickets 2 OK, Linkup faux serveur 19 OK. Android bloqué au téléchargement Gradle 8.9 (HTTP 504 GitHub), SDK absent ; test_windows_app interrompu à l’invitation opaque, module qrcode absent du venv Mac. Clé Linkup absente dans le nouveau shell, aucun appel réel. Aucun essai visuel. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794127230-linkup` | Étape serveur Linkup : clé serveur facultative, faux serveur local, recherche sourcée bornée, proposition Holo ou recherche support avant plan validé, validation/correction avant envoi à l’utilisateur et conservation dans le ticket. Protocole décrit. Interfaces et compilations restent pour l'étape suivante ; réservation conservée. |
 | 8 nov. | Claude | `claude/masquer-creation-automate` | « Mes automates » : le bouton « Créer un automate » (à la main, document, enregistrement) est masqué à la demande de B, via `SupportAutomates.creationActive = false`. Code, route `POST /automations/draft` et tests conservés pour le réactiver. Liste, import `.papai` et « Appliquer… » inchangés. Mac compilé. Pas poussé. |
