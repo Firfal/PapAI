@@ -25,7 +25,17 @@ struct Lesson: Decodable, Identifiable {
     struct Step: Decodable { var instruction: String? }
     var title: String
     var steps: [Step]?
-    var id: String { title }
+    /// Identifiant du serveur s'il est fourni : deux automates peuvent porter le même titre.
+    var serverId: String?
+    var id: String { serverId ?? title }
+    enum CodingKeys: String, CodingKey { case title, steps, serverId = "id" }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decode(String.self, forKey: .title)
+        steps = try c.decodeIfPresent([Step].self, forKey: .steps)
+        // Un `id` absent ou d'un autre type ne doit pas faire échouer la liste.
+        serverId = (try? c.decodeIfPresent(String.self, forKey: .serverId)) ?? nil
+    }
 }
 
 struct DraftStep: Identifiable {
@@ -63,6 +73,8 @@ final class HelperModel {
     /// Pour les autres personnes : clé → ordinateur connecté / demande en attente.
     var othersOnline: [String: Bool] = [:]
     var othersAsking: [String: Bool] = [:]
+    /// Ordinateur de la personne suivie connecté au serveur (`hello.bridge`) ; nil tant qu'inconnu.
+    var seniorOnline: Bool?
     private var watches: [String: Task<Void, Never>] = [:]
     private var watchSockets: [String: URLSessionWebSocketTask] = [:]
 
@@ -321,6 +333,7 @@ final class HelperModel {
         doing = nil; question = nil; questionToSenior = false; liveDictation = nil; seniorPaused = false
         frame = nil; frameId = nil; frameAt = nil; aiming = false; target = nil
         lessons = []; lastAlert = nil; guardAlertId = nil; doneFresh = false; hasDraft = false; savedTitle = nil
+        seniorOnline = nil
     }
 
     private static func wsURL(server: String, key: String) -> URL? {
@@ -491,7 +504,7 @@ final class HelperModel {
             // Une tâche annulée par `reconnect()` finit après le départ de la suivante :
             // elle ne doit pas effacer l'état de la nouvelle connexion.
             if Task.isCancelled { return }
-            connected = false; socket = nil
+            connected = false; socket = nil; seniorOnline = nil
             if keyRefused { retryAt = nil; return }   // on attend « Vérifier les réglages » ou le premier plan
             retryAt = Date().addingTimeInterval(delay)
             try? await Task.sleep(for: .seconds(delay))
@@ -575,7 +588,9 @@ final class HelperModel {
     func manualPairLink() -> PairLink? {
         let s = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         if s.isEmpty { return PairLink(base: "https://" + PairServer.officialHost, code: nil) }
-        return PairServer.allowed(baseHTTP) ? PairLink(base: baseHTTP, code: nil) : nil
+        // `/p/<code>` sans le préfixe `/k/<clé>` : le code peut viser une autre personne aidée.
+        let origin = PairLink(base: baseHTTP, code: nil).origin
+        return PairServer.allowed(origin) ? PairLink(base: origin, code: nil) : nil
     }
 
     /// POST du prénom et du lien, puis réglage de l'app avec la réponse du serveur.
@@ -662,6 +677,10 @@ final class HelperModel {
         switch type {
         case "hello":
             setSenior(m["senior"] as? String)
+            seniorOnline = m["bridge"] as? Bool ?? false
+            // Une alerte toujours en attente est renvoyée juste après `hello` :
+            // sinon elle a été réglée ailleurs pendant la coupure.
+            clearGuardAlert()
             // On se présente : l'ordinateur doit voir ce support dans sa liste.
             send(["type": "helper_hello", "id": helperId, "name": helperName ?? "Support",
                   "relation": helperRelation])
@@ -701,6 +720,11 @@ final class HelperModel {
                 frame = nil; frameId = nil; frameAt = nil
             }
             sessionWhere = newWhere
+            // La question d'abord : la notification ci-dessous en reprend le texte.
+            if let q = m["question"] as? [String: Any], let t = q["question"] as? String {
+                question = (t, q["options"] as? [String] ?? [])
+                questionToSenior = (q["to"] as? String) == "senior"
+            } else if newState != "awaiting_helper" { question = nil }
             if newState != state {
                 if newState == "awaiting_approval" || newState == "awaiting_helper" { notify(newState!) }
                 if newState == "done" { doneFresh = true; Task { await loadLessons() } }
@@ -715,10 +739,6 @@ final class HelperModel {
             planStep = m["plan_step"] as? Int
             doing = m["doing"] as? String
             seniorPaused = m["paused"] as? Bool ?? false
-            if let q = m["question"] as? [String: Any], let t = q["question"] as? String {
-                question = (t, q["options"] as? [String] ?? [])
-                questionToSenior = (q["to"] as? String) == "senior"
-            } else if newState != "awaiting_helper" { question = nil }
             syncLive()
 
         case "frame":
@@ -740,13 +760,18 @@ final class HelperModel {
 
         case "alert":
             let t = m["title"] as? String ?? "Alerte", d = m["detail"] as? String ?? ""
-            let fresh = guardAlertId != m["alert_id"] as? String || lastAlert?.detail != d
-            lastAlert = (t, d)
-            guardAlertId = m["alert_id"] as? String
-            guardTask = m["task"] as? String ?? ""
-            guardAcknowledged = m["acknowledged"] as? Bool ?? (m["acknowledged_by"] as? String != nil)
+            let aid = m["alert_id"] as? String
+            let fresh = guardAlertId != aid || lastAlert?.detail != d
+            if let aid {
+                lastAlert = (t, d)
+                guardAlertId = aid
+                guardTask = m["task"] as? String ?? ""
+                guardAcknowledged = m["acknowledged"] as? Bool ?? (m["acknowledged_by"] as? String != nil)
+            } else if guardAlertId == nil {
+                lastAlert = (t, d)   // échec d'un automate : simple information, l'alerte ouverte reste
+            }
             if fresh { notifyLocal(title: t, body: d) }
-            if guardAlertId == nil { showToast(t) }
+            if aid == nil { showToast(t) }
             syncLive()
 
         case "alert_acknowledged":
@@ -766,7 +791,11 @@ final class HelperModel {
             if m["blocked"] as? String == "sensitive" {
                 sensitiveRefusal = m["reason"] as? String ?? "Cette fenêtre est protégée (réglages ou mots de passe)."
                 toast = nil
-            } else { showToast(m["reason"] as? String ?? "Refusé") }
+            } else {
+                let reason = m["reason"] as? String ?? "Refusé"
+                if reason.contains("n'est plus en attente") { clearGuardAlert() }
+                showToast(reason)
+            }
             sending = false; planBusy = false; lessonBusy = false
 
         case "ack":
@@ -799,6 +828,13 @@ final class HelperModel {
 
         default: break
         }
+    }
+
+    /// Efface l'alerte du gardien locale (et donc l'écran plein qu'elle ouvre).
+    private func clearGuardAlert() {
+        guard guardAlertId != nil else { return }
+        guardAlertId = nil; lastAlert = nil; guardTask = ""; guardAcknowledged = false
+        syncLive()
     }
 
     // MARK: Notifications

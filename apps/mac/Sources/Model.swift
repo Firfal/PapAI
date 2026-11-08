@@ -8,6 +8,8 @@ struct Helper: Identifiable, Equatable {
     var id: String
     var name: String
     var relation: String
+    /// Support connecté en ce moment (`helpers[].online`), faux si absent.
+    var online = false
 }
 
 /// Quelqu'un a tapé le code à 6 chiffres sans clé : il ne devient support qu'avec l'accord de la personne.
@@ -114,6 +116,8 @@ final class AppModel {
     @ObservationIgnored private var started = false
     @ObservationIgnored private var autoSent = false
     @ObservationIgnored private var noticeTask: Task<Void, Never>?
+    /// Vrai entre la connexion et la réponse du serveur au `hello`.
+    @ObservationIgnored private var awaitingInitialHelpers = false
     @ObservationIgnored private var homeTimer: Task<Void, Never>?
 
     var sessionOpen: Bool { state?.isOpen ?? false }
@@ -332,7 +336,11 @@ final class AppModel {
                 self.webHost.stopLocal()
                 InputLock.shared.set(false)
             }
-            if ok { self.sendProfile() }
+            if ok {
+                // Démo (PAPAI_DEMO=alert) : l'alerte locale reste affichée.
+                self.awaitingInitialHelpers = ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil
+                self.sendProfile()
+            }
             self.startPendingPairing()
             // Test : PAPAI_AUTOTASK lance une demande dès la connexion.
             if ok, !self.autoSent, let t = ProcessInfo.processInfo.environment["PAPAI_AUTOTASK"], !t.isEmpty {
@@ -347,7 +355,9 @@ final class AppModel {
             Task {
                 while true {
                     try? await Task.sleep(nanoseconds: GuardSignals.period)
-                    if connected, realtimeProtection { client.send(GuardSignals.collect(withURL: !sessionOpen)) }
+                    guard connected, realtimeProtection else { continue }
+                    let signals = await GuardSignals.collect(withURL: !sessionOpen)
+                    if connected, realtimeProtection { client.send(signals) }
                 }
             }
         }
@@ -696,7 +706,14 @@ final class AppModel {
             let list = (m["helpers"] as? [[String: Any]]) ?? []
             helpers = list.compactMap { d in
                 guard let id = d["id"] as? String, let n = d["name"] as? String else { return nil }
-                return Helper(id: id, name: n, relation: d["relation"] as? String ?? "")
+                return Helper(id: id, name: n, relation: d["relation"] as? String ?? "",
+                              online: d["online"] as? Bool ?? false)
+            }
+            // Premier `helpers` après le `hello` : le serveur envoie l'alerte en attente
+            // juste après. Rien ne suit si elle a été rejetée pendant la coupure.
+            if awaitingInitialHelpers {
+                awaitingInitialHelpers = false
+                guardAlert = nil
             }
             // Une liste vide d'un serveur qui vient de redémarrer n'efface pas la copie locale.
             if !helpers.isEmpty || removing {
@@ -742,6 +759,15 @@ final class AppModel {
             }
         case "alert_cleared":
             if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
+        case "automation_refused":
+            // L'écran était déjà passé en préparation : retour à l'accueil, avec la raison.
+            state = nil
+            screen = .home
+            applyLevel()
+            showNotice(m["reason"] as? String ?? "Cet automate n'a pas pu être lancé.")
+        case "ticket_refused":
+            queuedShown = false
+            showNotice(m["reason"] as? String ?? "Ce rendez-vous n'est pas possible.")
         case "pair_confirm":
             guard let req = (m["req"] as? String) ?? (m["req"] as? Int).map(String.init) else { return }
             pairRequest = PairRequest(req: req, name: m["name"] as? String ?? "Quelqu'un",
