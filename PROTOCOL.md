@@ -100,6 +100,54 @@ jamais le serveur. Erreurs : 404 mauvaise clé, 503 `{"error":"gladia_absent"}`
 (pas de clé Gladia : l'app Mac bascule sur la reconnaissance du Mac),
 502 `{"error":"phrase lisible"}`, 413 trop long.
 
+### Direct Gladia (Mac et iPhone)
+
+`WS /k/{clé}/transcribe/live` : même clé famille que les autres routes ; une
+mauvaise clé est refusée avant l'ouverture (403). Aucune route sans clé.
+Le serveur crée une session [Gladia live v2](https://docs.gladia.io/chapters/live-stt/quickstart)
+(`POST /v2/live`, `x-gladia-key` côté serveur seulement), puis relaie sa WebSocket.
+Ni la clé Gladia ni l'URL signée de session ne sont envoyées aux apps.
+
+App → serveur :
+- trames **binaires** PCM signé little-endian 16 bits, mono, 16 000 Hz, sans
+  en-tête WAV, contiguës (environ 40–100 ms chacune) ;
+- `{"type":"stop"}` après la dernière trame : le serveur envoie
+  `stop_recording` à Gladia et attend les dernières transcriptions (5 s max).
+  Fermer la WebSocket annule le relais sans envoyer de demande finale.
+
+Serveur → app :
+- `{"type":"ready"}` : session Gladia ouverte, l'audio peut partir ;
+- `{"type":"transcript","id":"…","text":"…","final":false}` : texte Gladia
+  d'une **phrase**, pas de toute la dictée ; un nouveau partiel de même `id`
+  remplace le précédent, `final:true` termine cette phrase. Les phrases sont
+  concaténées dans leur ordre d'arrivée, sans doubler les mots ;
+- `{"type":"done"}` puis fermeture : dernières phrases reçues ;
+- `{"type":"fallback"}` puis fermeture : clé Gladia absente, limite atteinte,
+  fournisseur indisponible ou erreur réseau/protocole. Aucun diagnostic ni
+  contenu d'erreur du fournisseur n'est transmis.
+
+Bornes serveur : 2 relais simultanés, 45 s par relais, 32 000 octets max par
+trame, 1 024 000 octets audio au total (32 s), 8 s sans événement Gladia.
+Les apps attendent `ready` au plus 5 s ; elles gardent une file audio bornée
+pendant la connexion et replient si elle déborde, plutôt que perdre des trames.
+Le direct ne se reconnecte pas au milieu d'une dictée : le prochain appui
+réessaie une nouvelle session. Le serveur ne stocke ni audio ni transcription.
+
+Tant que le direct fonctionne, **seul Gladia est affiché**. SFSpeech continue
+en parallèle pour disposer d'un secours et détecter localement la fin de parole,
+avec le niveau sonore ; ni le réseau ni la latence Gladia ne pilotent le silence.
+Après repli, le texte Apple disponible reprend sa place (sinon le dernier texte
+Gladia reste visible). À l'arrêt, `POST /k/{clé}/transcribe` reste prioritaire
+pour le **texte final**, inchangé. S'il échoue, les apps attendent la fin bornée
+du direct et retiennent le meilleur texte disponible. Sur l'iPhone, annuler la
+feuille coupe le flux live, efface l'enregistrement et n'envoie pas le WAV final ;
+l'audio déjà transmis pendant l'écoute ne peut pas être rappelé.
+
+Tests sans clé : `tests/faux_gladia.py`,
+`HAI_API_KEY=stub-key PYTHONPATH=. python tests/test_gladia_live.py` (inclut le
+vrai client Swift/URLSession sur macOS). En DEBUG seulement, le Mac peut lire
+`PAPAI_DICTATION_FILE=/chemin/audio.wav` au rythme réel à la place du micro.
+
 ## Gardien anti-arnaque
 
 ### Protection en temps réel
