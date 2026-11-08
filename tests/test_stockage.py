@@ -204,6 +204,16 @@ class Firestore(Contrat, unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "indisponible"):
                 self.store.read("defaut/family.json")
 
+    def test_suppression_document_refusee_preserve_image(self):
+        key = "spaces/a/lessons/b/step.png"
+        self.store.write(key, b"image")
+        blob = self.store._doc(key).get().to_dict()["gcs"]
+        with patch.object(Document, "delete", side_effect=RuntimeError("suppression refusée")):
+            with self.assertRaisesRegex(RuntimeError, "suppression refusée"):
+                self.store.delete(key)
+        self.assertEqual(self.bucket.values[blob], b"image")
+        self.assertEqual(self.store.read(key), b"image")
+
 
 class Integration(unittest.TestCase):
     def tearDown(self):

@@ -161,11 +161,12 @@ class FirestoreStore(Store):
     def delete(self, key):
         doc = self._doc(key)
         snap = doc.get()
-        if snap.exists and snap.to_dict().get("gcs"):
-            if self.bucket is None:
-                raise ValueError("Le bucket Cloud Storage est requis pour ce fichier")
-            self.bucket.blob(snap.to_dict()["gcs"]).delete()
+        blob = snap.to_dict().get("gcs") if snap.exists else None
+        if blob and self.bucket is None:
+            raise ValueError("Le bucket Cloud Storage est requis pour ce fichier")
         doc.delete()
+        if blob:
+            self.bucket.blob(blob).delete()
 
     def list(self, prefix):
         validate(prefix, prefix=True)
