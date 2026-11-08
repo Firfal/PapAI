@@ -149,10 +149,9 @@ final class AppModel {
         while s.hasSuffix("/") { s.removeLast() }
         return s
     }
-    var firstName: String {
-        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
-        return n
-    }
+    /// Propriété observée (et non lue dans UserDefaults à chaque fois) : l'accueil
+    /// « Bonsoir <prénom> » se met à jour dès qu'on change le prénom dans les Réglages.
+    var firstName = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
 
     /// Qui aide : toujours au singulier pour accorder le verbe qui suit.
     var helperName: String {
@@ -179,7 +178,8 @@ final class AppModel {
     // MARK: Accueil et proches
 
     func setFirstName(_ name: String) {
-        UserDefaults.standard.set(name.trimmingCharacters(in: .whitespaces), forKey: "firstName")
+        firstName = name.trimmingCharacters(in: .whitespaces)
+        UserDefaults.standard.set(firstName, forKey: "firstName")
         sendProfile()
     }
 
@@ -218,6 +218,8 @@ final class AppModel {
         screenConsent = true
         UserDefaults.standard.set(true, forKey: "onboarded")
         onboarded = true
+        // « Revoir l'accueil » doit repartir de la bienvenue, pas de la dernière étape (prénom sauté).
+        onboardingStep = 0
         permissionsDismissed = true
         stopPairing()
     }
