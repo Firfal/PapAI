@@ -59,7 +59,7 @@ private struct SmallPill: ButtonStyle {
         configuration.label
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(filled ? Color.white : T.leaf)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 14)
             .frame(minHeight: 44)
             .background {
                 if filled { Capsule().fill(T.primary) } else {
@@ -68,6 +68,17 @@ private struct SmallPill: ButtonStyle {
             }
             .opacity(configuration.isPressed ? 0.85 : 1)
             .contentShape(Capsule())
+    }
+}
+
+/// Action secondaire discrète (« Clore », « Rouvrir »), comme sur Mac, en gardant 44 pt.
+private struct TextAction: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.semibold)).foregroundStyle(T.muted)
+            .padding(.horizontal, 10).frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+            .opacity(configuration.isPressed ? 0.6 : 1)
     }
 }
 
@@ -144,10 +155,10 @@ struct TicketsTab: View {
                 Button("Voir l’utilisateur") { openUser(t.person) }.buttonStyle(SmallPill(filled: false))
                 if t.canTake {
                     Button("Clore") { Task { await act(t, "close") } }
-                        .buttonStyle(SmallPill(filled: false)).disabled(board.busy != nil)
+                        .buttonStyle(TextAction()).disabled(board.busy != nil)
                 } else if !t.isOpen {
                     Button("Rouvrir") { Task { await act(t, "reopen") } }
-                        .buttonStyle(SmallPill(filled: false)).disabled(board.busy != nil)
+                        .buttonStyle(TextAction()).disabled(board.busy != nil)
                 }
             }
         }
