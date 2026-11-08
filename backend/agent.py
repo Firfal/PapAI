@@ -57,10 +57,14 @@ async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> l
         session.record_usage(getattr(resp, "usage", None))
         raw = resp.choices[0].message.content or ""
         m = re.search(r"\{.*\}", raw, re.S)
-        steps = [str(x).strip() for x in json.loads(m.group(0)).get("steps", []) if str(x).strip()]
+        data = json.loads(m.group(0))
+        steps = [str(x).strip() for x in data.get("steps", []) if str(x).strip()]
+        where = str(data.get("where", "")).strip().lower()
+        session.where = where if where in ("web", "desktop") else "desktop"
     except Exception as e:  # noqa: BLE001 — un plan minimal vaut mieux qu'une session bloquée
         session.log("plan_failed", error=f"{type(e).__name__}: {e}")
         steps = []
+        session.where = "desktop"
     return steps[:5] or [f"Faire : {session.task}"]
 
 

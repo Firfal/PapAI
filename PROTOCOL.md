@@ -199,9 +199,9 @@ sont arrêtées aussi. L'alerte est renvoyée aux aidants et au pont à la recon
 Les alertes de veille partent immédiatement à partir des signaux textuels,
 sans attendre de capture ni de confirmation visuelle de Holo.
 `status.stopped_by` est optionnel (`null` hors arrêt explicite). La valeur
-`gardien` est conservée même après rejet de l'alerte : l'iPhone, le web et
-Windows affichent « PapAI a arrêté l'assistance : démarche suspecte » ;
-la fin Mac adaptée à l'aidé est décrite ci-dessous. Aucun de ces écrans
+`gardien` est conservée même après rejet de l'alerte : l'iPhone et le web
+affichent « PapAI a arrêté l'assistance : démarche suspecte » ;
+la fin Mac et Windows adaptée à l'aidé est décrite ci-dessous. Aucun de ces écrans
 n'attribue l'arrêt à la personne aidée. Les autres causes restent inchangées.
 `status.execution_started` est un booléen irréversible dans une session, posé
 juste avant l'envoi d'une action Holo ou d'un clic du proche au pont. Il peut
@@ -210,7 +210,7 @@ Seule la valeur explicite `false` permet d'affirmer « Rien n'a été fait sur
 son ordinateur ». Si `true` ou absent (ancien serveur), l'aidant lit
 « L'assistance est arrêtée. Vérifiez avec Sophie ce qui a été fait. »
 `status.guard_acknowledged` conserve l'accusé anonyme après rejet de l'alerte.
-La fin Mac du gardien est une carte blanche : « PapAI a arrêté : cette démarche
+La fin Mac (et Windows) du gardien est une carte blanche : « PapAI a arrêté : cette démarche
 peut être une arnaque », sans paiement/code et appel du premier proche connu
 à son numéro habituel. Aucune carte « Tout va bien » ne coexiste avec une alerte.
 Sur Windows, `level: danger` ou `blocked: true` lève immédiatement le verrou
@@ -288,3 +288,54 @@ En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gard�
   - `helper_name` : le prénom de l'aidant qui a validé le plan, répondu ou cliqué. L'ordinateur affiche « Quentin s'en occupe ».
   - `doing` : une seule phrase sur ce que fait Holo, tirée de sa réflexion (si elle est en français) ou de l'action.
 - Ordinateur → serveur : `profile` porte `known_helpers` (la liste gardée sur le Mac). Le serveur rajoute ceux qui lui manquent (disque Cloud Run effacé à chaque mise en ligne) et renvoie `helpers`.
+
+## Agent navigateur de H (tâches dans le navigateur, Mac)
+
+Quand la demande se fait dans un navigateur, le serveur pilote l'agent web
+local de H (Agents API) au lieu de l'agent bureau. Tous les champs sont
+optionnels : un ancien serveur ou une ancienne app les ignore et le mode
+bureau reste le comportement par défaut.
+
+- Mac → serveur, `hello` : `"web_agent_available": true` quand
+  `WebAgentHost.isInstalled` et `browserExecutable()` sont vrais. Le Mac
+  n'annonce plus de session navigateur dans `hello`; l'absence du champ signifie
+  que le serveur doit rester en mode bureau.
+- Après la validation du plan, serveur → Mac :
+  `{"type":"web_agent_start"}` si le plan demande le web et que le Mac a annoncé
+  cette capacité. Le Mac ne démarre le navigateur que pour une session en cours
+  et si le verrou local n'est pas levé.
+- Si aucune session navigateur valide n'arrive dans les 20 secondes, ou si la
+  session est arrêtée pendant son démarrage, le serveur envoie
+  `{"type":"web_agent_stop"}` au Mac. Celui-ci annule son démarrage local sans
+  renvoyer de réponse. Après l'expiration, une réponse tardive est ignorée et la
+  session encore ouverte passe en mode bureau.
+- Mac → serveur, en cours de session :
+  `{"type":"web_agent","session_id":"<uuid>"}` après le démarrage de Chrome
+  PapAI (profil dédié, port de debug 9222) et de
+  `holo local browser --session-id <uuid>`; `{"type":"web_agent","session_id":null}`
+  quand ils s'arrêtent. Le serveur attend au plus 20 secondes une session valide,
+  puis utilise le mode bureau si le Mac ne répond pas.
+- Serveur → apps, `status.where` : `"web"`, `"desktop"` ou `null`. Avant la
+  validation, c'est l'endroit proposé par Holo avec le plan ; après la
+  validation, c'est le mode réellement utilisé (`"desktop"` si le Mac n'a pas
+  annoncé cette capacité ou si le démarrage du navigateur échoue). Les apps
+  l'ignorent si absent.
+- Rien ne change avant `approve_plan` : gardien, capture pour le plan, plan à
+  valider. La session H n'est créée qu'après la validation.
+- En mode web, le serveur n'envoie ni `capture` ni `execute` au Mac pendant
+  l'exécution : H agit dans Chrome PapAI. `status.doing`, `plan_step`, `frame`
+  (aidants seulement), `ask_helper` / `answer`, `pause` / `resume` et `answer`
+  final gardent leur forme. La capture du bureau ayant servi au plan est
+  effacée avant le démarrage web ; seuls les `frame` de H sont ensuite renvoyés.
+  Arrêt, refus, alerte du gardien ou pont déconnecté : le serveur annule la session H.
+- Prise en main du proche : en mode web, `click` est refusé (l'image vient de
+  Chrome PapAI, pas du bureau) et `refresh` renvoie la dernière image de H sans
+  capturer le bureau. Le proche répond à la question de Holo.
+- Le Mac met la fenêtre Chrome PapAI au premier plan une fois, quand
+  `where == "web"` et que la session passe `active` ou `awaiting_helper`.
+  « Arrêter », une alerte ou la fin de session (`done`, `stopped`) exécutent
+  `holo local stop` et terminent le process, même hors ligne. Chrome PapAI
+  reste ouvert, plus rien ne le pilote.
+- Limite : `holo local browser` exige une clé H (`HAI_API_KEY`) sur le Mac de
+  la personne aidée (`~/.config/hai/.env` ou variable d'environnement). Elle
+  n'est jamais dans le dépôt ni dans les journaux.

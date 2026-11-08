@@ -12,6 +12,14 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 6. Avant de pousser, `git fetch` puis remettre sa branche à jour sur `main` : un autre agent a peut-être touché aux mêmes fichiers.
 5. Le contrat entre le serveur et les apps est `PROTOCOL.md` : tout nouveau message y est décrit.
 
+## Branches gelées
+
+Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande explicite de Quentin.
+
+| Branche | Pourquoi |
+|---|---|
+| `devin/1794084917-extension-gardien` | Extension navigateur anti-arnaque retirée du produit (PR #32 fermée sans fusion). Code conservé tel quel. |
+
 ## En cours
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
@@ -22,6 +30,9 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 8 nov. | Devin | `devin/1794089468-agent-navigateur` | Correctifs PR #38 : annulation du démarrage Chrome expiré, ignore des réponses tardives, capture aidant conservée pour le plan puis réinitialisée à l'entrée en web actif, textes webLive adaptés, arrêt Mac sans commande hors ligne et verrou local avant notification Stop ; sélection du Chrome principal avec `pgrep -o` et annulation H idempotente après arrêts répétés. `hai-agents` épinglé à 1.4.3. Fichiers libérés. |
+| 8 nov. | Devin | `devin/1794089468-agent-navigateur` | Correctifs PR #38, points 1–15 : validation avant démarrage Chrome, arrêt sur perte du navigateur/serveur, isolation des captures web et annulation protégée de création H ; présentation web cohérente dans les apps aidant, fermeture de Chrome, UUID strict, garde anti-pont local, dépendances et exemple de plan mis à jour. Réservation libérée. |
+| 7 nov. soir | Devin | `devin/1794089468-agent-navigateur` | Agent navigateur local de H (Agents API) pour les tâches web : `backend/web_agent.py` (SDK `hai_agents`, `HAI_AUTO_BRIDGE=0`, environnement `papai-chrome` user_device, consignes `WEB_AGENT_INSTRUCTIONS`), `where` web/desktop dans le plan, mode web seulement si le Mac annonce `web_agent` ; session H après validation, `ask_helper` sur `awaiting_helper`, pause/reprise, annulation sur arrêt/refus/alerte/déconnexion ; prise en main du bureau refusée en mode web. Mac : `WebAgent.swift` (Chrome PapAI, profil dédié, `holo local browser`, arrêt local `holo local stop`), script `install-agent-navigateur.sh`. Tests : faux Agents API 19 cas (3 passes), gardien 14, protocole 14, parcours 27, sécurité 35, demandes suspectes 22, profil 6, aidant OK, Windows 58 avec serveur. Build Mac zéro erreur. Pas d'essai réel : aucune clé H sur la VM (`holo doctor`). Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794086359-windows-accueil-voix` | Relecture : après retrait du dernier dossier personnel, réinitialiser le mode édition dans le snapshot ; le prochain ajout masque Retirer jusqu'à Modifier. Régression reproduite avant correction ; 8 tests JS, 15 Python et Windows app 27/serveur 36 au vert. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794086359-windows-accueil-voix` | Retouches UX Windows après Mac #30 : sous-titre sans micro dynamique, avertissement vide identique, Envoyer noir 44 px, titres 700, Retirer derrière Modifier/Terminer ; Nouveau message ouvre seulement `mailto:` fixe sans donnée utilisateur. Tests Windows app 27 et serveur/faux Holo 36 ; unitaires Python 15 et JS 7 ; suites dépôt gardien 14, protocole 14, profil 6, transcribe OK, sécurité 31, parcours 27, aidant connecté 5. Chrome/Linux : quatre comparaisons Mac/Windows, Modifier/Terminer, 900×640 et texte 1.18. Main remis à jour ; alertes/StopGate intacts. Pas de vrai Windows, client mail, micro physique ou Gladia réel. Fichiers libérés. |
 | 7 nov. soir | Devin | `devin/1794086359-windows-accueil-voix` | Correctif `home_shortcuts.py` et `test_home.py` : un dossier personnel disparu garde sa tuile supprimable, sans cible ouvrable ; une suppression libère une des 4 places. Test reproduit en échec avant correction, puis 14 tests Python + 5 JS et 36 contrôles Windows avec serveur au vert. Fichiers libérés. |
@@ -77,3 +88,5 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 - 2026-11-07 Devin (`devin/1794086337-ios-dictee-suite`) : iPhone, suite de la dictée. Micro touché puis feuille fermée aussitôt : l'écoute ne démarre pas, rien n'est envoyé (un envoi en cours est interrompu). Clavier bloqué pendant l'écoute (le texte déjà écrit est gardé, la dictée s'y ajoute). Bouton « Annuler » dans Modifier, Préciser et la réponse à Holo. Au premier plan affiché, une seule fois, la 1re étape glisse et montre le crayon, texte d'indice mis en avant. Appairage non touché. Fichiers libérés.
 - 2026-11-07 Devin (`devin/1794082375-android-aidant`) : app Android de l'aidant (`apps/android/`, Kotlin + Compose), portage de l'app iPhone sur le même protocole ; APK de release signé hors dépôt (`keystore.properties` ignoré), installable en « sources inconnues ». Liaison gardée par un service de premier plan, notification forte à chaque plan ou question. Lancée sur un émulateur Android 14 ; parcours complet pas encore essayé sur un vrai téléphone. Fichiers libérés.
 - 2026-11-07 Devin (`devin/1794091852-appairage-code-seul`) : Relier un support avec le seul code à 6 chiffres : `/p` et `/p/<code>` répondent sans clé en ligne (code à usage unique, 5 essais), Android et iPhone visent le serveur officiel s'ils ne sont pas réglés (`tests/test_appairage_code.py`).
+| 7 nov. | Devin | `devin/1794089487-windows-parite-mac` | App Windows au niveau du Mac pendant l'aide : Pause/Reprendre, question de Holo à la personne (`senior_answer`), avancement en 3 étapes, encart pendant que Holo agit, fin du gardien adaptée à l'aidé, dictée transmise à l'aidant. Tests Windows (Python + node). Pas essayé sur un vrai Windows. |
+| 7 nov. | Devin | `devin/1794089154-branche-extension-gelee` | Extension navigateur retirée du produit (PR #32 fermée sans fusion) : section « Branches gelées » ajoutée, `devin/1794084917-extension-gardien` à ne fusionner que sur demande explicite de Quentin. Aucun fichier réservé. |
