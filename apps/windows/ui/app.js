@@ -132,10 +132,11 @@
           <span class="col" style="gap:3px"><span style="${f(18, 6)}">${esc(l.title)}</span>${l.publisher ? `<span class="muted" style="${f(14, 4)}">${esc('Fourni par ' + l.publisher)}</span>` : ''}</span>
         </button>${runCell(l)}
       </div>`).join('');
+    const assist = S.automationRun && S.automationRun.local ? assistButton() : '';
     const list = S.lessons.length ? `<div class="card listCard">${tiles}</div>`
       : `<div class="card col" style="padding:20px;gap:6px"><div style="${f(18, 6)}">Aucun automate pour l'instant.</div>
           <div class="muted" style="${f(17, 4)}">Un automate est une tâche toute prête. Quand ${esc(S.helperName)} en enregistre un pour vous, il apparaît ici et se lance d'un clic.</div></div>`;
-    return `${sectionTitle('wand', 'Mes automates')}${notice}${list}`;
+    return `${sectionTitle('wand', 'Mes automates')}${assist ? `<div class="row" style="justify-content:flex-end">${assist}</div>` : ''}${notice}${list}`;
   }
 
   // L'automate ouvert depuis « Mes automates » (LessonDocView du Mac).
@@ -214,11 +215,32 @@
       </div>`;
   }
 
+  // « Demander une assistance », discret, en haut à droite d’un automate : le support
+  // n’est prévenu que sur ce geste, avec l’étape où l’automate s’est arrêté.
+  function assistButton() {
+    if (S.automationRun && S.automationRun.asked) {
+      return `<span class="row muted" style="gap:8px;padding:8px 14px;${f(15, 6)}">${icon('checkCircle', 16)}Assistance demandée</span>`;
+    }
+    if (!S.canAskAutomationSupport) return '';
+    return `<button class="row press" data-act="askAssist" aria-label="Demander une assistance : votre support reçoit l’étape où l’automate s’est arrêté"
+        style="gap:8px;min-height:36px;padding:0 14px;border-radius:999px;border:1.2px solid var(--line);background:transparent;color:var(--muted);${f(15, 6)}">
+        ${icon('personWave', 16)}<span>Demander une assistance</span></button>`;
+  }
+
   // ----------------------------------------------------------------- Session
   const guardStopped = (st) => st === 'stopped' && S.stoppedBy === 'gardien';
+  // Automate lancé depuis la liste : il se joue seul, sans support.
+  const automate = () => (S.automationRun && !S.automationRun.local ? S.automationRun : null);
+  const blocked = (st) => st === 'stopped' && S.stoppedBy === 'blocage';
   function sessionTitle(st) {
     if (S.paused && S.sessionOpen) return "L'aide est en pause";
     if (guardStopped(st)) return 'PapAI a arrêté : cette démarche peut être une arnaque';
+    const a = automate();
+    if (a) {
+      return { planning: `Holo prépare « ${a.title} »…`, awaiting_approval: `Holo prépare « ${a.title} »…`,
+        active: `Holo s’occupe de « ${a.title} »`, awaiting_helper: a.asked ? `${S.HelperName} vous aide` : 'Holo a une question',
+        done: "C'est fait !", stopped: blocked(st) ? 'L’automate s’est arrêté' : 'L’automate est arrêté.' }[st];
+    }
     return { planning: 'Holo regarde votre écran…', awaiting_approval: `${S.HelperName} vérifie votre demande`,
       active: `${S.carer} s'en occupe`, awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !",
       stopped: "L'assistance est arrêtée." }[st];
@@ -227,6 +249,10 @@
   function sessionSubtitle(st) {
     if (S.paused && S.sessionOpen) return 'Vous pouvez utiliser votre ordinateur. Appuyez sur Reprendre quand vous voulez.';
     if (guardStopped(st)) return null;
+    const a = automate();
+    if (a && blocked(st)) {
+      return `Holo n’a pas pu continuer seul ${a.step ? `à l’étape ${a.step}` : 'en route'}${a.reason ? ` : ${a.reason}` : '.'}`;
+    }
     return { planning: "Un instant, je prépare ce qu'il faut faire.",
       awaiting_approval: 'Rien ne se passera sur votre écran avant son accord.',
       active: "Pendant l'aide, laissez la souris et le clavier à Holo. Pause ou Arrêter restent toujours possibles.",
@@ -248,8 +274,9 @@
       aria-label="Avancement" aria-valuenow="${Math.round(fraction(st) * 100)}" aria-valuemin="0" aria-valuemax="100">
       <div class="fill" style="height:100%;width:max(${h}px, ${fraction(st) * 100}%);border-radius:999px;transition:width .6s"></div></div>`;
   function progress(st, phase) {
-    const steps = ['Holo regarde votre écran et prépare la suite', `${S.HelperName} vérifie et donne son accord`,
-      `${S.carer} s'en occupe, avec Holo`];
+    const steps = automate() ? ['Holo regarde votre écran', 'L’automate est déjà validé', 'Holo s’en occupe, seul']
+      : ['Holo regarde votre écran et prépare la suite', `${S.HelperName} vérifie et donne son accord`,
+        `${S.carer} s'en occupe, avec Holo`];
     const rows = steps.map((text, i) => {
       const done = i < phase, now = i === phase;
       return `<div class="row" style="gap:14px" aria-label="${esc(done ? 'Fait : ' + text : now ? 'En cours : ' + text : text)}">
@@ -310,6 +337,12 @@
         ${S.guardAcknowledged ? "<div>Votre support a vu l'alerte et s'en occupe</div>" : ''}${webClosed()}</div>`;
     }
     if (st === 'stopped' && S.sessionWhere === 'web') return `<div class="col" style="gap:16px">${webClosed()}</div>`;
+    const a = automate();
+    if (st === 'stopped' && a) {
+      const n = a.number ? ` n° ${a.number}` : '';
+      return endNote('book', a.asked ? `${S.HelperName} a reçu la demande${n}, avec l’étape où l’automate s’est arrêté.`
+        : `L’étape est notée${a.number ? ` sur la demande n° ${a.number}` : ''}. Rien n’est envoyé à ${S.helperName} sans votre accord.`);
+    }
     return '';
   }
 
@@ -328,8 +361,10 @@
   function session() {
     const st = S.state || 'planning';
     const sub = sessionSubtitle(st);
-    const banner = S.sessionOpen ? `<div class="pillChip chip-blue" style="align-self:flex-start;gap:10px;padding:10px 18px;${f(16, 6)}">
+    const shared = S.sessionOpen ? `<div class="pillChip chip-blue" style="gap:10px;padding:10px 18px;${f(16, 6)}">
       <span class="dot" style="background:currentColor"></span>Écran partagé</div>` : '';
+    const assist = automate() ? assistButton() : '';
+    const banner = shared || assist ? `<div class="row" style="gap:12px;align-items:center">${shared}<div class="spacer"></div>${assist}</div>` : '';
     const footer = (S.task && st !== 'stopped' && st !== 'awaiting_approval' && !(st === 'awaiting_helper' && S.questionForMe))
       ? `<div class="muted" style="${f(16, 4)};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">Votre demande : ${esc(S.task)}</div>` : '';
     const bottom = S.sessionOpen
@@ -354,9 +389,10 @@
   // en bas à droite pour qu'on voie ce qu'il fait ; Pause et Arrêter restent là.
   function mini() {
     const st = S.state || 'planning';
+    const a = automate();
     const title = S.paused && S.sessionOpen ? "L'aide est en pause"
       : onWeb(st) && S.sessionOpen ? 'Holo travaille dans Chrome PapAI' : ({ planning: 'Holo prépare la suite…',
-      awaiting_approval: `${S.HelperName} vérifie`, active: `${S.carer} s'en occupe`,
+      awaiting_approval: `${S.HelperName} vérifie`, active: a ? 'Holo s’occupe de l’automate' : `${S.carer} s'en occupe`,
       awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !" }[st] || 'PapAI');
     return `<div class="col mini" style="gap:10px;padding:14px 16px">
       <div class="row miniHead" style="gap:10px">
@@ -660,6 +696,7 @@
     share: () => call('give_consent'),
     stop: () => { window.PapAINarration?.cancel(); call('stop'); },
     pause: () => { window.PapAINarration?.cancel(); call('toggle_pause'); },
+    askAssist: () => call('ask_automation_support'),
     expand: () => call('expand_window'),
     seniorOption: (o) => acts.seniorReply(o),
     seniorReply: (o) => {

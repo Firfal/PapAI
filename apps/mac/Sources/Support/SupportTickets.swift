@@ -119,6 +119,10 @@ struct SupportTickets: View {
                 }
                 Text(t.task.isEmpty ? "Demande sans texte" : "« \(t.task) »").font(rounded(18, .semibold))
                     .fixedSize(horizontal: false, vertical: true)
+                if let b = t.blocked {
+                    Label(b, systemImage: "exclamationmark.circle").font(rounded(14, .medium))
+                        .foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
+                }
                 ForEach(t.suggestions) { suggestion in
                     Text("Automate proposé : \(suggestion.title) · \(t.suggestionLancee == suggestion.id ? "lancé" : "pas lancé")")
                         .font(rounded(14)).foregroundStyle(T.muted)

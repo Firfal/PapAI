@@ -95,6 +95,9 @@ class Model:
         # Résultat d'un lancement, affiché sur la ligne de l'automate (RunStatus du Mac).
         self.run_status: dict | None = None
         self._run_timer: threading.Timer | None = None
+        # L'automate en cours ou arrêté : {id, title, ticket, number, step, reason, local, asked}.
+        # Il se joue seul ; le support n'est prévenu que sur « Demander une assistance ».
+        self.automation_run: dict | None = None
         self.apps: list[dict] = []
         self.dictation = {"phase": "idle", "message": None}
         # Nom du compte Windows (ou stratégie DisplayName) : rien à saisir.
@@ -182,7 +185,9 @@ class Model:
                 "paused": self.paused, "guardAcknowledged": self.guard_acknowledged,
                 "carer": self.carer, "compact": self.compact,
                 "currentAction": self.current_action, "actions": list(self.actions),
-                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "runStatus": self.run_status, "notice": self.notice, "alert": self.alert,
+                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "runStatus": self.run_status,
+                "automationRun": dict(self.automation_run) if self.automation_run else None,
+                "canAskAutomationSupport": self.can_ask_automation_support, "notice": self.notice, "alert": self.alert,
                 "requests": [{**r, "relaunch": r.get("relaunch") if self._find_lesson(r.get("relaunch")) else None}
                              for r in self.requests],
                 "requestsLoading": self.requests_loading, "requestsError": self.requests_error,
@@ -343,6 +348,11 @@ class Model:
             self.web.stop_local(notify_server=False)
         if ok:
             self._send_profile()
+            r = self.automation_run
+            if r and r.get("unsent") and not r.get("ticket"):
+                r["unsent"] = False
+                self._send({"type": "automation_failed", "id": r.get("id") or "", "step": r.get("step"),
+                            "title": r.get("title") or "", "detail": r.get("reason") or ""})
             threading.Thread(target=self.refresh_lessons, daemon=True).start()
         with self._lock:
             self.connected = ok
@@ -546,6 +556,7 @@ class Model:
                 self.queued = None
         self.gate.reset()
         self.stopped_by = None
+        self.automation_run = None
         self._cancel(self._home_timer)
         with self._lock:
             self.task = str(task or "")
@@ -583,6 +594,7 @@ class Model:
     def back_home(self) -> None:
         self._cancel(self._home_timer)
         with self._lock:
+            self.automation_run = None
             self.screen = "home"
             self.state = None
         self._level()
@@ -601,6 +613,16 @@ class Model:
         kind = m.get("type")
         if kind == "status":
             self._apply_status(m)
+        elif kind == "session":
+            if m.get("automation") and self.automation_run is not None:
+                self.automation_run.update(ticket=m.get("ticket"), number=m.get("number"))
+        elif kind == "automation_ticket":
+            if self.automation_run is not None:
+                self.automation_run.update(ticket=m.get("ticket"), number=m.get("number"))
+        elif kind == "support_requested":
+            if self.automation_run is not None:
+                self.automation_run["asked"] = True
+            self.show_notice(f"C’est envoyé à {self.helper_name}, avec l’étape où l’automate s’est arrêté.")
         elif kind == "linkup_answer":
             self.answer = m.get("content")
             self.answer_sources = [s for s in (m.get("sources") or []) if isinstance(s, dict)
@@ -698,6 +720,11 @@ class Model:
     def _apply_status(self, m: dict) -> None:
         with self._lock:
             self.stopped_by = m.get("stopped_by")
+            b = m.get("blocked")
+            if isinstance(b, dict) and self.automation_run is not None:
+                self.automation_run.update(step=b.get("step"), reason=b.get("reason"))
+            if m.get("support_requested") is True and self.automation_run is not None:
+                self.automation_run["asked"] = True
             if isinstance(m.get("guard_acknowledged"), bool):
                 self.guard_acknowledged = m["guard_acknowledged"]
             if self.screen != "session":
@@ -771,11 +798,29 @@ class Model:
         else:
             if not self.automation_running:
                 self.run_status = None
-            hn = self.helper_name
-            self.show_notice(f"Je ne retrouve pas ce dossier. {hn[:1].upper() + hn[1:]} "
-                             "a reçu un message pour s'en occuper.")
-            self._send({"type": "automation_failed", "title": lesson.get("title") or "",
-                        "detail": detail})
+            self._automation_stopped(lesson, 1, detail)
+
+    def _automation_stopped(self, lesson: dict, step: int, detail: str) -> None:
+        """Une action locale a échoué : on s'arrête là, sans appeler personne.
+        Le serveur ouvre un ticket qui garde l'étape."""
+        title = str(lesson.get("title") or "")
+        self.automation_run = {"id": lesson.get("id"), "title": title, "ticket": None, "number": None,
+                               "step": step, "reason": detail, "local": True, "asked": False,
+                               "unsent": not self.connected}
+        self.show_notice(f"« {title or 'Cet automate'} » s'est arrêté à l'étape {step}"
+                         + (f" : {detail}" if detail else "."))
+        self._send({"type": "automation_failed", "id": lesson.get("id") or "", "step": step,
+                    "title": title, "detail": detail})
+
+    @property
+    def can_ask_automation_support(self) -> bool:
+        r = self.automation_run
+        return bool(r and r.get("ticket") and not r.get("asked") and not self.alert)
+
+    def ask_automation_support(self) -> None:
+        """Bouton discret, en haut à droite : seule façon de faire venir le support sur un automate."""
+        if self.can_ask_automation_support:
+            self._send({"type": "support_request", "ticket": self.automation_run["ticket"]})
 
     def run_suggested_automation(self, lesson_id: str, ticket_id: str) -> None:
         q = self.queued
@@ -815,6 +860,7 @@ class Model:
             if self.queued and self.queued.get("ticket") == ticket_id:
                 self.queued["suggestion_lancee"] = lesson_id
         self.gate.reset()
+        self.automation_run = None
         self.automation_running = str(lesson.get("title") or "Automate")
         self.show_run_status(lesson_id, "En cours…", running=True)
         threading.Thread(target=self._play_automation, args=(lesson, holo), daemon=True).start()
@@ -828,7 +874,7 @@ class Model:
     def _play_automation(self, lesson: dict, holo: bool) -> None:
         gate = self.gate
         try:
-            ok, detail = play_actions(lesson, lambda n: self._fetch_lesson_file(lesson["id"], n), gate)
+            ok, detail, step = play_actions(lesson, lambda n: self._fetch_lesson_file(lesson["id"], n), gate)
         finally:
             self.automation_running = None
         if gate.is_stopped:
@@ -836,11 +882,7 @@ class Model:
             return
         if not ok:
             self.run_status = None
-            hn = self.helper_name
-            self.show_notice(f"« {lesson.get('title') or 'Cet automate'} » n'a pas pu aller au bout. "
-                             f"{hn[:1].upper() + hn[1:]} a reçu un message pour s'en occuper.")
-            self._send({"type": "automation_failed", "title": lesson.get("title") or "",
-                        "detail": detail})
+            self._automation_stopped(lesson, step, detail)
             return
         if not holo:
             self.show_run_status(lesson["id"], "C'est fait")
@@ -851,6 +893,8 @@ class Model:
         goal = next(a.get("goal") for a in lesson["actions"] if a.get("do") == "holo")
         self._cancel(self._home_timer)
         with self._lock:
+            self.automation_run = {"id": lesson["id"], "title": str(lesson.get("title") or ""), "ticket": None,
+                                   "number": None, "step": None, "reason": None, "local": False, "asked": False}
             self.task = str(goal or lesson.get("title") or "")
             self.plan, self.plan_step, self.question = [], None, None
             self.answer, self.current_action, self.actions = None, None, []

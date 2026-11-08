@@ -396,7 +396,7 @@ def unit() -> None:
         check(not core.antivirus_scan()[0], "scan antivirus : seulement sous Windows")
     g.raise_stop()
     check(core.play_actions({"actions": [{"do": "open_url", "url": "https://x.fr"}]}, bytes, g)
-          == (False, "Arrêté."), "Arrêter : aucune action d'automatisme jouée")
+          == (False, "Arrêté.", 1), "Arrêter : aucune action d'automatisme jouée")
 
     m = Model(demo="home")
     m.revoke_consent()
@@ -419,6 +419,53 @@ def unit() -> None:
     m.give_consent()
     check(wait_until(lambda: m.screen == "session" and m.task == "Remettre Google", 3),
           "puis lancé en un clic, sans validation d'un aidant")
+    check(m.snapshot()["automationRun"]["local"] is False and not m.snapshot()["canAskAutomationSupport"],
+          "automate avec Holo : pas d'assistance proposée avant d'avoir son ticket")
+    m._handle({"type": "session", "id": "s1", "automation": "imp-000000000001", "ticket": "t9", "number": 9})
+    check(m.snapshot()["canAskAutomationSupport"], "le ticket de l'automate arrive : bouton discret disponible")
+    m.screen = "session"
+    m._apply_status({"state": "stopped", "stopped_by": "blocage",
+                     "blocked": {"step": 2, "label": "b", "reason": "Bouton introuvable"}})
+    r = m.snapshot()["automationRun"]
+    check(r["step"] == 2 and r["reason"] == "Bouton introuvable", "Holo bloqué : l'étape est affichée")
+
+    class Envois:
+        def __init__(self):
+            self.sent = []
+
+        def send(self, msg):
+            self.sent.append(msg)
+
+    m2 = Model(demo="home")
+    m2.bridge = Envois()
+    m2.lessons = [{"id": "imp-000000000004", "title": "Ranger", "platforms": ["windows"],
+                   "actions": [{"do": "inconnue"}]}]
+    m2.run_shortcut("imp-000000000004")
+    check(wait_until(lambda: any(x.get("type") == "automation_failed" for x in m2.bridge.sent), 3),
+          "échec local : automation_failed envoyé")
+    f = next((x for x in m2.bridge.sent if x.get("type") == "automation_failed"), {})
+    check(f.get("id") == "imp-000000000004" and f.get("step") == 1, "l'échec dit l'automate et l'étape")
+    check("s'en occuper" not in (m2.notice or "") and "étape 1" in (m2.notice or ""),
+          "pas de « le support s'en occupe », l'étape est dite")
+    check(not any(x.get("type") in ("help_request", "support_request") for x in m2.bridge.sent),
+          "rien n'est demandé au support sans l’utilisateur")
+    m2._handle({"type": "automation_ticket", "ticket": "t1", "number": 3})
+    check(m2.snapshot()["canAskAutomationSupport"], "bouton discret proposé une fois le ticket ouvert")
+    m2.ask_automation_support()
+    check(m2.bridge.sent[-1] == {"type": "support_request", "ticket": "t1"},
+          "Demander une assistance : support_request avec le ticket")
+    m2._handle({"type": "support_requested", "ticket": "t1", "number": 3})
+    check(m2.automation_run["asked"] and not m2.snapshot()["canAskAutomationSupport"],
+          "assistance demandée une seule fois")
+    m2.connected = False
+    m2.bridge.sent.clear()
+    m2.automation_run = None
+    m2.run_shortcut("imp-000000000004")
+    check(wait_until(lambda: (m2.automation_run or {}).get("unsent"), 3), "échec hors ligne : à renvoyer")
+    m2._connection(True)
+    f = [x for x in m2.bridge.sent if x.get("type") == "automation_failed"]
+    check(len(f) == 2 and f[-1].get("step") == 1 and not m2.automation_run["unsent"],
+          "reconnexion : automation_failed renvoyé, le ticket pourra s'ouvrir")
 
 
 def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
