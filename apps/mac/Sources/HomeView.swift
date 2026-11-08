@@ -129,7 +129,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 TimelineView(.everyMinute) { ctx in
                     let hello = Greeting.word(at: ctx.date)
-                    Text(model.firstName.isEmpty ? hello : "\(hello) \(model.firstName) !")
+                    Text(model.displayName.isEmpty ? hello : "\(hello) \(model.displayName) !")
                         .font(rounded(34, .bold)).tracking(-0.6)
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }

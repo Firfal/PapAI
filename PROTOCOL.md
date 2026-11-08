@@ -363,6 +363,14 @@ Lancement, côté app :
 
 ## Proches
 
+> **Liaison archivée (8 nov., Quentin).** Aucune app ne propose plus de liaison : le poste de
+> l'employé est inscrit par le jeton d'inscription de l'IT, le support est connecté d'office à
+> l'organisation par le jeton support (voir « Organisations »). Les apps du support (Mac, iPhone,
+> Android, page web) n'ont plus de code, de QR code, d'invitation, de « Ajouter une personne » ni de
+> réglage à la main ; `pair.html` n'a plus de formulaire. Les routes `/p`, `/i` et l'accord
+> `pair_confirm` restent côté serveur (inchangé, testé par `tests/test_appairage_code.py`) ; le Mac
+> refuse tout `pair_confirm`. La version complète est dans la branche `archive/particuliers`.
+
 La personne aidée affiche un code à 6 chiffres et son QR code (`pair_code`). Le support ouvre
 `/p/{code}` (ou `/p` pour taper le code), donne son prénom et son lien, et reçoit le lien
 de l'espace support après accord. Le code sert une fois, expire en 10 minutes et est invalidé
@@ -377,19 +385,7 @@ le même accord `pair_confirm`/`pair_decision` que le code, en cherchant parmi t
 Les supports sont gardés dans `family.json`.
 
 `POST …/p/{code}` avec `{"name","relation"}` répond `{"ok":true,"name","aidant_url","server","key"}`
-(ou `{"ok":false,"error"}` en 400). L'app iPhone s'en sert pour se régler seule :
-
-- **Lien d'app** `papai://pair?u=<URL d'appairage encodée>` (QR du Mac, bouton de `pair.html`).
-  L'app lit `u` (`PUBLIC_URL/p/<code>` ou `PUBLIC_URL/i/<jeton>`), demande prénom et lien, fait le POST sur `u`,
-  puis enregistre `serverURL = server + "/k/" + key` et `helperKey = key`, et se connecte.
-- Le scanner de l'app accepte `papai://pair?u=…` comme l'ancien `https://…/p/<code>`.
-- Saisie du code à la main : le support ne tape que le code, jamais d'adresse. POST sur
-  `<serverURL réglé>/p/<code>`, ou sur `https://papai-450417131702.europe-west1.run.app/p/<code>`
-  (serveur officiel) si l'app n'est pas encore réglée. En ligne, `GET /p`, `GET /p/<code>` et
-  `POST /p/<code>` répondent donc aussi sans clé : le code est le secret (une seule fois, 10 min
-  pour le code ; 24 h pour le jeton d'invitation), et la réponse donne `server` et `key` après accord. Voir « Plusieurs espaces » : le code tapé
-  sans clé cherche son espace et doit être accepté sur l'ordinateur aidé.
-- Arguments de lancement `-serverURL` et `-helperKey` (dépannage, démo) : l'app les enregistre.
+(ou `{"ok":false,"error"}` en 400). Plus aucune app du support ne l'appelle (voir l'encadré).
 
 ## Plusieurs espaces (un par ordinateur aidé)
 
@@ -452,9 +448,14 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
   3 créations par heure et par adresse IP (429). Les deux jetons ne sont donnés qu'ici.
   - `enroll_token` (`ins-…`) : déposé sur les postes. Windows : stratégie de groupe
     `HKLM|HKCU\SOFTWARE\Policies\PapAI\OrgToken` (modèle `apps/windows/policies/PapAI.admx`), à défaut
-    `apps\windows\organisation.txt` (ignoré par git) ou `PAPAI_ORG`. Mac : préférence `orgToken` (`defaults write`, profil MDM) ou `PAPAI_ORG`.
+    `apps\windows\organisation.txt` (ignoré par git) ou `PAPAI_ORG`. Mac : préférence gérée `orgToken` (profil MDM, ou
+    `defaults write com.quentin.papai orgToken ins-…`) ou `PAPAI_ORG`. Préférence `server` facultative
+    (adresse du serveur, ex. `https://…` ou `http://localhost:8071`) : le Mac y fait `POST /spaces` et
+    garde le pont reçu dans `bridgeURL` (recalé sur l'adresse configurée). Sans `server`, serveur officiel.
+    Le Mac n'a plus de liaison manuelle : un `pair_confirm` reçu est refusé aussitôt (`pair_decision` false).
   - `support_token` (`sup-…`) : donné aux supports (personnes ou support IA). `support_url` =
-    `<server>/o/<jeton>` (page web), `app_url` = `papai://org?u=<server>&t=<jeton>` (Android, iPhone).
+    `<server>/o/<jeton>` (page web). `app_url` = `papai://org?u=<server>&t=<jeton>` est encore renvoyé,
+    mais plus aucune app ne l'ouvre : le jeton est déposé par l'IT (voir « Support connecté d'office »).
 - `POST /spaces` `{"org": "<enroll_token>", "name": "<utilisateur · poste>"}` : le poste s'inscrit
   au premier lancement (pas de limite par IP). Réponse : en plus, `"org": "<nom>"`.
   Jeton inconnu → 403 : l'app crée alors son espace sans organisation. Plus de
@@ -463,15 +464,40 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
 - `POST /k/<clé>/org` `{"org","name"}` : un poste déjà installé rejoint l'organisation → `{"org"}`.
   403 jeton inconnu, 409 si le poste appartient à une autre organisation ou si c'est l'espace historique.
 - `GET /o/<support_token>/spaces` → `{"org","server","spaces":[{"key","name","label","online"}]}`
-  (`name` = prénom donné sur le poste, sinon `label`). Le support garde une liaison par `key`
-  (`<server>/k/<key>`), comme après un appairage. Jeton inconnu → 404.
+  (`name` = prénom donné sur le poste, sinon `label` ; `label` = nom envoyé par le poste à
+  l'inscription, affiché « prénom · service »). Le support se connecte à chaque poste par sa `key`
+  (`<server>/k/<key>/ws/aidant/<key>`). Jeton inconnu → 404.
 - `GET|POST /o/<support_token>/automations`, `DELETE /o/<support_token>/automations/<id>` : catalogue
   de l'organisation (même format `.papai` que `POST /k/<clé>/automations`). Un import est copié sur
   chaque poste et sur ceux qui s'inscrivent plus tard ; un retrait l'enlève partout. Les postes
   connectés reçoivent `lessons_changed`.
-- `GET /o/<support_token>` : page web de l'organisation (postes, automatismes partagés). Elle ajoute
-  les postes à « Mes personnes aidées » de ce navigateur (`papai_people`, `papai_orgs`).
+- `GET /o/<support_token>` : page web de l'organisation (postes, tickets, automatismes partagés),
+  l'entrée du support sur le web. Elle garde seulement le jeton dans ce navigateur (`papai_orgs`) ;
+  la page du support `/a/<clé>` en tire sa barre « Postes » (relue toutes les 30 s), sans ajout ni retrait.
 - Test : `python tests/test_organisation.py`.
+
+### Support connecté d'office (8 nov.)
+
+Le support ne relie rien : avec le jeton support, il voit tous les postes de l'organisation et
+reçoit leurs demandes. Il lit `GET /o/<jeton>/spaces` au lancement puis toutes les 30 s (la liste
+du serveur fait foi : un poste retiré disparaît), suit un poste en détail (`/k/<key>/ws/aidant/<key>`,
+le premier par défaut) et garde un canal discret vers les autres (demande, alerte, en ligne). Il se
+présente avec `helper_hello` `{"name": "<nom géré ou Support IT · organisation>", "relation":
+"le service informatique", "id"}` ; `helper_id` est gardé par poste. Sans jeton : écran « Aucune
+organisation configurée : contactez votre administrateur », sans formulaire. Où déposer le jeton :
+
+- **Mac** (mode support, préférence `role` = `support`) : préférences gérées `supportToken` et
+  `server` (facultatif, serveur officiel sinon), profil MDM ou, pour un essai,
+  `defaults write com.quentin.papai supportToken sup-…` et `defaults write com.quentin.papai server https://…`.
+- **iPhone** : configuration gérée MDM (`com.apple.configuration.managed` : `supportToken`, `server`) ;
+  démo sans MDM : `PAPAI_SUPPORT_TOKEN` / `PAPAI_SERVER` dans `apps/ios/Config/Support.local.xcconfig`
+  (ignoré par git, modèle `Support.local.xcconfig.example`), injectés dans Info.plist
+  (`PapAISupportToken`, `PapAIServer`) ; `-supportToken sup-…` au lancement pour un essai.
+- **Android** : restrictions gérées (`supportToken`, `server`) ; démo : `apps/android/support.local.properties`
+  (ignoré par git).
+- **Web** : la page `/o/<jeton>` donnée par l'IT.
+- Tests : `apps/mac/tests/support_org_test.swift` (vrai `HelperModel`, essai réel contre un serveur
+  local avec `PAPAI_TEST_SERVER`, `PAPAI_TEST_SUPPORT`, `PAPAI_TEST_POSTES`), `tests/test_helper_postes.js`.
 
 ## Tickets (chaque demande d'assistance)
 

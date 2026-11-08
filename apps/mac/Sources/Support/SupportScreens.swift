@@ -16,7 +16,7 @@ struct SupportIdle: View {
                         Text("Vous serez prévenu dès qu’une demande d’aide arrive, même si PapAI est en arrière-plan.")
                             .font(rounded(17, .medium)).opacity(0.92)
                     } else {
-                        Text("Liaison interrompue").font(rounded(30, .bold))
+                        Text("Connexion interrompue").font(rounded(30, .bold))
                         Text("Impossible de recevoir les demandes d’aide de \(model.senior) pour le moment.")
                             .font(rounded(17, .medium)).opacity(0.92)
                     }

@@ -46,7 +46,7 @@
 </head>
 <body>
 <h1 id="title">Organisation</h1>
-<p class="muted">Tous les postes inscrits avec le jeton de l'organisation. Ils s'ajoutent à « Mes utilisateurs » dans ce navigateur, sans appairage.</p>
+<p class="muted">Tous les postes inscrits avec le jeton de l'organisation, sans liaison. « Suivre » ouvre un poste ; les autres restent dans la barre « Postes » et signalent leurs demandes.</p>
 
 <h2>Tickets</h2>
 <p class="row" style="padding:0 0 10px;gap:8px;flex-wrap:wrap">
@@ -89,30 +89,18 @@ function el(tag, cls, text) {
   return e;
 }
 
-// Même stockage que helper.html : les postes apparaissent dans « Mes utilisateurs ».
-function remember(spaces) {
-  let people = [];
-  try { people = JSON.parse(localStorage.getItem('papai_people') || '[]'); } catch (e) {}
-  if (!Array.isArray(people)) people = [];
-  for (const s of spaces) {
-    const path = `/a/${s.key}`;
-    const p = people.find(x => x && x.path === path);
-    if (p) { if (s.name && !p.name) p.name = s.name; } else people.push({ path, name: s.name || '' });
-  }
-  try {
-    localStorage.setItem('papai_people', JSON.stringify(people.slice(0, 200)));
-    const orgs = JSON.parse(localStorage.getItem('papai_orgs') || '[]').filter(o => o !== token);
-    localStorage.setItem('papai_orgs', JSON.stringify([token, ...orgs].slice(0, 10)));
-  } catch (e) {}
+// La page du support (/a/<clé>) relit la liste des postes avec ce jeton : on le garde
+// dans ce navigateur, rien d'autre (la liste du serveur fait foi).
+function remember() {
+  try { localStorage.setItem('papai_orgs', JSON.stringify([token])); } catch (e) {}
 }
-
 async function loadSpaces() {
   const r = await fetch(`${api}/spaces`);
   if (!r.ok) { $('spaces').replaceChildren(el('p', 'empty', 'Lien invalide.')); return; }
   const d = await r.json();
   $('title').textContent = d.org || 'Organisation';
   document.title = `PapAI · ${d.org || 'Organisation'}`;
-  remember(d.spaces);
+  remember();
   const box = $('spaces');
   box.replaceChildren();
   if (!d.spaces.length) box.append(el('p', 'empty', "Aucun poste inscrit pour l'instant."));
