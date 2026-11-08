@@ -172,7 +172,8 @@ struct ResultatsRecherche: View {
         switch await p.envoyer(base: model.httpBase) {
         case .success(let n):
             fermer()
-            model.showNotice("Demande\(n > 0 ? " n° \(n)" : "") envoyée à votre support IT. Vous la suivez dans l’onglet Mes demandes.")
+            model.showNotice(n > 0 ? String(localized: "Demande n° \(n) envoyée à votre support IT. Vous la suivez dans l’onglet Mes demandes.")
+                                   : String(localized: "Demande envoyée à votre support IT. Vous la suivez dans l’onglet Mes demandes."))
         case .failure(let e):
             erreur = e.texte
         }

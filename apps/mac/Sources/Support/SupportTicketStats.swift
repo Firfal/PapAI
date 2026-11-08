@@ -3,9 +3,10 @@ import Foundation
 /// Les catégories des tickets, mêmes identifiants que `backend/ticket_stats.py`.
 enum TicketCategory {
     static let all: [(id: String, label: String)] = [
-        ("wifi", String(localized: "Wi-Fi et réseau")), ("imprimante", "Imprimante"), ("comptes", String(localized: "Comptes et mots de passe")),
-        ("logiciels", "Logiciels"), ("messagerie", "Messagerie"), ("fichiers", "Fichiers"),
-        ("securite", "Sécurité"), ("autre", "Autre"),
+        ("wifi", String(localized: "Wi-Fi et réseau")), ("imprimante", String(localized: "Imprimante")),
+        ("comptes", String(localized: "Comptes et mots de passe")), ("logiciels", String(localized: "Logiciels")),
+        ("messagerie", String(localized: "Messagerie")), ("fichiers", String(localized: "Fichiers")),
+        ("securite", String(localized: "Sécurité")), ("autre", String(localized: "Autre")),
     ]
     static func label(_ id: String) -> String { all.first { $0.id == id }?.label ?? "Autre" }
 }

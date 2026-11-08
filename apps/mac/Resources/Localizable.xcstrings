@@ -5071,6 +5071,36 @@
           }
         }
       }
+    },
+    "Demande n° %lld envoyée à votre support IT. Vous la suivez dans l’onglet Mes demandes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request #%lld sent to your IT support. Follow it in the My requests tab."
+          }
+        }
+      }
+    },
+    "Demande envoyée à votre support IT. Vous la suivez dans l’onglet Mes demandes.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request sent to your IT support. Follow it in the My requests tab."
+          }
+        }
+      }
+    },
+    "%@ · %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@"
+          }
+        }
+      }
     }
   }
 }
