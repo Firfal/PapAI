@@ -84,6 +84,8 @@ class Api:
     def answer_senior(self, text): self._model.answer_senior(text)
     def expand_window(self): self._model.expand_window()
     def run_shortcut(self, lesson_id): self._model.run_shortcut(lesson_id)
+    def run_suggested_automation(self, lesson_id, ticket_id):
+        self._model.run_suggested_automation(lesson_id, ticket_id)
     def open_lesson(self, lesson_id): self._model.open_lesson(lesson_id)
     def close_lesson(self): self._model.close_lesson()
     def open_home_shortcut(self, shortcut_id):
