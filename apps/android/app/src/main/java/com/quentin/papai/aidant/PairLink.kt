@@ -10,12 +10,17 @@ data class PairLink(
     /** null : le code sera tapé à la main. */
     val code: String?,
     val senior: String? = null,
+    val token: String? = null,
 ) {
     val host: String get() = URI(base).authority
     val origin: String get() = PairingPolicy.origin(base)
+    val isManual: Boolean get() = code == null && token == null
+    fun endpoint(manual: String): String =
+        if (token != null) origin + "/i/" + token else (if (isManual) origin else base) + "/p/" + (code ?: manual)
 
     companion object {
-        private val pattern = Regex("""^(https?://.+?)/p/(\d{6})/?(?:[?#].*)?$""")
+        private val pattern = Regex("""^(/k/[^/]+)?/p/([0-9]{6})/?$""")
+        private val invitation = Regex("""^/i/([A-Za-z0-9_-]{22,128})/?$""")
 
         /** Accepte `papai://pair?u=<url encodée>` et l'ancien `https://…/p/<code>`. */
         fun parse(text: String): PairLink? = runCatching {
@@ -31,16 +36,21 @@ data class PairLink(
                 t = query["u"]?.trim() ?: return null
                 senior = cleanText(query["n"]).ifEmpty { null }
             }
-            val m = pattern.find(t) ?: return null
-            val base = m.groupValues[1].trimEnd('/')
-            PairingPolicy.origin(base)
-            PairLink(base, m.groupValues[2], senior)
+            val uri = URI(t)
+            val origin = PairingPolicy.origin(t.substringBefore('?').substringBefore('#'))
+            invitation.matchEntire(uri.rawPath)?.let {
+                return PairLink(origin, null, senior, it.groupValues[1])
+            }
+            val m = pattern.matchEntire(uri.rawPath) ?: return null
+            PairLink(origin + m.groupValues[1], m.groupValues[2], senior)
         }.getOrNull()
     }
 }
 
 object PairingPolicy {
     const val waiting = "En attente de l'accord sur l'ordinateur…"
+    const val instruction = "Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min)."
+    fun needsNew(status: Int, refused: Boolean): Boolean = status == 408 || (status == 403 && refused)
     fun isSuccess(status: Int, ok: Any?): Boolean = status == 200 && ok == true
     const val refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
     const val officialHost = "papai-450417131702.europe-west1.run.app"

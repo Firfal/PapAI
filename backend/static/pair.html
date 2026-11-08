@@ -24,6 +24,7 @@
                  background: var(--ink); color: #fff; font: 600 19px ui-rounded, system-ui, sans-serif;
                  text-align: center; line-height: 60px; text-decoration: none; cursor: pointer; }
   button:disabled { opacity: .5; }
+  #waiting { font-size: 17px; color: var(--ink); }
   .btn.app { margin: 0 0 6px; background: var(--accent); }
   .hint { font-size: 15px; text-align: center; margin: 0 0 4px; }
   .err { color: var(--err); font-weight: 600; margin-top: 14px; min-height: 1.4em; }
@@ -58,8 +59,8 @@
     <option value="">Autre</option>
   </select>
   <div class="err" id="err"></div>
-  <p id="waiting" role="status" hidden>En attente de l'accord sur l'ordinateur…</p>
-  <button id="go" type="submit">Valider</button>
+  <div id="waiting" role="status" hidden><progress aria-label="En attente"></progress><p>Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).</p></div>
+  <button id="go" type="submit">Rejoindre</button>
 </form>
 
 <div class="card" id="done" hidden>
@@ -75,6 +76,8 @@
   const m = location.pathname.match(/^(.*)\/p(?:\/(\d{6}))?\/?$/);
   const base = m ? m[1] : "";
   let code = m && m[2] ? m[2] : "";
+  let needsNew = false;
+  const manual = !code && !invitation;
   const $ = (id) => document.getElementById(id);
   try { $("name").value = localStorage.getItem("papai_name") || ""; } catch (e) {}
   if (!code && !invitation) $("codeRow").hidden = false;
@@ -87,6 +90,7 @@
 
   $("form").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (needsNew || $("go").disabled) return;
     $("err").textContent = "";
     const c = code || $("code").value.trim();
     if (!invitation && !/^\d{6}$/.test(c)) { $("err").textContent = "Le code fait 6 chiffres."; return; }
@@ -100,6 +104,11 @@
         body: JSON.stringify({ name, relation: $("relation").value }),
       });
       const data = await r.json();
+      if (r.status === 408 || (r.status === 403 && data.refused === true)) {
+        needsNew = true;
+        code = "";
+        $("code").value = "";
+      }
       if (r.status !== 200 || data.ok !== true) throw new Error(data.error || "Impossible de valider.");
       try { localStorage.setItem("papai_name", data.name); } catch (e) {}
       $("doneTitle").textContent = `C'est fait, ${data.name} !`;
@@ -109,9 +118,14 @@
     } catch (err) {
       $("err").textContent = err.message;
     } finally {
-      $("go").disabled = false;
+      $("go").disabled = needsNew;
       $("waiting").hidden = true;
     }
+  });
+  $("code").addEventListener("input", () => {
+    if (!manual) return;
+    needsNew = !/^[0-9]{6}$/.test($("code").value.trim());
+    $("go").disabled = needsNew;
   });
 </script>
 </body>

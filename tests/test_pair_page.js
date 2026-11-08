@@ -22,7 +22,7 @@ function page(pathname, fetch) {
   });
   get('name').value = 'Claire';
   get('relation').value = 'sa fille';
-  return { get, writes, submit: () => listeners.form({ preventDefault() {} }) };
+  return { get, writes, input: () => listeners.code(), submit: () => listeners.form({ preventDefault() {} }) };
 }
 
 test('QR et ancien lien : lien d’app sans clé', () => {
@@ -79,4 +79,52 @@ test('code manuel et prénom vides : aucun POST', async () => {
   await p.submit();
   assert.equal(p.get('err').textContent, 'Indiquez votre prénom.');
   assert.deepEqual(p.writes, []);
+});
+
+test('refus et délai consomment QR et invitation, même par soumission forcée', async () => {
+  for (const route of ['/p/123456', '/i/Abc_def-123456789012345']) {
+    for (const status of [403, 408]) {
+      let calls = 0;
+      const p = page(route, async () => {
+        calls++;
+        return { status, json: async () => ({ refused: status === 403, error: 'Message serveur' }) };
+      });
+      await p.submit();
+      assert.equal(p.get('code').value, '');
+      assert.equal(p.get('go').disabled, true);
+      assert.equal(p.get('waiting').hidden, true);
+      p.get('code').value = '654321';
+      p.input();
+      await p.submit();
+      assert.equal(calls, 1);
+      assert.deepEqual(p.writes, []);
+    }
+  }
+});
+
+test('code manuel vidé après refus/délai, nouveau code requis', async () => {
+  for (const status of [403, 408]) {
+    let calls = 0;
+    const p = page('/p', async url => {
+      calls++;
+      assert.equal(url, calls === 1 ? '/p/123456' : '/p/654321');
+      return { status, json: async () => ({ refused: status === 403, error: 'Message serveur' }) };
+    });
+    p.get('code').value = '123456';
+    await p.submit();
+    assert.equal(p.get('code').value, '');
+    assert.equal(p.get('go').disabled, true);
+    await p.submit();
+    assert.equal(calls, 1);
+    p.get('code').value = '123';
+    p.input();
+    assert.equal(p.get('go').disabled, true);
+    p.get('code').value = '654321';
+    p.input();
+    assert.equal(p.get('go').disabled, false);
+    await p.submit();
+    assert.equal(calls, 2);
+  }
+  assert.match(html, /#waiting \{ font-size: 17px/);
+  assert.match(html, /Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur \(2 min\)\./);
 });

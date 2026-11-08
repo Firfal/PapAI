@@ -1,6 +1,7 @@
 package com.quentin.papai.aidant
 
 import androidx.compose.foundation.background
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -180,9 +181,12 @@ fun PairSheet(link: PairLink) {
         policyError?.let { T(it, 16.sp, FontWeight.SemiBold, Soin.danger) }
         T(copy.description,
             15.sp, color = Soin.secondary)
-        if (link.code == null) {
+        if (link.isManual) {
             FieldLabel("Code affiché sur l'ordinateur")
-            SoinField(code, { v -> code = v.filter { it.isDigit() }.take(6) }, "000000", size = 28.sp,
+            SoinField(code, { v ->
+                code = v.filter { it in '0'..'9' }.take(6)
+                if (code.isNotEmpty()) m.pairNeedsNew = false
+            }, "000000", size = 28.sp,
                 weight = FontWeight.SemiBold, align = TextAlign.Center,
                 keyboard = KeyboardOptions(keyboardType = KeyboardType.NumberPassword))
         }
@@ -200,8 +204,9 @@ fun PairSheet(link: PairLink) {
         if (m.pairBusy) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CircularProgressIndicator(Modifier.size(22.dp), color = Soin.ink, strokeWidth = 2.dp)
-                T(PairingPolicy.waiting, 15.sp, color = Soin.ink)
+                T(PairingPolicy.waiting, 17.sp, color = Soin.ink)
             }
+            T(PairingPolicy.instruction, 17.sp, color = Soin.ink)
         }
         m.pairError?.let {
             if (m.pairRefused) {
@@ -212,7 +217,9 @@ fun PairSheet(link: PairLink) {
                 }
             } else T(it, 15.sp, FontWeight.SemiBold, Soin.danger)
         }
-        CapsuleButton("Rejoindre", enabled = !m.pairBusy && policyError == null, content = if (m.pairBusy) {
+        LaunchedEffect(m.pairNeedsNew) { if (m.pairNeedsNew) code = "" }
+        CapsuleButton("Rejoindre", enabled = !m.pairBusy && !m.pairNeedsNew &&
+            (!link.isManual || code.length == 6) && policyError == null, content = if (m.pairBusy) {
             { CircularProgressIndicator(Modifier.size(22.dp), color = Color.White, strokeWidth = 2.dp) }
         } else null) {
             m.submitPair(link, code, name, relation)
