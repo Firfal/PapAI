@@ -550,7 +550,7 @@ class Model:
             def go() -> None:
                 self.refresh_lessons()
                 if m.get("title"):
-                    self.show_notice(f"Nouveau tutoriel : « {m['title']} »")
+                    self.show_notice(f"Nouvel automate : « {m['title']} »")
             threading.Thread(target=go, daemon=True).start()
         elif kind == "pair_code":
             self.pair_code = m.get("code")
@@ -621,7 +621,7 @@ class Model:
         self._home_timer.daemon = True
         self._home_timer.start()
 
-    # ---------------------------------------------- automatismes, tutoriels
+    # ---------------------------------------------- automates, tutoriels
 
     def _find_lesson(self, lesson_id: str) -> dict | None:
         return next((x for x in self.lessons if x.get("id") == lesson_id), None)
@@ -647,13 +647,13 @@ class Model:
                         "detail": detail})
 
     def run_automation(self, lesson_id: str) -> None:
-        """Un automatisme importé par un support, lancé en un clic. Pas de
+        """Un automate importé par un support, lancé en un clic. Pas de
         validation à chaque fois : le support l'a validé à l'import."""
         lesson = self._find_lesson(lesson_id)
         if lesson is None or not lesson.get("actions"):
             return
         if "windows" not in (lesson.get("platforms") or ["windows"]):
-            self.show_notice("Cet automatisme est prévu pour un autre ordinateur.")
+            self.show_notice("Cet automate est prévu pour un autre ordinateur.")
             return
         holo = any(a.get("do") == "holo" for a in lesson["actions"])
         if holo and not self.screen_consent:
@@ -665,8 +665,8 @@ class Model:
         if self.automation_running:
             return
         self.gate.reset()
-        self.automation_running = str(lesson.get("title") or "Automatisme")
-        self.show_notice(f"C'est parti : {lesson.get('title') or 'automatisme'}…")
+        self.automation_running = str(lesson.get("title") or "Automate")
+        self.show_notice(f"C'est parti : {lesson.get('title') or 'automate'}…")
         threading.Thread(target=self._play_automation, args=(lesson, holo), daemon=True).start()
 
     def _fetch_lesson_file(self, lesson_id: str, name: str) -> bytes:
@@ -686,7 +686,7 @@ class Model:
             return
         if not ok:
             hn = self.helper_name
-            self.show_notice(f"« {lesson.get('title') or 'Cet automatisme'} » n'a pas pu aller au bout. "
+            self.show_notice(f"« {lesson.get('title') or 'Cet automate'} » n'a pas pu aller au bout. "
                              f"{hn[:1].upper() + hn[1:]} a reçu un message pour s'en occuper.")
             self._send({"type": "automation_failed", "title": lesson.get("title") or "",
                         "detail": detail})

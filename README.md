@@ -3,7 +3,7 @@
 # PapAI
 
 Le support informatique de premier niveau, automatisé. Un service IT, ou un proche,
-fournit et valide des automatismes ; chacun les lance seul, en un clic, sur son ordinateur.
+fournit et valide des automates ; chacun les lance seul, en un clic, sur son ordinateur.
 Exemple de cas d'usage : un grand-parent aidé par ses enfants. Autre exemple : les employés
 d'une entreprise (scan antivirus, imprimante, modèles Word, moteur de recherche).
 
@@ -13,10 +13,10 @@ Hackathon H Company × 42 AI, 7-8 novembre 2026. Agent : **Holo** (H Company).
 
 1. **Demander** : la personne aidée appuie sur « Demander une assistance » et explique avec ses mots.
 2. **Proposer** : Holo regarde l'écran et propose un plan de 2 à 5 étapes.
-3. **Valider** : l'aidant reçoit une notification sur son iPhone, puis valide, précise ou refuse. Rien ne bouge avant.
+3. **Valider** : le support reçoit une notification sur son iPhone, puis valide, précise ou refuse. Rien ne bouge avant.
 4. **Exécuter** : Holo agit, la personne regarde, et peut tout arrêter à tout moment.
-5. **Garder** : la tâche devient un automatisme, une tuile que la personne relance seule.
-6. **Importer** : le support fournit un automatisme (fichier `.papai`, [exemples](automations/)) et le valide en l'important. Seulement des actions de premier niveau, jamais de commande ni de script. Format : [`PROTOCOL.md`](PROTOCOL.md#automatismes-importés-par-un-support-fichier-papai).
+5. **Garder** : la tâche devient un automate, une tuile que la personne relance seule.
+6. **Importer** : le support fournit un automate (fichier `.papai`, [exemples](automations/)) et le valide en l'important. Seulement des actions de premier niveau, jamais de commande ni de script. Format : [`PROTOCOL.md`](PROTOCOL.md#automates-importés-par-un-support-fichier-papai).
 
 > Ce qui reste à faire, par priorité : [`TODO.md`](TODO.md). Agents de l’équipe : lisez-le avant de coder.
 
@@ -32,10 +32,10 @@ Hackathon H Company × 42 AI, 7-8 novembre 2026. Agent : **Holo** (H Company).
 Mac de la personne aidée         Serveur PapAI (Cloud Run)          H Company
   apps/mac  (SwiftUI)    ──wss──▶  backend/ (FastAPI)    ──HTTPS──▶  Holo
   capture, clics, Arrêter          plan, validation, agent,
-  automatismes locaux              garde-fous, journal
+  automates locaux                 garde-fous, journal
                                           ▲
                                           │ wss
-                                 iPhone de l'aidant
+                                 iPhone du support
                                    apps/ios (SwiftUI)
 ```
 
@@ -46,7 +46,7 @@ Mac de la personne aidée         Serveur PapAI (Cloud Run)          H Company
   - aucune action sans plan validé, par l'aidant ou par le support à l'import ;
   - pas de surveillance continue de l'ordinateur ;
   - la fenêtre PapAI est exclue des captures et des clics ;
-  - toute demande de l'aidant est revalidée côté serveur.
+  - toute demande du support est revalidée côté serveur.
 - **Windows** : `apps/windows`, mêmes écrans et même design que l'app Mac (Python + pywebview/WebView2) : double-cliquer `apps\windows\PapAI.bat`, rien à installer. Pas encore essayée sur un vrai Windows. L'ancien prototype reste dans la branche `archive/windows-7-nov`.
 
 ## Structure
@@ -54,11 +54,11 @@ Mac de la personne aidée         Serveur PapAI (Cloud Run)          H Company
 ```
 backend/        serveur FastAPI : sessions, plan, boucle agent Holo, garde-fous
 papai_tools.py  contrat avec Holo : outils, prompts Mac et Windows
-apps/mac/       app SwiftUI de la personne aidée (capture, clics, Arrêter, automatismes)
-apps/ios/       app SwiftUI de l'aidant (validation, capture en direct, prise de main)
+apps/mac/       app SwiftUI de la personne aidée (capture, clics, Arrêter, automates)
+apps/ios/       app SwiftUI du support (validation, capture en direct, prise de main)
 brand/          logo et icônes (SVG)
 PROTOCOL.md     messages échangés entre le serveur et les apps
-automations/    exemples d'automatismes importables (.papai)
+automations/    exemples d'automates importables (.papai)
 ```
 
 ## Lancer
@@ -94,7 +94,7 @@ gcloud run deploy papai --source . --region europe-west1 --allow-unauthenticated
 | App Mac : vrais clics CGEvent, bouton Arrêter | ⬜ codés, pas encore exercés |
 | App iPhone : validation, précision, capture en direct, prise de main | ✅ simulateur, installée sur l'iPhone |
 | Notifications iPhone | ⬜ app au premier plan uniquement |
-| Automatismes (rejeu local, alerte si dossier absent) | ⬜ codés, à exercer |
+| Automates (rejeu local, alerte si dossier absent) | ⬜ codés, à exercer |
 | Gardien anti-arnaque, rangement guidé, voix | idées, voir le Notion |
 
 Design : variante « Soin » (Figma). Logo : logotype « papai » dont le point du i est une papaye.

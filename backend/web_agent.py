@@ -31,7 +31,7 @@ START_SESSION_CLEANUP_TIMEOUT_S = 15.0
 DONE_DEFAULT = "C'est fait."
 
 ASK_HELPER_DESCRIPTION = (
-    "Pose une question au proche de la personne et attends sa réponse. "
+    "Pose une question au support de la personne et attends sa réponse. "
     "À utiliser avant tout paiement, virement, achat, inscription, suppression, "
     "ou si une page demande de payer, d'installer, d'appeler ou d'autoriser un accès à distance."
 )
@@ -56,7 +56,7 @@ def environment(browser_session: str) -> dict:
 def agent_spec(browser_session: str) -> dict:
     return {
         "name": "papai-navigateur",
-        "description": "Aide une personne âgée dans son navigateur, sous le contrôle de son proche.",
+        "description": "Aide une personne dans son navigateur, sous le contrôle de son support.",
         "environments": [environment(browser_session)],
         "instructions": WEB_AGENT_INSTRUCTIONS,
     }
@@ -67,10 +67,10 @@ def brief(session: Session, notes: list[str] | None = None) -> str:
     lines = [f"Demande de la personne : « {session.task} »"]
     for n in notes or []:
         if n:
-            lines.append(f"Précision de son proche : {n}")
+            lines.append(f"Précision du support : {n}")
     if session.plan:
         lines.append("")
-        lines.append("Plan validé par le proche, à suivre :")
+        lines.append("Plan validé par le support, à suivre :")
         lines += [f"Étape {i}. {s}" for i, s in enumerate(session.plan, 1)]
         lines.append("Avant chaque action, écris « Étape N » pour l'étape du plan en cours.")
     lines.append("")
@@ -79,13 +79,13 @@ def brief(session: Session, notes: list[str] | None = None) -> str:
 
 
 def describe_web_action(tool: str, args: dict) -> str:
-    """Une phrase pour l'aidant, comme `describe_doing` en mode bureau."""
+    """Une phrase pour le support, comme `describe_doing` en mode bureau."""
     t = (tool or "").lower()
     a = args or {}
     cible = str(a.get("element") or a.get("target") or a.get("description") or a.get("selector") or "").strip()[:80]
     url = str(a.get("url") or "").strip()
     if t in ("ask_helper",):
-        return "Holo pose une question à votre proche"
+        return "Holo vous pose une question"
     if "navigate" in t or "goto" in t or "open" in t or url:
         site = re.sub(r"^https?://(www\.)?", "", url).split("/")[0] if url else ""
         return f"Holo ouvre {site}" if site else "Holo ouvre une page"
@@ -281,7 +281,7 @@ class WebAgentRunner:
                 self.s.log("web_agent_control_failed", error=type(e).__name__)
 
     async def _helper_pause(self) -> None:
-        """Le proche a demandé une pause : H s'arrête, puis on lui demande quoi faire."""
+        """Le support a demandé une pause : H s'arrête, puis on lui demande quoi faire."""
         if not self._h_paused:
             await self.handle.pause()
             self._h_paused = True
@@ -295,7 +295,7 @@ class WebAgentRunner:
         if reply.strip().lower() == "continuer":
             await self.handle.resume()
         else:
-            await self.handle.send_message(f"Consigne du proche : {reply}")
+            await self.handle.send_message(f"Consigne du support : {reply}")
             await self.handle.resume()
 
     async def _escalate(self, question: str, options: list[str] | None = None) -> str | None:
@@ -308,13 +308,13 @@ class WebAgentRunner:
         return reply
 
     async def _ask_helper_tool(self, question: str) -> str:
-        """Pose une question au proche et attends sa réponse."""
+        """Pose une question au support et attends sa réponse."""
         self.s.doing = describe_web_action("ask_helper", {})
         self.s.log("tool_call", tool="ask_helper", args={"question": question[:300]})
         reply = await self._escalate(str(question)[:300])
         if reply is None:
-            return "Le proche a arrêté l'assistance. Arrête-toi tout de suite, sans rien faire d'autre."
-        return f"Réponse du proche : {reply}"
+            return "L'assistance est arrêtée. Arrête-toi tout de suite, sans rien faire d'autre."
+        return f"Réponse du support : {reply}"
 
     async def _on_event(self, event) -> None:
         ev = event.model_dump(mode="json") if hasattr(event, "model_dump") else dict(event)

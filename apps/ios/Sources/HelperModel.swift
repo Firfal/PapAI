@@ -540,7 +540,7 @@ final class HelperModel {
             let (d, _) = try await URLSession.shared.data(for: req)
             let r = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
             guard r["ok"] as? Bool == true else {
-                pairError = r["error"] as? String ?? "Le serveur a refusé l’appairage."
+                pairError = r["error"] as? String ?? "Le serveur a refusé la liaison."
                 return
             }
             guard let key = r["key"] as? String, !key.isEmpty else {

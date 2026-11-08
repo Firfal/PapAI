@@ -429,13 +429,13 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "run_automation":
-                # Un automatisme importé, lancé en un clic : son plan a été
+                # Un automate importé, lancé en un clic : son plan a été
                 # validé par le support à l'import, pas besoin d'un aidant en ligne.
                 lesson = automations.load(str(msg.get("id", "")))
                 task = automations.holo_task(lesson) if lesson else None
                 if task is None or _os_family(link.os) not in lesson.get("platforms", []):
                     await ws.send_json({"type": "automation_refused", "id": str(msg.get("id", ""))[:40],
-                                        "reason": "Cet automatisme n'est pas disponible sur cet ordinateur."})
+                                        "reason": "Cet automate n'est pas disponible sur cet ordinateur."})
                     continue
                 goal, steps = task
                 session = S().registry.create(goal[:MAX_TASK])
@@ -445,7 +445,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
                 await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
                                     "automation": lesson["id"]})
-                print(f"[session {session.id}] automatisme importé {lesson['id']}")
+                print(f"[session {session.id}] automate importé {lesson['id']}")
                 await broadcast_helper(session.status())
                 if S().agent_task and not S().agent_task.done():
                     S().agent_task.cancel()
@@ -453,11 +453,11 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "automation_failed":
-                # Un automatisme n'a pas pu se rejouer : l'écran ou le dossier a
+                # Un automate n'a pas pu se rejouer : l'écran ou le dossier a
                 # changé. On ne tente rien à l'aveugle, on prévient l'aidant.
                 await broadcast_helper({
                     "type": "alert",
-                    "title": str(msg.get("title", "Un raccourci"))[:200],
+                    "title": str(msg.get("title", "Un automate"))[:200],
                     "detail": str(msg.get("detail", ""))[:1000],
                 })
                 continue
@@ -733,7 +733,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
                 lesson = await draft_lesson(session)
             except Exception as e:  # noqa: BLE001 — l'aidant ne doit pas rester sans réponse
                 session.log("lesson_failed", error=f"{type(e).__name__}: {e}")
-                raise Refused("Holo n'a pas pu rédiger la fiche. Réessayez.") from e
+                raise Refused("Holo n'a pas pu rédiger l'automate. Réessayez.") from e
             session.lesson = lesson
             # Aperçu : les captures voyagent avec le brouillon, mais
             # ne sont écrites nulle part tant que rien n'est validé.
@@ -747,7 +747,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
 
         elif kind == "approve_lesson":
             if not session.lesson:
-                raise Refused("Aucune fiche à valider.")
+                raise Refused("Aucun automate à valider.")
             # Le proche a pu corriger le texte : on reprend le sien.
             edited = msg.get("lesson") or {}
             for i, step in enumerate(session.lesson["steps"]):
@@ -761,7 +761,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             saved = approve_and_save(session.lesson, session)
             await ws.send_json({"type": "lesson_saved", "lesson": saved})
             if S().bridge is not None:
-                # La personne aidée le retrouve aussitôt dans « Mes tutoriels ».
+                # La personne aidée le retrouve aussitôt dans « Mes automates ».
                 await S().bridge.send({"type": "lessons_changed", "title": saved.get("title", "")})
 
         else:
@@ -822,7 +822,7 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
         raise Refused("Le PC n'est pas connecté.")
 
     session.take_control(Owner.HELPER)
-    args = {"element": "clic du proche", "x": round(x * 1000), "y": round(y * 1000)}
+    args = {"element": "clic du support", "x": round(x * 1000), "y": round(y * 1000)}
     session.log("helper_click", x=args["x"], y=args["y"])
     session.execution_started = True
     result = await S().bridge.execute("click", args)
@@ -1267,7 +1267,7 @@ MAX_IMPORT = 15_000_000
 
 
 async def _import_automation(request: Request):
-    """Le support (service IT, proche) importe un automatisme : c'est sa validation."""
+    """Le support (service IT, proche) importe un automate : c'est sa validation."""
     trop = JSONResponse({"error": "Fichier trop gros."}, status_code=413)
     try:
         if int(request.headers.get("content-length") or 0) > MAX_IMPORT:
@@ -1287,7 +1287,7 @@ async def _import_automation(request: Request):
         lesson = automations.save(pack, by=request.query_params.get("by", ""))
     except automations.Invalid as e:
         return JSONResponse({"error": str(e)}, status_code=422)
-    print(f"[automatisme] importé {lesson['id']}")
+    print(f"[automate] importé {lesson['id']}")
     if S().bridge is not None:
         await S().bridge.send({"type": "lessons_changed", "title": lesson["title"]})
     return lesson
