@@ -625,6 +625,8 @@ class Model:
                     self.current_action = None
                 where = m.get("where")
                 self.session_where = where if where in ("desktop", "web") else None
+                if self.session_where != "web":
+                    self._web_fronted = False
         if self.state in ("done", "stopped"):
             self.web.stop_local()
         elif (self.session_where == "web" and self.state in ("active", "awaiting_helper")
