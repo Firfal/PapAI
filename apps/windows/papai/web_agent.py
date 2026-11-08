@@ -156,7 +156,14 @@ class WebAgentHost:
         if self._listening():
             return
         profile = self._profile()
-        wipe_profile(profile)
+        # Un reste de l'assistance d'avant (fichier encore verrouillé) : jamais réutilisé.
+        for _ in range(10):
+            wipe_profile(profile)
+            if not profile.exists() or self._stale(gen):
+                break
+            self._sleep(0.5)
+        if profile.exists() or self._stale(gen):
+            return
         profile.mkdir(parents=True, exist_ok=True)
         try:
             chrome = self._popen([str(exe), f"--remote-debugging-port={DEBUG_PORT}", f"--user-data-dir={profile}",
