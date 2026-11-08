@@ -45,6 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| Devin | `devin/1794131617-sans-photos-noel` | Retrait du cas « photos de Noël » (pas un cas d'entreprise) des apps, données de démo, faux Holo/Mac, tests et docs de démo | `apps/mac/Sources/Model.swift`, `apps/windows/papai/model.py`, `apps/windows/papai/home_shortcuts.py`, `tests/faux_holo.py`, `tests/faux_mac.py`, `docs/demo.md` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal
