@@ -534,6 +534,10 @@ class Model:
         self.push()
 
     def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None) -> None:
+        if self.queued:
+            self.queued["show"] = False
+            if ticket and self.queued["ticket"] == ticket:
+                self.queued = None
         self.gate.reset()
         self.stopped_by = None
         self._cancel(self._home_timer)

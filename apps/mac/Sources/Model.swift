@@ -581,6 +581,8 @@ final class AppModel {
 
     func askHelp(task: String, requestedBy: String? = nil, ticket: String? = nil) {
         guard guardAlert == nil else { return }
+        queuedShown = false
+        if let ticket, queued?.ticket == ticket { queued = nil }
         gate.reset()
         stoppedBy = nil
         sessionWhere = nil
