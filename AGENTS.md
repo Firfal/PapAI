@@ -46,6 +46,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
+| Devin | `devin/1794128344-main-au-vert` | Remettre main au vert : tests de liaison et d'actions sensibles alignés sur le lexique « utilisateur » | `tests/test_appairage_code.py`, `tests/test_actions_sensibles.py` | 8 nov. |
 
 ## Journal
 
