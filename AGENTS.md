@@ -46,6 +46,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
+| Devin | `devin/1794130150-integration-finale` | Intégration finale des PR #85, #71, #72, #75, #73, #81, #86, #82, #80, #79, #77, #84, #83, #87 et #76 ; arbitrer les conflits en conservant les fonctionnalités et garde-fous | `AGENTS.md`, `PROTOCOL.md`, `TODO.md`, `backend/`, `apps/`, `tests/` (hors `docs/pitch/`) | 9 nov. |
 
 ## Journal
 
