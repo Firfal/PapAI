@@ -42,7 +42,8 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
                 self.session.answer_from_helper("Je m'en occupe, vous pouvez continuer.")
 
         self.runner = agent.AgentRunner(self.session, self.link, broadcast)
-        for p in (patch.object(app.S(), "pending_alert", None), patch.object(agent, "MIN_SECONDS_PER_STEP", 0)):
+        for p in (patch.object(app.S(), "pending_alert", None), patch.object(app.S().family, "senior", ""),
+                  patch.object(agent, "MIN_SECONDS_PER_STEP", 0)):
             p.start()
             self.addCleanup(p.stop)
 
@@ -82,7 +83,19 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
                 question = [e for e in self.events if e.get("type") == "question"][-1]
                 self.assertEqual(question["to"], "helper")
                 self.assertEqual(question["question"],
-                                 "PapAI a bloqué une action sensible (les réglages sont sensibles). Pouvez-vous vous en occuper ?")
+                                 "Holo s'est arrêté devant une fenêtre protégée (réglages ou mots de passe). "
+                                 "Guidez la personne aidée par téléphone, puis répondez ici pour que Holo continue.")
+
+    async def test_question_support_prenom_et_raison_non_technique(self):
+        for name in ("Jeanne", ""):
+            with patch.object(app.S().family, "senior", name):
+                await self.runner._act("click", {})
+                await self.runner._escalate({"question": "Erreur technique détaillée", "options": [TEXT]})
+            question = [e for e in self.events if e.get("type") == "question"][-1]
+            self.assertEqual(question["question"],
+                             "Holo s'est arrêté devant une fenêtre protégée (réglages ou mots de passe). "
+                             f"Guidez {name or 'la personne aidée'} par téléphone, puis répondez ici pour que Holo continue.")
+            self.assertEqual(question["options"], [])
 
     async def test_holo_reessaie_dans_la_boucle(self):
         await self.play([response("click"), response("type_text", {"text": "secret"}),
@@ -113,7 +126,8 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(e["kind"] == "sensitive_blocked" for e in self.session.journal))
 
     async def test_clic_support_refuse_ne_reprend_pas_holo(self):
-        for result in (agent.SensitiveBlocked(TEXT), None, "fait"):
+        for result, name in ((agent.SensitiveBlocked(TEXT), "Jeanne"), (agent.SensitiveBlocked(TEXT), ""),
+                             (None, ""), ("fait", "")):
             with self.subTest(result=result):
                 session = Registry().create("Mes photos")
                 session.grant_consent()
@@ -123,7 +137,8 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
                 reply = session.ask_helper("Pouvez-vous vous en occuper ?")
                 ws = AsyncMock()
                 link = SimpleNamespace(execute=AsyncMock(return_value=result))
-                with patch.object(app.S(), "bridge", link), patch.object(app, "broadcast_helper", AsyncMock()):
+                with patch.object(app.S(), "bridge", link), patch.object(app, "broadcast_helper", AsyncMock()), \
+                        patch.object(app.S().family, "senior", name):
                     await app.handle_helper_msg(session, {"type": "click", "frame_id": "capture", "x": 0.5, "y": 0.5}, ws)
                 messages = [call.args[0] for call in ws.send_json.await_args_list]
                 if result == "fait":
@@ -136,7 +151,10 @@ class ActionsSensibles(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(any(m.get("type") == "refused" for m in messages))
                     self.assertFalse(any(m.get("type") == "ack" for m in messages))
                     if isinstance(result, agent.SensitiveBlocked):
-                        self.assertIn("Clic non effectué", messages[0]["reason"])
+                        self.assertEqual(messages[0]["blocked"], "sensitive")
+                        self.assertEqual(messages[0]["reason"],
+                                         "Clic non effectué : cette fenêtre est protégée (réglages ou mots de passe). "
+                                         f"Guidez {name or 'la personne aidée'} par téléphone pour faire cette étape sur l'ordinateur.")
                         self.assertTrue(any(e["kind"] == "sensitive_blocked" for e in session.journal))
 
     async def test_resultat_vide_erreur_et_refus_incomplet(self):

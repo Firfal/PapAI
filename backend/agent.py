@@ -26,6 +26,7 @@ from papai_tools import (
 )
 
 from .sessions import Owner, Refused, Session, State
+from . import space
 
 import os
 
@@ -47,6 +48,15 @@ class SensitiveBlocked(str):
     @property
     def reason(self) -> str:
         return self.removeprefix("Action refusée par PapAI : ").split(". Ne réessaie pas", 1)[0].rstrip(".")
+
+
+def protected_window_support_text(click: bool = False) -> str:
+    name = space.current().family.senior.strip() or "la personne aidée"
+    if click:
+        return ("Clic non effectué : cette fenêtre est protégée (réglages ou mots de passe). "
+                f"Guidez {name} par téléphone pour faire cette étape sur l'ordinateur.")
+    return ("Holo s'est arrêté devant une fenêtre protégée (réglages ou mots de passe). "
+            f"Guidez {name} par téléphone, puis répondez ici pour que Holo continue.")
 
 
 async def propose_plan(session: Session, bridge, broadcast, note: str = "") -> list[str]:
@@ -268,9 +278,7 @@ class AgentRunner:
             return f"outil inconnu : {name}"
 
         if self._sensitive_blocked is not None:
-            return await self._escalate({
-                "question": f"PapAI a bloqué une action sensible ({self._sensitive_blocked.reason}). Pouvez-vous vous en occuper ?",
-            })
+            return await self._escalate({})
 
         try:
             self.s.take_control(Owner.AGENT)
@@ -291,6 +299,9 @@ class AgentRunner:
         """Suspend l'agent et attend une réponse. None = arrêt ou expiration."""
         question = args.get("question", "")
         options = args.get("options") or []
+        if to == "helper" and self._sensitive_blocked is not None:
+            question = protected_window_support_text()
+            options = []
         fut = self.s.ask_helper(question, options, to=to)
         await self.broadcast(self.s.status())
         await self.broadcast({"type": "question", "question": question, "options": options, "to": to})

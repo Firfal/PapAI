@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
 from . import automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
-from .agent import AgentRunner, SensitiveBlocked, propose_plan
+from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, Family, PairingError
 from .caremamory import lessons_dir, approve_and_save, draft_lesson, list_lessons
@@ -1013,7 +1013,8 @@ async def handle_helper_click(session, msg: dict, ws: WebSocket) -> None:
         raise Refused("Le PC a refusé l'action.")
     if isinstance(result, SensitiveBlocked):
         session.log("sensitive_blocked", tool="click", source="helper", reason=result.reason)
-        raise Refused(f"Clic non effectué : PapAI a bloqué une zone sensible ({result.reason}). Intervenez directement sur l'ordinateur.")
+        await ws.send_json({"type": "refused", "blocked": "sensitive", "reason": protected_window_support_text(click=True)})
+        return
 
     await ws.send_json({"type": "ack", "what": "click", "result": result})
     session.answer_from_helper("J'ai cliqué moi-même sur l'écran. Reprends à partir de là.")
