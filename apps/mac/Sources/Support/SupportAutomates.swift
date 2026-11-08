@@ -86,14 +86,21 @@ struct SupportAutomates: View {
                     .font(rounded(14, .semibold)).foregroundStyle(names.isEmpty ? T.muted : T.leaf)
             }
             Spacer(minLength: 0)
-            VStack(spacing: 8) {
-                Button("Appliquer…") { applying = e }.buttonStyle(PillStyle(height: 40))
-                Button { toDelete = e } label: {
-                    Image(systemName: "trash").font(.system(size: 14, weight: .semibold)).foregroundStyle(T.muted)
+            // Une seule ligne d'actions, centrée : « Appliquer… » en entier, la suppression dans le menu.
+            HStack(spacing: 8) {
+                Button("Appliquer…") { applying = e }
+                    .buttonStyle(PillStyle(height: 40)).fixedSize()
+                Menu {
+                    Button("Supprimer de la bibliothèque", role: .destructive) { toDelete = e }
+                } label: {
+                    Image(systemName: "ellipsis").font(.system(size: 15, weight: .bold)).foregroundStyle(T.muted)
                         .frame(width: 36, height: 36).background(Circle().fill(T.field))
                 }
-                .buttonStyle(.plain).accessibilityLabel("Supprimer \(e.title)")
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .accessibilityLabel("Plus d’actions pour \(e.title)")
             }
+            .layoutPriority(1)
+            .frame(maxHeight: .infinity, alignment: .center)
         }
         .padding(14).carte()
     }
