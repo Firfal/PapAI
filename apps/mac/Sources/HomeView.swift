@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Accueil : une barre pour demander (avec un petit micro) et les automates.
+/// Accueil : à gauche une barre pour demander (avec un petit micro) ; à droite
+/// les automates puis les applications récentes.
 struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var request = ""
@@ -10,15 +11,51 @@ struct HomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
     private var micro: MicPresence { .shared }
+    private var usage: AppUsage { .shared }
 
     var body: some View {
+        GeometryReader { geo in
+            let largeur = geo.size.width
+            let gauche = Self.gaucheMin * CGFloat(TextScale.current)
+            // La colonne de droite garde 400 pt ; elle se réduit, puis passe dessous, si la fenêtre est étroite.
+            let droite = min(Self.droiteLarge, largeur - Self.ecart - gauche)
+            if droite >= Self.droiteMin {
+                HStack(alignment: .top, spacing: Self.ecart) {
+                    colonneGauche.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    ScrollView(showsIndicators: false) {
+                        colonneDroite.padding(.bottom, 8)
+                    }
+                    .frame(width: droite)
+                }
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 28) {
+                        colonneGauche
+                        colonneDroite
+                    }
+                    .padding(.bottom, 8)
+                }
+            }
+        }
+        .foregroundStyle(T.ink)
+        .onAppear { ouvrirDemande() }
+        .onChange(of: micro.demande) { _, _ in ouvrirDemande() }
+        .onChange(of: dictation.message) { _, m in if let m { warning = m; dictation.message = nil } }
+    }
+
+    private static let droiteLarge: CGFloat = 400
+    private static let droiteMin: CGFloat = 280
+    private static let gaucheMin: CGFloat = 540
+    private static let ecart: CGFloat = 24
+
+    private var colonneGauche: some View {
         VStack(alignment: .leading, spacing: 22) {
             accueil
             VStack(alignment: .leading, spacing: 10) {
                 barre
                 if let etat = etatDictee {
                     Text(etat).font(rounded(17, .semibold)).foregroundStyle(T.leaf)
-                        .padding(.leading, 24)
+                        .padding(.leading, 18)
                 }
                 if let warning {
                     Label(warning, systemImage: "exclamationmark.circle")
@@ -37,16 +74,14 @@ struct HomeView: View {
                     .background(Capsule().fill(T.card))
                 }
             }
-            ScrollView(showsIndicators: false) {
-                automates.padding(.bottom, 8)
-            }
         }
-        .foregroundStyle(T.ink)
-        .frame(maxWidth: 860, maxHeight: .infinity, alignment: .topLeading)
-        .frame(maxWidth: .infinity, alignment: .top)
-        .onAppear { ouvrirDemande() }
-        .onChange(of: micro.demande) { _, _ in ouvrirDemande() }
-        .onChange(of: dictation.message) { _, m in if let m { warning = m; dictation.message = nil } }
+    }
+
+    private var colonneDroite: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            automates
+            applications
+        }
     }
 
     // MARK: Demande
@@ -70,12 +105,12 @@ struct HomeView: View {
     }
 
     private var barre: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "magnifyingglass").font(rounded(20, .semibold)).foregroundStyle(T.muted)
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass").font(rounded(16, .semibold)).foregroundStyle(T.muted)
                 .accessibilityHidden(true)
             TextField(micro.microPresent ? "Écrivez ou dites ce que vous voulez faire" : "Écrivez ce que vous voulez faire",
                       text: $request)
-                .textFieldStyle(.plain).font(rounded(20)).focused($focused)
+                .textFieldStyle(.plain).font(rounded(18)).focused($focused)
                 .focusEffectDisabled()
                 .onSubmit(submit)
                 .accessibilityLabel("Ma demande")
@@ -83,15 +118,15 @@ struct HomeView: View {
             Button(action: submit) {
                 Text("Envoyer").font(rounded(16, .semibold)).foregroundStyle(.white)
                     .lineLimit(1).fixedSize()
-                    .padding(.horizontal, 20).frame(minHeight: 48)
+                    .padding(.horizontal, 16).frame(minHeight: 44)
                     .background(Capsule().fill(T.ink))
                     .contentShape(Capsule())
             }
             .buttonStyle(PressStyle())
             .disabled(dictation.phase != .idle)
         }
-        .padding(.leading, 24).padding(.trailing, 10).padding(.vertical, 10)
-        .frame(minHeight: 68)
+        .padding(.leading, 18).padding(.trailing, 4).padding(.vertical, 4)
+        .frame(minHeight: 52)
         .background {
             // Bord dessiné par deux capsules pleines : un trait de Capsule laisse des traces sur les côtés.
             let actif = focused || dictation.phase == .listening
@@ -110,16 +145,17 @@ struct HomeView: View {
         return Button(action: dicter) {
             ZStack {
                 Circle().fill(listening ? T.accent : T.mint)
+                    .frame(width: 36, height: 36)
                     .scaleEffect(listening && !reduceMotion && pulse ? 1.08 : 1)
                 if dictation.phase == .transcribing {
                     ProgressView().controlSize(.small)
                 } else {
                     Image(systemName: listening ? "stop.fill" : "mic.fill")
-                        .font(rounded(19, .semibold))
+                        .font(rounded(14, .semibold))
                         .foregroundStyle(listening ? .white : T.leaf)
                 }
             }
-            .frame(width: 48, height: 48)
+            .frame(width: 44, height: 44)
             .contentShape(Circle())
         }
         .buttonStyle(PressStyle())
@@ -210,7 +246,7 @@ struct HomeView: View {
                 .background(RoundedRectangle(cornerRadius: T.r, style: .continuous)
                     .strokeBorder(T.muted.opacity(0.45), style: StrokeStyle(lineWidth: 2, dash: [6, 5])))
             } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 340), spacing: 12)], spacing: 12) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 12) {
                     ForEach(model.lessons) { l in tuile(l) }
                 }
             }
@@ -253,6 +289,54 @@ struct HomeView: View {
         .padding(12)
         .frame(maxWidth: .infinity)
         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+    }
+}
+
+extension HomeView {
+    // MARK: Applications récentes
+
+    /// Les 6 applications passées le plus récemment au premier plan, ouvertes d'un clic.
+    fileprivate var applications: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: "clock.arrow.circlepath").font(rounded(20, .semibold)).foregroundStyle(T.papaya)
+                    .accessibilityHidden(true)
+                Text("Applications récentes").font(rounded(22, .bold))
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 14) {
+                ForEach(usage.recent) { app in
+                    let name = app.name, bundle = app.bundle
+                    Button { openApp(bundle) } label: {
+                        VStack(spacing: 8) {
+                            Circle().fill(T.card).frame(width: 80, height: 80)
+                                .overlay(Image(nsImage: icon(bundle)).resizable().frame(width: 48, height: 48))
+                            Text(name).font(rounded(16, .medium))
+                                .lineLimit(2).multilineTextAlignment(.center)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PressStyle())
+                    .accessibilityLabel("Ouvrir \(name)")
+                }
+            }
+        }
+    }
+
+    private func openApp(_ bundle: String) {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else {
+            model.showNotice("Cette application n'est pas disponible sur cet ordinateur.")
+            return
+        }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    private func icon(_ bundle: String) -> NSImage {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) {
+            return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        return NSImage(systemSymbolName: "app", accessibilityDescription: nil) ?? NSImage()
     }
 }
 
