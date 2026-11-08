@@ -78,6 +78,16 @@ struct SettingsView: View {
                         }
                         .pickerStyle(.segmented).labelsHidden()
                     }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Toggle(isOn: Binding(get: { model.realtimeProtection }, set: { model.setRealtimeProtection($0) })) {
+                            Text("Protection en temps réel").font(rounded(22, .semibold))
+                        }
+                        .toggleStyle(.switch)
+                        Text(model.realtimeProtection
+                             ? "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe."
+                             : "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées.")
+                            .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    }
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Mon support").font(rounded(22, .semibold))
                         Text("Reliez le téléphone de votre support à cet ordinateur : QR code, code à 6 chiffres ou lien à envoyer.")

@@ -45,13 +45,13 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| 8 nov. | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces (`backend/space.py`) : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), Windows et Mac créent leur espace au premier lancement. |
 | _(personne pour l'instant)_ | | | | |
 
 ## Journal
 
 | Date | Agent | Branche | Fait |
 |---|---|---|---|
+| 8 nov. | Devin | `devin/1794099594-protection-temps-reel` | Protection en temps réel : signaux du gardien toutes les 8 s hors assistance derrière un interrupteur des Réglages (Mac, Windows), activé par défaut ; état `protection` dans `hello`/`profile`, relayé au support. Profil Chrome PapAI effacé après chaque assistance, connexion faite par la personne. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794094625-accueil-recherche-automates` | Accueil Mac réduit à une barre de demande (loupe, champ, petit micro 48 pt intégré pour la dictée existante, Envoyer) et « Mes AutoMates » (automatismes de `GET /lessons`, lancés d'un clic, « Montrez-moi » si étapes ; état vide expliqué). Gros micro, bulle et « Écrire plutôt » retirés ; notice `lessons_changed` : « Nouvel AutoMate ». Branches raccourcis et mascotte fusionnées (`Mascotte.Taille.accueil`/`accueilReduite`). Build CLI zéro erreur, gardien 14, parcours 27. Captures avant/après 1100×720 et 900×640 à 1.18, avec et sans micro. Dictée réelle et clic sur un AutoMate non essayés. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794094580-sans-raccourcis` | Accueil Mac sans raccourcis (sur #39) : grille « Mes raccourcis », feuille `AjouterRaccourci`, `HomeShortcuts.swift` (clé locale `raccourcisAccueil.v1` plus lue) et `home_shortcuts_test.swift` supprimés ; colonne droite affichée seulement avec tutoriels ou notice. Raccourcis de dossier des fiches (`Lesson.shortcut`, `Shortcuts` dans `Core.swift`, `automation_failed`) gardés : liés aux tutoriels et au protocole. Build CLI zéro erreur, gardien 14, parcours 27 ; captures accueil 1200×780, vide, 900×640 et 900×640 texte 1.18. Windows non touché. Fichiers libérés. |
 | 8 nov. | Devin | `devin/1794094609-mascotte-discrete` | Papaye plus discrète : tailles fixes et réduites dans `Mascotte.Taille` (Mac `Theme.swift`, iPhone `Mascotte.swift`) — session 64/44 (avant 130×texte/80), bienvenue 88/56 (avant 190×texte/110), prénom 56/40 (avant 120×texte/72), encart 22 (avant 30), iPhone 52–64 (avant 76–110). Plus de souffle permanent : léger mouvement seulement pendant l'écoute, plus de bascule. `HomeView.swift` non touché : l'agent de la refonte de l'accueil reprend `Mascotte.Taille.accueil` (56) / `.accueilReduite` (40). Build CLI Mac et build iPhone simulateur réussis ; gardien 14, parcours 27. Captures avant/après (1100×720 et 900×640 à 1.18) regardées ; encart flottant et iPhone non capturés. Fichiers libérés. |

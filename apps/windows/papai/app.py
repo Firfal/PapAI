@@ -67,6 +67,7 @@ class Api:
 
     def set_first_name(self, name): self._model.set_first_name(name)
     def set_text_scale(self, v): self._model.set_text_scale(v)
+    def set_realtime_protection(self, on): self._model.set_realtime_protection(on)
     def set_onboarding_step(self, step): self._model.set_onboarding_step(step)
     def finish_onboarding(self): self._model.finish_onboarding()
     def reset_onboarding(self): self._model.reset_onboarding()
