@@ -13,10 +13,11 @@ La version famille existe sur la branche [`archive/particuliers`](https://github
 
 ## État de référence
 
-Lecture du code au **8 novembre 2026, 09 h 30 UTC**, sur
-[`main` à `19a958d`](https://github.com/Firfal/PapAI/commit/19a958d).
-**[en PR]** signifie : code présent sur la branche liée, mais pas encore dans ce
-main ; cela ne signifie ni intégré, ni déployé, ni essayé sur un parc réel.
+Lecture du code et relevé Git/GitHub au **8 novembre 2026, 10 h 22 UTC**, sur
+[`main` à `b905883`](https://github.com/Firfal/PapAI/commit/b905883), après
+l'intégration [#90](https://github.com/Firfal/PapAI/pull/90). Les quinze chantiers
+entreprise ci-dessous sont dans main ; code intégré ne signifie ni service
+configuré en production, ni déploiement ou essai sur un parc réel.
 Les textes prêts à copier et le relevé détaillé des contributions Devin sont dans
 [`docs/soumission.md`](docs/soumission.md). Priorités et limites : [`TODO.md`](TODO.md).
 
@@ -43,7 +44,8 @@ Les textes prêts à copier et le relevé détaillé des contributions Devin son
 
 - **Un espace par ordinateur**, rattachable à une organisation par un jeton
   d'inscription. Le jeton support de l'organisation donne accès à sa liste de
-  postes ; les jetons individuels révocables restent **[en PR] #77**.
+  postes ; des jetons individuels révocables donnent à chaque support des clés
+  dérivées par poste.
 - **Catalogue partagé** : les automates importés dans l'organisation sont copiés
   vers ses postes, y compris ceux inscrits ensuite. Sept exemples sont fournis
   dans [`automations/`](automations/) ; un nouvel espace ne les charge pas tout seul.
@@ -52,39 +54,54 @@ Les textes prêts à copier et le relevé détaillé des contributions Devin son
   Le bouton de création est masqué (`creationActive = false`), même si le code
   de brouillon depuis un document ou un enregistrement est conservé.
 - **Tickets** : attente, rendez-vous, prise en charge, notes, clôture et réouverture ;
-  vue d'organisation web avec filtres et export CSV. Les catégories et graphiques
-  restent **[en PR] #86**.
+  vue d'organisation web avec filtres et export CSV, catégories corrigeables par
+  le support et graphiques web/Mac.
 
 Sources : [`backend/orgs.py`](backend/orgs.py), [`backend/space.py`](backend/space.py),
 [`backend/tickets.py`](backend/tickets.py), [`tickets.js`](backend/static/tickets.js),
 [`SupportAutomates.swift`](apps/mac/Sources/Support/SupportAutomates.swift) et
 [`SupportTickets.swift`](apps/mac/Sources/Support/SupportTickets.swift).
 
-## Entreprise : compléments non encore intégrés
+## Entreprise : fonctionnalités intégrées
 
-Chaque ligne est **[en PR]**, vérifiée sur la branche correspondante.
+Chaque ligne a été relue dans le code de main à `b905883`, pas seulement sur
+l'ancienne branche de PR. Les numéros indiquent la provenance du chantier, pas
+son état GitHub : #72 et #81 restent ouvertes au relevé, alors que leur code est
+intégré par #90.
 
 | Fonctionnalité | État et périmètre du code |
 |---|---|
-| Mac configuré par l'IT | **[en PR] [#71](https://github.com/Firfal/PapAI/pull/71)** : préférences gérées par profil MDM, serveur, organisation et nom affiché ; parcours initial retiré. |
-| Support connecté d'office | **[en PR] [#72](https://github.com/Firfal/PapAI/pull/72)** : configuration de l'organisation sur Mac/iPhone, liste des postes et retrait de la liaison poste par poste dans les interfaces concernées. |
-| Windows par stratégie de groupe | **[en PR] [#75](https://github.com/Firfal/PapAI/pull/75)** : lecture des stratégies machine/utilisateur, modèles ADMX/ADML, organisation et serveur configurés par l'IT ; intègre aussi les automates locaux hors ligne de #69. |
-| Liens d'assistance terminée | **[en PR] [#73](https://github.com/Firfal/PapAI/pull/73)** : coupe l'accès aux images après la fin et refuse le rafraîchissement d'une ancienne assistance. |
-| Stockage durable | **[en PR] [#76](https://github.com/Firfal/PapAI/pull/76)** : interface disque local ou Firestore, Cloud Storage pour les images ; dépend de la configuration des services. |
-| Un jeton par support | **[en PR] [#77](https://github.com/Firfal/PapAI/pull/77)** : empreinte du jeton conservée, clés de poste dérivées, révocation et coupure des connexions. |
-| Sites du navigateur validés | **[en PR] [#79](https://github.com/Firfal/PapAI/pull/79)** : détection d'une sortie des sites prévus, pause et demande d'accord au support ; ce n'est pas un pare-feu réseau. |
-| Linkup | **[en PR] [#80](https://github.com/Firfal/PapAI/pull/80)** : recherche documentaire proposée avant l'exécution, requête relue par le support, réponse sourcée ; résultats non transmis à Holo. |
-| Automates pendant l'attente | **[en PR] [#81](https://github.com/Firfal/PapAI/pull/81)** : jusqu'à deux propositions pertinentes, classement par mots communs sans modèle. |
-| Narration à voix haute | **[en PR] [#82](https://github.com/Firfal/PapAI/pull/82)** : lecture locale en français sur Mac et Windows, désactivable et interrompue pendant la dictée. |
-| Android du support en entreprise | **[en PR] [#83](https://github.com/Firfal/PapAI/pull/83)** : configuration gérée Android Enterprise ou configuration locale de démonstration, organisation et gestion du retrait d'accès. |
-| Abonnement Stripe | **[en PR] [#84](https://github.com/Firfal/PapAI/pull/84)** : Checkout, portail et webhook signé, **mode test seulement**, pas d'encaissement réel. |
-| Correction des tests | **[en PR] [#85](https://github.com/Firfal/PapAI/pull/85)** : attentes de liaison et d'actions sensibles alignées sur « utilisateur » ; aucune garantie sur les tests des autres branches. |
-| Catégories et graphiques des tickets | **[en PR] [#86](https://github.com/Firfal/PapAI/pull/86)** : classement par règles, Holo en cas de doute, correction par le support, statistiques web et Mac. |
-| Rangement guidé des dossiers | **[en PR] [#87](https://github.com/Firfal/PapAI/pull/87)** : Mac seulement, noms de fichiers sans leur contenu, déplacements validés par le support, sans écrasement, avec journal d'annulation. |
+| Mac configuré par l'IT | **[#71](https://github.com/Firfal/PapAI/pull/71)** : préférences gérées par profil MDM, serveur, organisation et nom affiché ; parcours initial retiré. |
+| Support connecté d'office | **[#72](https://github.com/Firfal/PapAI/pull/72)** : configuration de l'organisation sur Mac/iPhone, liste des postes et retrait de la liaison poste par poste dans les interfaces concernées. |
+| Windows par stratégie de groupe | **[#75](https://github.com/Firfal/PapAI/pull/75)** : lecture des stratégies machine/utilisateur, modèles ADMX/ADML, organisation et serveur configurés par l'IT ; intègre aussi les automates locaux hors ligne de #69. |
+| Liens d'assistance terminée | **[#73](https://github.com/Firfal/PapAI/pull/73)** : coupe l'accès aux images après la fin et refuse le rafraîchissement d'une ancienne assistance. |
+| Stockage durable | **[#76](https://github.com/Firfal/PapAI/pull/76)** : interface disque local ou Firestore, Cloud Storage pour les images ; dépend de la configuration des services. |
+| Un jeton par support | **[#77](https://github.com/Firfal/PapAI/pull/77)** : empreinte du jeton conservée, clés de poste dérivées, révocation et coupure des connexions. |
+| Sites du navigateur validés | **[#79](https://github.com/Firfal/PapAI/pull/79)** : sur Mac, surveillance des URL de Chrome PapAI, détection d'une sortie des sites prévus, pause et demande d'accord au support ; ce n'est pas un pare-feu réseau ni une garantie pour le mode web pur. |
+| Linkup | **[#80](https://github.com/Firfal/PapAI/pull/80)** : recherche documentaire proposée avant l'exécution, requête relue par le support, réponse sourcée ; résultats non transmis à Holo. |
+| Automates pendant l'attente | **[#81](https://github.com/Firfal/PapAI/pull/81)** : jusqu'à deux propositions pertinentes, classement par mots communs sans modèle. |
+| Narration à voix haute | **[#82](https://github.com/Firfal/PapAI/pull/82)** : lecture locale en français sur Mac et Windows, désactivable et interrompue pendant la dictée. |
+| Android du support en entreprise | **[#83](https://github.com/Firfal/PapAI/pull/83)** : configuration gérée Android Enterprise ou configuration locale de démonstration, organisation et gestion du retrait d'accès. |
+| Abonnement Stripe | **[#84](https://github.com/Firfal/PapAI/pull/84)** : Checkout, portail et webhook signé, **mode test seulement**, pas d'encaissement réel. |
+| Correction des tests | **[#85](https://github.com/Firfal/PapAI/pull/85)** : attentes de liaison et d'actions sensibles alignées sur « utilisateur » ; aucune garantie sur les tests des autres branches. |
+| Catégories et graphiques des tickets | **[#86](https://github.com/Firfal/PapAI/pull/86)** : classement par règles, Holo en cas de doute, correction par le support, statistiques web et Mac. |
+| Rangement guidé des dossiers | **[#87](https://github.com/Firfal/PapAI/pull/87)** : Mac seulement, noms de fichiers sans leur contenu, déplacements validés par le support, sans écrasement, avec journal d'annulation. |
 
 Les profils MDM et stratégies de groupe préparent la **configuration** du parc :
-ces PR ne constituent pas un service de distribution des applications ni la preuve
+ce code ne constitue pas un service de distribution des applications ni la preuve
 d'un déploiement d'entreprise effectué.
+
+Sources dans main : [`Poste.swift`](apps/mac/Sources/Poste.swift),
+[`SupportConfig.swift`](apps/ios/Sources/SupportConfig.swift),
+[`settings.py`](apps/windows/papai/settings.py), [stratégies Windows](apps/windows/policies/),
+[`storage.py`](backend/storage.py), [`orgs.py`](backend/orgs.py),
+[`sessions.py`](backend/sessions.py), [`app.py`](backend/app.py),
+[`web_agent.py`](backend/web_agent.py), [`linkup.py`](backend/linkup.py),
+[`suggest.py`](backend/suggest.py), [`Narration.swift`](apps/mac/Sources/Narration.swift),
+[`narration.js`](apps/windows/ui/narration.js),
+[`SupportConfig.kt`](apps/android/app/src/main/java/com/quentin/papai/aidant/SupportConfig.kt),
+[`billing.py`](backend/billing.py), [`ticket_stats.py`](backend/ticket_stats.py),
+[`Rangement.swift`](apps/mac/Sources/Rangement.swift) et [tests](tests/).
 
 ## Anti-arnaque et sécurité
 
@@ -103,11 +120,13 @@ d'un déploiement d'entreprise effectué.
   **jamais une image de l'écran** ; désactivée, elle n'envoie pas ces signaux.
 - **Navigateur sur Mac** : Chrome PapAI séparé, profil supprimé après l'assistance ;
   l'utilisateur se connecte lui-même, sans import de cookies ni mots de passe.
-  La surveillance des sorties de sites reste **[en PR] #79**.
-- **Accès** : espaces et organisation utilisent des secrets d'accès ; les liens
-  de liaison ne portent pas la clé du poste et exigent un accord sur l'ordinateur.
-  Ne publier aucun secret ni lien d'accès. Révocation individuelle et fermeture
-  des images d'une assistance terminée restent **[en PR] #77 et #73**.
+  La surveillance des sorties de sites suspend Holo et demande l'accord du support.
+- **Accès** : l'IT configure le rattachement des postes et du support à
+  l'organisation, sans liaison manuelle dans les interfaces entreprise. Les jetons
+  individuels sont révocables : connexions coupées et assistance validée par le
+  support révoqué arrêtée. Les liens d'une assistance terminée ne donnent plus
+  accès aux images et ne permettent pas de relancer cette ancienne assistance.
+  Ne publier aucun secret ni lien d'accès.
 
 Sources : [`backend/sessions.py`](backend/sessions.py), [`backend/guard.py`](backend/guard.py),
 [`backend/automations.py`](backend/automations.py), [`Safety.swift`](apps/mac/Sources/Safety.swift),
@@ -133,8 +152,12 @@ capture, gestes, automates       organisations, validation,    plan, computer us
 - Windows : Python, pywebview/WebView2. Android : Kotlin et Jetpack Compose.
 - Gladia : API v2, transcription française enregistrée et relais WebSocket direct.
 - Hébergement prévu par le dépôt : Google Cloud Run ; **cette documentation ne
-  vérifie pas la révision en production**. Firestore/Cloud Storage et Linkup
-  restent **[en PR] #76 et #80**.
+  vérifie pas la révision en production**.
+- Données : stockage local par défaut ; Firestore et Cloud Storage disponibles
+  selon la configuration serveur. Le disque local seul ne garantit pas la
+  conservation après redéploiement sur un hébergement éphémère.
+- Linkup : recherche documentaire sourcée, avec validation du support ; accès
+  fournisseur à configurer. Stripe : abonnement en **mode test uniquement**.
 
 ## Développer en local
 
@@ -156,20 +179,25 @@ la création d'organisation et l'inscription des postes.
 Pour les apps : [Mac](apps/mac/scripts/install-mac.sh),
 [iPhone](apps/ios/scripts/install-iphone.sh), [Windows](apps/windows/README.md)
 et [Android](apps/android/README.md). Les scripts Apple nécessitent macOS et les
-autorisations système adéquates. Les réglages entreprise MDM/GPO ci-dessus ne
-sont pas encore ceux de main.
+autorisations système adéquates. Les réglages entreprise MDM/GPO ci-dessus sont
+dans main ; leur déploiement réel reste à vérifier.
 
 ## Devin : un relevé vérifiable, pas une promesse
 
-Au point de référence ci-dessus, `git log origin/main` compte **620 commits**,
+Au point de référence ci-dessus, `git log origin/main` compte **781 commits**,
 **8 identités auteur (nom + adresse)** et **5 adresses distinctes**, pas cinq
-personnes certifiées. Les identités Git de Devin totalisent **471 commits**
-(440 « Devin AI » + 31 « devin-ai-integration[bot] »), dont **347 hors fusion**
-et **124 de fusion**.
+personnes certifiées. Les identités Git de Devin totalisent **618 commits**
+(587 « Devin AI » + 31 « devin-ai-integration[bot] »), dont **451 hors fusion**
+et **167 de fusion**. Ce n'est pas un décompte de changements fonctionnels.
 
-GitHub indique **52 PR fusionnées**, dont **47 de l'application Devin** ; leurs
+[#90](https://github.com/Firfal/PapAI/pull/90) est une **fusion, pas un squash** :
+`b905883` a deux parents (`19a958d` et `062ef2c`). Les commits des branches
+intégrées sont donc présents dans l'historique complet ; on les compte une seule
+fois, sans ajouter à nouveau un total par PR.
+
+GitHub indique **68 PR fusionnées**, dont **60 de l'application Devin** ; leurs
 SHA de fusion sont tous présents dans `git log origin/main`. Le relevé du
-8 novembre comprend **30 PR de Devin : 12 fusionnées, 17 ouvertes, une fermée
+8 novembre comprend **39 PR de Devin : 25 fusionnées, 11 ouvertes, trois fermées
 sans fusion**. Liste, auteurs, liens et commandes de recomptage :
 [section Devin de la soumission](docs/soumission.md#devin).
 
