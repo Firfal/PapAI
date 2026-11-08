@@ -41,11 +41,13 @@ struct HomeView: View {
                             automates(titre: false).padding(.bottom, 24)
                         }
                         .frame(width: gauche)
+                        .frame(maxHeight: .infinity)
                         VStack(alignment: .leading, spacing: 14) {
                             titreSection("clock.arrow.circlepath", "Applications récentes")
                             applications(titre: false).padding(.bottom, 24)
                         }
                         .frame(width: droite)
+                        .frame(maxHeight: .infinity)
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
                 } else {
@@ -328,6 +330,7 @@ struct HomeView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: titre ? nil : .infinity, alignment: .top)
             .carte(T.rBig)
             if !tous && model.lessons.count > Self.derniers {
                 Button("Voir les \(model.lessons.count) automates") { model.homeTab = 1 }
@@ -441,6 +444,7 @@ extension HomeView {
             }
             .padding(.horizontal, 12).padding(.vertical, 18)
             }
+            .frame(maxWidth: .infinity, maxHeight: titre ? nil : .infinity, alignment: .top)
             .carte(T.rBig)
         }
     }
