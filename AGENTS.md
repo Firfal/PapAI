@@ -50,6 +50,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
+| Devin | `devin/1794127632-automate-pendant-attente` | Proposer un automate pendant l'attente d'un ticket | `AGENTS.md`, `PROTOCOL.md`, `TODO.md`, `backend/app.py`, `backend/tickets.py`, `backend/suggest.py`, `backend/static/tickets.js`, `apps/windows/papai/model.py`, `apps/windows/ui/app.js`, `apps/windows/tests/test_windows_app.py`, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/RequestViews.swift`, `apps/mac/Sources/Support/SupportTickets.swift`, `tests/test_suggestions.py`, `tests/test_tickets.py` | 8 nov. |
 
 ## Journal
 
