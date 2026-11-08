@@ -268,7 +268,6 @@ def stats(tickets: list[dict], now: float | None = None, weeks: int = WEEKS) -> 
 
 
 WEEK_S = 7 * 86400
-AUTOMATES_MAX = 20
 
 
 def _automate_key(t: dict) -> tuple[str, str]:
@@ -317,7 +316,7 @@ def week(tickets: list[dict], now: float | None = None, suggestions: list[dict] 
             a = autos.setdefault(key, {"key": key, "title": title, "count": 0})
             a["count"] += 1
     top = sorted((c for c in IDS if by[c]), key=lambda c: (-by[c], IDS.index(c)))[:3]
-    automates = sorted(autos.values(), key=lambda a: (-a["count"], a["title"]))[:AUTOMATES_MAX]
+    automates = sorted(autos.values(), key=lambda a: (-a["count"], a["title"]))
     return {
         "since": datetime.fromtimestamp(since, timezone.utc).date().isoformat(), "days": 7,
         "count": count, "resolved": resolved, "by_automate": by_automate,
