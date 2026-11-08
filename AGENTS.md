@@ -24,13 +24,14 @@ Un seul mot par notion, dans toutes les apps. Les identifiants internes (`senior
 | L'assistant IA | **Holo** | l'IA, l'agent |
 | La tâche enregistrée, relancée d'un clic | **automate** (« Mes automates », « un automate ») | tutoriel, automatisme, fiche, AutoMate |
 | L'aide en cours | **l'assistance** ; au départ, « Demander une assistance » | session |
-| Associer un téléphone | **liaison** par **QR code** ou code à 6 chiffres | appairage, QR seul |
+| Les ordinateurs suivis par le support | **postes** (« Postes », « <prénom> · <service> ») | personnes aidées, liaison, appairage |
 | Le poste aidé, quand le texte vaut pour Mac et Windows | **l'ordinateur** | le Mac, le PC |
 | Les décisions sur le plan | **Valider**, **Préciser**, **Refuser** | Accepter, Approuver |
 
 ## Décisions produit (arbitrées par Corentin)
 
 - **Entreprise uniquement (8 nov., Quentin)** : plus de parcours « particuliers ». L'employé arrive directement sur l'app, configurée avec son nom (compte de l'ordinateur) ; son support est rattaché d'office par le jeton d'organisation déposé par le service informatique (profil MDM, stratégie de groupe). Pas d'inscription, pas de liaison manuelle (QR code, code à 6 chiffres, invitation), pas de choix du rôle ni de pages d'introduction. La version particuliers complète est archivée dans la branche `archive/particuliers`.
+- **Support connecté d'office à l'organisation, liaison archivée (8 nov., Quentin)** : « On considère que la plateforme aidant est directement connectée à la plateforme de l'aidé. » Plus aucune connexion manuelle entre support et employé, sur aucune plateforme du support (Mac, iPhone, Android, web) : pas de code à 6 chiffres, de QR code, d'invitation, d'« Ajouter une personne », de « Retirer » ni de réglage à la main. Le support reçoit le jeton support de l'organisation par l'IT (Mac `supportToken`, iPhone configuration MDM, Android restrictions gérées, web page `/o/<jeton>`) et voit d'office tous les postes. La liaison est archivée avec la version particuliers dans `archive/particuliers` ; les routes de liaison du serveur restent mais ne servent plus.
 
 - **Surveillance continue du gardien** : elle est conservée, comme option à activer ou non, à la manière de la protection en temps réel d'un antivirus. Hors assistance, seuls partent des noms d'apps, le titre de la fenêtre et le nom du site, jamais d'image de l'écran.
 - **Aucun compte ni identifiant retenu par l'app** : pas d'import de cookies ni de mot de passe, même pour une liste de sites. Quand un site demande une connexion, la personne aidée reprend la main et se connecte elle-même, puis Holo continue.
