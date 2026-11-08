@@ -453,6 +453,7 @@ object Helper {
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                if (SupportConfig.accessRevoked(code)) main.post { unwatch(p, webSocket) }
                 webSocket.close(1000, null)
             }
 
@@ -461,9 +462,16 @@ object Helper {
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                main.post { rewatch(p, webSocket) }
+                val refused = response?.code == 401 || response?.code == 403
+                main.post { if (refused) unwatch(p, webSocket) else rewatch(p, webSocket) }
             }
         })
+    }
+
+    /** Accès retiré à ce poste : on le laisse, sans réessayer ; la prochaine liste valide le rouvrira. */
+    private fun unwatch(p: Person, ws: WebSocket) {
+        if (watches[p.key] !== ws) return
+        watches.remove(p.key); othersOnline[p.key] = false
     }
 
     private fun rewatch(p: Person, ws: WebSocket) {
