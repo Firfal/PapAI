@@ -63,7 +63,7 @@ struct SupportTickets: View {
                                              suggest: { suggestion = $0 })
                         }
                         if model.people.isEmpty {
-                            empty("Aucun utilisateur relié. Reliez un ordinateur depuis l’onglet Utilisateurs.")
+                            empty("Aucun utilisateur relié. Les ordinateurs de l’organisation apparaîtront ici dès que votre service informatique les aura inscrits.")
                         } else if shown.isEmpty && !loading {
                             empty(filter == 0 ? "Rien à traiter. Les nouvelles demandes de vos utilisateurs arriveront ici."
                                               : "Aucun ticket pour l’instant.")
