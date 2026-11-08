@@ -1,6 +1,7 @@
 package com.quentin.papai.aidant
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,37 +25,48 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Design « Soin », version bleue : fond lavande clair en léger dégradé, en-tête et bouton
- * principal en dégradé bleu, cartes blanches à ombre douce. Contraste AA vérifié
- * (blanc sur `accent` 5,7:1, sur `accentEnd` 4,5:1 ; `accent` sur blanc 5,7:1).
+ * Palette unique de PapAI, la même que `apps/shared/Palette.swift` (Mac et iPhone) : fond
+ * bleu-lavande très clair, cartes blanches à ombre douce, un seul accent bleu. Textes
+ * secondaires et bleus de texte à au moins 4,5:1 sur le blanc et sur le fond.
  */
 object Soin {
-    val bg = Color(0xFFF1F4FC)
-    val bgEnd = Color(0xFFEDEBFA)
+    val bg = Color(0xFFF1F4FD)
     val card = Color.White
-    val ink = Color(0xFF111827)
-    val secondary = Color(0xFF586174)
-    val accent = Color(0xFF1F5BE8)
-    val accentEnd = Color(0xFF2B6BFF)
-    val accentSoft = Color(0xFFE8EFFF)
-    val online = Color(0xFF177A42)
-    val onlineSoft = Color(0xFFE5F3EA)
-    val neutralSoft = Color(0xFFEDEFF4)
-    /** Champ de saisie posé sur une carte blanche, et filet des champs. */
-    val field = Color(0xFFF3F5FA)
-    val line = Color(0xFFE1E5EF)
+    val ink = Color(0xFF141A33)
+    val secondary = Color(0xFF5A6178)
+    /** Bleu d'accent : icônes, onglet choisi, boutons. */
+    val accent = Color(0xFF2F6EF7)
+    /** Bleu de texte sur blanc ou bleu pâle. */
+    val accentText = Color(0xFF1D4FD7)
+    val accentDeep = Color(0xFF1A56E0)
+    /** Bleu pâle : pastilles, ronds d'icône, encarts. */
+    val accentSoft = Color(0xFFEAF1FF)
+    val online = Color(0xFF12A15E)
+    /** Champ de saisie posé sur une carte blanche. */
+    val field = Color(0xFFF2F4FA)
+    /** Séparateurs, filets des cartes et des champs. */
+    val line = Color(0xFFE3E7F2)
     val danger = Color(0xFFC8442F)
     /** Teinte des ombres (Android en règle lui-même l'opacité, très faible). */
-    val shadow = Color(0xFF2A3A80)
+    val shadow = Color(0xFF2A3F8F)
 
-    /** Fond des écrans : lavande très clair, du haut vers le bas. */
-    val screenBrush: Brush get() = Brush.verticalGradient(listOf(bg, bgEnd))
+    /** Fond des écrans : bleuté en haut, lavande en bas. */
+    val screenBrush: Brush get() = Brush.verticalGradient(listOf(Color(0xFFEDF2FE), Color(0xFFF2EFFC)))
 
-    /** En-têtes et bouton principal. */
-    val accentBrush: Brush get() = Brush.horizontalGradient(listOf(accent, accentEnd))
+    /** Bouton principal : bleu assez soutenu pour un texte blanc à 4,5:1 partout. */
+    val accentBrush: Brush get() = Brush.linearGradient(listOf(accent, accentDeep))
 
-    /** En-tête : plus clair en haut, plus soutenu en bas, comme la maquette (texte blanc AA sur les deux). */
-    val headerBrush: Brush get() = Brush.verticalGradient(listOf(accentEnd, accent))
+    /** En-tête : dégradé bleu vif de gauche à droite, titre blanc. */
+    val headerBrush: Brush get() = Brush.horizontalGradient(listOf(Color(0xFF1F5FF0), Color(0xFF3D7FFF)))
+
+    /** Fond et texte des pastilles (`TonPastille` sur Mac et iPhone). */
+    fun tone(t: Tone): Pair<Color, Color> = when (t) {
+        Tone.BLUE -> accentSoft to accentText
+        Tone.VIOLET -> Color(0xFFF1EAFE) to Color(0xFF6236C7)
+        Tone.GREEN -> Color(0xFFE4F5EA) to Color(0xFF1C6E3F)
+        Tone.ORANGE -> Color(0xFFFFF0E0) to Color(0xFF9A4706)
+        Tone.GRAY -> Color(0xFFEEF0F5) to Color(0xFF4D5468)
+    }
 }
 
 /** Fond d'écran en léger dégradé. */
@@ -63,8 +75,10 @@ fun Modifier.soinScreen(): Modifier = background(Soin.screenBrush)
 /** Carte arrondie ; les cartes blanches portent une ombre douce et diffuse. */
 fun Modifier.soinCard(fill: Color = Soin.card, radius: Dp = 20.dp): Modifier {
     val shape = RoundedCornerShape(radius)
-    val lifted = if (fill == Soin.card) shadow(8.dp, shape, ambientColor = Soin.shadow, spotColor = Soin.shadow) else this
+    val white = fill == Soin.card
+    val lifted = if (white) shadow(8.dp, shape, ambientColor = Soin.shadow, spotColor = Soin.shadow) else this
     return lifted.clip(shape).background(fill)
+        .border(1.dp, if (white) Soin.line else Soin.accent.copy(alpha = 0.12f), shape)
 }
 
 /** Bouton plein en capsule. Bleu dégradé par défaut (bouton principal), sinon couleur unie. */
