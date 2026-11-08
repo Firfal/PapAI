@@ -524,9 +524,13 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     link.web_agent_available = msg.get("web_agent_available") is True
                     link.clarify = msg.get("clarify") is True
                     it = getattr(S(), "intake", None)
-                    if it and it["question"] and link.clarify:
-                        # Reconnexion pendant une question de Holo : elle est reposée au nouveau pont.
-                        await _send_clarify(link, it)
+                    if it and link.clarify:
+                        # Reconnexion pendant la précision : la question est reposée,
+                        # ou la demande, jugée claire pendant l'absence, est rejugée puis ouverte.
+                        if it["question"]:
+                            await _send_clarify(link, it)
+                        else:
+                            _later(_qualifier())
                     link.web_agent = None
                     print(f"[pont] système : {link.os}, navigateur : {'disponible' if link.web_agent_available else 'non'}")
                 if isinstance(msg.get("protection"), bool) and msg["protection"] != link.protection:
