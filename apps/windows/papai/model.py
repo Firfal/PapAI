@@ -152,7 +152,7 @@ class Model:
         """Qui s'occupe de la session en cours (comme `carer` sur le Mac)."""
         if self.session_helper:
             return self.session_helper
-        return self.helpers[0]["name"] if len(self.helpers) == 1 else "Votre proche"
+        return self.helpers[0]["name"] if len(self.helpers) == 1 else "Votre support"
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -388,7 +388,7 @@ class Model:
     @property
     def invitation_text(self) -> str:
         n = str(self.prefs.get("firstName") or "").strip()
-        who = n or "Votre proche"
+        who = n or "Votre support"
         return (f"{who} aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre "
                 f"téléphone pour vous relier (valable {'24 heures' if self.pair_long else '10 minutes'}) :")
 
