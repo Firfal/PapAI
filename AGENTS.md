@@ -45,7 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794101389-accueil-deux-colonnes` | Accueil Mac en deux colonnes (barre réduite, automates + applications récentes) | `apps/mac/Sources/HomeView.swift`, `apps/mac/Sources/AppUsage.swift` | 8 nov. |
 
 ## Journal
 
