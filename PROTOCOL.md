@@ -94,7 +94,7 @@ jamais le serveur. Erreurs : 404 mauvaise clé, 503 `{"error":"gladia_absent"}`
 ## Gardien anti-arnaque
 
 Les apps n'envoient plus de signaux en continu : PapAI n'est plus un outil de
-surveillance, il exécute des automatismes fournis par un support. Le serveur
+surveillance, il exécute des automates fournis par un support. Le serveur
 sait toujours traiter un message `guard` (`backend/guard.py`) si une app en
 envoie un ponctuellement, et répond alors par :
 
@@ -222,11 +222,11 @@ que l'app rejoue **localement, sans modèle** : elle ouvre le dossier connu du s
 Si le dossier n'existe plus, elle n'invente rien : `automation_failed`.
 `GET /lessons/{id}/{image}` sert les captures des étapes.
 
-### Automatismes importés par un support (fichier `.papai`)
+### Automates importés par un support (fichier `.papai`)
 
-Un service IT ou un proche fournit un automatisme ; **l'importer, c'est le
+Un service IT ou un proche fournit un automate ; **l'importer, c'est le
 valider**. La personne le lance ensuite seule, en un clic, sans attendre
-l'accord d'un aidant. Exemples dans [`automations/`](automations/).
+l'accord d'un support. Exemples dans [`automations/`](automations/).
 
 ```json
 {"papai": 1,
@@ -258,8 +258,8 @@ Routes (protégées par la clé, ou depuis la machine du serveur sans `/k/CLÉ`)
   `approved_at`), ou `422 {"error":"…"}` qui dit en clair ce qui est refusé.
   Les modèles sont rangés à part et servis par `GET /lessons/{id}/{nom}`.
   L'ordinateur reçoit `lessons_changed`.
-- `DELETE /k/CLÉ/automations/{id}` : retire un automatisme importé.
-- La page aidant (`/a/CLÉ`) a un bouton « Importer un automatisme ».
+- `DELETE /k/CLÉ/automations/{id}` : retire un automate importé.
+- La page du support (`/a/CLÉ`) a un bouton « Importer un automate ».
 
 Lancement, côté app :
 
@@ -273,7 +273,7 @@ Lancement, côté app :
    `{"type":"session","id":"…","helper_url":"…","automation":"imp-…"}` et
    l'agent agit aussitôt. Arrêter, les actions sensibles bloquées et
    l'exclusion de la fenêtre PapAI s'appliquent comme pour une demande.
-   Automatisme inconnu, sans `holo` ou d'une autre plateforme :
+   Automate inconnu, sans `holo` ou d'une autre plateforme :
    `{"type":"automation_refused","id":"…","reason":"…"}`.
 
 ## Proches

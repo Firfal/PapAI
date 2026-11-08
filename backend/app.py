@@ -421,13 +421,13 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "run_automation":
-                # Un automatisme importé, lancé en un clic : son plan a été
+                # Un automate importé, lancé en un clic : son plan a été
                 # validé par le support à l'import, pas besoin d'un aidant en ligne.
                 lesson = automations.load(str(msg.get("id", "")))
                 task = automations.holo_task(lesson) if lesson else None
                 if task is None or _os_family(link.os) not in lesson.get("platforms", []):
                     await ws.send_json({"type": "automation_refused", "id": str(msg.get("id", ""))[:40],
-                                        "reason": "Cet automatisme n'est pas disponible sur cet ordinateur."})
+                                        "reason": "Cet automate n'est pas disponible sur cet ordinateur."})
                     continue
                 goal, steps = task
                 session = registry.create(goal[:MAX_TASK])
@@ -437,7 +437,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 url = f"{PUBLIC_URL}/h/{session.helper_token}"
                 await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
                                     "automation": lesson["id"]})
-                print(f"[session {session.id}] automatisme importé {lesson['id']}")
+                print(f"[session {session.id}] automate importé {lesson['id']}")
                 await broadcast_helper(session.status())
                 if agent_task and not agent_task.done():
                     agent_task.cancel()
@@ -1186,7 +1186,7 @@ MAX_IMPORT = 15_000_000
 
 
 async def _import_automation(request: Request):
-    """Le support (service IT, proche) importe un automatisme : c'est sa validation."""
+    """Le support (service IT, proche) importe un automate : c'est sa validation."""
     trop = JSONResponse({"error": "Fichier trop gros."}, status_code=413)
     try:
         if int(request.headers.get("content-length") or 0) > MAX_IMPORT:
@@ -1206,7 +1206,7 @@ async def _import_automation(request: Request):
         lesson = automations.save(pack, by=request.query_params.get("by", ""))
     except automations.Invalid as e:
         return JSONResponse({"error": str(e)}, status_code=422)
-    print(f"[automatisme] importé {lesson['id']}")
+    print(f"[automate] importé {lesson['id']}")
     if bridge is not None:
         await bridge.send({"type": "lessons_changed", "title": lesson["title"]})
     return lesson

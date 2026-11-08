@@ -176,7 +176,7 @@ struct HomeView: View {
 
     // MARK: Automates
 
-    /// Les automatismes enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
+    /// Les automates enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
     private var automates: some View {
         VStack(alignment: .leading, spacing: 14) {
             if let n = model.notice {

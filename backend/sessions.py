@@ -263,7 +263,7 @@ class Session:
         return self._plan_decision
 
     def preapprove_plan(self, steps: list[str], by: str) -> None:
-        """Automatisme importé : le support a validé le plan à l'import.
+        """Automate importé : le support a validé le plan à l'import.
         La personne le lance seule ; Arrêter et les garde-fous restent les mêmes."""
         self.require_open()
         if not self.consented:

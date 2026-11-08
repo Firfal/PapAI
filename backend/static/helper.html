@@ -545,7 +545,7 @@ function tickSince() {
 }
 setInterval(tickSince, 20000);
 
-/* ----------------------------------------------------- les automatismes */
+/* ----------------------------------------------------- les automates */
 
 async function loadLessons() {
   if (!permanent) return;
@@ -556,7 +556,7 @@ async function loadLessons() {
     const list = await r.json();
     const items = Array.isArray(list) ? list : (list.lessons || []);
     $('lessons').innerHTML = items.length ? '' :
-      '<p class="muted" style="font-size:15px">Aucun automatisme pour l\'instant.</p>';
+      '<p class="muted" style="font-size:15px">Aucun automate pour l\'instant.</p>';
     items.slice(0, 8).forEach(l => {
       const d = document.createElement('div');
       d.className = 'card lesson';
@@ -702,7 +702,7 @@ function onMessage(ev) {
       $('thumb').hidden = true;
       if (armed) setArmed(false);
     }
-    // Un automatisme importé commence directement en `active` : plan déjà validé.
+    // Un automate importé commence directement en `active` : plan déjà validé.
     const debut = ['waiting_consent', 'planning'].includes(state) || (nouvelle && state === 'active');
     if (debut && prev !== state) {
       home = false;
@@ -953,7 +953,7 @@ $('confirm').onclick = () => {
   tickFreshness();
 };
 
-// L'automatisme se rédige une fois la session terminée, jamais pendant.
+// L'automate se rédige une fois la session terminée, jamais pendant.
 $('makeLesson').onclick = () => { if (send({ type: 'draft_lesson' })) { lessonBusy = true; render(); } };
 $('approve').onclick = () => {
   const steps = [...$('steps').querySelectorAll('textarea')].map(t => ({ instruction: t.value.trim() }));

@@ -132,7 +132,7 @@ class Bridge:
         self.send(msg)
 
     def run_automation(self, lesson_id: str) -> None:
-        """Automatisme importé : plan déjà validé par le support à l'import."""
+        """Automate importé : plan déjà validé par le support à l'import."""
         self.gate.reset()
         self.last_status = {}
         self.send({"type": "run_automation", "id": lesson_id})
