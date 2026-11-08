@@ -2,10 +2,10 @@
 (function () {
   const STATUS = {
     nouveau: 'Nouveau', en_attente: "En attente d'un support", rdv: 'Rendez-vous',
-    en_cours: 'En cours', a_reprendre: 'À reprendre', resolu: 'Résolu',
+    en_cours: 'En cours', a_reprendre: 'À reprendre', plan_valide: 'Plan validé', resolu: 'Résolu',
   };
   const SOURCE = { personne: 'Demandé par l’utilisateur', support: 'Proposé par le support', automatisme: 'Automate' };
-  const OPEN = ['nouveau', 'en_attente', 'rdv', 'a_reprendre'];
+  const OPEN = ['nouveau', 'en_attente', 'rdv', 'a_reprendre', 'plan_valide'];
   const CATEGORY = {
     wifi: 'Wi-Fi et réseau', imprimante: 'Imprimante', comptes: 'Comptes et mots de passe', logiciels: 'Logiciels',
     messagerie: 'Messagerie', fichiers: 'Fichiers', securite: 'Sécurité', autre: 'Autre',
@@ -25,6 +25,7 @@
     .tk-st.nouveau { background: #E6EEFF; color: #1F4FD1; }
     .tk-st.en_attente, .tk-st.a_reprendre { background: #FFF0DE; color: #9A4A00; }
     .tk-st.rdv { background: #F1EBFF; color: #6236C9; }
+    .tk-st.plan_valide { background: #E5F5EC; color: #1B7A43; }
     .tk-st.en_cours { background: #E6EEFF; color: #1F4FD1; box-shadow: inset 0 0 0 1px rgba(31,79,209,.25); }
     .tk-st.resolu { background: #E5F5EC; color: #1B7A43; }
     .tk-cat { font-size: 13px; font-weight: 600; padding: 3px 9px; border-radius: 7px; background: var(--sky, #EAF0FF);
@@ -39,8 +40,12 @@
                border-top: 1px solid var(--line, rgba(20,40,100,.08)); }
     .tk-acts button { font: inherit; font-size: 14px; font-weight: 600; border: 0; border-radius: 999px; padding: 0 16px;
                       cursor: pointer; background: var(--sky, #EAF0FF); color: var(--accent, #1F5AE8); width: auto; min-height: 44px; }
+    .tk-proposal, .tk-decision { padding: 10px 12px; border-radius: 12px; background: var(--field, #F1F3F9); }
+    .tk-proposal ol { margin: 6px 0; padding-left: 24px; }
+    .tk-proposal-warning { color: #9A4A00; font-weight: 600; }
+    .tk-live-slots { display: flex; gap: 6px; flex-wrap: wrap; }
     /* Tickets ouverts : « Prendre » est l'action principale. */
-    .tk:has(.tk-st.nouveau, .tk-st.en_attente, .tk-st.rdv, .tk-st.a_reprendre) .tk-acts button:first-child { background: linear-gradient(180deg, #2B6BFF 0%, #1A52E0 100%); color: #fff;
+    .tk:has(.tk-st.nouveau, .tk-st.en_attente, .tk-st.rdv, .tk-st.a_reprendre, .tk-st.plan_valide) .tk-acts button:first-child { background: linear-gradient(180deg, #2B6BFF 0%, #1A52E0 100%); color: #fff;
                                   box-shadow: 0 4px 12px rgba(31,90,232,.25); }
     .tk-acts input { font: inherit; font-size: 15px; min-height: 44px; border-radius: 12px; border: 0; padding: 0 12px;
                      background: var(--field, #F1F3F9); color: var(--ink, #141A2E); box-shadow: inset 0 0 0 1px var(--line, rgba(20,40,100,.08)); }`;
@@ -100,6 +105,39 @@
           a.href = s.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; c.append(a);
         }
       }
+      if (t.proposal && typeof t.proposal === 'object') {
+        const proposal = el('div', 'tk-proposal');
+        proposal.append(el('strong', '', t.proposal.title || 'Plan proposé par Holo'));
+        if (Array.isArray(t.proposal.steps) && t.proposal.steps.length) {
+          const steps = el('ol');
+          for (const step of t.proposal.steps) steps.append(el('li', '', step));
+          proposal.append(steps);
+        }
+        if (t.proposal.warning) proposal.append(el('div', 'tk-proposal-warning', t.proposal.warning));
+        c.append(proposal);
+      }
+      if (t.decision && typeof t.decision === 'object') {
+        const decision = el('div', 'tk-decision');
+        if (t.decision.kind === 'plan') {
+          decision.append(el('strong', '', `Plan validé par ${t.decision.by || 'le support'}`));
+          if (Array.isArray(t.decision.steps) && t.decision.steps.length) {
+            const steps = el('ol');
+            for (const step of t.decision.steps) steps.append(el('li', '', step));
+            decision.append(steps);
+          }
+        } else if (t.decision.kind === 'live') {
+          decision.append(el('strong', '', 'Assistance en direct obligatoire'));
+          if (t.decision.rdv || t.rdv) decision.append(el('div', '', `Rendez-vous choisi : ${when(t.decision.rdv || t.rdv)}`));
+          else if (t.decision.other) decision.append(el('div', '', 'Aucun créneau ne convient.'));
+          else {
+            decision.append(el('div', '', 'Créneaux proposés :'));
+            const slots = el('div', 'tk-live-slots');
+            for (const at of t.decision.slots || []) slots.append(el('span', '', when(at)));
+            decision.append(slots);
+          }
+        }
+        c.append(decision);
+      }
       if (t.notes && t.notes.length) {
         const ul = el('ul', 'tk-notes');
         for (const n of t.notes.slice(-3)) ul.append(el('li', '', `${n.by ? n.by + ' : ' : ''}${n.text}`));
@@ -115,6 +153,37 @@
           const ok = el('button', '', 'Fixer'); ok.type = 'button';
           ok.onclick = () => { const at = Date.parse(i.value) / 1000; if (at) act(t, 'schedule', { at }); };
           acts.append(i, ok);
+        });
+        if (t.proposal && typeof t.proposal === 'object') {
+          if (Array.isArray(t.proposal.steps) && t.proposal.steps.length)
+            btn('Valider', () => act(t, 'validate'));
+          btn('Préciser', () => {
+            const text = prompt('Que faut-il préciser à Holo ?');
+            if (text && text.trim()) act(t, 'refine', { text: text.trim() });
+          });
+        } else if (!t.proposal) {
+          btn('Proposer un plan', () => act(t, 'draft'));
+        }
+        btn('Assistance en direct obligatoire', () => {
+          if (acts.querySelector('.tk-live-form')) return;
+          const form = el('div', 'tk-live-form');
+          const inputs = [];
+          const addSlot = () => {
+            if (inputs.length >= 3) return;
+            const input = el('input'); input.type = 'datetime-local'; input.required = true;
+            inputs.push(input); form.append(input);
+          };
+          addSlot();
+          const add = el('button', '', 'Ajouter un créneau'); add.type = 'button';
+          add.onclick = () => { addSlot(); add.hidden = inputs.length >= 3; };
+          const propose = el('button', '', 'Proposer'); propose.type = 'button';
+          propose.onclick = () => {
+            const slots = inputs.map(i => Date.parse(i.value) / 1000);
+            if (slots.some(x => !Number.isFinite(x))) return;
+            act(t, 'live', { slots });
+          };
+          form.append(add, propose);
+          acts.append(form);
         });
       }
       if (t.status !== 'en_cours' && t.status !== 'resolu') btn('Clore', () => act(t, 'close', { text: prompt('Résolution (facultatif) :') || '' }));
@@ -138,6 +207,14 @@
       ['Pris par', t => t.assignee || ''], ['Utilisateur par', t => t.helper || ''],
       ['Étapes', t => (t.plan || []).length ? `${t.steps_done || 0}/${t.plan.length}` : ''],
       ['Arrêté par', t => t.stopped_by || ''],
+      ['Décision', t => {
+        const d = t.decision || {};
+        if (d.kind === 'plan') return `Plan validé par ${d.by || 'le support'}`;
+        if (d.kind === 'live') return d.rdv || t.rdv ? `Assistance en direct · rendez-vous ${when(d.rdv || t.rdv)}`
+          : d.other ? 'Assistance en direct · aucun créneau ne convient'
+            : `Assistance en direct · ${(d.slots || []).map(when).join(', ')}`;
+        return '';
+      }],
       ['Bloqué à', t => t.blocked && t.blocked.step ? `${t.blocked.step}. ${t.blocked.label || ''} ${t.blocked.reason || ''}`.trim() : ''], ['Clos par', t => t.closed_by || ''],
       ['Notes', t => (t.notes || []).map(n => `${n.by}: ${n.text}`).join(' | ')]];
     // Une case qui commence par = + - @ serait lue comme une formule par le tableur.
