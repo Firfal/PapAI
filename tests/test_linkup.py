@@ -49,7 +49,8 @@ class Filtre(unittest.TestCase):
 
     def test_donnees_personnelles_refusees(self):
         for q in ["", "ok", "écrire à jeanne.dupont@gmail.com", "rappeler le 06 12 34 56 78",
-                  "carte 4970 1012 3456 7890", "virement FR76 3000 6000"]:
+                  "carte 4970 1012 3456 7890", "virement FR76 3000 6000",
+                  "rappeler le 06/12/34/56/78", "livraison au 12 rue de la Paix", "3 bis, avenue Foch"]:
             with self.subTest(q=q):
                 self.assertIsNone(linkup.question_ok(q))
 
@@ -174,6 +175,13 @@ class Support(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ws.send_json.await_args_list[0].args[0]["type"], "web_search_pending")
         (m, to_bridge), = sent
         self.assertEqual((m["type"], m["by"], m["ok"], to_bridge), ("web_search", "support", True, False))
+
+    async def test_lien_d_une_autre_session_exclu(self):
+        espace, meme, autre = FakeSocket(), FakeSocket(), FakeSocket()
+        scopes = {espace: None, meme: "s1", autre: "s0"}
+        with patch.object(app.S(), "helper_sockets", set(scopes)), patch.object(app.S(), "helper_alert_scopes", scopes):
+            await app.broadcast_helper({"type": "web_search", "session": "s1", "ok": True}, to_bridge=False)
+        self.assertEqual([s.send_json.await_count for s in (espace, meme, autre)], [1, 1, 0])
 
     async def test_refus_sans_cle(self):
         ws = FakeSocket()

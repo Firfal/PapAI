@@ -18,8 +18,12 @@ MAX_ANSWER = 2000
 MAX_SOURCES = 3
 
 # Ce qui ne doit jamais partir vers un moteur de recherche : adresse mail,
-# longue suite de chiffres (carte, téléphone, IBAN, numéro de dossier).
-_PERSONAL = re.compile(r"\S+@\S+\.\S+|(?<!\w)\d(?:[\s.-]?\d){5,}|\bFR\d{2}", re.I)
+# longue suite de chiffres (carte, téléphone, IBAN, numéro de dossier), adresse postale.
+# Les noms ne sont pas détectables : le prompt et la page du support les interdisent.
+_PERSONAL = re.compile(
+    r"\S+@\S+\.\S+|(?<!\w)\d(?:[\s./-]?\d){5,}|\bFR\d{2}"
+    r"|\b\d{1,4}\s*(?:bis|ter)?\s*,?\s*(?:rue|avenue|av\.|boulevard|bd|chemin|allée|impasse|place|quai|route)\b",
+    re.I)
 
 
 def configured() -> bool:

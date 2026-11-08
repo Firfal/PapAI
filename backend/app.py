@@ -432,7 +432,9 @@ async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
         await S().bridge.send(payload)
     dead = []
     for ws in S().helper_sockets:
-        scoped = payload.get("type") == "guard_advice" or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
+        scoped = (payload.get("type") == "guard_advice"
+                  or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
+                  or (payload.get("type") == "web_search" and payload.get("session")))
         if scoped and not helper_can_access_alert(ws, payload):
             continue
         if payload.get("type") in SUPPORT_ONLY and not _is_support(ws):
@@ -990,6 +992,7 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
     S().helper_alert_scopes[ws] = session.id
     await ws.send_json(session.status())
     await ws.send_json({"type": "senior", "name": S().family.senior or None})
+    await ws.send_json({"type": "capabilities", "web_search": linkup.configured()})
     if S().pending_alert and helper_can_access_alert(ws, S().pending_alert["helper"]):
         await ws.send_json(S().pending_alert["helper"])
     if session.last_frame:
