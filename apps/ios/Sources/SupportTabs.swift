@@ -272,7 +272,7 @@ struct AutomatesTab: View {
                 if !e.platforms.isEmpty { tag(e.platforms.map { $0 == "mac" ? "Mac" : "Windows" }.joined(separator: " · ")) }
                 if !e.publisher.isEmpty { tag(e.publisher) }
             }
-            let names = model.people.filter { e.applied.contains($0.key) }.map { $0.name.isEmpty ? "Utilisateur" : $0.name }
+            let names = AutomateLibrary.appliedTo(e, people: model.people, orgs: model.orgs)
             Text(names.isEmpty ? "Appliqué à personne" : "Appliqué à : " + names.joined(separator: ", "))
                 .font(.footnote.weight(.semibold)).foregroundStyle(names.isEmpty ? T.muted : T.leaf)
             HStack(spacing: 8) {
@@ -313,8 +313,10 @@ struct ApplyAutomateSheet: View {
     let entry: AutomateLibrary.Entry
     var close: () -> Void
     @State private var chosen: Set<String> = []
+    @State private var orgs: [OrgMembers] = []
+    @State private var chosenOrgs: Set<String> = []
     @State private var sending = false
-    @State private var results: [String: String] = [:]   // clé -> erreur ("" = réussi)
+    @State private var results: [String: String] = [:]   // clé ou jeton -> erreur ("" = réussi)
 
     var body: some View {
         NavigationStack {
@@ -327,14 +329,16 @@ struct ApplyAutomateSheet: View {
                     if model.people.isEmpty {
                         Text("Aucun utilisateur relié à ce téléphone.").font(.callout).foregroundStyle(T.muted)
                     }
+                    ForEach(orgs) { o in org(o) }
                     ForEach(model.people) { p in person(p) }
                 }
                 .padding(20)
             }
+            .task { orgs = await OrgMembers.load(model.orgs) }
             .safeAreaInset(edge: .bottom) {
                 Button(sending ? "Envoi…" : "Appliquer") { Task { await apply() } }
                     .buttonStyle(CapsuleButtonStyle())
-                    .disabled(chosen.isEmpty || sending)
+                    .disabled((chosen.isEmpty && chosenOrgs.isEmpty) || sending)
                     .padding(.horizontal, 20).padding(.vertical, 10)
                     .background(T.bg)
             }
@@ -348,9 +352,50 @@ struct ApplyAutomateSheet: View {
         .presentationDetents([.medium, .large])
     }
 
+    /// Toute l'organisation d'un coup, y compris les postes qui la rejoindront.
+    private func org(_ o: OrgMembers) -> some View {
+        let already = entry.orgKeys?[o.token] != nil
+        let done = results[o.token] == ""
+        let on = chosenOrgs.contains(o.token) || already || done
+        return Button {
+            if chosenOrgs.contains(o.token) { chosenOrgs.remove(o.token) } else { chosenOrgs.insert(o.token) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                    .font(.title3).foregroundStyle(on ? T.accent : T.muted)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Toute l’organisation \(o.name)").font(.body.weight(.semibold)).foregroundStyle(T.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(o.detail).font(.footnote).foregroundStyle(T.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                if already {
+                    Text("déjà appliqué").font(.footnote).foregroundStyle(T.leaf)
+                } else if let r = results[o.token] {
+                    Text(r.isEmpty ? "Appliqué" : r).font(.footnote.weight(.semibold))
+                        .foregroundStyle(r.isEmpty ? T.leaf : T.danger)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8).frame(minHeight: 52)
+            .soinField()
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(already || done || sending)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// Utilisateur compris dans une organisation cochée : coché d'office.
+    private func covered(_ p: Person) -> Bool {
+        orgs.contains { chosenOrgs.contains($0.token) && $0.keys.contains(p.key) }
+    }
+
     private func person(_ p: Person) -> some View {
         let already = entry.applied.contains(p.key)
-        let on = chosen.contains(p.key) || already
+        let done = results[p.key] == ""
+        let on = chosen.contains(p.key) || already || covered(p) || done
         let name = p.name.isEmpty ? "Utilisateur" : p.name
         return Button {
             if chosen.contains(p.key) { chosen.remove(p.key) } else { chosen.insert(p.key) }
@@ -373,16 +418,17 @@ struct ApplyAutomateSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(already || sending)
+        .disabled(already || covered(p) || done || sending)
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
     private func apply() async {
         sending = true; defer { sending = false }
-        let r = await AutomateLibrary.shared.apply(entry, to: model.people.filter { chosen.contains($0.key) })
+        let r = await AutomateLibrary.shared.apply(entry, people: model.people.filter { chosen.contains($0.key) },
+                                                   orgs: orgs.filter { chosenOrgs.contains($0.token) })
         results.merge(r) { _, n in n }
         let ok = r.filter { $0.value.isEmpty }.map(\.key)
-        chosen.subtract(ok)
+        chosen.subtract(ok); chosenOrgs.subtract(ok)
         if !ok.isEmpty { await model.loadLessons() }
     }
 }

@@ -132,6 +132,7 @@ final class AutomateLibrary {
         var pack: Data          // le JSON .papai, tel quel
         var applied: [String]   // clés des personnes chez qui il est appliqué
         var created: Double
+        var orgKeys: [String: [String]]? = nil   // organisations entières : jeton -> clés de leurs postes
 
         var json: [String: Any] { (try? JSONSerialization.jsonObject(with: pack)) as? [String: Any] ?? [:] }
         var title: String { json["title"] as? String ?? "Sans titre" }
@@ -181,10 +182,45 @@ final class AutomateLibrary {
 
     func remove(_ e: Entry) { entries.removeAll { $0.id == e.id }; save() }
 
-    func markApplied(_ e: Entry, keys: [String]) {
+    func markApplied(_ e: Entry, keys: [String], org: String? = nil) {
         guard let i = entries.firstIndex(where: { $0.id == e.id }) else { return }
         entries[i].applied = Array(Set(entries[i].applied).union(keys))
+        if let org { entries[i].orgKeys = (entries[i].orgKeys ?? [:]).merging([org: keys]) { _, n in n } }
         save()
+    }
+
+    /// Applique à toute une organisation (`POST /o/<jeton>/automations`) : le serveur le copie sur
+    /// chacun de ses postes et sur ceux qui la rejoindront plus tard. Renvoie un message d'erreur, ou nil.
+    func apply(_ e: Entry, toOrg o: OrgMembers) async -> String? {
+        let err = await Self.post(e.pack, to: o.server + "/o/" + o.token + "/automations")
+        if err == nil { markApplied(e, keys: o.keys, org: o.token) }
+        return err
+    }
+
+    /// « Appliquer… » : les organisations cochées d'un coup, puis les utilisateurs cochés hors de
+    /// ces organisations. Renvoie, par jeton d'organisation ou clé d'utilisateur, "" ou l'erreur.
+    func apply(_ e: Entry, people: [Person], orgs: [OrgMembers]) async -> [String: String] {
+        var results: [String: String] = [:]
+        for o in orgs {
+            let err = await apply(e, toOrg: o)
+            results[o.token] = err ?? ""
+            if err == nil { for k in o.keys { results[k] = "" } }
+        }
+        let covered = Set(orgs.flatMap(\.keys))
+        results.merge(await apply(e, to: people.filter { !covered.contains($0.key) })) { _, n in n }
+        return results
+    }
+
+    /// Pour « Appliqué à : … » : les organisations entières, puis les autres utilisateurs.
+    static func appliedTo(_ e: Entry, people: [Person], orgs: [Org]) -> [String] {
+        let whole = e.orgKeys ?? [:]
+        let inOrgs = Set(whole.values.flatMap { $0 })
+        let orgNames = whole.keys.sorted().map { t in
+            let n = orgs.first(where: { $0.token == t })?.name ?? ""
+            return n.isEmpty ? "toute une organisation" : "toute l’organisation \(n)"
+        }
+        return orgNames + people.filter { e.applied.contains($0.key) && !inOrgs.contains($0.key) }
+            .map { $0.name.isEmpty ? "Utilisateur" : $0.name }
     }
 
     /// Applique l'automate à chacune des personnes et note où il a réussi.
@@ -210,14 +246,47 @@ final class AutomateLibrary {
 
     /// Importe le pack chez une personne. Renvoie un message d'erreur, ou nil.
     static func apply(_ e: Entry, to p: Person) async -> String? {
-        guard let url = URL(string: base(p) + "/automations") else { return "Adresse invalide" }
+        await post(e.pack, to: base(p) + "/automations")
+    }
+
+    private static func post(_ pack: Data, to address: String) async -> String? {
+        guard let url = URL(string: address) else { return "Adresse invalide" }
         var req = URLRequest(url: url, timeoutInterval: 20)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = e.pack
+        req.httpBody = pack
         guard let (d, r) = try? await URLSession.shared.data(for: req) else { return "Serveur injoignable" }
         if (r as? HTTPURLResponse)?.statusCode == 200 { return nil }
         let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
         return obj?["error"] as? String ?? "Refusé par le serveur"
+    }
+}
+
+/// Une organisation suivie par le support et ses utilisateurs (`GET /o/<jeton>/spaces`),
+/// pour « Appliquer… » à toute l'organisation d'un coup.
+struct OrgMembers: Identifiable, Equatable {
+    var id: String { token }
+    var server: String
+    var token: String
+    var name: String
+    var keys: [String]
+
+    static func load(_ orgs: [Org]) async -> [OrgMembers] {
+        var out: [OrgMembers] = []
+        for o in orgs {
+            guard let url = URL(string: "\(o.server)/o/\(o.token)/spaces"),
+                  let (d, r) = try? await URLSession.shared.data(for: URLRequest(url: url, timeoutInterval: 20)),
+                  (r as? HTTPURLResponse)?.statusCode == 200,
+                  let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] else { continue }
+            let keys = (obj["spaces"] as? [[String: Any]] ?? []).compactMap { $0["key"] as? String }
+            let name = (obj["org"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? o.name
+            out.append(OrgMembers(server: o.server, token: o.token, name: name, keys: keys))
+        }
+        return out
+    }
+
+    /// « 3 utilisateurs, et ceux qui la rejoindront »
+    var detail: String {
+        "\(keys.count) utilisateur\(keys.count > 1 ? "s" : ""), et ceux qui la rejoindront"
     }
 }

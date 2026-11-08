@@ -99,7 +99,7 @@ struct SupportAutomates: View {
                     if !e.platforms.isEmpty { tag(e.platforms.map { $0 == "mac" ? "Mac" : "Windows" }.joined(separator: " · ")) }
                     if !e.publisher.isEmpty { tag(e.publisher) }
                 }
-                let names = model.people.filter { e.applied.contains($0.key) }.map { $0.name.isEmpty ? "Utilisateur" : $0.name }
+                let names = AutomateLibrary.appliedTo(e, people: model.people, orgs: model.orgs)
                 Text(names.isEmpty ? "Appliqué à personne" : "Appliqué à : " + names.joined(separator: ", "))
                     .font(rounded(14, .semibold)).foregroundStyle(names.isEmpty ? T.muted : T.leaf)
             }
@@ -141,8 +141,10 @@ struct ApplyAutomateSheet: View {
     let entry: AutomateLibrary.Entry
     var close: () -> Void
     @State private var chosen: Set<String> = []
+    @State private var orgs: [OrgMembers] = []
+    @State private var chosenOrgs: Set<String> = []
     @State private var sending = false
-    @State private var results: [String: String] = [:]   // clé -> erreur ("" = réussi)
+    @State private var results: [String: String] = [:]   // clé ou jeton -> erreur ("" = réussi)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -154,14 +156,37 @@ struct ApplyAutomateSheet: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
+                    ForEach(orgs) { o in
+                        let already = entry.orgKeys?[o.token] != nil
+                        let done = results[o.token] == ""
+                        HStack {
+                            Toggle(isOn: Binding(get: { chosenOrgs.contains(o.token) || already || done },
+                                                 set: { on in if on { chosenOrgs.insert(o.token) } else { chosenOrgs.remove(o.token) } })) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Toute l’organisation \(o.name)").font(rounded(17, .semibold))
+                                    Text(o.detail).font(rounded(13)).foregroundStyle(T.muted)
+                                }
+                            }
+                            .toggleStyle(.checkbox).disabled(already || done || sending)
+                            Spacer()
+                            if already { Text("déjà appliqué").font(rounded(13)).foregroundStyle(T.leaf) }
+                            if let r = results[o.token] {
+                                Text(r.isEmpty ? "Appliqué" : r).font(rounded(13, .semibold))
+                                    .foregroundStyle(r.isEmpty ? T.leaf : T.danger)
+                            }
+                        }
+                        .padding(12).champ()
+                    }
                     ForEach(model.people) { p in
                         let already = entry.applied.contains(p.key)
+                        let covered = orgs.contains { chosenOrgs.contains($0.token) && $0.keys.contains(p.key) }
+                        let done = results[p.key] == ""
                         HStack {
-                            Toggle(isOn: Binding(get: { chosen.contains(p.key) || already },
+                            Toggle(isOn: Binding(get: { chosen.contains(p.key) || already || covered || done },
                                                  set: { on in if on { chosen.insert(p.key) } else { chosen.remove(p.key) } })) {
                                 Text(p.name.isEmpty ? "Utilisateur" : p.name).font(rounded(17, .semibold))
                             }
-                            .toggleStyle(.checkbox).disabled(already || sending)
+                            .toggleStyle(.checkbox).disabled(already || covered || done || sending)
                             Spacer()
                             if already { Text("déjà appliqué").font(rounded(13)).foregroundStyle(T.leaf) }
                             if let r = results[p.key] {
@@ -178,18 +203,20 @@ struct ApplyAutomateSheet: View {
                 Button(results.isEmpty ? "Plus tard" : "Fermer") { close() }.buttonStyle(PillStyle(filled: false, height: 46))
                 Button(sending ? "Envoi…" : "Appliquer") { Task { await apply() } }
                     .buttonStyle(PillStyle(height: 46, icone: "checkmark.circle"))
-                    .disabled(chosen.isEmpty || sending)
+                    .disabled((chosen.isEmpty && chosenOrgs.isEmpty) || sending)
             }
         }
         .padding(24).frame(width: 480, height: 460).background(T.bg).foregroundStyle(T.ink)
+        .task { orgs = await OrgMembers.load(model.orgs) }
     }
 
     private func apply() async {
         sending = true; defer { sending = false }
-        let r = await AutomateLibrary.shared.apply(entry, to: model.people.filter { chosen.contains($0.key) })
+        let r = await AutomateLibrary.shared.apply(entry, people: model.people.filter { chosen.contains($0.key) },
+                                                   orgs: orgs.filter { chosenOrgs.contains($0.token) })
         results.merge(r) { _, n in n }
         let ok = r.filter { $0.value.isEmpty }.map(\.key)
-        chosen.subtract(ok)
+        chosen.subtract(ok); chosenOrgs.subtract(ok)
         if !ok.isEmpty { await model.loadLessons() }
     }
 }
