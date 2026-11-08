@@ -22,7 +22,7 @@ import secrets
 import time
 from urllib.parse import urlsplit
 
-from .caremamory import KNOWN_FOLDERS, LESSONS_DIR
+from .caremamory import KNOWN_FOLDERS, lessons_dir
 
 FORMAT = 1
 PLATFORMS = {"windows", "mac"}
@@ -162,7 +162,7 @@ def save(pack, by: str = "") -> dict:
     # Qui a validé : l'importateur s'il se nomme, sinon le détenteur de la clé, jamais l'éditeur.
     lesson["approved_by"] = _text(by, "Importé par", 80, required=False) or "import par la clé de la famille"
     lesson["approved_at"] = time.time()
-    folder = LESSONS_DIR / lesson["id"]
+    folder = lessons_dir() / lesson["id"]
     folder.mkdir(parents=True, exist_ok=True)
     for name, data in files.items():
         (folder / name).write_bytes(data)
@@ -175,7 +175,7 @@ def load(lesson_id: str) -> dict | None:
     if not re.fullmatch(r"imp-[0-9a-f]{12}", lid):
         return None
     try:
-        return json.loads((LESSONS_DIR / lid / "lesson.json").read_text(encoding="utf-8"))
+        return json.loads((lessons_dir() / lid / "lesson.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
 
@@ -183,7 +183,7 @@ def load(lesson_id: str) -> dict | None:
 def remove(lesson_id: str) -> bool:
     if load(lesson_id) is None:
         return False
-    folder = LESSONS_DIR / lesson_id
+    folder = lessons_dir() / lesson_id
     for f in folder.iterdir():
         f.unlink()
     folder.rmdir()

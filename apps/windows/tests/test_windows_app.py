@@ -382,6 +382,51 @@ def pairing() -> None:
     m.stop_pairing()
     check(m.pair_code is None and m.pair_app_url is None and not m.pair_long, "Annuler efface tout")
 
+    # Code tapé sans clé : la personne accepte ce support sur son écran.
+    m._handle({"type": "pair_confirm", "req": 7, "name": "Claire", "relation": "Service informatique"})
+    check(m.snapshot()["pairRequest"] == {"req": 7, "name": "Claire", "relation": "Service informatique"},
+          "demande d'un nouveau support affichée")
+    m.answer_pair(True)
+    check(sent[-1] == {"type": "pair_decision", "req": 7, "accept": True} and m.pair_request is None,
+          "Accepter envoie pair_decision")
+    m._handle({"type": "pair_confirm", "req": 8, "name": "Intrus"})
+    m.answer_pair(False)
+    check(sent[-1] == {"type": "pair_decision", "req": 8, "accept": False}, "Refuser envoie pair_decision")
+
+    # Premier lancement sans serveur réglé : l'espace est créé, l'adresse gardée.
+    from papai import settings
+    saved = os.environ.pop("PAPAI_SERVER", None)
+    try:
+        settings.save({"server": ""})
+        m = Model()
+        check(settings.needs_space(m.prefs), "aucun serveur réglé : il faut un espace")
+        m._provision = lambda: "wss://srv/k/cle-de-test-123/ws/bridge"
+        m._create_space()
+        check(m.server_url == "wss://srv/k/cle-de-test-123/ws/bridge" and not settings.needs_space(m.prefs),
+              "l'espace créé est gardé : plus rien à régler")
+        check(settings.provision("http://127.0.0.1:9", timeout=1) is None, "serveur injoignable : pas d'espace")
+        settings.save({"server": ""})
+        m = Model()
+        essais, attentes = iter([None, None, "wss://srv/k/cle-apres-coupure/ws/bridge"]), []
+        m._provision = lambda: next(essais)
+        m._create_space(wait=attentes.append)
+        check(m.server_url == "wss://srv/k/cle-apres-coupure/ws/bridge" and attentes == [5, 10],
+              "hors ligne au premier lancement : l'espace est créé au retour du réseau")
+        settings.save({"server": ""})
+        m = Model()
+
+        def choisi_pendant():
+            settings.save({"server": "ws://mon-serveur:8000/ws/bridge"})
+            return "wss://srv/k/cle-officielle/ws/bridge"
+        m._provision = choisi_pendant
+        m._create_space(wait=lambda _: None)
+        check(settings.load().get("server") == "ws://mon-serveur:8000/ws/bridge",
+              "un serveur choisi pendant la création n'est pas écrasé")
+    finally:
+        settings.save({"server": ""})
+        if saved is not None:
+            os.environ["PAPAI_SERVER"] = saved
+
 
 if __name__ == "__main__":
     unit()

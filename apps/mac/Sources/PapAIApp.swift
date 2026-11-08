@@ -25,7 +25,9 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 22) {
             Header().padding(.top, 24)
             Group {
-                if !model.onboarded {
+                if let p = model.pairRequest {
+                    PairRequestView(request: p)
+                } else if !model.onboarded {
                     OnboardingView()
                 } else if let r = model.remoteRequest {
                     RemoteRequestView(request: r)

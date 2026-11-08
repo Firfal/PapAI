@@ -10,6 +10,13 @@ struct Helper: Identifiable, Equatable {
     var relation: String
 }
 
+/// Quelqu'un a tapé le code à 6 chiffres sans clé : il ne devient support qu'avec l'accord de la personne.
+struct PairRequest: Equatable {
+    var req: String
+    var name: String
+    var relation: String
+}
+
 struct RemoteRequest: Equatable {
     var from: String
     var task: String
@@ -67,6 +74,7 @@ final class AppModel {
     var pairLong = false
     var pairExpires = 600
     var remoteRequest: RemoteRequest?
+    var pairRequest: PairRequest?
     var showHelpers = false
     var pairingWhenConnected = false
     var pendingTask = ""
@@ -98,6 +106,12 @@ final class AppModel {
         if !stored.isEmpty { return stored }
         if let env = ProcessInfo.processInfo.environment["PAPAI_SERVER"], !env.isEmpty { return env }
         return "ws://localhost:8000/ws/bridge"
+    }
+    /// Serveur PapAI officiel : sans réglage, le Mac y crée son espace au premier lancement.
+    static let officialHTTP = "https://papai-450417131702.europe-west1.run.app"
+    var needsSpace: Bool {
+        let stored = UserDefaults.standard.string(forKey: "server")?.trimmingCharacters(in: .whitespaces) ?? ""
+        return stored.isEmpty && (ProcessInfo.processInfo.environment["PAPAI_SERVER"] ?? "").isEmpty
     }
     var httpBase: String {
         var s = serverURL
@@ -225,6 +239,12 @@ final class AppModel {
         askHelp(task: task, requestedBy: r.from)
     }
 
+    func answerPair(_ accept: Bool) {
+        guard let r = pairRequest else { return }
+        pairRequest = nil
+        client.send(["type": "pair_decision", "req": r.req, "accept": accept])
+    }
+
     func refuseRemote() {
         remoteRequest = nil
         client.send(["type": "remote_answer", "accepted": false])
@@ -326,8 +346,31 @@ final class AppModel {
 
     func reconnect() {
         guard ProcessInfo.processInfo.environment["PAPAI_DEMO"] == nil else { return }
+        if needsSpace {
+            Task { [weak self] in await self?.createSpace() }
+            return
+        }
         guard let url = URL(string: serverURL) else { return }
         client.start(url: url)
+    }
+
+    /// Premier lancement : `POST /spaces` donne l'adresse du pont, clé comprise. Rien à régler.
+    private func createSpace() async {
+        guard let url = URL(string: Self.officialHTTP + "/spaces") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.httpBody = Data("{}".utf8)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 10
+        if let (data, _) = try? await URLSession.shared.data(for: req),
+           let d = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let b = d["bridge_url"] as? String, b.hasPrefix("wss://") || b.hasPrefix("ws://"), b.contains("/k/") {
+            UserDefaults.standard.set(b, forKey: "server")
+            reconnect()
+            return
+        }
+        try? await Task.sleep(for: .seconds(30))  // serveur injoignable : on réessaie
+        reconnect()
     }
 
     func refreshLessons() async {
@@ -582,6 +625,12 @@ final class AppModel {
             }
         case "alert_cleared":
             if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
+        case "pair_confirm":
+            guard let req = (m["req"] as? String) ?? (m["req"] as? Int).map(String.init) else { return }
+            pairRequest = PairRequest(req: req, name: m["name"] as? String ?? "Quelqu'un",
+                                      relation: m["relation"] as? String ?? "")
+            NSApp.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
         case "remote_request":
             guard !sessionOpen else { return }
             remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre support",

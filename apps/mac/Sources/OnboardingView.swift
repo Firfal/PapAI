@@ -354,3 +354,41 @@ struct RemoteRequestView: View {
         }
     }
 }
+
+struct PairRequestView: View {
+    @Environment(AppModel.self) private var model
+    let request: PairRequest
+
+    var body: some View {
+        VStack(spacing: 18) {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.wave.2.fill").font(.system(size: 26)).foregroundStyle(T.accent)
+                    Text("Nouveau support").font(rounded(20, .semibold)).foregroundStyle(T.accent)
+                }
+                Text("\(request.name) veut devenir votre support").font(rounded(48, .semibold)).tracking(-0.7)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !request.relation.isEmpty {
+                    Text(request.relation).font(rounded(26, .medium))
+                        .padding(24).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                }
+                Text("Cette personne vient de taper votre code à 6 chiffres. Acceptez seulement si vous la connaissez et que vous lui avez donné ce code.")
+                    .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(T.ink).padding(40)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(RoundedRectangle(cornerRadius: T.rBig, style: .continuous).fill(T.mint))
+
+            HStack(spacing: 14) {
+                Button { model.answerPair(false) } label: { Text("Refuser").frame(maxWidth: .infinity) }
+                    .buttonStyle(PillStyle(filled: false, height: 78))
+                    .keyboardShortcut(.cancelAction)
+                Button { model.answerPair(true) } label: { Text("Accepter").frame(maxWidth: .infinity) }
+                    .buttonStyle(PillStyle(height: 78))
+                    .disabled(!model.connected)
+            }
+        }
+    }
+}

@@ -290,8 +290,38 @@ En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gard�
   L'app lit `u` (`https://…[/k/<clé>]/p/<code>`), demande prénom et lien, fait le POST sur `u`,
   puis enregistre `serverURL = server + "/k/" + key` et `helperKey = key`, et se connecte.
 - Le scanner de l'app accepte `papai://pair?u=…` comme l'ancien `https://…/p/<code>`.
-- Saisie du code à la main : POST sur `<serverURL déjà connu>/p/<code>`.
+- Saisie du code à la main : le support ne tape que le code, jamais d'adresse. POST sur
+  `<serverURL réglé>/p/<code>`, ou sur `https://papai-450417131702.europe-west1.run.app/p/<code>`
+  (serveur officiel) si l'app n'est pas encore réglée. En ligne, `GET /p`, `GET /p/<code>` et
+  `POST /p/<code>` répondent donc aussi sans clé : le code est le secret (une seule fois, 10 min
+  ou 24 h), et la réponse donne `server` et `key`. Voir « Plusieurs espaces » : le code tapé
+  sans clé cherche son espace et doit être accepté sur l'ordinateur aidé.
 - Arguments de lancement `-serverURL` et `-helperKey` (dépannage, démo) : l'app les enregistre.
+
+## Plusieurs espaces (un par ordinateur aidé)
+
+Le serveur héberge un **espace** par ordinateur aidé : sa clé, ses supports (`family.json`), ses
+sessions, son alerte en cours, ses fiches et automatismes. `/k/<clé>/…` choisit l'espace. L'espace
+historique (`PAPAI_AIDANT_KEY`) garde `family.json` et `lessons/` à la racine ; les autres vivent
+dans `$PAPAI_DATA_DIR/spaces/<id>/` (par défaut `data/spaces/`). Un support suit plusieurs
+personnes aidées en gardant une clé par espace.
+
+- **Premier lancement** (Windows, Mac) sans serveur réglé : `POST /spaces` sur le serveur officiel
+  → `{"key","server","bridge_url"}` (`bridge_url` = `wss://…/k/<clé>/ws/bridge`). L'app garde
+  `bridge_url` comme serveur : rien à régler. Limité à 5 créations par heure et par adresse IP (429).
+- **Clé inconnue mais bien formée** (12 à 64 caractères `A-Za-z0-9_-`) sur `/k/<clé>/ws/bridge` :
+  l'ordinateur revient après un redéploiement qui a effacé le disque, un espace est recréé à sa
+  clé (même limite). Les supports sont restaurés par `known_helpers`.
+- **Code tapé sans clé** (`POST /p/<code>`) : le serveur cherche l'espace dont le code est valide.
+  Code inconnu → 400 ; plus de 10 codes faux en 10 min depuis une même adresse → 429.
+  En ligne (`PAPAI_PUBLIC=1`), avec plusieurs espaces 6 chiffres se devinent : l'ordinateur aidé
+  doit accepter le support.
+  - serveur → pont : `{"type":"pair_confirm","req":N,"name","relation"}` ;
+  - pont → serveur : `{"type":"pair_decision","req":N,"accept":true|false}`.
+  Sans réponse en 120 s, ou refus : 403 `{"ok":false,"error"}`. Les liens avec clé (QR, SMS :
+  `/k/<clé>/p/<code>`) ne demandent pas cette confirmation.
+- Le jeton d'une session (`/h/<jeton>`, `/ws/helper/<jeton>`) désigne aussi son espace.
+- Test : `python tests/test_appairage_code.py` (deux espaces, confirmation, force brute).
 
 ## Prénom et invitation (7 novembre au soir)
 
