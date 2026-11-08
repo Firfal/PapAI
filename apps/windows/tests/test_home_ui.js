@@ -6,15 +6,16 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 async function home(microPresent = true) {
-  let state = { connected: true, onboarded: true, screen: 'home', state: null,
-    firstName: '', storedFirstName: '', helperName: 'Claire', textScale: 1,
+  let state = { connected: true, screen: 'home', state: null,
+    firstName: '', helperName: 'Claire', textScale: 1, textScales: [['Grande', 1], ['Très grande', 1.18]],
+    orgName: '', orgConfigured: false, realtimeProtection: true, screenConsent: false,
     lessons: [], notice: null, homeShortcuts: [], microPresent,
     dictation: { phase: 'idle', message: null } };
   const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [], actions = [], calls = [];
   const root = { innerHTML: '' }, sheet = { innerHTML: '' };
   const dialog = { focus() { document.activeElement = dialog; } };
   const document = { activeElement: null, documentElement: { style: { setProperty() {} } },
-    getElementById: id => ({ root, sheet, pairDialog: sheet.innerHTML.includes('pairDialog') ? dialog : null }[id] || null),
+    getElementById: id => ({ root, sheet }[id] || null),
     addEventListener: (name, fn) => { listeners[name] = fn; } };
   const window = { pywebview: { api: {
     ready: async () => state,
@@ -27,7 +28,6 @@ async function home(microPresent = true) {
     toggle_pause: () => { calls.push(['toggle_pause']); },
     answer_senior: t => { calls.push(['answer_senior', t]); },
     expand_window: () => { calls.push(['expand_window']); },
-    answer_pair: (accept, id) => { calls.push(['answer_pair', accept, id]); },
   } }, addEventListener: (name, fn) => { windowEvents[name] = fn; } };
   const context = vm.createContext({ window, document, icon: () => '<svg></svg>',
     URLSearchParams, location: { search: '' }, setTimeout });
@@ -43,58 +43,35 @@ async function home(microPresent = true) {
     actions, key: event => listeners.keydown(event) };
 }
 
-test('demande de liaison au-dessus des feuilles, texte échappé et Entrée sans accord', async () => {
+test("accueil direct : « Bonjour <nom Windows> », sans étapes d'accueil ni liaison", async () => {
   const h = await home();
-  h.update({ helpers: [] });
-  h.click('openHelpers');
-  h.update({ pairRequest: { req: 'a', name: '<img src=x>', relation: '<b>IT</b>' } });
-  assert.match(h.sheet.innerHTML, /role="dialog" aria-modal="true"/);
-  assert.match(h.sheet.innerHTML, /&lt;img src=x&gt;/);
-  assert.match(h.sheet.innerHTML, /&lt;b&gt;IT&lt;\/b&gt;/);
-  assert.match(h.sheet.innerHTML, /class="muted"[^>]*>&lt;b&gt;IT&lt;\/b&gt;/);
-  assert.match(h.sheet.innerHTML, /Acceptez seulement si vous connaissez cette personne\./);
-  assert.match(h.sheet.innerHTML, /Si quelqu&#39;un vous a appelé ou écrit pour vous demander ce code, refusez\./);
-  assert.doesNotMatch(h.sheet.innerHTML, /et que vous lui avez donné ce code/);
-  assert.doesNotMatch(h.sheet.innerHTML, /<img src=x>|<b>IT<\/b>/);
-  assert.equal(h.document.activeElement, h.dialog);
-  assert.equal(h.root.inert, true);
-  for (const target of [{ id: 'req' }, { tagName: 'BUTTON', dataset: { act: 'acceptPair' } }]) {
-    let prevented = false;
-    h.listeners.keydown({ key: 'Enter', target, preventDefault() { prevented = true; } });
-    assert.equal(prevented, true);
-  }
-  h.click('submit');
-  assert.deepEqual(h.calls, []);
-  assert.deepEqual(h.sent, []);
-  h.click('acceptPair', 'a');
-  assert.deepEqual(h.calls.at(-1), ['answer_pair', true, 'a']);
-  h.click('refusePair', 'a');
-  assert.deepEqual(h.calls.at(-1), ['answer_pair', false, 'a']);
-  h.update({ pairRequest: null });
-  assert.equal(h.root.inert, false);
-  assert.doesNotMatch(h.sheet.innerHTML, /pairDialog/);
+  h.update({ firstName: '<Jeanne>' });
+  assert.match(h.root.innerHTML, /(Bonjour|Bonsoir) &lt;Jeanne&gt;/);
+  assert.doesNotMatch(h.root.innerHTML, /Bienvenue sur PapAI|Comment vous appelez-vous|Qui va vous aider/);
+  h.update({ firstName: '' });
+  assert.match(h.root.innerHTML, /(Bonjour|Bonsoir)<\/div>/);
+  const js = fs.readFileSync(path.join(__dirname, '../ui/app.js'), 'utf8');
+  assert.doesNotMatch(js, /pairDialog|start_pairing|copy_invitation|answer_pair|onboarding|WhatsApp|SMS|Ajouter un support/);
 });
 
-test('invitation sans code : affichage, partage et annulation ; relation vide masquée', async () => {
+test("Réglages : « Mon support » en lecture seule, organisation en ligne ou non", async () => {
   const h = await home();
-  h.update({ helpers: [], pairCode: null, pairURL: 'https://h/i/jeton', pairLong: true, pairQR: 'data:image/svg+xml,qr', pairAdded: '<Claire>' });
-  h.click('openHelpers');
-  assert.match(h.sheet.innerHTML, /Lien d'invitation/);
-  assert.match(h.sheet.innerHTML, /Valable 24 heures/);
-  assert.match(h.sheet.innerHTML, /https:\/\/h\/i\/jeton/);
-  assert.match(h.sheet.innerHTML, /data-act="shareInvite"/);
-  assert.match(h.sheet.innerHTML, /&lt;Claire&gt; est maintenant support\./);
-  assert.doesNotMatch(h.sheet.innerHTML, /ou le code|data-act="pair"/);
-  h.update({ pairURL: null, pairQR: null });
-  assert.match(h.sheet.innerHTML, /data-act="pair"/);
-  h.update({ pairRequest: { req: 'vide', name: 'Marc', relation: '' } });
-  assert.doesNotMatch(h.sheet.innerHTML, /Service informatique|padding:24px;font-size:26/);
-  const css = fs.readFileSync(path.join(__dirname, '../ui/style.css'), 'utf8');
-  assert.match(css, /#pairDialog:focus\s*\{\s*outline:\s*none;/);
-  assert.match(css, /button:focus-visible[^}]+outline:\s*3px/);
+  h.update({ orgName: '<Acme>', orgConfigured: true });
+  h.click('openSettings');
+  assert.match(h.sheet.innerHTML, /Mon support/);
+  assert.match(h.sheet.innerHTML, /Support IT · &lt;Acme&gt;/);
+  assert.match(h.sheet.innerHTML, /En ligne/);
+  assert.doesNotMatch(h.sheet.innerHTML, /<input|Prénom|Serveur|Enregistrer|data-act="(pair|openHelpers|replayOnboarding)"/);
+  h.update({ connected: false });
+  assert.match(h.sheet.innerHTML, /Hors ligne pour le moment/);
+  h.update({ orgName: '', orgConfigured: false, connected: true });
+  assert.match(h.sheet.innerHTML, /Aucune organisation configurée : contactez votre service informatique\./);
+  assert.doesNotMatch(h.sheet.innerHTML, /Support IT ·/);
+  h.update({ orgConfigured: true });
+  assert.match(h.sheet.innerHTML, /Rattachement en cours/);
+  h.key({ key: 'Escape', target: {}, preventDefault() {} });
+  assert.equal(h.sheet.innerHTML, '');
 });
-
-
 
 test('Entrée et Échap ne ferment aucune alerte ni ne déclenchent une action derrière', async () => {
   const h = await home();
@@ -114,8 +91,8 @@ test('Entrée et Échap ne ferment aucune alerte ni ne déclenchent une action d
 test('textes Mac #30, avertissement vide identique et titres renforcés', async () => {
   const h = await home(false);
   h.update({ helperName: 'Théo', lessons: [{ id: 'l', title: 'Mes photos', steps: [] }] });
-  assert.match(h.root.innerHTML, /Un souci sur l'ordinateur \? Écrivez ce dont vous avez besoin, un message part tout de suite à Théo\./);
-  assert.match(h.root.innerHTML, /placeholder="Écrivez votre demande"/);
+  assert.match(h.root.innerHTML, /Que voulez-vous faire \?/);
+  assert.match(h.root.innerHTML, /placeholder="Écrivez ce que vous voulez faire"/);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>(Bonjour|Bonsoir)</);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes automates</);
   assert.match(h.root.innerHTML, /font-weight:700;[^>]*>Mes raccourcis</);
@@ -124,7 +101,7 @@ test('textes Mac #30, avertissement vide identique et titres renforcés', async 
   assert.match(h.root.innerHTML, /Dites en quelques mots ce qui ne va pas\./);
   assert.deepEqual(h.sent, []);
   h.update({ microPresent: true });
-  assert.match(h.root.innerHTML, /Un souci sur l'ordinateur \? Dites-le simplement, un message part tout de suite à Théo\./);
+  assert.match(h.root.innerHTML, /placeholder="Écrivez ou dites ce que vous voulez faire"/);
   h.click('submit');
   assert.match(h.root.innerHTML, /Dites en quelques mots ce qui ne va pas\./);
 });
@@ -167,22 +144,21 @@ test('retirer le dernier personnel quitte le mode édition avant le prochain ajo
 test('bascule micro/texte à chaud, sans perdre le brouillon', async () => {
   const h = await home();
   assert.match(h.root.innerHTML, /Dicter ma demande/);
-  assert.match(h.root.innerHTML, />Écrire</);
-  assert.doesNotMatch(h.root.innerHTML, /id="req"/);
-  h.click('write');
+  assert.match(h.root.innerHTML, /id="req"/);
   h.type('Mes photos');
   h.update({ microPresent: false });
   assert.doesNotMatch(h.root.innerHTML, /Dicter ma demande/);
-  assert.match(h.root.innerHTML, /Écrivez ce dont vous avez besoin/);
+  assert.match(h.root.innerHTML, /placeholder="Écrivez ce que vous voulez faire"/);
   assert.match(h.root.innerHTML, /Mes photos<\/textarea>/);
   h.update({ microPresent: true });
   assert.match(h.root.innerHTML, /Dicter ma demande/);
   assert.match(h.root.innerHTML, /Mes photos<\/textarea>/);
 });
 
-test('aucun automate vide, date ni ancien bouton', async () => {
+test('sans automate : explication du Mac, ni date ni ancien bouton', async () => {
   const h = await home(false);
-  assert.doesNotMatch(h.root.innerHTML, /Mes automates|J'ai besoin d'aide|Demander une assistance|Mes applications/);
+  assert.match(h.root.innerHTML, /Aucun automate pour l'instant\./);
+  assert.doesNotMatch(h.root.innerHTML, /J'ai besoin d'aide|Demander une assistance|Mes applications/);
   assert.match(h.root.innerHTML, /Mes raccourcis/);
   assert.match(h.root.innerHTML, /logotype-papai.svg/);
 });

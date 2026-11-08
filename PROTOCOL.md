@@ -446,8 +446,9 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
 
 - `POST /orgs` `{"name"}` → `{"id","name","enroll_token","support_token","server","support_url","app_url"}`.
   3 créations par heure et par adresse IP (429). Les deux jetons ne sont donnés qu'ici.
-  - `enroll_token` (`ins-…`) : déposé sur les postes. Windows : `apps\windows\organisation.txt`
-    (ignoré par git) ou `PAPAI_ORG`. Mac : préférence gérée `orgToken` (profil MDM, ou
+  - `enroll_token` (`ins-…`) : déposé sur les postes. Windows : stratégie de groupe
+    `HKLM|HKCU\SOFTWARE\Policies\PapAI\OrgToken` (modèle `apps/windows/policies/PapAI.admx`), à défaut
+    `apps\windows\organisation.txt` (ignoré par git) ou `PAPAI_ORG`. Mac : préférence gérée `orgToken` (profil MDM, ou
     `defaults write com.quentin.papai orgToken ins-…`) ou `PAPAI_ORG`. Préférence `server` facultative
     (adresse du serveur, ex. `https://…` ou `http://localhost:8071`) : le Mac y fait `POST /spaces` et
     garde le pont reçu dans `bridgeURL` (recalé sur l'adresse configurée). Sans `server`, serveur officiel.

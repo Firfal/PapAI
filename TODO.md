@@ -92,7 +92,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Rangement guidé des dossiers : plan de rangement validé par l'aidant, rien supprimé, tout annulable.
 - [ ] Notification push quand l'app iPhone est fermée (APNs).
 - [ ] Automatismes stockés de façon durable (aujourd'hui en mémoire du serveur : perdus au redémarrage).
-- [x] App Windows au niveau du Mac pendant l'aide : Pause/Reprendre, question de Holo à la personne, avancement en 3 étapes, encart en bas à droite pendant que Holo agit, fin du gardien adaptée à l'aidé, dictée transmise à l'aidant. Reste : l'essayer sur un vrai Windows ; verrou souris/clavier pendant que Holo agit (`InputLock` du Mac) pas porté.
+- [x] App Windows au niveau du Mac pendant l'aide : Pause/Reprendre, question de Holo à la personne, avancement en 3 étapes, encart en bas à droite pendant que Holo agit, fin du gardien adaptée à l'aidé, dictée transmise à l'aidant. Reste : l'essayer sur un vrai Windows ; verrou souris/clavier pendant que Holo agit écarté pour l'instant (décision de Corentin, voir `AGENTS.md`).
 - [x] Version Windows de l'app de la personne aidée, design « Soin » de l'app Mac (`apps/windows`) : accueil voix d'abord, micro détecté à chaud, envoi après silence, logotype et raccourcis locaux sécurisés (4 dossiers personnels). Tests Windows app/serveur + faux Holo et rendu Chrome/Linux comparé au Mac vérifiés. Reste : l'essayer sur un vrai Windows (capture, clics, accents, exclusion de la fenêtre, dictée et branchement du micro).
 - [x] Plusieurs espaces sur un même serveur : un par ordinateur aidé, créé au premier lancement (`POST /spaces`), code à 6 chiffres sans clé accepté sur l'ordinateur (`pair_confirm`). Tests : `tests/test_appairage_code.py`.
 - [x] Apps du support : liste « Mes personnes aidées » (page web, Android, iPhone : une liaison par ordinateur, demandes des autres signalées).
@@ -121,3 +121,4 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [x] Notion du hackathon avec la base Features, mise à jour le 7 novembre à 18 h 30 selon l'état réel.
 - [x] Tickets : chaque demande d'assistance suivie (numéro, statut, plan, fin), demande en attente quand aucun support n'est là, personne reprévenue dès qu'un support arrive, rendez-vous et rappel ; onglet Tickets de l'organisation (filtres, CSV) et liste sur la page du support (`tests/test_tickets.py`).
 - [ ] Tickets dans les apps Android et iPhone du support (aujourd'hui : page web seulement).
+- [x] Automates sans Holo disponibles hors ligne sur Mac et Windows (liste gardée sur l'ordinateur, sans Holo ni fichier du serveur). Les images du « Montrez-moi » restent sur le serveur.
