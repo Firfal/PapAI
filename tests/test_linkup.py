@@ -66,7 +66,8 @@ class Client(unittest.IsolatedAsyncioTestCase):
                       "10 cours de la République", "10 cours de la république", "3 cours du marché",
                       "4 cours des lilas", "5 cours de l'église", "5 cours de l’église",
                       "3 cours d’anglais", "7 cours d'honneur", "5 place de la Concorde",
-                      "2 place Bellecour", "5 place de l'église", "4 place des lilas", "6 place d'armes"]:
+                      "2 place Bellecour", "5 place de l'église", "4 place des lilas", "6 place d'armes",
+                      "5 place de Clichy", "3 place de Vendôme"]:
                 with self.subTest(q=q):
                     self.assertEqual(await linkup.search(q), {"error": "personal_data"})
             client.assert_not_called()
