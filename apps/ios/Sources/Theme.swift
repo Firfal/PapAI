@@ -1,12 +1,19 @@
 import SwiftUI
 
+/// Palette « Soin » réchauffée par la papaye du logo, comme sur le Mac.
+/// Les textes secondaires gardent un contraste d'au moins 4,5:1 sur le fond et sur la menthe.
 enum Soin {
-    static let bg = Color(red: 0xEE/255, green: 0xF0/255, blue: 0xEE/255)
+    static let bg = Color(red: 0xF6/255, green: 0xF1/255, blue: 0xEA/255)
     static let card = Color.white
     static let ink = Color(red: 0x11/255, green: 0x13/255, blue: 0x12/255)
-    static let secondary = Color(red: 0x7A/255, green: 0x80/255, blue: 0x7C/255)
+    static let secondary = Color(red: 0x5C/255, green: 0x62/255, blue: 0x5E/255)
     static let accent = Color(red: 0x2E/255, green: 0x9E/255, blue: 0x5B/255)
     static let accentSoft = Color(red: 0xE2/255, green: 0xF2/255, blue: 0xE7/255)
+    /// Vert du texte sur menthe, pêche ou blanc (le vert d'accent y est trop clair).
+    static let leaf = Color(red: 0x1C/255, green: 0x72/255, blue: 0x40/255)
+    static let papaya = Color(red: 0xF5/255, green: 0x8A/255, blue: 0x3A/255)
+    /// Chair de papaye : fond des moments heureux (fin d'aide).
+    static let peach = Color(red: 0xFF/255, green: 0xE7/255, blue: 0xD2/255)
     static let danger = Color(red: 0xC8/255, green: 0x44/255, blue: 0x2F/255)
 }
 

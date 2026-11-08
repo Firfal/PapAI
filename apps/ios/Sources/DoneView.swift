@@ -11,12 +11,17 @@ struct DoneView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Label("Terminé", systemImage: "checkmark").font(.system(size: 13, weight: .semibold)).foregroundStyle(Soin.accent)
-                    if !model.task.isEmpty { Text("« \(model.task) »").font(.system(size: 14)).foregroundStyle(Soin.secondary) }
-                    Text(model.doneAnswer ?? "Holo a terminé.").font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
+                HStack(alignment: .top, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Terminé", systemImage: "checkmark").font(.system(size: 15, weight: .bold)).foregroundStyle(Soin.leaf)
+                        if !model.task.isEmpty { Text("« \(model.task) »").font(.system(size: 15)).foregroundStyle(Soin.secondary) }
+                        Text(model.doneAnswer ?? "Holo a terminé.").font(.system(size: 20, weight: .semibold)).foregroundStyle(Soin.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Mascotte(humeur: .bravo).frame(width: Mascotte.Taille.carte, height: Mascotte.Taille.carte)
                 }
-                .padding(20).frame(maxWidth: .infinity, alignment: .leading).soinCard(Soin.accentSoft, radius: 28)
+                .padding(20).soinCard(Soin.peach, radius: 28)
 
                 if let saved = model.savedTitle {
                     HStack(spacing: 12) {

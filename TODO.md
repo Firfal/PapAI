@@ -37,10 +37,11 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 - [x] 1. Accueil au premier lancement : bienvenue, prénom, taille du texte (grande par défaut), autorisations expliquées.
 - [x] 2. Ajouter un proche : QR ou code à 6 chiffres (10 min, usage unique), prénom et lien, plusieurs proches. Page `/p/{code}`, `backend/family.py`.
+  - [x] Réglages Mac : section Mon support, Ajouter un support avec démarrage à la connexion, liste existante, QR/code/lien et copie confirmée ; partage SMS, WhatsApp ou mail, panneaux défilants en Très grande.
 - [x] Session proposée à distance par le proche, que la personne aidée accepte ou refuse sur le Mac (`remote_request`).
 - [x] 3. Demande : gros bouton, dictée (celle de l'équipe, Gladia) ou clavier.
   - [x] Accueil Mac voix d'abord : grand micro, écriture discrète, détection du micro, tutoriels masqués si vides, logotype et taille du texte dans l'encart.
-  - [x] Mes raccourcis sur Mac : applications utilisées, dossiers et groupes de photos, nouveau message Mail, albums ajoutés à la main ; ajout/retrait local, dossiers validés et ouverts dans le Finder explicitement (#16).
+  - [x] Mes raccourcis sur Mac : applications utilisées, dossiers et groupes de photos, nouveau message Mail, albums ajoutés à la main ; ajout/retrait local, dossiers validés et ouverts dans le Finder explicitement (#16). Retirés de l'accueil Mac le 8 nov. (simplification : barre de recherche, micro, automates).
 - [x] 4. Consentement : écran dédié « PapAI va regarder votre écran » à la place de la case à cocher.
 - [x] Accord de partage d'écran demandé une seule fois (Mac et Windows), gardé ensuite ; « Retirer l'accord de partage » dans Réglages.
 - [x] 5. Holo explique chaque action en phrase simple, avec l'historique et le plan validé.
@@ -96,4 +97,6 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] App Android sur un vrai téléphone : installer l'APK, appairer, faire tout le parcours (plan, prise de main, automatisme), vérifier la notification écran éteint.
 - [x] Gardien anti-arnaque (logique et 14 contrôles), banc d'essai du protocole (13 contrôles avec `tests/faux_holo.py`), parcours de bout en bout (`tests/test_parcours.py`, 26 contrôles), route de dictée (`tests/test_transcribe.py`), faux Mac.
 - [x] Design « Soin », logo (logotype C) et mascotte papaye Pastel en icône des deux apps.
+- [x] UX plus chaleureuse : mascotte Papaye et palette réchauffée sur Mac et iPhone, mascotte qui s'efface en petite fenêtre, iPhone hors connexion sans fausse assurance (PR #39). Reste : Windows et Android, essai VoiceOver, écran « Lancer une tâche » `.papi` à la place de « Mes tutoriels ».
+- [x] Accueil Mac simplifié : barre de demande avec petit micro et « Mes automates » (automates existants, futurs `.papi`) à la place de « Mes tutoriels ». Reste : Windows, et l'import des `.papi` (#34).
 - [x] Notion du hackathon avec la base Features, mise à jour le 7 novembre à 18 h 30 selon l'état réel.
