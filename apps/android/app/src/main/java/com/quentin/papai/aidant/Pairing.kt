@@ -192,7 +192,7 @@ fun PairSheet(link: PairLink) {
             relations.forEach { (label, value) ->
                 val on = relation == value
                 T(label, 15.sp, FontWeight.Medium, if (on) Color.White else Soin.ink,
-                    Modifier.clip(CircleShape).background(if (on) Soin.ink else Soin.card)
+                    Modifier.clip(CircleShape).background(if (on) Soin.accent else Soin.card)
                         .clickable { relation = if (on) "" else value }.padding(horizontal = 16.dp, vertical = 10.dp))
             }
         }

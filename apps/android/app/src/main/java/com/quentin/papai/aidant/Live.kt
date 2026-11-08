@@ -67,10 +67,9 @@ fun ActiveScreen() {
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             CaptureView()
             Column(Modifier.fillMaxWidth().soinCard().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                StatusPill(caption, if (m.seniorPaused) Tone.GRAY else Tone.BLUE) {
                     if (m.seniorPaused) Icon(Icons.Default.Pause, null, Modifier.size(16.dp), tint = Soin.secondary)
                     else CircularProgressIndicator(Modifier.size(14.dp), color = Soin.accent, strokeWidth = 2.dp)
-                    T(caption, 13.sp, FontWeight.SemiBold, Soin.secondary)
                 }
                 T(if (m.webLive) "Holo travaille dans ${m.webBrowserTitle}"
                   else if (m.seniorPaused) "${m.seniorTitle} a mis l'aide en pause. Holo attend la reprise."

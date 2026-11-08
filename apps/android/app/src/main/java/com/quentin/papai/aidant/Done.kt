@@ -45,9 +45,8 @@ fun DoneScreen() {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column(Modifier.fillMaxWidth().soinCard(Soin.accentSoft, 28.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Check, null, Modifier.size(16.dp), tint = Soin.accent)
-                T("Terminé", 13.sp, FontWeight.SemiBold, Soin.accent)
+            StatusPill("Terminé", Tone.GREEN) {
+                Icon(Icons.Default.Check, null, Modifier.size(16.dp), tint = Soin.online)
             }
             if (m.task.isNotEmpty()) T("« ${m.task} »", 14.sp, color = Soin.secondary)
             T(m.doneAnswer ?: "Holo a terminé.", 20.sp, FontWeight.SemiBold)
@@ -92,9 +91,9 @@ private fun Draft(onZoom: (ImageBitmap) -> Unit) {
         }
         m.draftSteps.forEachIndexed { i, s ->
             Column(Modifier.fillMaxWidth().soinCard().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                T("Étape ${i + 1}", 13.sp, FontWeight.SemiBold, Soin.accent)
+                StatusPill("Étape ${i + 1}")
                 SoinField(s.instruction, { s.instruction = it }, "Instruction", size = 16.sp, single = false,
-                    fill = Soin.bg, radius = 14.dp, keyboard = sentence)
+                    fill = Soin.field, radius = 14.dp, keyboard = sentence)
                 s.checkpoint?.let { T("${m.seniorTitle} doit voir : $it", 13.sp, color = Soin.secondary) }
                 s.preview?.let { p ->
                     // Toute la largeur, et un appui l'ouvre en plein écran.

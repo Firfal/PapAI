@@ -51,16 +51,15 @@ fun ApprovalScreen() {
             RequestCard(onThumb = { zoom = true })
             Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 T("Plan proposé par Holo", 17.sp, FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                T("${m.plan.size} étape${if (m.plan.size > 1) "s" else ""}", 13.sp, color = Soin.secondary,
-                    modifier = Modifier.clip(CircleShape).background(Soin.card).padding(horizontal = 12.dp, vertical = 6.dp))
+                StatusPill("${m.plan.size} étape${if (m.plan.size > 1) "s" else ""}")
             }
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 m.plan.forEachIndexed { i, raw ->
                     val (title, detail) = splitStep(raw)
                     Row(Modifier.fillMaxWidth().soinCard().padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Box(Modifier.size(38.dp).clip(CircleShape).background(Soin.bg), contentAlignment = Alignment.Center) {
-                            T("${i + 1}", 16.sp, FontWeight.SemiBold)
+                        Box(Modifier.size(38.dp).clip(CircleShape).background(Soin.accentSoft), contentAlignment = Alignment.Center) {
+                            T("${i + 1}", 16.sp, FontWeight.SemiBold, Soin.accent)
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             T(title, 17.sp, FontWeight.SemiBold)
@@ -107,7 +106,7 @@ fun RefineSheet(onClose: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            T("Préciser le plan", 24.sp, FontWeight.Bold)
+            SheetTitle("Préciser le plan", 24.sp)
             T("Dites ou écrivez à Holo ce qu'il doit changer. Il proposera un nouveau plan.", 15.sp, color = Soin.secondary)
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SoinField(text, { text = it }, "Par exemple : les photos sont dans Images > Noël 2025",

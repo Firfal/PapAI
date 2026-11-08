@@ -37,7 +37,12 @@ object Soin {
     val accent = Color(0xFF1F5BE8)
     val accentEnd = Color(0xFF2B6BFF)
     val accentSoft = Color(0xFFE8EFFF)
-    val online = Color(0xFF1E8E4E)
+    val online = Color(0xFF177A42)
+    val onlineSoft = Color(0xFFE5F3EA)
+    val neutralSoft = Color(0xFFEDEFF4)
+    /** Champ de saisie posé sur une carte blanche, et filet des champs. */
+    val field = Color(0xFFF3F5FA)
+    val line = Color(0xFFE1E5EF)
     val danger = Color(0xFFC8442F)
     /** Teinte des ombres (Android en règle lui-même l'opacité, très faible). */
     val shadow = Color(0xFF2A3A80)
