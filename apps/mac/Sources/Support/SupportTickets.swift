@@ -19,6 +19,7 @@ struct SupportTickets: View {
     @State private var suggestion: TicketStats.Suggestion?
     @State private var applying: AutomateLibrary.Entry?
     @State private var editing: SupportTicket?
+    @State private var closing: SupportTicket?
 
     private var shown: [SupportTicket] {
         (filter == 0 ? tickets.filter(\.isOpen) : tickets)
@@ -105,6 +106,13 @@ struct SupportTickets: View {
                 Task { await validateEdited(t, titre: titre, etapes: etapes) }
             }
         }
+        .sheet(item: $closing) { t in
+            SolutionSheet { texte in
+                closing = nil
+                guard let texte else { return }
+                Task { await act(t, "close", ["text": texte]) }
+            }
+        }
         .sheet(item: $applying) { e in
             ApplyAutomateSheet(model: model, entry: e) { applying = nil }
         }
@@ -150,6 +158,29 @@ struct SupportTickets: View {
                     .padding(10).frame(maxWidth: .infinity, alignment: .leading)
                     .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(T.field))
                 }
+                if let l = t.linkup {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Recherche Linkup", systemImage: "magnifyingglass")
+                            .font(rounded(14, .semibold)).foregroundStyle(T.accent)
+                        Text(l.resume).font(rounded(14)).lineLimit(4).fixedSize(horizontal: false, vertical: true)
+                        ForEach(Array(l.sources.prefix(3).enumerated()), id: \.offset) { _, src in
+                            if let u = URL(string: src.url) {
+                                Link(src.nom, destination: u).font(rounded(13)).lineLimit(1)
+                            }
+                        }
+                    }
+                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(T.field))
+                }
+                if !t.isOpen && !t.solution.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("Solution", systemImage: "checkmark.seal.fill")
+                            .font(rounded(14, .semibold)).foregroundStyle(Pastille.Ton.vert.texte)
+                        Text(t.solution).font(rounded(14)).fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(T.field))
+                }
                 if let b = t.blocked {
                     Label(b, systemImage: "exclamationmark.circle").font(rounded(14, .medium))
                         .foregroundStyle(T.ink).fixedSize(horizontal: false, vertical: true)
@@ -170,6 +201,10 @@ struct SupportTickets: View {
                     Button("Modifier") { editing = t }
                         .buttonStyle(PillStyle(filled: false, height: 36)).disabled(busy != nil)
                         .help("Corriger le plan proposé par Holo avant de le valider")
+                    Button(busy == t.id ? "…" : "Chercher avec Linkup") { Task { await act(t, "linkup") } }
+                        .buttonStyle(.plain).font(rounded(13, .semibold)).foregroundStyle(T.accent)
+                        .disabled(busy != nil)
+                        .help("Recherche documentaire : Holo refait le plan avec les sources trouvées")
                 } else if t.isOpen && t.status != "en_cours" {
                     Button(busy == t.id ? "…" : "Prendre en charge") { Task { await act(t, "take") } }
                         .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
@@ -186,7 +221,7 @@ struct SupportTickets: View {
                     }
                     Divider()
                     if t.isOpen && t.status != "en_cours" {
-                        Button("Clore le ticket") { Task { await act(t, "close") } }
+                        Button("Clore le ticket…") { closing = t }
                     } else if !t.isOpen {
                         Button("Rouvrir le ticket") { Task { await act(t, "reopen") } }
                     }
@@ -302,6 +337,10 @@ struct SupportTickets: View {
                 model.showToast("Catégorie : \(TicketCategory.label(extra["category"] ?? ""))")
             } else if action == "validate" {
                 model.showToast("Automate créé chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
+            } else if action == "linkup" {
+                model.showToast("Plan mis à jour avec Linkup")
+            } else if action == "close" {
+                model.showToast("Ticket résolu, solution enregistrée")
             } else if action == "take" {
                 model.showToast("Demande proposée à \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
                 openUser(t.person)
@@ -549,5 +588,30 @@ struct EditPlanSheet: View {
             .padding(16)
         }
         .foregroundStyle(T.ink).frame(width: 560, height: 560).background(T.bg)
+    }
+}
+
+
+/// Clore un ticket : la solution apportée est obligatoire, elle reste dans l'historique.
+struct SolutionSheet: View {
+    @State private var texte = ""
+    var done: (String?) -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Solution apportée").font(rounded(24, .bold))
+            Text("Ce que vous avez fait pour régler la demande. L’utilisateur la retrouve dans « Mes demandes ».")
+                .font(rounded(15)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+            TextField("Par exemple : imprimante réinstallée, pilote mis à jour.", text: $texte, axis: .vertical)
+                .lineLimit(4...8).textFieldStyle(.plain).font(rounded(16)).padding(12).champ(T.r)
+            HStack {
+                Spacer()
+                Button("Annuler") { done(nil) }.buttonStyle(PillStyle(filled: false, height: 44))
+                    .keyboardShortcut(.cancelAction)
+                Button("Clore le ticket") { done(texte.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                    .buttonStyle(PillStyle(height: 44, icone: "checkmark.circle"))
+                    .disabled(texte.trimmingCharacters(in: .whitespacesAndNewlines).count < 3)
+            }
+        }
+        .padding(24).foregroundStyle(T.ink).frame(width: 520).background(T.bg)
     }
 }

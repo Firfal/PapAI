@@ -2592,6 +2592,26 @@ async def _ticket_action(tid: str, body: dict):
         S().tickets.update(t, assignee=by, status="en_attente", offered=int(time.time()))
         await S().bridge.send({"type": "remote_request", "from": by or "Votre support", "task": t["task"],
                                "ticket": t["id"], "number": t["number"], "rdv": False})
+    elif act == "linkup":
+        # Le support demande une recherche Linkup : Holo refait le plan avec la documentation.
+        if not t.get("automate") or t["status"] == "resolu":
+            return JSONResponse({"error": "Ce ticket n'a pas de plan à mettre à jour."}, status_code=409)
+        if not linkup.enabled():
+            return JSONResponse({"error": "Linkup n'est pas configuré sur ce serveur."}, status_code=409)
+        question = str(body.get("query") or t["task"]).strip()[:1000]
+        try:
+            new = await automate_draft.draft({"kind": "request", "text": t["task"], "linkup_query": question,
+                                              "os": (t["automate"].get("platforms") or ["mac"])[0]})
+        except automate_draft.DraftError as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
+        except Exception as e:  # noqa: BLE001 — Holo ou Linkup injoignable
+            print(f"[tickets] recherche Linkup impossible : {type(e).__name__}")
+            return JSONResponse({"error": "La recherche n'a pas abouti. Réessayez."}, status_code=502)
+        note = new.pop("linkup", None)
+        if not note:
+            return JSONResponse({"error": "Linkup n'a rien trouvé d'utile pour cette demande."}, status_code=422)
+        S().tickets.update(t, automate=new, linkup=note)
+        S().tickets.note(t, by, "Plan mis à jour avec une recherche Linkup.")
     elif act == "validate":
         # Demande d'automate : valider le plan, c'est créer l'automate chez l'utilisateur.
         if not t.get("automate") or t["status"] == "resolu":
@@ -2609,7 +2629,9 @@ async def _ticket_action(tid: str, body: dict):
         except automations.Invalid as e:
             return JSONResponse({"error": str(e)}, status_code=422)
         print(f"[automate] créé depuis le ticket {t['id']} : {lesson['id']}")
-        S().tickets.update(t, status="resolu", closed_by=by or "Support IT", rdv=None, lesson=lesson["id"])
+        steps = "\n".join(f"{i}. {x}" for i, x in enumerate(t["automate"].get("steps", []), 1))
+        S().tickets.update(t, status="resolu", closed_by=by or "Support IT", rdv=None, lesson=lesson["id"],
+                           solution=f"Automate « {lesson['title']} » créé et validé par {by or 'le support IT'} :\n{steps}"[:1000])
         S().tickets.note(t, by, f"Automate « {lesson['title']} » créé.")
         if S().bridge is not None:
             await S().bridge.send({"type": "lessons_changed", "title": lesson["title"]})
@@ -2661,7 +2683,8 @@ async def _ticket_automate(body: dict):
     except automate_draft.DraftError as e:
         return JSONResponse({"error": str(e)}, status_code=422)
     t = _open_ticket(task, "automate", by=S().family.senior)
-    S().tickets.update(t, automate=plan)
+    note = automate_draft.linkup_note(raw.get("linkup")) if isinstance(raw, dict) else None
+    S().tickets.update(t, automate=plan, **({"linkup": note} if note else {}))
     await _tickets_changed()
     return {"ticket": tickets_mod.public(t)}
 

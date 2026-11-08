@@ -33,6 +33,10 @@ struct SupportTicket: Identifiable {
     var person: Person
     /// Demande d'automate : le plan proposé par Holo, à valider pour créer l'automate.
     var plan: (titre: String, etapes: [String])?
+    /// Recherche Linkup jointe au plan : résumé et sources, relus par le support.
+    var linkup: (resume: String, sources: [(nom: String, url: String)])?
+    /// Trace de la solution, une fois le ticket résolu.
+    var solution: String = ""
 
     var label: String { String(format: "T-%04d", number) }
     var isOpen: Bool { status != "resolu" }
@@ -64,6 +68,13 @@ struct SupportTicket: Identifiable {
         category = d["category"] as? String ?? "autre"
         categoryBy = d["category_by"] as? String ?? ""
         resolved = (d["resolved"] as? NSNumber)?.doubleValue
+        if let l = d["linkup"] as? [String: Any], let r = l["summary"] as? String, !r.isEmpty {
+            linkup = (r, (l["sources"] as? [[String: Any]] ?? []).compactMap { x in
+                guard let u = x["url"] as? String else { return nil }
+                return ((x["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? u, u)
+            })
+        }
+        solution = d["solution"] as? String ?? ""
         if let a = d["automate"] as? [String: Any] {
             plan = (a["title"] as? String ?? "Nouvel automate", a["steps"] as? [String] ?? [])
         }
