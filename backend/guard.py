@@ -151,8 +151,8 @@ def site_suspect(url: str, domaines_org=()) -> Alerte | None:
                           "ni code dessus : fermez la page et prévenez votre support.",
                           f"site_imite_org={host}", False, True)
     for marque, (mots, _) in MARQUES.items():
-        if base in mots:
-            continue  # « google.fr », « microsoft.de » : la marque elle-même
+        if base in mots and len(racine(host).split(".")[-1]) == 2:
+            continue  # « google.fr », « microsoft.de » : la marque elle-même, sur un domaine national
         for mot in mots:
             vu = any(mot == m for m in morceaux) if mot in _MOTS_ENTIERS else any(mot in m for m in morceaux)
             sosie = mot in _SOSIES and any(
