@@ -16,7 +16,7 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794098007-securite-actions-sensibles` | Sécurité #15/#16 : actions sensibles bloquées | apps/mac/Sources/Safety.swift (nouveau), apps/mac/Sources/Model.swift, Core.swift, HomeShortcuts.swift, Guard.swift, apps/mac/tests/, apps/windows/papai/core.py, bridge.py, model.py, home_shortcuts.py, apps/windows/ui/app.js, apps/windows/tests/, backend/agent.py, backend/caremamory.py, backend/app.py (bloc approve_lesson), backend/papai_tools.py, backend/static/helper.html, tests/, PROTOCOL.md | 8 nov. |
 
 ## Journal
 
