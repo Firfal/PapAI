@@ -22,12 +22,12 @@ class ShortcutTests(unittest.TestCase):
     def test_open_explorer(self):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory).resolve()
-            target = base / 'Noël 2025'
+            target = base / 'Séminaire 2025'
             target.mkdir()
             with patch.object(core, 'known_folder', return_value=base), patch.object(core, 'WINDOWS', True), \
                     patch('papai.apps.windows_directory', return_value=Path('/Windows')), \
                     patch('subprocess.Popen') as launch:
-                self.assertTrue(core.open_shortcut({'folder': 'pictures', 'subfolder': 'Noël 2025'})[0])
+                self.assertTrue(core.open_shortcut({'folder': 'pictures', 'subfolder': 'Séminaire 2025'})[0])
                 launch.assert_called_once_with(['/Windows/explorer.exe', str(target.resolve())], shell=False)
                 launch.reset_mock()
                 self.assertTrue(core.open_shortcut({'folder': 'pictures', 'subfolder': ''})[0])

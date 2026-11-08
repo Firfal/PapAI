@@ -30,13 +30,13 @@ class Raccourcis(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(result, case["name"].strip())
 
     async def test_extraction(self):
-        for sub in ("Noël 2025", "", "Facture.app", "{Photos}", "../Photos", None, 12):
+        for sub in ("Séminaire 2025", "", "Facture.app", "{Photos}", "../Photos", None, 12):
             response = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
                 content=json.dumps({"folder": "pictures", "subfolder": sub})))])
             with patch.object(caremamory.client.chat.completions, "create", return_value=response):
                 shortcut = await caremamory._extract_shortcut(self.session)
             self.assertEqual(shortcut, {"folder": "pictures", "subfolder": sub}
-                             if sub in ("Noël 2025", "") else None)
+                             if sub in ("Séminaire 2025", "") else None)
 
     async def test_extraction_vide_et_erreur(self):
         self.session.frames.clear()
@@ -50,7 +50,7 @@ class Raccourcis(unittest.IsolatedAsyncioTestCase):
     async def test_brouillon_plateforme_et_validation(self):
         for os_name, label, explorer in (("macOS", "macOS", "Finder"),
                                          ("windows", "Windows", "Explorateur de fichiers")):
-            for sub in ("Noël 2025", "", "Facture.app", "../Photos"):
+            for sub in ("Séminaire 2025", "", "Facture.app", "../Photos"):
                 with self.subTest(os=os_name, subfolder=sub):
                     responses = [SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(
                         content=json.dumps(data)))]) for data in (
@@ -60,7 +60,7 @@ class Raccourcis(unittest.IsolatedAsyncioTestCase):
                         lesson = await caremamory.draft_lesson(self.session, os_name)
                     self.assertEqual(lesson["os"], label)
                     self.assertEqual(lesson["shortcut"], {"folder": "pictures", "subfolder": sub}
-                                     if sub in ("Noël 2025", "") else None)
+                                     if sub in ("Séminaire 2025", "") else None)
                     self.assertIn(explorer, create.call_args.kwargs["messages"][0]["content"])
 
     def lesson(self, shortcut):
@@ -73,11 +73,11 @@ class Raccourcis(unittest.IsolatedAsyncioTestCase):
                 saved = caremamory.approve_and_save(self.lesson(shortcut), self.session)
                 self.assertIsNone(saved["shortcut"])
                 self.assertIsNone(json.loads((Path(directory) / "test/lesson.json").read_text())["shortcut"])
-            saved = caremamory.approve_and_save(self.lesson({"folder": "pictures", "subfolder": "Noël 2025"}), self.session)
-            self.assertEqual(saved["shortcut"]["subfolder"], "Noël 2025")
+            saved = caremamory.approve_and_save(self.lesson({"folder": "pictures", "subfolder": "Séminaire 2025"}), self.session)
+            self.assertEqual(saved["shortcut"]["subfolder"], "Séminaire 2025")
 
     async def test_approbation_retrait_ou_valeur_ignoree(self):
-        original = {"folder": "pictures", "subfolder": "Noël 2025"}
+        original = {"folder": "pictures", "subfolder": "Séminaire 2025"}
         for edit in ({"shortcut": None}, {"shortcut": {"folder": "desktop", "subfolder": "Autre"}},
                      {"shortcut": "Autre"}, {}):
             self.session.lesson = self.lesson(dict(original))
