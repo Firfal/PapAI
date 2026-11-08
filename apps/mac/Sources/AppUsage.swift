@@ -19,6 +19,9 @@ final class AppUsage {
     /// Les 6 applications à montrer, de la plus utile à la moins utile.
     private(set) var top: [App] = []
 
+    /// Les 6 dernières applications passées au premier plan, la plus récente d'abord.
+    private(set) var recent: [App] = []
+
     /// Sans historique, l'accueil montre ces classiques.
     private static let defaults = ["com.apple.mail", "com.apple.Photos", "com.apple.Safari",
                                    "com.apple.FaceTime", "com.apple.finder", "com.apple.iCal"]
@@ -46,15 +49,21 @@ final class AppUsage {
     private var scores: [String: Double]
     private let key = "appUsageScores"
 
+    /// Bundle → date du dernier passage au premier plan (secondes depuis 1970).
+    private var lastSeen: [String: Double]
+    private let recentKey = "appUsageLastSeen"
+
     private init() {
         scores = UserDefaults.standard.dictionary(forKey: key) as? [String: Double] ?? [:]
+        lastSeen = UserDefaults.standard.dictionary(forKey: recentKey) as? [String: Double] ?? [:]
         recompute()
+        recomputeRecent()
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
         ) { [weak self] note in
             let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             guard let id = app?.bundleIdentifier, app?.activationPolicy == .regular else { return }
-            MainActor.assumeIsolated { self?.bump(id, by: 1) }
+            MainActor.assumeIsolated { self?.bump(id, by: 1); self?.noteActivation(id) }
         }
     }
 
@@ -81,6 +90,17 @@ final class AppUsage {
         recompute()
     }
 
+    private func noteActivation(_ bundle: String) {
+        guard bundle != Bundle.main.bundleIdentifier, !Self.hidden.contains(bundle) else { return }
+        lastSeen[bundle] = Date().timeIntervalSince1970
+        // On garde une trentaine d'applications : bien assez pour en montrer 6.
+        if lastSeen.count > 30 {
+            for (k, _) in lastSeen.sorted(by: { $0.value > $1.value }).dropFirst(30) { lastSeen[k] = nil }
+        }
+        UserDefaults.standard.set(lastSeen, forKey: recentKey)
+        recomputeRecent()
+    }
+
     /// Outils de développeur et utilitaires système : jamais sur l'accueil d'un senior.
     private static let hidden: Set<String> = [
         "com.apple.Terminal", "com.apple.dt.Xcode", "com.apple.ActivityMonitor", "com.apple.systempreferences",
@@ -90,12 +110,25 @@ final class AppUsage {
 
     private func recompute() {
         let ranked = scores.sorted { $0.value > $1.value }.map(\.key)
+        let out = Self.apps(ranked + Self.defaults)
+        if out != top { top = out }
+    }
+
+    private func recomputeRecent() {
+        let ranked = lastSeen.sorted { $0.value > $1.value }.map(\.key)
+            .filter { $0 != Bundle.main.bundleIdentifier && !Self.hidden.contains($0) }
+        let out = Self.apps(ranked + Self.defaults)
+        if out != recent { recent = out }
+    }
+
+    /// Les 6 premières applications installées de la liste, sans doublon.
+    private static func apps(_ bundles: [String]) -> [App] {
         var out: [App] = []
-        for b in ranked + Self.defaults where out.count < 6 && !out.contains(where: { $0.bundle == b }) {
+        for b in bundles where out.count < 6 && !out.contains(where: { $0.bundle == b }) {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: b) else { continue }
             let name = FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
             out.append(App(bundle: b, name: name))
         }
-        if out != top { top = out }
+        return out
     }
 }
