@@ -119,25 +119,18 @@ struct ResultatsRecherche: View {
             } else if prepare {
                 HStack(spacing: 10) {
                     ProgressView().controlSize(.small)
-                    Text("Aucun automate ne correspond. Holo prépare une proposition pour votre support IT…")
+                    Text("Aucun automate ne correspond. Préparation de votre demande…")
                         .font(rounded(17, .medium)).fixedSize(horizontal: false, vertical: true)
                 }
             } else if let p = proposition {
                 entete("Aucun automate ne correspond")
-                Text("Je peux demander à votre support IT de créer cet automate. Une fois validé, il apparaîtra dans vos automates.")
+                Text("Votre question sera envoyée à votre support IT, qui s’en occupe.")
                     .font(rounded(16)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(p.titre).font(rounded(18, .bold))
-                    ForEach(Array(p.etapes.enumerated()), id: \.offset) { i, s in
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Text("\(i + 1)").font(rounded(14, .bold)).foregroundStyle(T.accent)
-                                .frame(width: 24, height: 24).background(Circle().fill(T.mint))
-                            Text(s).font(rounded(16)).fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-                .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.field))
+                // Seule la question de l'utilisateur est montrée : le plan préparé par Holo part
+                // au support avec le ticket, sans s'afficher ici.
+                Text("« \(p.demande) »").font(rounded(18, .semibold)).fixedSize(horizontal: false, vertical: true)
+                    .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.field))
                 if let erreur {
                     Label(erreur, systemImage: "exclamationmark.circle").font(rounded(15, .semibold))
                         .foregroundStyle(T.danger).fixedSize(horizontal: false, vertical: true)
@@ -179,7 +172,7 @@ struct ResultatsRecherche: View {
         switch await p.envoyer(base: model.httpBase) {
         case .success(let n):
             fermer()
-            model.showNotice("Demande\(n > 0 ? " n° \(n)" : "") envoyée à votre support IT. Vous la suivez dans l’onglet Tickets.")
+            model.showNotice("Demande\(n > 0 ? " n° \(n)" : "") envoyée à votre support IT. Vous la suivez dans l’onglet Mes demandes.")
         case .failure(let e):
             erreur = e.texte
         }
