@@ -4,7 +4,7 @@ import SwiftUI
 /// en lecture seule. Le support les traite de son côté.
 struct UserTickets: View {
     @Environment(AppModel.self) private var model
-    struct Item: Identifiable { var id: String; var number: Int; var task: String; var status: String; var updated: Double; var rdv: Double? }
+    struct Item: Identifiable { var id: String; var number: Int; var task: String; var status: String; var updated: Double; var rdv: Double?; var automate = false }
     @State private var items: [Item] = []
     @State private var loaded = false
     @State private var failed = false
@@ -51,7 +51,7 @@ struct UserTickets: View {
                 Text(String(format: "T-%04d", t.number) + " · " + when(t)).font(rounded(14)).foregroundStyle(T.muted)
             }
             Spacer(minLength: 0)
-            let (txt, ton) = label(t.status)
+            let (txt, ton): (String, Pastille.Ton) = t.automate && t.status == "nouveau" ? ("En attente de validation", .bleu) : label(t.status)
             Pastille(texte: txt, icone: "circle.fill", ton: ton, taille: 14)
         }
         .padding(.horizontal, 20).padding(.vertical, 14)
@@ -89,7 +89,8 @@ struct UserTickets: View {
             guard let id = t["id"] as? String, (t["status"] as? String) != "resolu" else { return nil }
             return Item(id: id, number: (t["number"] as? NSNumber)?.intValue ?? 0, task: t["task"] as? String ?? "",
                         status: t["status"] as? String ?? "nouveau",
-                        updated: (t["updated"] as? NSNumber)?.doubleValue ?? 0, rdv: (t["rdv"] as? NSNumber)?.doubleValue)
+                        updated: (t["updated"] as? NSNumber)?.doubleValue ?? 0, rdv: (t["rdv"] as? NSNumber)?.doubleValue,
+                        automate: t["automate"] is [String: Any])
         }
     }
 }

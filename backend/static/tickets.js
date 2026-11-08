@@ -4,7 +4,7 @@
     nouveau: 'Nouveau', en_attente: "En attente d'un support", rdv: 'Rendez-vous',
     en_cours: 'En cours', a_reprendre: 'À reprendre', resolu: 'Résolu',
   };
-  const SOURCE = { personne: 'Demandé par la personne', support: 'Proposé par le support', automatisme: 'Automate' };
+  const SOURCE = { personne: 'Demandé par la personne', support: 'Proposé par le support', automatisme: 'Automate', automate: "Demande d'automate" };
   const OPEN = ['nouveau', 'en_attente', 'rdv', 'a_reprendre'];
 
   const css = document.createElement('style');
@@ -22,6 +22,9 @@
     .tk-st.en_cours { background: #E6EEFF; color: #1F4FD1; box-shadow: inset 0 0 0 1px rgba(31,79,209,.25); }
     .tk-st.resolu { background: #E5F5EC; color: #1B7A43; }
     .tk-meta { font-size: 14px; color: var(--muted, #5B6478); }
+    .tk-plan { font-size: 14px; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--field, #F1F3F9); }
+    .tk-plan b { display: block; color: var(--accent, #1F5AE8); margin-bottom: 4px; }
+    .tk-plan ol { margin: 0; padding-left: 20px; }
     .tk-notes { font-size: 14px; margin: 0; padding: 8px 12px 8px 28px; border-radius: 12px; background: var(--field, #F1F3F9); }
     .tk-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; padding-top: 12px;
                border-top: 1px solid var(--line, rgba(20,40,100,.08)); }
@@ -65,6 +68,15 @@
       head.append(el('span', 'tk-num', num(t)), el('span', 'tk-st ' + t.status, STATUS[t.status] || t.status),
                   el('span', 'tk-task', t.task || '(sans texte)'));
       c.append(head, el('div', 'tk-meta', meta(t)));
+      if (t.automate) {
+        // Plan proposé par Holo : Valider crée l'automate chez l'utilisateur.
+        const p = el('div', 'tk-plan');
+        p.append(el('b', '', `Automate proposé : ${t.automate.title}`));
+        const ol = el('ol');
+        for (const s of t.automate.steps || []) ol.append(el('li', '', s));
+        p.append(ol);
+        c.append(p);
+      }
       if (t.notes && t.notes.length) {
         const ul = el('ul', 'tk-notes');
         for (const n of t.notes.slice(-3)) ul.append(el('li', '', `${n.by ? n.by + ' : ' : ''}${n.text}`));
@@ -72,7 +84,9 @@
       }
       const acts = el('div', 'tk-acts');
       const btn = (label, fn) => { const b = el('button', '', label); b.type = 'button'; b.onclick = fn; acts.append(b); };
-      if (OPEN.includes(t.status)) {
+      if (OPEN.includes(t.status) && t.automate) {
+        btn('Valider', () => act(t, 'validate'));
+      } else if (OPEN.includes(t.status)) {
         btn('Prendre', () => act(t, 'take'));
         btn('Rendez-vous', () => {
           if (acts.querySelector('input')) return;

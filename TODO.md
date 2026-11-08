@@ -60,6 +60,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Charger les 7 exemples d'automates dans un nouvel espace (aujourd'hui il faut les importer à la main). Touche `backend/space.py`, réservé par Devin (multi-espaces).
 - [x] Réglages Mac : sans taille du texte, sans changement de rôle, sans lien de parenté (`claude/reglages-connexion`).
 - [x] Accueil support Mac : onglets Tickets (tous les utilisateurs), Utilisateurs, Mes automates (`claude/support-tickets`). Reste : même organisation sur l'iPhone et Android.
+- [x] Barre de recherche Mac : un automate trouvé se lance sans accord ni support en direct ; sinon, ticket au support IT avec le plan proposé par Holo, « Valider » côté support (Mac, page web) crée l'automate (`claude/ticket-automate`). Reste : Windows, iPhone et Android.
 - [ ] Réactiver la création d'automate côté support quand ce sera décidé (`SupportAutomates.creationActive`).
 - [x] Mode support Mac : « Mes automates » (bibliothèque du support, appliquer à des personnes), création à la main, depuis un document ou un enregistrement d'écran avec voix (`claude/support-automates`).
   - [ ] Essayer l'enregistrement d'écran en vrai (autorisation d'enregistrement et micro sur le poste du support).

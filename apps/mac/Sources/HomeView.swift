@@ -6,6 +6,9 @@ struct HomeView: View {
     @Environment(AppModel.self) private var model
     @State private var request = ""
     @State private var warning: String?
+    @State private var trouves: [Lesson] = []
+    @State private var prepare = false
+    @State private var proposition: PropositionAutomate?
     @FocusState private var focused: Bool
     @State private var dictation = Dictation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -88,6 +91,10 @@ struct HomeView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 18).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+                }
+                if !trouves.isEmpty || prepare || proposition != nil {
+                    ResultatsRecherche(trouves: trouves, prepare: prepare, proposition: proposition, fermer: fermerRecherche)
+                        .frame(maxWidth: largeur ?? .infinity)
                 }
                 if let q = model.queued, !model.queuedShown {
                     Button { model.queuedShown = true } label: {
@@ -254,10 +261,25 @@ struct HomeView: View {
         guard dictation.phase == .idle else { return }
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { warning = "Dites en quelques mots ce que vous voulez faire."; focused = true; return }
-        if !model.connected { warning = "Je ne joins pas \(model.helperName) pour le moment. Réessayez dans un instant."; return }
         warning = nil
-        // L'accord de partage a été donné à l'inscription : la demande part directement.
-        model.requestConsent(task: text)
+        proposition = nil
+        // D'abord les automates de l'utilisateur : ils se lancent sans autorisation ni support en direct.
+        trouves = RechercheAutomates.chercher(text, dans: model.lessons)
+        if !trouves.isEmpty { return }
+        // Rien ne correspond : Holo propose un plan, à envoyer au support IT dans un ticket.
+        prepare = true
+        Task {
+            let r = await PropositionAutomate.preparer(text, base: model.httpBase)
+            prepare = false
+            switch r {
+            case .success(let p): proposition = p; request = ""
+            case .failure(let e): warning = e.texte
+            }
+        }
+    }
+
+    private func fermerRecherche() {
+        trouves = []; proposition = nil; prepare = false
         request = ""
     }
 

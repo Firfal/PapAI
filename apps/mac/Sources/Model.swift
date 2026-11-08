@@ -986,13 +986,8 @@ final class AppModel {
             showNotice("Cet automate est prévu pour un autre ordinateur.")
             return
         }
+        // Ni accord ni support en direct : l'automate a été validé par le support à sa création.
         let holo = acts.first { $0.kind == "holo" }
-        if holo != nil && !screenConsent {
-            pendingAutomation = l
-            pendingTask = l.title
-            screen = .consent
-            return
-        }
         gate.reset()
         showRunStatus(l.id, "En cours…", enCours: true)
         Task {

@@ -80,6 +80,22 @@ def _parse(raw: str) -> dict:
 def build_messages(req: dict) -> list[dict]:
     """Vérifie la demande et prépare les messages pour Holo."""
     kind = str(req.get("kind", "")).strip()
+    if kind == "request":
+        # Demande tapée par l'utilisateur, sans automate qui y réponde : Holo
+        # propose le plan, que le support validera dans le ticket.
+        text = str(req.get("text", "")).strip()
+        if len(text) < 3:
+            raise DraftError("Dites en quelques mots ce que vous voulez faire.")
+        os_ = str(req.get("os", "")).strip()
+        source = ("une demande écrite par l'utilisateur, ci-dessous, pour laquelle il n'existe pas encore "
+                  "d'automate. Il n'y a pas de tutoriel : propose toi-même les étapes, d'après ce que tu "
+                  "sais du système" + (f" (l'ordinateur de l'utilisateur est un {'Mac' if os_ == 'mac' else 'PC Windows'})"
+                                       if os_ in ("mac", "windows") else "") + ". Renvoie une erreur seulement si "
+                  "la demande n'est pas une tâche informatique faisable sur l'ordinateur.")
+        return [
+            {"role": "system", "content": PROMPT.format(source=source)},
+            {"role": "user", "content": text[:600]},
+        ]
     if kind == "document":
         text = str(req.get("text", "")).strip()
         if len(text) < 20:
@@ -115,7 +131,15 @@ def build_messages(req: dict) -> list[dict]:
                   "des captures clés et sa narration éventuelle.")
         return [{"role": "system", "content": PROMPT.format(source=source)},
                 {"role": "user", "content": content}]
-    raise DraftError("Source inconnue : document ou enregistrement.")
+    raise DraftError("Source inconnue : demande, document ou enregistrement.")
+
+
+def pack(draft: dict, publisher: str) -> dict:
+    """Le brouillon devenu automate `.papai` : Holo fait la tâche, avec ce plan."""
+    return {"papai": 1, "title": draft["title"], "description": draft.get("description", ""),
+            "publisher": publisher[:80] or "Support IT", "platforms": draft["platforms"],
+            "actions": [{"do": "holo", "goal": draft["goal"], "steps": draft["steps"]}],
+            "steps": [{"instruction": s} for s in draft["steps"]]}
 
 
 def clean(data: dict) -> dict:

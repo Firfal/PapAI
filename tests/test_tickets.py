@@ -167,6 +167,33 @@ async def parcours(base: str) -> None:
         sess = await attendre(wb, "session")
         check("ordinateur sans aucun support : la session démarre comme avant", sess is not None and sess.get("ticket"))
         await wb.send(json.dumps({"type": "stop"}))
+        await drain(wb, 0.5)
+
+        # Aucun automate ne répond à la demande : ticket avec le plan, validé par le support.
+        k = seul["key"]
+        plan = {"title": "Installer Zoom", "description": "Ajoute Zoom.", "goal": "Installer Zoom depuis zoom.us",
+                "steps": ["Ouvrir zoom.us", "Télécharger Zoom", "Lancer l'installation"], "platforms": ["mac"]}
+        st, r = http(f"{base}/k/{k}/tickets", {"task": "installer zoom", "automate": {"steps": []}})
+        check("ticket d'automate sans étape refusé", st == 422)
+        st, r = http(f"{base}/k/{k}/tickets", {"task": "installer zoom", "automate": plan})
+        t = r.get("ticket", {})
+        check("ticket d'automate envoyé au support avec le plan",
+              st == 200 and t.get("source") == "automate" and t.get("status") == "nouveau"
+              and t.get("automate", {}).get("steps") == plan["steps"])
+        st, avant = http(f"{base}/k/{k}/lessons")
+        check("rien n'est créé avant la validation",
+              st == 200 and not any(x.get("title") == "Installer Zoom" for x in avant))
+        st, r = http(f"{base}/k/{k}/tickets/{t['id']}", {"action": "validate", "by": "Claire"})
+        check("le support valide : ticket résolu, automate créé",
+              st == 200 and r["ticket"]["status"] == "resolu" and r["ticket"].get("lesson", "").startswith("imp-"))
+        msg = await attendre(wb, "lessons_changed")
+        check("l'ordinateur est prévenu du nouvel automate", msg is not None and msg.get("title") == "Installer Zoom")
+        st, apres = http(f"{base}/k/{k}/lessons")
+        l = next((x for x in apres if x.get("title") == "Installer Zoom"), None) if st == 200 else None
+        check("l'automate est utilisable, validé par le support",
+              l is not None and l.get("approved_by") == "Claire" and l["actions"][0]["steps"] == plan["steps"])
+        st, _ = http(f"{base}/k/{k}/tickets/{t['id']}", {"action": "validate", "by": "Claire"})
+        check("un ticket ne se valide qu'une fois", st == 409)
 
 
 if __name__ == "__main__":
