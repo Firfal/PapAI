@@ -5101,6 +5101,26 @@
           }
         }
       }
+    },
+    "Mettre fin à l’aide : c’est réglé": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "End help: it's fixed"
+          }
+        }
+      }
+    },
+    "Réglé par le support.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fixed by support."
+          }
+        }
+      }
     }
   }
 }

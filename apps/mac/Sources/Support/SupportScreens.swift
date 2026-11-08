@@ -326,6 +326,8 @@ struct SupportHelperView: View {
             Rectangle().fill(T.line).frame(height: 1).padding(.vertical, 4)
             Button("Prendre la main") { model.setAiming(true) }
                 .buttonStyle(supportSecondary(50, icone: "cursorarrow.click"))
+            Button("Mettre fin à l’aide : c’est réglé") { model.finishHelp(String(localized: "Réglé par le support.")) }
+                .buttonStyle(PillStyle(height: 50, icone: "checkmark.circle"))
             Text("Vous pouvez cliquer vous-même sur l’écran de \(model.senior).")
                 .font(rounded(14)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
         }
@@ -352,6 +354,8 @@ struct SupportHelperView: View {
                     .disabled(model.target == nil || stale || model.sending)
                 Button("Annuler") { model.setAiming(false) }.buttonStyle(supportSecondary(48))
             }
+            Button("Mettre fin à l’aide : c’est réglé") { model.finishHelp(String(localized: "Réglé par le support.")) }
+                .buttonStyle(PillStyle(height: 48, icone: "checkmark.circle"))
         }
     }
 

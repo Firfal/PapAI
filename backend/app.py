@@ -1437,6 +1437,24 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
             session.answer_from_helper(str(msg.get("text", "")).strip())
             await broadcast_helper(session.status())
 
+        elif kind == "finish":
+            # Le support a tout réglé (souvent après avoir pris la main) : il met fin à l'aide.
+            # L'assistance se termine comme réglée et le ticket garde la solution.
+            sup = _ws_support.get(ws)
+            who = (sup["name"] if sup else S().helper_who.get(ws, {}).get("name", "")) or "Support"
+            text = str(msg.get("text") or "").strip()[:1000] or "Réglé par le support."
+            session.finish(text)
+            session.log("helper_finish", by=who)
+            if S().agent_task and not S().agent_task.done():
+                S().agent_task.cancel()
+            ticket = S().tickets.get(session.ticket) if session.ticket else None
+            if ticket is not None:
+                S().tickets.update(ticket, status="resolu", solution=text, closed_by=who)
+                S().tickets.note(ticket, who, text)
+                await _tickets_changed()
+            await broadcast_helper({"type": "answer", "session": session.id, "content": text})
+            await broadcast_helper(session.status())
+
         elif kind == "pause":
             session.pause_requested = True
             session.log("helper_pause")
