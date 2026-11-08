@@ -31,7 +31,7 @@ private val supportHttp by lazy {
 }
 /** Requêtes HTTP vers les postes ; jamais d'attente sur ce pool depuis lui-même. */
 private val pool by lazy { Executors.newFixedThreadPool(4) }
-/** Enchaîne lectures et actions (une à la fois), et attend les requêtes sur `pool`. */
+/** Lectures des tickets, une à la fois ; elles attendent leurs requêtes sur `pool`. */
 private val coordinator by lazy { Executors.newSingleThreadExecutor() }
 private val mainThread by lazy { Handler(Looper.getMainLooper()) }
 
@@ -109,6 +109,7 @@ object TicketBoard {
     val errors = mutableStateListOf<String>()
     /** Ticket dont une action est en cours d'envoi. */
     var busy by mutableStateOf<String?>(null)
+    private var again: List<Person>? = null
 
     val openCount get() = tickets.count { it.isOpen }
 
@@ -117,6 +118,8 @@ object TicketBoard {
         val keys = people.map { it.key }.toSet()
         tickets.removeAll { it.person.key !in keys }
         if (people.isEmpty()) { errors.clear(); return }
+        // Une lecture déjà en cours (postes lents) : on en refera une seule à la fin, sans file d'attente.
+        if (loading) { again = people; return }
         loading = true
         coordinator.execute {
             val results = pool.invokeAll(people.map { p -> Callable { fetch(p) } }).map { it.get() }
@@ -126,6 +129,7 @@ object TicketBoard {
                 tickets.clear(); tickets.addAll(all)
                 errors.clear(); errors.addAll(errs)
                 loading = false
+                again?.let { again = null; load(it) }
             }
         }
     }
@@ -145,7 +149,7 @@ object TicketBoard {
     /** `take`, `close` ou `reopen`, puis relit la liste. `done` reçoit le message d'erreur, ou null. */
     fun act(t: SupportTicket, action: String, by: String, people: List<Person>, done: (String?) -> Unit) {
         busy = t.id
-        coordinator.execute {
+        pool.execute {
             val error = try {
                 val body = JSONObject().put("action", action).put("by", by).toString().toRequestBody(json)
                 val req = Request.Builder().url(spaceBase(t.person) + "/tickets/" + t.tid).post(body).build()
@@ -236,7 +240,7 @@ object AutomateLibrary {
 
     /** Applique l'automate chez chacun ; `done` reçoit, par clé, "" si appliqué ou le message d'erreur. */
     fun apply(e: AutomateEntry, people: List<Person>, done: (Map<String, String>) -> Unit) {
-        coordinator.execute {
+        pool.execute {
             val results = people.associate { it.key to (applyTo(e, it) ?: "") }
             mainThread.post {
                 markApplied(e, results.filterValues { it.isEmpty() }.keys)
