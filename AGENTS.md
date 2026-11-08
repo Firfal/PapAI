@@ -12,6 +12,14 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 6. Avant de pousser, `git fetch` puis remettre sa branche à jour sur `main` : un autre agent a peut-être touché aux mêmes fichiers.
 5. Le contrat entre le serveur et les apps est `PROTOCOL.md` : tout nouveau message y est décrit.
 
+## Branches gelées
+
+Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande explicite de Quentin.
+
+| Branche | Pourquoi |
+|---|---|
+| `devin/1794084917-extension-gardien` | Extension navigateur anti-arnaque retirée du produit (PR #32 fermée sans fusion). Code conservé tel quel. |
+
 ## En cours
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
@@ -84,3 +92,4 @@ Ce fichier sert à ne pas se marcher dessus. **À lire avant de commencer, à me
 - 2026-11-07 Devin (`devin/1794088468-automatismes-importes`) : Automatismes importés par un support (`.papai`, `backend/automations.py`) : actions de premier niveau, jamais de commande ni de script ; lancement en un clic (`run_automation`, plan pré-validé) ; page aidant « Importer » ; Mac et Windows jouent les actions ; envoi périodique du gardien retiré des apps. Tests : `test_automatismes.py` 40/40, parcours 27/27, sécurité 31/31, gardien 14/14, Windows 36. Swift non compilé.
 - 2026-11-07 Devin (`devin/1794090552-vocabulaire-support`) : Vocabulaire général (support informatique de niveau 1) : « support » pour celui qui aide (Mon support, Ajouter un support, appelez votre support) sur Mac, Windows et dans les alertes ; côté support (iPhone, Android, web), prénom de la personne aidée ou « la personne aidée ». « Mamie » codé en dur retiré, « personne âgée » retiré des consignes de Holo (fiches, gardien), liens d'appairage avec Collègue et Service informatique, « clé de l'espace ». « J'ai besoin d'aide » → « Demander une assistance » dans les docs (le libellé n'existe plus dans les apps). Tests serveur, Windows, JVM Android au vert (échecs protocole/transcribe/profil déjà présents sur main). Swift non compilé. Fichiers libérés.
 - 2026-11-07 Devin (`devin/1794089487-windows-parite-mac`) : App Windows au niveau du Mac pendant l'aide : Pause/Reprendre, question de Holo à la personne (`senior_answer`), avancement en 3 étapes, encart pendant que Holo agit, fin du gardien adaptée à l'aidé, dictée transmise à l'aidant. Tests Windows (Python + node). Pas essayé sur un vrai Windows.
+| 7 nov. | Devin | `devin/1794089154-branche-extension-gelee` | Extension navigateur retirée du produit (PR #32 fermée sans fusion) : section « Branches gelées » ajoutée, `devin/1794084917-extension-gardien` à ne fusionner que sur demande explicite de Quentin. Aucun fichier réservé. |
