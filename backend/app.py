@@ -642,7 +642,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     "type": "alert",
                     "title": str(msg.get("title", "Un automate"))[:200],
                     "detail": str(msg.get("detail", ""))[:1000],
-                })
+                }, to_bridge=False)
                 continue
 
             if kind == "guard":
@@ -918,7 +918,7 @@ async def handle_helper_msg(session, msg: dict, ws: WebSocket) -> None:
         elif kind == "draft_lesson":
             await ws.send_json({"type": "lesson_pending"})
             try:
-                lesson = await draft_lesson(session)
+                lesson = await draft_lesson(session, S().bridge.os if S().bridge else "windows")
             except Exception as e:  # noqa: BLE001 — l'aidant ne doit pas rester sans réponse
                 session.log("lesson_failed", error=f"{type(e).__name__}: {e}")
                 raise Refused("Holo n'a pas pu rédiger l'automate. Réessayez.") from e
@@ -1100,7 +1100,9 @@ def _client_ip(request: HTTPConnection) -> str:
     if PUBLIC_MODE:  # derrière le proxy de Cloud Run
         fwd = request.headers.get("x-forwarded-for", "")
         if fwd:
-            return fwd.split(",")[0].strip()
+            # Cloud Run ajoute la vraie adresse en dernier ; les valeurs
+            # précédentes viennent du client et peuvent être inventées.
+            return fwd.split(",")[-1].strip()
     return request.client.host if request.client else ""
 
 
