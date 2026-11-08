@@ -68,6 +68,7 @@ final class AppModel {
     var pairExpires = 600
     var remoteRequest: RemoteRequest?
     var showHelpers = false
+    var pairingWhenConnected = false
     var pendingTask = ""
     var actions: [String] = []
     var guardAlert: GuardAlert?
@@ -112,10 +113,10 @@ final class AppModel {
     /// Qui aide : toujours au singulier pour accorder le verbe qui suit.
     var helperName: String {
         switch helpers.count {
-        case 0: "votre proche"
+        case 0: "votre support"
         case 1: helpers[0].name
         case 2: "\(helpers[0].name) ou \(helpers[1].name)"
-        default: "l'un de vos proches"
+        default: "votre support"
         }
     }
     var HelperName: String {
@@ -128,7 +129,7 @@ final class AppModel {
     /// Qui s'occupe de la demande, au singulier : « Quentin s'en occupe ».
     var carer: String {
         if let n = sessionHelper, !n.isEmpty { return n }
-        return helpers.count == 1 ? helpers[0].name : "Votre proche"
+        return helpers.count == 1 ? helpers[0].name : "Votre support"
     }
 
     // MARK: Accueil et proches
@@ -172,6 +173,7 @@ final class AppModel {
     }
 
     func startPairing(long: Bool = true) {
+        pairingWhenConnected = false
         pairAdded = nil
         client.send(long ? ["type": "pair_start", "long": true] : ["type": "pair_start"])
     }
@@ -179,15 +181,27 @@ final class AppModel {
     /// Le texte de l'invitation envoyée au proche, avec le lien d'appairage.
     var invitationText: String {
         let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
-        let who = n.isEmpty ? "Votre proche" : n
+        let who = n.isEmpty ? "Votre support" : n
         return "\(who) aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre téléphone pour vous relier (valable 24 heures) :"
     }
 
     func stopPairing() {
+        pairingWhenConnected = false
         pairCode = nil
         pairURL = nil
         pairAppURL = nil
         pairLong = false
+    }
+
+    func openSupportPairing() {
+        showHelpers = true
+        pairingWhenConnected = true
+        startPendingPairing()
+    }
+
+    func startPendingPairing() {
+        guard connected, showHelpers, pairingWhenConnected else { return }
+        startPairing()
     }
 
     /// `papai://pair?u=<url encodée>` : l'appareil photo de l'iPhone ouvre l'app, pas Safari.
@@ -245,6 +259,7 @@ final class AppModel {
                 InputLock.shared.set(false)
             }
             if ok { self.sendProfile() }
+            self.startPendingPairing()
             // Test : PAPAI_AUTOTASK lance une demande dès la connexion.
             if ok, !self.autoSent, let t = ProcessInfo.processInfo.environment["PAPAI_AUTOTASK"], !t.isEmpty {
                 self.autoSent = true
@@ -275,6 +290,19 @@ final class AppModel {
             if demo.hasPrefix("onboarding") { onboarded = false; return }
             onboarded = true
             helpers = [Helper(id: "1", name: "Claire", relation: "sa fille")]
+            if demo == "settings" || demo == "helpers_pair" {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    if demo == "settings" { self.showSettings = true }
+                    else {
+                        self.pairCode = "482913"
+                        self.pairURL = "https://papai.example/p/482913"
+                        self.pairAppURL = Self.appPairingURL(self.pairURL!)
+                        self.pairLong = true
+                        self.showHelpers = true
+                    }
+                }
+                return
+            }
             if demo == "remote" {
                 remoteRequest = RemoteRequest(from: "Claire", task: "Mettre à jour votre ordinateur")
                 return
@@ -555,7 +583,7 @@ final class AppModel {
             if let id = m["alert_id"] as? String, id == guardAlert?.id { guardAlert = nil }
         case "remote_request":
             guard !sessionOpen else { return }
-            remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre proche",
+            remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre support",
                                           task: m["task"] as? String ?? "")
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
