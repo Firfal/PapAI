@@ -273,13 +273,27 @@ def evaluer_demande(texte: str) -> Alerte | None:
         r"(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*\.[a-z]{2,63}\b",
         t,
     )
-    domaines_impots = {"impots.gouv", "impots.gouv.fr"}
+    # Seul impots.gouv.fr (ou un de ses sous-domaines) est toléré ; tout autre site cité
+    # (impots-remboursement.fr, impots.gouv.fr.exemple.com…) empêche l'exception impôts.
+    # « impots.gouv » seul (raccourci dicté, .gouv n'existe pas) désigne le même site.
+    def site_impots(hote):
+        return hote in {"impots.gouv", "impots.gouv.fr"} or hote.endswith(".impots.gouv.fr")
+
     hotes_url = re.findall(r"\b(?:https?://|www\.)([a-z0-9](?:[a-z0-9.-]*[a-z0-9])?)", t)
     site_non_autorise = (
         bool(re.search(r"\b\d{1,3}(?:\.\d{1,3}){3}\b", t))
-        or any(domaine not in domaines_impots for domaine in domaines)
-        or any(hote not in domaines_impots for hote in hotes_url)
+        or any(not site_impots(domaine) for domaine in domaines)
+        or any(not site_impots(hote) for hote in hotes_url)
     )
+    # Donner, dicter, envoyer… un code ou un numéro à quelqu'un : signal d'arnaque.
+    code_communique = bool(re.search(
+        r"\b(?:donner|donne|transmettre|communiquer|dicter|lire|envoyer|partager|"
+        r"give|send|share|read)\b.{0,40}\b(?:codes?|numeros?|numbers?)\b|"
+        r"\b(?:codes?|numeros?)\b.{0,40}\b(?:au|a la|a un|a une)\s+"
+        r"(?:conseiller|monsieur|madame|personne|agent|technicien|telephone)\b",
+        t,
+    ))
+    telephone_cite = bool(re.search(r"\b(?:telephone|telephonique)\b", t))
     transfert_non_securise = bool(re.search(
         r"\b(?:western\s+union|westernunion|moneygram|mandat\s+cash|ria|wise)\b", t
     ))
@@ -293,6 +307,7 @@ def evaluer_demande(texte: str) -> Alerte | None:
         or bool(iban) or telephone_perdu or tiers_inconnu or compte_vers_pays
         or appel_ou_demarche or lien_sms_mail or site_non_autorise
         or transfert_non_securise or nouveau_beneficiaire
+        or code_communique or telephone_cite
     )
     facture_habituelle = (
         r"\b(?:payer|regler|paie|paye)\s+(?:(?:ma|la|mes|les|mon|le|une|un)\s+)?"
@@ -428,6 +443,7 @@ def evaluer_demande(texte: str) -> Alerte | None:
             break
     if (payer and re.search(r"\b(coupons?|transcash|paysafecard|neosurf|pcs|recharges? prepayees?)\b", t)
             or code_cadeau or payer_en_cadeau or demande_carte_suspecte
+            or (cadeau and code_communique)
             or (cadeau and payer and (pression or support))):
         return _risque("Paiement ou transmission de cartes cadeaux ou de coupons prépayés.")
     if (payer or transfert) and re.search(r"\b(crypto\w*|bitcoins?|ethereum|usdt|portefeuille numerique)\b", t):
