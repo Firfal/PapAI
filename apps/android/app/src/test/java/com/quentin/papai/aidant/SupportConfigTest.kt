@@ -72,9 +72,9 @@ class SupportConfigTest {
     }
 
     @Test fun jetonPersonnelDuSupport() {
-        // Jeton par support (#77) : "sup-" + token_urlsafe(24), 32 caractères, même forme que celui de l'organisation.
-        val perso = "sup-AbC_dEf-0123456789xyzABCDEFG"
-        assertEquals(32, perso.length)
+        // Jeton par support (#77) : "sup-" + token_urlsafe(24), 36 caractères, même forme que celui de l'organisation.
+        val perso = "sup-AbC_dEf-0123456789xyzABCDEFGhijk"
+        assertEquals(36, perso.length)
         assertEquals(perso, SupportConfig.token(perso))
         assertEquals(SupportOrg("http://10.0.2.2:8000", perso),
             SupportConfig.resolve(listOf(mapOf("supportToken" to perso, "server" to "http://10.0.2.2:8000"))))
