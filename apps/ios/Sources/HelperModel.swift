@@ -75,6 +75,7 @@ final class HelperModel {
 
     // Session
     var state: String?
+    var sessionWhere: String?
     var task = ""
     var plan: [String] = []
     /// Étape du plan validé que Holo exécute (à partir de 1). Absente d'un ancien serveur.
@@ -343,6 +344,13 @@ final class HelperModel {
     var senior: String { seniorName.isEmpty ? "votre proche" : seniorName }
     /// En début de phrase : « Sophie a besoin de vous », sinon « Votre proche… ».
     var seniorTitle: String { seniorName.isEmpty ? "Votre proche" : seniorName }
+    var webBrowserTitle: String {
+        let firstName = seniorName.split(whereSeparator: \.isWhitespace).first.map(String.init)
+        return firstName.map { "Chrome PapAI de \($0)" } ?? "Chrome PapAI"
+    }
+    var webLive: Bool {
+        sessionWhere == "web" && (state == "active" || state == "awaiting_helper")
+    }
 
     func setSenior(_ name: String?) {
         let n = (name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -480,12 +488,22 @@ final class HelperModel {
         case "status":
             let newState = m["state"] as? String
             let sid = "\(m["session"] ?? "")"
+            var wasWebLive = webLive
             if sid != sessionId {
+                wasWebLive = false
                 liveDictation = nil
                 sessionId = sid; requestStart = Date(); iRefusedPlan = false
+                sessionWhere = nil
                 doneAnswer = nil; hasDraft = false; savedTitle = nil; lessonBusy = false
                 pausing = false; doneFresh = false
             }
+            let newWhere = m["where"] as? String
+            let newWebLive = newWhere == "web" && (newState == "active" || newState == "awaiting_helper")
+            if newWebLive && !wasWebLive {
+                aiming = false; target = nil; sending = false
+                frame = nil; frameId = nil; frameAt = nil
+            }
+            sessionWhere = newWhere
             if newState != state {
                 if newState == "awaiting_approval" || newState == "awaiting_helper" { notify(newState!) }
                 if newState == "done" { doneFresh = true; Task { await loadLessons() } }
