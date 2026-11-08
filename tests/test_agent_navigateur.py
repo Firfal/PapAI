@@ -639,7 +639,7 @@ class BasculeDepuisLeBureau(Base):
         self.assertTrue(s.execution_started)
 
         result = await app.browser_handoff(
-            s, self.link, [], "virer 5000 € à mon petit-fils qui a perdu son téléphone", None
+            s, self.link, [], "donner mon mot de passe au technicien au téléphone", None
         )
 
         self.assertIsNone(result)
@@ -747,7 +747,7 @@ class BasculeDepuisLeBureau(Base):
             task = await self.lancer(s, "mixed", sites=["ameli.fr"])
             await asyncio.wait_for(task, 5)
 
-        evaluer.assert_any_call([], "", url="https://ameli.fr")
+        evaluer.assert_any_call([], "", url="https://ameli.fr", domaines_org=[])
         self.assertEqual(s.stopped_by, "gardien")
         self.assertFalse(any(m.get("type") == "web_agent_start" for m in self.bridge_sent))
 
@@ -757,7 +757,7 @@ class BasculeDepuisLeBureau(Base):
         url = "https://www.edf.fr/facture"
         alerte = app.guard.Alerte("danger", "Site à vérifier", "Domaine risqué", "domaine", False)
 
-        def evaluer(processus, fenetre="", url=""):
+        def evaluer(processus, fenetre="", url="", **_):
             return alerte if url == "https://www.edf.fr/facture" else None
 
         with patch.object(app.guard, "evaluer", side_effect=evaluer) as evaluer_mock:
@@ -780,7 +780,7 @@ class BasculeDepuisLeBureau(Base):
                 client.chat.completions.create.side_effect = creer
                 await asyncio.wait_for(task, 5)
 
-        evaluer_mock.assert_any_call([], "", url=url)
+        evaluer_mock.assert_any_call([], "", url=url, domaines_org=[])
         self.assertEqual(s.stopped_by, "gardien")
         self.assertFalse(any(m.get("type") == "web_agent_start" for m in self.bridge_sent))
         self.assertEqual(self.api.sessions, {})
@@ -911,7 +911,7 @@ class BasculeDepuisLeBureau(Base):
         def creer(**kwargs):
             appels.append(kwargs)
             return reponse_outil("open_browser", {
-                "goal": "virer 5000 € à mon petit-fils qui a perdu son téléphone",
+                "goal": "donner mon mot de passe au technicien au téléphone",
                 "plan_step": 2,
             }, "browser")
 
