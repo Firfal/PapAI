@@ -3,9 +3,12 @@ import SwiftUI
 struct MesDemandesView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    /// Vrai dans l'onglet « Mes demandes » de l'accueil : ni en-tête ni bouton Fermer.
+    var integre = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if !integre {
             HStack {
                 Text("Mes demandes").font(rounded(30, .bold))
                 Spacer()
@@ -15,6 +18,7 @@ struct MesDemandesView: View {
             }
             .foregroundStyle(.white)
             .padding(24).frame(maxWidth: .infinity).background(T.header)
+            }
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if model.requestsLoading {
@@ -31,7 +35,9 @@ struct MesDemandesView: View {
             }
         }
         .foregroundStyle(T.ink)
-        .frame(width: 720, height: 660).background(T.bg)
+        .frame(width: integre ? nil : 720, height: integre ? nil : 660)
+        .frame(maxWidth: integre ? .infinity : nil, maxHeight: integre ? .infinity : nil)
+        .background(integre ? Color.clear : T.bg)
         .task { await model.refreshRequests() }
     }
 

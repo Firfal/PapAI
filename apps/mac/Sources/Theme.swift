@@ -104,7 +104,7 @@ struct Header: View {
             // Onglets de l'accueil, au-dessus de l'encadré bleu, à distance du logo.
             if accueilAffiche {
                 @Bindable var m = model
-                Onglets(options: [("Accueil", 0), ("Automates", 1), ("Tickets", 2)], selection: $m.homeTab)
+                Onglets(options: [("Accueil", 0), ("Mes demandes", 2), ("Automates", 1)], selection: $m.homeTab)
                     .frame(width: 420)
                     .padding(.leading, 48)
             }
@@ -112,10 +112,6 @@ struct Header: View {
             // Rien quand tout va bien : l’utilisateur n'a pas à se soucier de la connexion.
             if !model.connected {
                 Pastille(texte: "Pas de connexion pour le moment", icone: "wifi.slash", ton: .gris, taille: 16)
-            }
-            if model.screen == .home {
-                Button("Mes demandes") { model.showRequests = true }
-                    .buttonStyle(PillStyle(filled: false, height: 44))
             }
             Button { model.showSettings = true } label: {
                 Image(systemName: "gearshape").font(.system(size: 18, weight: .semibold))
