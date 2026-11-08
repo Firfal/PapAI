@@ -155,7 +155,8 @@ def _normaliser(texte: str) -> str:
                                (r"dringend", "urgent"), (r"bezahlen", "payer"),
                                (r"kaufen", "acheter"), (r"senden|schicken", "envoyer")):
         texte = re.sub(r"\b(?:" + allemand + r")\b", francais, texte)
-    return re.sub(r"\bcartes?[.·_-]+cadeaux?\b", "carte cadeau", texte)
+    texte = re.sub(r"\bcartes[.·_-]+cadeaux?\b", "cartes cadeau", texte)
+    return re.sub(r"\bcarte[.·_-]+cadeaux?\b", "carte cadeau", texte)
 
 
 def _montant(texte: str) -> Decimal:
@@ -279,10 +280,7 @@ def evaluer_demande(texte: str) -> Alerte | None:
     payer_en_cadeau = cadeau and bool(re.search(r"\b(payer|regler|pay)\b.*\b(avec|par|en|with|using)\b", t))
     demande_carte_suspecte = False
     segments = re.split(r"[;\n]+|\.(?!\d)|(?<!\d)\.|\b(?:puis|ensuite)\b", t)
-    segments_originaux = re.split(
-        r"[;\n]+|\.(?!\d)|(?<!\d)\.|\b(?:puis|ensuite)\b", texte.casefold()
-    )
-    for segment, segment_original in zip(segments, segments_originaux):
+    for segment in segments:
         if not re.search(carte_cadeau_pattern, segment):
             continue
         montants_carte = re.findall(
@@ -296,7 +294,7 @@ def evaluer_demande(texte: str) -> Alerte | None:
             r"\bcartes\b|\brecharges\b|\b\d+\s+exemplaires?\b|"
             r"\b(?:2|[3-9]\d*|deux|trois|quatre|cinq|six|sept|huit|neuf|dix|"
             r"plusieurs|quelques)\s+(?:cartes?|recharges?|codes?)\b",
-            segment_original
+            segment
         ))
         payer_une_personne = bool(re.search(
             r"\b(?:payer|regler|rembourser|pay)\b.{0,80}\b(?:quelqu'un|une personne|un tiers|"

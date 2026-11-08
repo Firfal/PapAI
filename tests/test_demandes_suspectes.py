@@ -155,6 +155,8 @@ SUSPECTES = [
     "Payer une facture d'impôts de 2 400 euros par carte cadeau",
     "Acheter une carte Steam de 150.00 €",
     "Acheter une carte Google Play de 120,50 euros",
+    "Acheter 2 c a r t e s c a d e a u de 20 €",
+    "Acheter deux cartes-cadeaux Fnac de 20 €",
 ]
 
 
