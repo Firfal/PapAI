@@ -62,7 +62,7 @@ fun splitStep(raw: String): Pair<String, String?> {
 }
 
 /**
- * Tout l'état de l'app de l'aidant, comme `HelperModel` sur l'iPhone.
+ * Tout l'état de l'app du support, comme `HelperModel` sur l'iPhone.
  * Les champs sont des états Compose ; on ne les modifie que sur le fil principal.
  */
 @SuppressLint("StaticFieldLeak")
@@ -268,7 +268,7 @@ object Helper {
                     if (org != o) { refreshOrg(); return@post }
                     if (code != 200 || r == null) {
                         orgError = if (code == 404 || code == 403)
-                            "Jeton d'organisation refusé par $host. Contactez votre administrateur."
+                            "Jeton support refusé par $host. Contactez votre administrateur."
                         else "Le serveur $host répond une erreur $code."
                         return@post
                     }
@@ -544,6 +544,9 @@ object Helper {
             }
 
             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                if (SupportConfig.accessRevoked(code)) main.post {
+                    if (gen == generation) { keyRefused = true; linkError = "Accès retiré par votre administrateur." }
+                }
                 webSocket.close(1000, null)
             }
 

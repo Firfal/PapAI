@@ -33,6 +33,16 @@ class PeopleTest {
     }
 
     @Test
+    fun cleDeriveeDuJetonPersonnel() {
+        // Avec un jeton personnel (#77), /o/<jeton>/spaces donne une clé dérivée de 54 caractères :
+        // sk + id du poste (12) + id du support (8) + sceau (32).
+        val derived = "sk" + "a1B2c3D4e5F6" + "s_9-ZyXw" + "Q".repeat(32)
+        assertEquals(54, derived.length)
+        val list = People.fromSpaces(JSONArray("""[{"key":"$derived","name":"Christine","label":"Comptabilité"}]"""), server, emptyList())
+        assertEquals(listOf(Person("$server/k/$derived", derived, "Christine", "Comptabilité")), list)
+    }
+
+    @Test
     fun ceQuOnSavaitNEstPasEffaceParDuVide() {
         val known = listOf(Person("$server/k/aaa", "aaa", "Christine", "Compta", "h1"))
         val list = People.fromSpaces(JSONArray("""[{"key":"aaa","name":"","label":null}]"""), server, known)
