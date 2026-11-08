@@ -1026,6 +1026,8 @@ async def handle_support_search(msg: dict, ws: WebSocket, session=None) -> None:
     if ws in _searching:
         await ws.send_json({"type": "refused", "reason": "Une recherche est déjà en cours."})
         return
+    if session is not None and not session.is_open:
+        session = None
     question = str(msg.get("question", ""))
     _searching.add(ws)
     try:
