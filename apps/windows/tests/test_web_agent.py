@@ -99,6 +99,42 @@ class WebAgentTests(unittest.TestCase):
         self.assertTrue(all(p.terminated for p in h.calls if "local" not in p.args))
         self.assertEqual(h.changes, [])
 
+    def test_profil_verrouille_on_ne_lance_rien(self):
+        from unittest.mock import patch
+        h = Host(listening_after=1)
+        (h.dir / "Chrome").mkdir()
+        with patch("papai.web_agent.wipe_profile", lambda p=None: None):
+            h.host._launch(Path("C:/chrome.exe"), h.host._generation)
+        self.assertEqual(h.calls, [], "jamais de lancement sur un ancien profil")
+
+    def test_holo_qui_tombe_ferme_chrome(self):
+        h = Host(listening_after=1)
+        orig = h.host._popen
+
+        def popen(args, **kw):
+            p = orig(args, **kw)
+            if "browser" in args:
+                p.code = 1
+            return p
+        h.host._popen = popen
+        h.host._spawn = lambda fn: fn()
+        h.host._launch(Path("C:/chrome.exe"), h.host._generation)
+        self.assertTrue(h.calls[0].terminated, "Chrome PapAI fermé")
+        self.assertIsNone(h.host.chrome)
+        self.assertEqual(h.changes, [])
+
+    def test_nettoyage_n_efface_pas_le_lancement_suivant(self):
+        h = Host(listening_after=1)
+        finishes = []
+        h.host._spawn = finishes.append
+        h.host._launch(Path("C:/chrome.exe"), h.host._generation)
+        h.host.stop_local()
+        h.host.start()
+        (h.dir / "Chrome").mkdir(exist_ok=True)
+        (h.dir / "Chrome" / "nouveau").write_text("x")
+        finishes[0]()
+        self.assertTrue((h.dir / "Chrome" / "nouveau").exists())
+
     def test_disponible_seulement_si_holo_installe(self):
         self.assertTrue(Host().host.available())
         self.assertFalse(Host(installed=False).host.available())
@@ -147,6 +183,19 @@ class ModelWebTests(unittest.TestCase):
         self.assertEqual(web.events[-1], ("stop", True))
         m.web.on_change("abc")
         m.web.on_change(None)
+
+    def test_chrome_repasse_devant_a_chaque_passage_web(self):
+        m, web, _ = self.model()
+        for where in ("web", "desktop", "web"):
+            m._handle({"type": "status", "state": "active", "where": where, "plan": ["a"]})
+        self.assertEqual(web.events.count("front"), 2)
+
+    def test_raccourci_pendant_un_automate_garde_arreter(self):
+        m, _, _ = self.model()
+        m.automation_running = "Automate"
+        m.show_run_status("c", "En cours…", running=True)
+        m.show_run_status("a", "C'est ouvert")
+        self.assertEqual(m.run_status, {"id": "c", "text": "En cours…", "running": True})
 
     def test_arreter_et_alerte_ferment_chrome(self):
         m, web, _ = self.model()
