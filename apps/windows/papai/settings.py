@@ -201,7 +201,7 @@ def _post(url: str, body: dict, timeout: float) -> tuple[int, dict]:
 def provision(base: str | None = None, timeout: float = 10, org: str = "",
               info: dict | None = None) -> str | None:
     """Crée l'espace de cet ordinateur (`POST /spaces`) et renvoie l'adresse du pont,
-    clé comprise. La personne aidée n'a rien à régler. `info` reçoit la réponse
+    clé comprise. L’utilisateur n'a rien à régler. `info` reçoit la réponse
     (nom de l'organisation pour un poste d'entreprise)."""
     body = {"org": org, "name": machine_name()} if org else {}
     st, d = _post((base or enroll_base()).rstrip("/") + "/spaces", body, timeout)

@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 
 /// Pendant que Holo agit, la souris et le clavier sont à lui (et à l'aidant) :
-/// si la personne aidée clique ou tape ailleurs, Holo perd le fil et tourne en rond.
+/// si l’utilisateur clique ou tape ailleurs, Holo perd le fil et tourne en rond.
 ///
 /// Un « event tap » de session filtre les entrées :
 /// - les événements envoyés par Holo (marqués `Actuator.marker`) passent ;

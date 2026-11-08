@@ -150,7 +150,7 @@ def _get(url: str, key: str, timeout: int = 15) -> dict:
 
 def transcribe(audio: bytes, filename: str = "demande.wav",
                content_type: str = "audio/wav") -> tuple[bool, str]:
-    """Rend (ok, texte) ou (False, message lisible par la personne aidée). Bloquant."""
+    """Rend (ok, texte) ou (False, message lisible par l’utilisateur). Bloquant."""
     key = os.environ.get("GLADIA_API_KEY", "").strip()
     if not key:
         return False, "gladia_absent"

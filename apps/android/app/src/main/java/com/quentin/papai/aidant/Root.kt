@@ -286,7 +286,7 @@ fun RequestCard(onThumb: (() -> Unit)? = null) {
     }
 }
 
-/** Mes personnes aidées : qui suivre en détail, qui demande une assistance, ajouter ou retirer. */
+/** Mes utilisateurs : qui suivre en détail, qui demande une assistance, ajouter ou retirer. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PeopleRow() {
@@ -301,7 +301,7 @@ fun PeopleRow() {
         m.people.forEach { p ->
             val here = m.isCurrent(p)
             val asking = !here && m.othersAsking[p.key] == true
-            val name = p.name.ifEmpty { "Personne aidée" }
+            val name = p.name.ifEmpty { "Utilisateur" }
             Row(
                 Modifier.clip(CircleShape).background(if (here) Soin.accent else Soin.card)
                     .then(if (asking) Modifier.border(2.dp, Soin.danger, CircleShape) else Modifier)

@@ -224,10 +224,6 @@ struct HelpersPanel: View {
                             if h.online {
                                 Pastille(texte: "En ligne", icone: "circle.fill", ton: .vert, taille: 14)
                             }
-                            if !h.relation.isEmpty {
-                                Text(h.relation.prefix(1).uppercased() + h.relation.dropFirst())
-                                    .font(rounded(16)).foregroundStyle(T.muted)
-                            }
                         }
                         Spacer(minLength: 0)
                     }
@@ -323,7 +319,7 @@ enum QRCode {
     }
 }
 
-/// Un proche propose une session : la personne aidée accepte ou refuse.
+/// Un proche propose une session : l’utilisateur accepte ou refuse.
 struct RemoteRequestView: View {
     @Environment(AppModel.self) private var model
     let request: RemoteRequest

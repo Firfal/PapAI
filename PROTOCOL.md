@@ -618,3 +618,12 @@ bureau reste le comportement par défaut.
 - Limite : `holo local browser` exige une clé H (`HAI_API_KEY`) sur le Mac de
   la personne aidée (`~/.config/hai/.env` ou variable d'environnement). Elle
   n'est jamais dans le dépôt ni dans les journaux.
+
+## Brouillon d'automate (support)
+
+`POST /automations/draft` (local) ou `/k/{clé}/automations/draft` : Holo prépare un brouillon, **rien n'est écrit**.
+- Document : `{"kind":"document","name":"tuto.pdf","text":"…"}` (texte extrait sur le poste du support, PDF compris ; 20 000 caractères au plus).
+- Enregistrement : `{"kind":"recording","frames":[{"b64":"…","mime":"image/jpeg"}],"narration":"…"}` (5 captures clés au plus, voix transcrite sur le poste du support).
+- Réponse : `{"title","description","goal","steps":["…"],"platforms":["mac"|"windows"],"warning"}`, ou `{"error"}` (422 source inexploitable, 502 Holo injoignable).
+
+Le support relit le brouillon, l'ajoute à « Mes automates » (bibliothèque gardée sur son poste), puis l'applique à qui il veut avec `POST /automations` : c'est cet import qui le valide.

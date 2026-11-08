@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Rôle de ce Mac, choisi au premier lancement et mémorisé (`UserDefaults`, clé `role`).
-/// - `aide` : la personne aidée, l'app PapAI habituelle ;
+/// - `aide` : l’utilisateur, l'app PapAI habituelle ;
 /// - `support` : celui qui aide, l'app du support (comme sur iPhone).
 /// `-role aide` ou `-role support` au lancement le force (démo, rendus).
 enum AppRole: String {

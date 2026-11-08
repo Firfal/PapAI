@@ -258,8 +258,8 @@ struct SessionView: View {
         }
     }
 
-    /// Où en est le traitement, sans détailler les étapes de Holo : la personne
-    /// aidée n'a pas besoin du plan, seulement de savoir que ça avance.
+    /// Où en est le traitement, sans détailler les étapes de Holo : l’utilisateur
+    ///  n'a pas besoin du plan, seulement de savoir que ça avance.
     private var phase: Int {
         switch state {
         case .planning: 0
@@ -333,7 +333,7 @@ private struct Progress: View {
     }
 }
 
-/// Une question que Holo pose à la personne aidée, pour ce qu'elle seule sait.
+/// Une question que Holo pose à l’utilisateur, pour ce que lui seul sait.
 private struct SeniorQuestion: View {
     let question: String
     let options: [String]

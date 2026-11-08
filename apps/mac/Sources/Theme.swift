@@ -169,7 +169,7 @@ struct Header: View {
         HStack(spacing: 14) {
             LogotypePapai().frame(height: 36 * CGFloat(model.textScale))
             Spacer()
-            // Rien quand tout va bien : la personne aidée n'a pas à se soucier de la connexion.
+            // Rien quand tout va bien : l’utilisateur n'a pas à se soucier de la connexion.
             if !model.connected {
                 Pastille(texte: "Pas de connexion pour le moment", icone: "wifi.slash", ton: .gris, taille: 16)
             }

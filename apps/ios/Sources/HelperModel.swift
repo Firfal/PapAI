@@ -71,7 +71,7 @@ final class HelperModel {
     private var helperId: String = UserDefaults.standard.string(forKey: "helperId") ?? ""
     private var helperRelation: String = UserDefaults.standard.string(forKey: "helperRelation") ?? ""
 
-    // Mes personnes aidées : une liaison par ordinateur, une seule suivie en détail à la fois.
+    // Mes utilisateurs : une liaison par ordinateur, une seule suivie en détail à la fois.
     var people: [Person] = People.load()
     /// Pour les autres personnes : clé → ordinateur connecté / demande en attente.
     var othersOnline: [String: Bool] = [:]
@@ -108,11 +108,11 @@ final class HelperModel {
     /// Ce que Holo est en train de faire, en une phrase (envoyée par le serveur).
     var doing: String?
     var question: (text: String, options: [String])?
-    /// Vrai quand Holo pose la question à la personne aidée (`to: senior`).
+    /// Vrai quand Holo pose la question à l’utilisateur (`to: senior`).
     var questionToSenior = false
-    /// Ce que la personne aidée est en train de dicter, en direct.
+    /// Ce que l’utilisateur est en train de dicter, en direct.
     var liveDictation: String?
-    /// La personne aidée a mis l'aide en pause depuis son écran.
+    /// L’utilisateur a mis l'aide en pause depuis son écran.
     var seniorPaused = false
     private var dictationClear: Task<Void, Never>?
     var sessionId = ""
@@ -137,7 +137,7 @@ final class HelperModel {
     var lessonBusy = false
     var draftTitle = ""
     var draftSteps: [DraftStep] = []
-    /// Ce que la tuile ouvrira chez la personne aidée (« Images › Noël 2025 »), à voir avant de valider.
+    /// Ce que la tuile ouvrira chez l’utilisateur (« Images › Noël 2025 »), à voir avant de valider.
     var draftTarget: String?
     var hasDraft = false
     var savedTitle: String?
@@ -180,7 +180,7 @@ final class HelperModel {
         Task { await refreshOrgs() }
     }
 
-    // MARK: Organisations (service IT) : chaque poste inscrit devient une personne aidée, sans code.
+    // MARK: Organisations (service IT) : chaque poste inscrit devient un utilisateur, sans code.
 
     var orgs: [Org] = Orgs.load()
     var orgError: String?
@@ -292,7 +292,7 @@ final class HelperModel {
         return true
     }
 
-    // MARK: Mes personnes aidées
+    // MARK: Mes utilisateurs
 
     private func rememberCurrent() {
         guard isConfigured else { return }
@@ -392,7 +392,7 @@ final class HelperModel {
 
     private func observe(_ key: String, _ m: [String: Any]) {
         let known = people.first { $0.key == key }?.name ?? ""
-        let who = known.isEmpty ? "Une personne aidée" : known
+        let who = known.isEmpty ? "Un utilisateur" : known
         switch m["type"] as? String {
         case "hello":
             othersOnline[key] = m["bridge"] as? Bool ?? false; othersAsking[key] = false
@@ -556,15 +556,15 @@ final class HelperModel {
 
     // MARK: Appairage
 
-    // MARK: Personne aidée
+    // MARK: Utilisateur
 
-    /// Prénom saisi sur l'ordinateur de la personne aidée (`hello.senior`, `senior`,
+    /// Prénom saisi sur l'ordinateur de l’utilisateur (`hello.senior`, `senior`,
     /// réponse d'appairage, paramètre `n` du lien). Jamais un nom figé.
     var seniorName: String = UserDefaults.standard.string(forKey: "seniorName") ?? ""
-    /// Dans une phrase : « Rien à signaler pour Sophie », sinon « de la personne aidée ».
-    var senior: String { seniorName.isEmpty ? "la personne aidée" : seniorName }
-    /// En début de phrase : « Sophie a besoin de vous », sinon « La personne aidée… ».
-    var seniorTitle: String { seniorName.isEmpty ? "La personne aidée" : seniorName }
+    /// Dans une phrase : « Rien à signaler pour Sophie », sinon « de l’utilisateur ».
+    var senior: String { seniorName.isEmpty ? "l’utilisateur" : seniorName }
+    /// En début de phrase : « Sophie a besoin de vous », sinon « L’utilisateur… ».
+    var seniorTitle: String { seniorName.isEmpty ? "L’utilisateur" : seniorName }
     var webBrowserTitle: String {
         let firstName = seniorName.split(whereSeparator: \.isWhitespace).first.map(String.init)
         return firstName.map { "Chrome PapAI de \($0)" } ?? "Chrome PapAI"
@@ -598,7 +598,7 @@ final class HelperModel {
     func manualPairLink() -> PairLink? {
         let s = serverURL.trimmingCharacters(in: .whitespacesAndNewlines)
         if s.isEmpty { return PairLink(base: "https://" + PairServer.officialHost, code: nil) }
-        // `/p/<code>` sans le préfixe `/k/<clé>` : le code peut viser une autre personne aidée.
+        // `/p/<code>` sans le préfixe `/k/<clé>` : le code peut viser un autre utilisateur.
         let origin = PairLink(base: baseHTTP, code: nil).origin
         return PairServer.allowed(origin) ? PairLink(base: origin, code: nil) : nil
     }

@@ -39,6 +39,7 @@ et le prénom dans ses demandes.
 - **Essais** (repli quand aucune stratégie n'est posée) : `organisation.txt` à côté de
   `PapAI.bat` (ignoré par git) ou variable `PAPAI_ORG`. Hors Windows, le registre n'est
   jamais lu : les tests passent par ces replis.
+||||||| 285da73
 
 ## Lancer sur Windows 10 ou 11
 
@@ -145,7 +146,7 @@ dans un dossier ne sert de raccourci d'application.
   `execute` tant que le dernier `status` reçu n'a pas `plan_approved: true` et
   un état `active` ou `awaiting_helper`.
 - La fenêtre PapAI est exclue des captures (`SetWindowDisplayAffinity`, sinon
-  masquée) et les clics dans sa zone sont refusés : seule la personne aidée la
+  masquée) et les clics dans sa zone sont refusés : seul l’utilisateur la
   manipule. Session ouverte, elle reste au premier plan.
 - **Gardien anti-arnaque** : toutes les 8 s, l'app envoie `guard` avec trois
   signaux textuels (processus, titre de la fenêtre active, URL vide faute
