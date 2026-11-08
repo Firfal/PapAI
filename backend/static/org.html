@@ -224,6 +224,7 @@ function drawStats() {
   PapaiStats.renderWeek($('week'), stats, { onSuggest: suggestDraft });
   PapaiStats.render($('stats'), stats, {
     focus: $('cat').value || null,
+    skipCategory: stats.week && stats.week.suggestion ? stats.week.suggestion.category : null,
     onCategory: id => { $('cat').value = id || ''; drawStats(); drawTickets(); },
     onExample: ex => {
       $('filter').value = 'all'; $('poste').value = ''; $('cat').value = '';

@@ -92,7 +92,8 @@
     return s;
   }
 
-  // render(box, stats, { onCategory(id|null), onExample(ex), onSuggest(sug), focus })
+  // render(box, stats, { onCategory(id|null), onExample(ex), onSuggest(sug), focus, skipCategory })
+  // skipCategory : suggestion déjà montrée ailleurs (carte « Cette semaine »), non répétée ici.
   function render(box, st, opts) {
     opts = opts || {};
     box.replaceChildren();
@@ -108,6 +109,7 @@
     box.append(kpis);
 
     for (const sug of st.suggestions || []) {
+      if (opts.skipCategory && sug.category === opts.skipCategory) continue;
       const b = el('div', 'ps-sug');
       const go = el('button', '', 'Créer l’automate'); go.type = 'button';
       go.onclick = () => opts.onSuggest && opts.onSuggest(sug);

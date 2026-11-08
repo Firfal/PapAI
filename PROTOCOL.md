@@ -686,7 +686,7 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
 - Champ ajouté au ticket : `automation` (id de l'automate lancé par `run_automation`).
 - `GET /ticket_stats.js` : graphiques SVG (page du support et organisation), sans bibliothèque.
 - Mac support : `TicketStats.merge` additionne les statistiques de tous les utilisateurs reliés.
-- Tests : `python tests/test_ticket_categories.py`, `python tests/test_point_semaine.py`, `apps/mac/tests/ticket_stats_test.swift`.
+- Tests : `python tests/test_ticket_categories.py`, `python tests/test_point_semaine.py`, `node --test tests/test_ticket_stats_js.js`, `apps/mac/tests/ticket_stats_test.swift`.
 
 ## Prénom et invitation (7 novembre au soir)
 
