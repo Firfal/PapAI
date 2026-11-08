@@ -4,7 +4,7 @@ import AVFoundation
 #endif
 
 enum PairServer {
-    static let refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
+    static let refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de l’utilisateur (Réglages > Mon support)."
     static let officialHost = "papai-450417131702.europe-west1.run.app"
     static func needsNew(status: Int, refused: Bool) -> Bool {
         status == 408 || status == 409 || (status == 403 && refused)
@@ -95,7 +95,7 @@ struct PairLink: Identifiable, Equatable {
 }
 
 extension PairServer {
-    /// Lien avec la personne aidée, proposé à la liaison (iPhone et Mac).
+    /// Lien avec l’utilisateur, proposé à la liaison (iPhone et Mac).
     static let relations: [(label: String, value: String)] = [
         ("Fille", "sa fille"), ("Fils", "son fils"), ("Proche", "un proche"),
         ("Collègue", "un collègue"), ("Service informatique", "le service informatique"), ("Voisin, voisine", "un voisin"),
@@ -152,7 +152,7 @@ struct PairSheet: View {
                 Text("En attente de l'accord sur l'ordinateur…")
                     .font(.system(size: 17)).foregroundStyle(Soin.ink)
             }
-            Text("Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).")
+            Text("Demandez à l’utilisateur d'appuyer sur Accepter sur son ordinateur (2 min).")
                 .font(.system(size: 17)).foregroundStyle(Soin.ink)
         }
         if let e = model.pairError {
@@ -172,7 +172,7 @@ struct PairSheet: View {
                 Text("Serveur PapAI officiel")
                     .font(.system(size: 19, weight: .bold)).foregroundStyle(Soin.ink)
             } else {
-                Label("Serveur inconnu : ne continuez que si la personne aidée vous a donné ce lien elle-même", systemImage: "exclamationmark.triangle.fill")
+                Label("Serveur inconnu : ne continuez que si l’utilisateur vous a donné ce lien lui-même", systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 19, weight: .bold)).foregroundStyle(Soin.danger)
             }
             Text(link.host).font(.system(size: 13)).foregroundStyle(Soin.secondary)

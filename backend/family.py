@@ -1,4 +1,4 @@
-"""Les supports de la personne aidée et leur liaison par code à usage unique."""
+"""Les supports de l’utilisateur et leur liaison par code à usage unique."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ CODE_TTL = 600
 # Invitation envoyée par SMS, WhatsApp… à un proche absent : il a le temps de l'ouvrir.
 INVITE_TTL = 24 * 3600
 MAX_TRIES = 5
-INVALID_CODE = "Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de la personne aidée."
+INVALID_CODE = "Ce code ne marche plus. Demandez un nouveau code sur l'ordinateur de l’utilisateur."
 
 
 def clean_label(value: str, limit: int) -> str:
@@ -28,7 +28,7 @@ class Family:
     def __init__(self, path: Path = DATA) -> None:
         self.path = path
         self.helpers: list[dict] = []
-        # Le prénom de la personne aidée, saisi sur son ordinateur. C'est lui que
+        # Le prénom de l’utilisateur, saisi sur son ordinateur. C'est lui que
         # l'aidant doit voir partout (« Vous allez aider Sophie »), jamais un nom figé.
         self.senior: str = ""
         self._code: str | None = None
@@ -108,7 +108,7 @@ class Family:
         self._save()
 
     def set_senior(self, name: str) -> bool:
-        """Retient le prénom de la personne aidée. Vrai s'il a changé."""
+        """Retient le prénom de l’utilisateur. Vrai s'il a changé."""
         name = (name or "").strip()[:40]
         if not name or name == self.senior:
             return False

@@ -11,7 +11,7 @@ struct PapAIApp: App {
             Group {
                 switch role {
                 case .aide:
-                    // L'app de la personne aidée, inchangée.
+                    // L'app de l’utilisateur, inchangée.
                     RootView()
                         .environment(model)
                         .onAppear { model.start(); Snapshot.scheduleIfAsked(model) }

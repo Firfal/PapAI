@@ -92,7 +92,7 @@ enum GuardSignals {
     }
 }
 
-/// L'alerte du gardien, par-dessus tout le reste : la personne aidée la lit au
+/// L'alerte du gardien, par-dessus tout le reste : l’utilisateur la lit au
 /// moment où son proche la reçoit.
 struct GuardAlertView: View {
     @Environment(AppModel.self) private var model

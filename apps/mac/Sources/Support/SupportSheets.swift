@@ -120,10 +120,10 @@ struct SupportPairSheet: View {
 
     private var form: some View {
         SupportSheet(titre: "Relier ce Mac",
-                     sousTitre: "Vous serez prévenu dès qu’une demande d’aide arrive sur l’ordinateur de la personne aidée. Rien ne bouge sans votre accord.",
+                     sousTitre: "Vous serez prévenu dès qu’une demande d’aide arrive sur l’ordinateur de l’utilisateur. Rien ne bouge sans votre accord.",
                      width: 680, height: 640) {
             if link.isManual {
-                sheetLabel("Code affiché sur l’ordinateur de la personne aidée")
+                sheetLabel("Code affiché sur l’ordinateur de l’utilisateur")
                 TextField("000000", text: $code)
                     .textFieldStyle(.plain)
                     .font(.system(size: 34, weight: .semibold, design: .rounded)).tracking(10)
@@ -156,7 +156,7 @@ struct SupportPairSheet: View {
                     ProgressView().controlSize(.small)
                     Text("En attente de l'accord sur l'ordinateur…").font(rounded(17, .semibold))
                 }
-                Text("Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).")
+                Text("Demandez à l’utilisateur d'appuyer sur Accepter sur son ordinateur (2 min).")
                     .font(rounded(16))
             }
             if let e = model.pairError {
@@ -174,7 +174,7 @@ struct SupportPairSheet: View {
                 if link.isOfficial {
                     Text("Serveur PapAI officiel").font(rounded(17, .bold))
                 } else {
-                    Label("Serveur inconnu : ne continuez que si la personne aidée vous a donné ce lien elle-même",
+                    Label("Serveur inconnu : ne continuez que si l’utilisateur vous a donné ce lien lui-même",
                           systemImage: "exclamationmark.triangle.fill")
                         .font(rounded(17, .bold)).foregroundStyle(T.danger)
                 }
@@ -262,9 +262,9 @@ struct SupportWelcome: View {
         } corps: {
             HStack(alignment: .top, spacing: 34) {
                 VStack(alignment: .leading, spacing: 16) {
-                    etape(1, "Sur l’ordinateur de la personne aidée, ouvrez Réglages › Mon support › Ajouter un support.")
+                    etape(1, "Sur l’ordinateur de l’utilisateur, ouvrez Réglages › Mon support › Ajouter un support.")
                     etape(2, "Un code à 6 chiffres s’affiche, avec un QR code et un lien à envoyer.")
-                    etape(3, "Tapez ce code ici, ou collez le lien reçu. La personne aidée accepte sur son écran.")
+                    etape(3, "Tapez ce code ici, ou collez le lien reçu. L’utilisateur accepte sur son écran.")
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

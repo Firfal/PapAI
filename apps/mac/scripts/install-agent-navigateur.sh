@@ -1,5 +1,5 @@
 #!/bin/bash
-# Installe l'agent navigateur de H pour PapAI, sur le Mac de la personne aidée.
+# Installe l'agent navigateur de H pour PapAI, sur le Mac de l’utilisateur.
 #   apps/mac/scripts/install-agent-navigateur.sh
 # Crée ~/Library/Application Support/PapAI/agent-navigateur/venv (holo) et le
 # profil dédié de Chrome PapAI. La clé H n'est jamais écrite par ce script.

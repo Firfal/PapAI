@@ -10,8 +10,7 @@ Deux sources, un seul résultat :
 Holo en tire l'INTENTION, jamais une suite de clics : un objectif, des étapes
 décrites et le système pour lequel le tutoriel est écrit. C'est ce qui permet
 de le rejouer ailleurs, Holo regardant l'écran. Le brouillon n'est écrit nulle
-part : il pré-remplit le formulaire, et rien n'est actif chez la personne
-aidée tant que le support ne l'a pas créé (= validé).
+part : il pré-remplit le formulaire, et rien n'est actif chez l’utilisateur tant que le support ne l'a pas créé (= validé).
 """
 
 from __future__ import annotations

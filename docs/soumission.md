@@ -70,7 +70,7 @@ Les automates sont gardés sur une seule instance du serveur et disparaissent à
 ```
 - Holo (H Company), modèle holo3-1-35b-a3b, via l'API compatible OpenAI d'H Company : plan, puis computer use (capture, clic, saisie, touches, défilement).
 - Gladia : transcription française de la demande dictée, côté serveur (route /transcribe) ; reconnaissance vocale d'Apple en secours sur le Mac.
-- App Mac de la personne aidée : Swift, SwiftUI, ScreenCaptureKit (capture sans la fenêtre PapAI), CGEvent (actions).
+- App Mac de l’utilisateur : Swift, SwiftUI, ScreenCaptureKit (capture sans la fenêtre PapAI), CGEvent (actions).
 - App iPhone du proche : Swift, SwiftUI.
 - Serveur : Python, FastAPI, WebSockets, sur Google Cloud Run.
 - Développement avec des agents IA : Devin (Cognition) en sessions parallèles, Claude Code, [À COMPLÉTER : agents de cyp-cor et snarbe].
@@ -98,7 +98,7 @@ Devin a travaillé sur PapAI comme un membre de l'équipe, en plusieurs sessions
 - la robustesse de la rédaction des automates : une réponse mal formée de Holo ne fait plus planter « Garder comme automate », et le proche est prévenu au lieu d'attendre en silence ; un faux Holo local pour tester sans clé (PR #4) ;
 - un correctif de l'accueil Mac, compilé et essayé sur une machine macOS, et un test de bout en bout en une commande : serveur, Holo simulé, faux Mac et faux proche, 26 contrôles (PR #5) ;
 - le pitch, la vidéo et ces textes de soumission (PR #2) ;
-- l'app Windows de la personne aidée : fusion du portage de cyp-cor (PR #7), puis refonte dans le design de l'app Mac, avec les mêmes écrans et le même protocole (PR #9) ;
+- l'app Windows de l’utilisateur : fusion du portage de cyp-cor (PR #7), puis refonte dans le design de l'app Mac, avec les mêmes écrans et le même protocole (PR #9) ;
 - le gardien anti-arnaque branché sur le Mac : signaux envoyés au serveur, alerte affichée par-dessus tout (PR #8) ;
 - la fin du renommage CarePilot vers PapAI (PR #6) et la mise à jour de la ToDo et du Notion selon l'état réel (PR #10).
 ```

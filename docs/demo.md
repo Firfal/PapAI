@@ -1,6 +1,6 @@
 # Démo PapAI : checklist du jour J
 
-Une page, à imprimer. Mac = celui de Jeanne (la personne aidée). iPhone = celui du support (Quentin).
+Une page, à imprimer. Mac = celui de Jeanne (l’utilisateur). iPhone = celui du support (Quentin).
 Serveur : `https://papai-450417131702.europe-west1.run.app` (une seule instance, état en mémoire).
 Rien de ce scénario n'a encore été fait en entier sur le vrai Mac : **faire la répétition complète avant**, au moins une fois.
 

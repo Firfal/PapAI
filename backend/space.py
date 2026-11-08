@@ -1,6 +1,6 @@
-"""Espaces : un par ordinateur aidé, chacun avec sa clé.
+"""Espaces : un par ordinateur de l’utilisateur, chacun avec sa clé.
 
-Un support peut suivre plusieurs personnes aidées (un proche, le service IT) :
+Un support peut suivre plusieurs utilisateurs (un proche, le service IT) :
 le serveur héberge autant d'espaces que d'ordinateurs. Chaque espace a ses
 supports, ses sessions, son alerte en cours et ses automatismes. La clé de
 l'URL (`/k/<clé>/…`) choisit l'espace ; le reste du code lit `current()`.
