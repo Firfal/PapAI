@@ -35,8 +35,16 @@
        <div style="${f(size, 5)}">${esc(text)}</div></div>`;
 
   // ------------------------------------------------------------------ Header
+  // Chaque écran pose son titre dans l'en-tête bleu (hd), comme la maquette :
+  // pastille, titre blanc, sous-titre, puis le champ de demande s'il existe.
+  let hd = null;
+  const hdTitle = (text, size, w) => `<div class="hdrTitle" style="${f(size || 40, w || 6)};letter-spacing:-0.6px;line-height:1.1">${text}</div>`;
+  const hdSub = (text, size) => `<div class="hdrSub" style="${f(size || 20, 5)}">${text}</div>`;
+  const hdChip = (sym, text) => `<div class="pillChip chip-blue" style="align-self:flex-start;gap:8px;padding:8px 16px;${f(16, 6)}">${sym ? icon(sym, 20) : ''}<span>${text}</span></div>`;
   function header() {
-    return `<div class="hdr">
+    const h = hd || {};
+    return `<div class="hdr${h.tone === 'danger' ? ' danger' : ''}">
+      <div class="row hdrTop">
       <img class="logotype" src="logotype-papai.svg" alt="papai">
       <div class="spacer"></div>
       ${S.connected ? '' : `<div class="pillChip chip-gray" style="gap:10px;padding:11px 18px">
@@ -45,11 +53,37 @@
       </div>`}
       <button class="circle press" data-act="openSettings" aria-label="Réglages"
         style="width:44px;height:44px">${icon('gear', 20)}</button>
+      </div>
+      ${h.title ? `<div class="col hdrBody">${h.chip || ''}${h.title}${h.sub || ''}${h.extra || ''}</div>` : ''}
     </div>`;
   }
 
   // -------------------------------------------------------------------- Home
   function home() {
+    const mic = S.microPresent;
+    const busy = ui.dictating || S.dictation.phase !== 'idle';
+    const wait = S.queued && !S.queued.show ? `<button class="pillChip chip-blue press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
+        ${icon('personWave', 20)}<span>Demande n° ${esc(S.queued.number)} ${S.queued.rdv ? '· rendez-vous ' + esc(rdvText(S.queued.rdv)) : 'en attente'}</span></button>` : '';
+    const warn = (ui.warning ? `<div class="pillChip chip-orange" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
+        ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '') + wait;
+    const field = ui.writing || !mic ? `<div class="requestRow">
+        <span class="fieldIcon">${icon('compose', 22)}</span>
+        <textarea id="req" rows="1" placeholder="Écrivez votre demande" aria-label="Écrivez votre demande"
+          style="${f(18, 5)};line-height:1.3">${esc(ui.request)}</textarea>
+        <button class="pill filled" data-act="submit" ${busy || ui.submitting ? 'disabled' : ''} style="height:44px;padding:0 18px;${f(15, 6)}">Envoyer</button>
+      </div>` : '';
+    hd = {
+      title: `<div class="hdrTitle" style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) : ''}</div>`,
+      sub: hdSub(`Un souci sur l'ordinateur ? ${mic ? 'Dites-le simplement' : 'Écrivez ce dont vous avez besoin'}, un message part tout de suite à ${esc(S.helperName)}.`, 18),
+      extra: field + (warn ? `<div class="row" style="gap:10px;flex-wrap:wrap">${warn}</div>` : ''),
+    };
+    if (!mic) {
+      // Sans micro, rien à dicter : les automates prennent la place de la carte du micro.
+      const t = tutorials();
+      return `<div class="row" style="align-items:stretch;gap:24px;flex:1;min-height:0">
+        ${t ? `<div class="scroll grow"><div class="col" style="gap:16px;padding-bottom:8px">${t}</div></div>` : ''}
+        <div class="scroll ${t ? '' : 'grow'}" style="${t ? 'width:400px;flex:none' : ''}"><div class="col" style="gap:16px;padding-bottom:8px">${appsGrid()}</div></div></div>`;
+    }
     return `<div class="row" style="align-items:stretch;gap:24px;flex:1;min-height:0">
       ${helpCard()}
       <div class="scroll" style="width:400px;flex:none">
@@ -57,25 +91,12 @@
       </div></div>`;
   }
 
+  // Carte du micro : le grand bouton de dictée, et « Écrire » qui ouvre le champ de l'en-tête.
   function helpCard() {
-    const mic = S.microPresent;
-    const busy = ui.dictating || S.dictation.phase !== 'idle';
-    const wait = S.queued && !S.queued.show ? `<button class="pillChip chip-blue press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
-        ${icon('personWave', 20)}<span>Demande n° ${esc(S.queued.number)} ${S.queued.rdv ? '· rendez-vous ' + esc(rdvText(S.queued.rdv)) : 'en attente'}</span></button>` : '';
-    const warn = (ui.warning ? `<div class="pillChip chip-orange" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
-        ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '') + wait;
-    return `<div class="mintCard homeCard" style="padding:32px;gap:16px">
-      <div style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) : ''}</div>
-      <div class="muted" style="${f(18, 5)}">Un souci sur l'ordinateur ? ${mic ? 'Dites-le simplement' : 'Écrivez ce dont vous avez besoin'}, un message part tout de suite à ${esc(S.helperName)}.</div>
-      <div class="spacer"></div>
-      ${mic ? micButton() : ''}
-      ${ui.writing || !mic ? `<div class="requestRow">
-        <span class="fieldIcon">${icon('compose', 22)}</span>
-        <textarea id="req" rows="1" placeholder="Écrivez votre demande" aria-label="Écrivez votre demande"
-          style="${f(18, 5)};line-height:1.3">${esc(ui.request)}</textarea>
-        <button class="pill filled" data-act="submit" ${busy || ui.submitting ? 'disabled' : ''} style="height:44px;padding:0 18px;${f(15, 6)}">Envoyer</button>
-      </div>` : S.dictation.phase === 'idle' ? `<button class="pillChip softBtn press writeButton" data-act="write" style="${f(15, 6)}">Écrire</button>` : ''}
-      ${warn}<div class="spacer"></div></div>`;
+    return `<div class="mintCard homeCard" style="padding:32px;gap:16px;align-items:center;justify-content:center">
+      ${micButton()}
+      ${!ui.writing && S.dictation.phase === 'idle' ? `<button class="pillChip softBtn press writeButton" data-act="write" style="${f(15, 6)}">${icon('compose', 18)}<span style="margin-left:8px">Écrire</span></button>` : ''}
+    </div>`;
   }
 
   function micButton() {
@@ -150,7 +171,7 @@
 
   function addShortcutSheet() {
     return `<div class="sheet card col" style="width:540px;padding:32px;gap:20px">
-      <div style="${f(26, 6)}">Ajouter un raccourci</div>
+      <div class="sheetHead" style="${f(26, 6)}">Ajouter un raccourci</div>
       <div style="${f(16, 5)}">Jusqu'à 4 raccourcis personnels, gardés sur cet ordinateur.</div>
       ${pill('Un dossier', 'chooseFolder', { filled: false, height: 50 })}
       ${ui.warning ? `<div role="status" style="${f(17, 5)}">${esc(ui.warning)}</div>` : ''}
@@ -159,10 +180,11 @@
 
   // ----------------------------------------------------------------- Consent
   function consent() {
+    hd = { title: hdTitle('PapAI va regarder votre écran', 44) };
     return mint(`
       <div class="accent" style="${f(18, 6)}">Votre demande</div>
       <div style="${f(30, 6)}">« ${esc(S.pendingTask)} »</div>
-      <div style="${f(44, 6)};letter-spacing:-0.6px;line-height:1.12">PapAI va regarder votre écran</div>
+      <div class="sep"></div>
       ${promise('eye', 'Holo voit votre écran pour comprendre le problème.', 21)}
       ${promise('hand', `Rien ne bouge avant l'accord de ${S.helperName}.`, 21)}
       ${promise('stopCircle', 'Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.', 21)}
@@ -283,10 +305,12 @@
     const bottom = S.sessionOpen
       ? `<div class="row" style="gap:14px;width:100%">${canPause(st) ? pauseButton(70, 26) : ''}${stopButton(70, 26)}</div>`
       : pill("Retour à l'accueil", 'home', { height: 70, grow: true });
-    const inner = `${banner}
-      <div style="${f(guardStopped(st) ? 34 : 40, 6)};letter-spacing:-0.6px;line-height:1.12">${esc(sessionTitle(st))}</div>
-      ${sub ? `<div class="fade" style="${f(24, 5)};color:${st === 'active' ? 'var(--ink)' : 'var(--muted)'}">${esc(sub)}</div>` : ''}
-      <div class="scroll">${sessionContent(st)}</div>
+    hd = { chip: banner, title: hdTitle(esc(sessionTitle(st)), guardStopped(st) ? 34 : 40),
+      sub: sub ? `<div class="hdrSub fade" style="${f(22, 5)}">${esc(sub)}</div>` : '',
+      tone: guardStopped(st) ? 'danger' : null };
+    const content = sessionContent(st);
+    if (!content && !footer) return `<div class="spacer"></div><div class="row" style="margin-top:18px">${bottom}</div>`;
+    const inner = `<div class="scroll">${content}</div>
       <div class="spacer"></div>${footer}`;
     const card = guardStopped(st)
       ? `<div class="col guardCard" style="padding:40px 34px 34px;gap:18px;border-radius:var(--rBig);background:var(--card);flex:1;min-height:0">${inner}</div>`
@@ -302,8 +326,8 @@
       awaiting_approval: `${S.HelperName} vérifie`, active: `${S.carer} s'en occupe`,
       awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !" }[st] || 'PapAI');
     return `<div class="col mini" style="gap:10px;padding:14px 16px">
-      <div class="row" style="gap:10px">
-        <span class="dot" style="background:${S.sessionOpen && !S.paused ? 'var(--accent)' : 'var(--muted)'}"></span>
+      <div class="row miniHead" style="gap:10px">
+        <span class="dot" style="background:${S.sessionOpen && !S.paused ? '#fff' : 'rgba(255,255,255,.55)'}"></span>
         <span class="grow" style="${f(17, 6)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</span>
         <button class="circle press softBtn" data-act="expand" aria-label="Ouvrir PapAI en grand"
           style="width:44px;height:44px;color:var(--accent)">${icon('expand', 16)}</button>
@@ -326,13 +350,13 @@
       const s = steps[i];
       const img = s.image ? `<img alt="" src="${esc(S.httpBase)}/lessons/${encodeURIComponent(l.id)}/${encodeURIComponent(s.image)}"
           style="flex:1;min-height:0;max-width:100%;object-fit:contain;border-radius:var(--r)">` : '<div class="spacer"></div>';
-      body = `<div class="accent" style="${f(18, 6)}">Étape ${i + 1} sur ${steps.length}</div>
-        <div style="${f(36, 6)};letter-spacing:-0.4px;line-height:1.15">${esc(s.instruction || '')}</div>
+      body = `<div style="${f(36, 6)};letter-spacing:-0.4px;line-height:1.15">${esc(s.instruction || '')}</div>
         ${s.checkpoint ? `<div class="card" style="padding:18px;${f(19, 4)}">Vous devriez voir : ${esc(s.checkpoint)}</div>` : ''}
         ${img}`;
     }
     const last = i >= steps.length - 1;
-    return mint(`<div class="muted" style="${f(18, 6)}">${esc(l.title)}</div>${body}`, 40, 20) +
+    hd = { chip: steps.length ? hdChip('book', `Étape ${i + 1} sur ${steps.length}`) : '', title: hdTitle(esc(l.title), 30) };
+    return mint(body, 40, 20) +
       `<div class="row" style="gap:14px;margin-top:18px">
         ${pill('Fermer', 'closeLesson', { filled: false, height: 72 })}
         ${i > 0 ? pill('Précédent', 'prevStep', { filled: false, height: 72 }) : ''}
@@ -345,16 +369,18 @@
   function onboarding() {
     const step = S.onboardingStep;
     const dots = `<div class="row dots" style="gap:8px" aria-label="Étape ${step + 1} sur ${ONB}">` +
-      Array.from({ length: ONB }, (_, i) => `<span class="d" style="width:${i === step ? 34 : 12}px;background:${i <= step ? 'var(--accent)' : '#DCE3F3'}"></span>`).join('') + '</div>';
+      Array.from({ length: ONB }, (_, i) => `<span class="d" style="width:${i === step ? 34 : 12}px;background:${i <= step ? '#fff' : 'rgba(255,255,255,.4)'}"></span>`).join('') + '</div>';
     const content = [onbWelcome, onbName, onbPermissions, () => helpersPanel(true)][step]();
+    hd = { ...(hd || {}), chip: dots };
     const label = step === 0 ? 'Commencer' : step === ONB - 1 ? (S.helpers.length ? 'Terminer' : 'Plus tard') : 'Continuer';
-    return mint(`${dots}<div class="col" style="gap:22px;flex:1;min-height:0">${content}</div>`, 40, 22) +
+    return mint(`<div class="col" style="gap:22px;flex:1;min-height:0">${content}</div>`, 40, 22) +
       `<div class="row" style="gap:14px;margin-top:18px">
         ${step > 0 ? pill('Retour', 'onbBack', { filled: false, height: 78 }) : ''}
         ${pill(label, 'onbNext', { height: 78, grow: true })}
       </div>`;
   }
-  const h1 = (text, size) => `<div style="${f(size || 44, 6)};letter-spacing:${size === 52 ? -0.8 : -0.6}px;line-height:1.1">${esc(text)}</div>`;
+  // Le titre de l'étape part dans l'en-tête bleu.
+  const h1 = (text, size) => { hd = { title: hdTitle(esc(text), size || 44) }; return ''; };
   const lead = (text, size) => `<div class="muted" style="${f(size || 21, 5)}">${esc(text)}</div>`;
 
   function onbWelcome() {
@@ -424,7 +450,7 @@
       </div>` : '';
     return `<div class="row" style="align-items:flex-start;gap:28px">
       <div class="col grow" style="gap:20px">
-        <div style="${f(onb ? 44 : 34, 6)};letter-spacing:-0.6px;line-height:1.1">${onb ? 'Qui va vous aider ?' : 'Mon support'}</div>
+        ${onb ? h1('Qui va vous aider ?') : ''}
         <div class="muted" style="${f(20, 4)}">Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.</div>
         ${added}${rows}${add}
       </div>${code}</div>`;
@@ -433,9 +459,8 @@
   // ------------------------------------------------------------- PairRequest
   function pairAsk() {
     const r = S.pairRequest;
-    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Nouveau support</span></div>
-      <div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.name)} veut devenir votre support</div>
-      ${r.relation ? `<div class="card" style="padding:24px;${f(26, 5)}">${esc(r.relation)}</div>` : ''}
+    hd = { chip: hdChip('personWave', 'Nouveau support'), title: hdTitle(`${esc(r.name)} veut devenir votre support`, 44) };
+    return mint(`${r.relation ? `<div class="card" style="padding:24px;${f(26, 5)}">${esc(r.relation)}</div>` : ''}
       ${lead("Cette personne vient de taper votre code à 6 chiffres. Acceptez seulement si vous la connaissez et que vous lui avez donné ce code.")}`, 40, 22) +
       `<div class="row" style="gap:14px;margin-top:18px">
         ${pill('Refuser', 'refusePair', { filled: false, height: 78, grow: true })}
@@ -451,9 +476,8 @@
   function queued() {
     const q = S.queued;
     const slots = [['Dans 1 heure', '1h'], ['Demain à 9 h', 'demain9'], ['Demain à 14 h', 'demain14']];
-    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Demande n° ${esc(q.number)}</span></div>
-      <div style="${f(44, 6)};letter-spacing:-0.7px;line-height:1.1">Votre demande est partie</div>
-      ${q.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(q.task)} »</div>` : ''}
+    hd = { chip: hdChip('personWave', `Demande n° ${esc(q.number)}`), title: hdTitle('Votre demande est partie', 44) };
+    return mint(`${q.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(q.task)} »</div>` : ''}
       ${q.rdv ? lead(`Rendez-vous ${esc(rdvText(q.rdv))}. PapAI vous préviendra à l'heure dite.`)
         : lead(`Personne n'est disponible pour l'instant. PapAI vous préviendra dès que ${esc(S.helperName)} sera là. Vous pouvez aussi fixer un rendez-vous.`)}
       ${q.rdv ? '' : `<div class="row" style="gap:10px;flex-wrap:wrap">${slots.map(([label, v]) =>
@@ -464,9 +488,9 @@
   // ----------------------------------------------------------- RemoteRequest
   function remote() {
     const r = S.remoteRequest;
-    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">${r.rdv ? "C'est l'heure de votre rendez-vous" : r.ticket ? 'Votre demande en attente' : "Proposition d'aide"}</span></div>
-      <div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.from)} ${r.ticket ? 'est disponible pour vous aider' : 'propose de vous aider'}</div>
-      ${r.task ? `<div class="card" style="padding:24px;${f(26, 5)}">« ${esc(r.task)} »</div>` : ''}
+    hd = { chip: hdChip('personWave', r.rdv ? "C'est l'heure de votre rendez-vous" : r.ticket ? 'Votre demande en attente' : "Proposition d'aide"),
+      title: hdTitle(`${esc(r.from)} ${r.ticket ? 'est disponible pour vous aider' : 'propose de vous aider'}`, 44) };
+    return mint(`${r.task ? `<div class="card" style="padding:24px;${f(26, 5)}">« ${esc(r.task)} »</div>` : ''}
       ${lead(`Si vous acceptez, PapAI va regarder votre écran. Rien ne bouge avant l'accord de ${r.from}, et vous pouvez arrêter à tout moment.`)}`, 40, 22) +
       `<div class="row" style="gap:14px;margin-top:18px">
         ${pill('Non merci', 'refuseRemote', { filled: false, height: 78, grow: true })}
@@ -483,7 +507,7 @@
     const seg = S.textScales.map(([label, v]) =>
       `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
     return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--card)">
-      <div style="${f(30, 6)}">Réglages</div>
+      <div class="sheetHead" style="${f(30, 6)}">Réglages</div>
       ${S.orgName ? `<div class="muted" style="${f(15, 5)}">Poste géré par ${esc(S.orgName)}</div>` : ''}
       ${field('Prénom', 'setName', ui.settings.name, 'Jeanne')}
       ${field('Serveur', 'setServer', ui.settings.server, 'serveur PapAI officiel')}
@@ -505,6 +529,7 @@
   }
   function helpersSheet() {
     return `<div class="sheet col" style="width:820px;min-height:460px;padding:36px;gap:18px;background:var(--card)">
+      <div class="sheetHead" style="${f(34, 6)}">Mon support</div>
       ${helpersPanel(false)}<div class="spacer"></div>
       <div class="row"><div class="spacer"></div>${pill('Fermer', 'closeHelpers', { height: 54 })}</div></div>`;
   }
@@ -512,11 +537,11 @@
   // Alerte du gardien (PROTOCOL.md) : elle passe devant tout.
   function alertSheet() {
     const a = S.alert, danger = a.level === 'danger';
-    const tint = danger ? '#C8442F' : 'var(--accent)';
-    return `<div class="sheet col ${danger ? 'alertDanger' : 'alertInfo'}" style="width:620px;padding:46px 36px 36px;gap:18px;background:var(--card)">
-      <div class="row" style="gap:14px;color:${tint}">${icon('exclam', 30, tint)}
+    return `<div class="sheet col ${danger ? 'alertDanger' : 'alertInfo'}" style="width:620px;padding:36px;gap:18px;background:var(--card)">
+      <div class="sheetHead col" style="gap:12px">
+        <div class="row" style="gap:14px">${icon('exclam', 30, '#fff')}
         <span style="${f(17, 6)}">${danger ? 'Attention' : 'Pour information'}</span></div>
-      <div style="${f(30, 6)}">${esc(a.title)}</div>
+        <div style="${f(30, 6)}">${esc(a.title)}</div></div>
       ${a.detail ? `<div class="muted" style="${f(19, 5)}">${esc(a.detail)}</div>` : ''}
       ${a.acknowledged ? `<div style="${f(20, 6)}">Votre support a vu l'alerte et s'en occupe</div>` : ''}
       ${a.blocked ? '' : `<div class="row"><div class="spacer"></div>${pill("J'ai compris", 'dismissAlert', { height: 56 })}</div>`}</div>`;
@@ -548,7 +573,9 @@
     const sel = focusId && a.setSelectionRange ? [a.selectionStart, a.selectionEnd] : null;
     const compact = S.compact && S.screen === 'session' && S.onboarded && !S.remoteRequest;
     if (document.body) document.body.classList.toggle('compact', compact);
-    document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${body()}</div>`;
+    hd = null;
+    const main = compact ? '' : body();
+    document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${main}</div>`;
     document.getElementById('sheet').innerHTML =
       S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
         : ui.sheet === 'helpers' ? helpersSheet() : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
@@ -766,6 +793,7 @@
         if (q.get('dictation')) snap.dictation = { phase: q.get('dictation'), message: null };
         if (q.get('request')) ui.request = q.get('request');
         if (q.get('connected') === '0') snap.connected = false;
+        if (q.get('ts')) snap.textScale = parseFloat(q.get('ts'));
         window.PapAI.update(snap);
       });
     }

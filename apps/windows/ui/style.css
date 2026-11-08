@@ -36,11 +36,26 @@ svg { display: block; flex: none; }
 
 /* En-tête : bande bleue en dégradé, logotype en blanc */
 #root { height: 100vh; display: flex; flex-direction: column; gap: 22px; padding: 0 0 28px; }
-.hdr { display: flex; align-items: center; gap: 14px; padding: 28px 28px 22px; flex: none;
-  background: linear-gradient(180deg, #4C8DFF 0%, #2B6BFF 100%); color: #fff; border-radius: 0 0 var(--rBig) var(--rBig);
-  box-shadow: 0 10px 30px rgba(33,92,240,.18); }
+/* Dégradé de la maquette (#4C8DFF → #2B6BFF) en haut, assombri vers le bas
+   pour que le texte blanc reste au moins à 4,5:1 sous le titre. */
+.hdr { display: flex; flex-direction: column; gap: 18px; padding: 24px 28px 26px; flex: none;
+  background: linear-gradient(180deg, #2B6BFF 0%, #1E57E6 100%); color: #fff;
+  border-radius: 0 0 28px 28px; box-shadow: 0 12px 32px rgba(33,92,240,.22); position: relative; overflow: hidden; }
+.hdr::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 90px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(76,141,255,.9), rgba(76,141,255,0)); }
+.hdr > * { position: relative; }
+.hdr.danger { background: linear-gradient(180deg, #C8442F 0%, #A9331F 100%); box-shadow: 0 12px 32px rgba(168,50,30,.3); }
+.hdr.danger::before { display: none; }
+.hdrTop { gap: 14px; }
+.hdrBody { gap: 10px; max-width: 1100px; }
+.hdrTitle { color: #fff; text-wrap: balance; }
+.hdrSub { color: #fff; font-weight: 500; text-wrap: pretty; max-width: 1040px; }
 .hdr .logotype { filter: brightness(0) invert(1); }
-.hdr .circle { background: rgba(255,255,255,.18) !important; color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.28); }
+.hdr .circle { background: rgba(255,255,255,.18) !important; color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.32); }
+.hdr :focus-visible { outline-color: #fff; }
+/* Champ de demande dans l'en-tête : blanc plein, comme la recherche de la maquette */
+.hdr .requestRow { background: #fff; box-shadow: 0 6px 18px rgba(10,30,90,.18); margin-top: 6px; max-width: 900px; color: var(--ink); }
+.hdr .dots .d { box-shadow: none; }
 .logotype { width: 84px; height: 36px; object-fit: contain; }
 .main { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; margin: 0 28px; }
 
@@ -51,7 +66,19 @@ svg { display: block; flex: none; }
   .homeCard > .spacer { display: none; }
   .homeCard .microFrame { width: 148px !important; height: 148px !important; }
   .homeCard .microDisc { width: 128px !important; height: 128px !important; }
-  .hdr { padding-top: 18px; padding-bottom: 14px; }
+}
+/* Petite fenêtre : l'en-tête se resserre pour laisser la place à la carte
+   (questions de Holo, réponse, avancement) ; le texte reste au-dessus de 15 px. */
+@media (max-height: 720px) {
+  #root { gap: 14px; padding-bottom: 16px; }
+  .hdr { padding: 14px 24px 16px; gap: 8px; border-radius: 0 0 22px 22px; }
+  .hdr::before { height: 60px; }
+  .hdrBody { gap: 6px; }
+  .hdrTitle { font-size: max(15px, calc(30px * var(--ts))) !important; }
+  .hdrSub { font-size: max(15px, calc(17px * var(--ts))) !important; }
+  .hdr .requestRow { margin-top: 2px; padding-top: 8px; padding-bottom: 8px; }
+  .mintCard { padding: 22px !important; gap: 14px !important; }
+  .main > .row[style*="margin-top:18px"] { margin-top: 12px !important; }
 }
 /* Champ de demande : gris très clair, arrondi, avec icône */
 .requestRow { display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 18px; border-radius: 999px;
@@ -94,6 +121,10 @@ body.compact #root { padding: 0; gap: 0; }
 .circle { border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .scroll { overflow-y: auto; min-height: 0; scrollbar-width: none; }
 .scroll::-webkit-scrollbar { display: none; }
+/* Dans une carte, une fine barre montre qu'il reste de quoi lire plus bas */
+.mintCard > .scroll { scrollbar-width: thin; scrollbar-color: #B9C6E6 transparent; }
+.mintCard > .scroll::-webkit-scrollbar { display: block; width: 8px; }
+.mintCard > .scroll::-webkit-scrollbar-thumb { background: #B9C6E6; border-radius: 8px; }
 
 /* Pilules : principale en dégradé bleu, secondaire blanche et discrète */
 .pill { border-radius: 999px; padding: 0 30px; font-weight: 600; display: inline-flex;
@@ -143,8 +174,18 @@ body.compact #root { padding: 0; gap: 0; }
   max-height: calc(100vh - 56px); overflow: auto; }
 .sheet input { box-shadow: inset 0 0 0 1px var(--line); }
 /* Alerte du gardien : bandeau rouge épais, impossible à manquer */
-.alertDanger { box-shadow: inset 0 10px 0 var(--danger), 0 0 0 3px var(--danger), 0 24px 60px rgba(120,20,10,.3); }
-.alertInfo { box-shadow: inset 0 10px 0 var(--accent), 0 24px 60px rgba(20,30,80,.25); }
+.alertDanger { box-shadow: 0 0 0 3px var(--danger), 0 24px 60px rgba(120,20,10,.3); }
+.alertInfo { box-shadow: 0 24px 60px rgba(20,30,80,.25); }
+/* Bandeau de tête des feuilles : bleu, rouge pour une alerte du gardien */
+.sheetHead { margin: -32px -32px 4px; padding: 26px 32px 22px; color: #fff;
+  background: linear-gradient(180deg, #2B6BFF 0%, #1E57E6 100%); }
+.sheet[style*="padding:36px"] > .sheetHead { margin: -36px -36px 4px; padding: 28px 36px 24px; }
+.alertDanger .sheetHead { background: linear-gradient(180deg, #C8442F 0%, #A9331F 100%); }
+/* Encart pendant l'aide : sa ligne de titre en bandeau bleu */
+.miniHead { margin: -14px -16px 0; padding: 10px 16px; color: #fff; background: linear-gradient(180deg, #2B6BFF 0%, #1E57E6 100%); }
+.miniHead .softBtn { box-shadow: none; }
+/* Filet fin entre deux blocs d'une carte */
+.sep { height: 1px; background: var(--line); margin: 4px 0; }
 .seg { display: flex; background: #E8ECF5; border-radius: 12px; padding: 3px; }
 .seg button { flex: 1; min-height: 44px; border-radius: 10px; font-size: 15px; font-weight: 600; color: var(--muted); }
 .seg button.on { background: #fff; color: var(--accent); box-shadow: 0 1px 3px rgba(20,40,110,.18); }
