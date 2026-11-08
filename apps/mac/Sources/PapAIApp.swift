@@ -37,6 +37,10 @@ struct RootView: View {
             Group {
                 if let r = model.remoteRequest {
                     RemoteRequestView(request: r)
+                } else if let p = model.ticketPlan, p.show {
+                    ValidatedPlanView(ticket: p)
+                } else if let t = model.ticketLive, t.show {
+                    LiveTicketView(ticket: t)
                 } else if let e = model.existing {
                     ExistingTicketView(ticket: e)
                 } else if let q = model.queued, model.queuedShown {

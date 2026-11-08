@@ -35,6 +35,26 @@ struct QueuedTicket: Equatable {
     var suggestionLancee: String?
 }
 
+struct ValidatedTicket: Equatable {
+    var ticket: String
+    var number: Int
+    var task: String
+    var steps: [String]
+    var by: String
+    var show = true
+}
+
+struct LiveTicket: Equatable {
+    var ticket: String
+    var number: Int
+    var task: String
+    var slots: [Date]
+    var by: String
+    var chosenAt: Date?
+    var other = false
+    var show = true
+}
+
 /// Demande qui a déjà son ticket : encore ouvert, ou réglé avec sa solution.
 struct ExistingTicket: Equatable {
     var solved: Bool
@@ -130,6 +150,8 @@ final class AppModel {
     var remoteRequest: RemoteRequest?
     var queued: QueuedTicket?
     var queuedShown = false
+    var ticketPlan: ValidatedTicket?
+    var ticketLive: LiveTicket?
     /// Nom de l'organisation qui gère ce poste, connu après l'inscription par jeton.
     var orgName = UserDefaults.standard.string(forKey: "orgName") ?? ""
     var existing: ExistingTicket?
@@ -279,6 +301,32 @@ final class AppModel {
         }
         guard let at else { return }
         client.send(["type": "ticket_schedule", "ticket": q.ticket, "at": Int(at.timeIntervalSince1970)])
+    }
+
+    func launchValidatedPlan() {
+        guard let p = ticketPlan else { return }
+        ticketPlan = nil
+        askHelp(task: p.task, ticket: p.ticket)
+        automationRun = AutomationRun(id: "validated-plan", title: p.task, ticket: p.ticket,
+                                      number: p.number)
+    }
+
+    func deferValidatedPlan() {
+        ticketPlan?.show = false
+    }
+
+    func chooseTicketSlot(_ at: Date) {
+        guard let t = ticketLive, t.chosenAt == nil else { return }
+        client.send(["type": "ticket_slot", "ticket": t.ticket, "at": Int(at.timeIntervalSince1970)])
+    }
+
+    func askForAnotherTicketTime() {
+        guard let t = ticketLive, t.chosenAt == nil else { return }
+        client.send(["type": "ticket_slot", "ticket": t.ticket, "other": true])
+    }
+
+    func closeTicketLive() {
+        ticketLive?.show = false
     }
 
     // MARK: Démarrage
@@ -768,7 +816,8 @@ final class AppModel {
         case "status":
             applyStatus(m)
         case "session":
-            if m["automation"] as? String != nil, automationRun != nil {
+            if (m["automation"] as? String != nil || m["validated_plan"] as? Bool == true),
+               automationRun != nil {
                 automationRun?.ticket = m["ticket"] as? String
                 automationRun?.number = m["number"] as? Int
             }
@@ -848,6 +897,7 @@ final class AppModel {
             showNotice(m["reason"] as? String ?? "Cet automate n'a pas pu être lancé.")
         case "ticket_refused":
             queuedShown = false
+            if ticketLive?.ticket == m["ticket"] as? String { ticketLive?.show = false }
             showNotice(m["reason"] as? String ?? "Ce rendez-vous n'est pas possible.")
         case "pair_confirm":
             // Poste d'entreprise : le support vient de l'organisation, aucune liaison manuelle.
@@ -867,6 +917,32 @@ final class AppModel {
             state = nil
             screen = .home
             applyLevel()
+        case "ticket_plan":
+            ticketPlan = ValidatedTicket(ticket: m["ticket"] as? String ?? "",
+                                         number: m["number"] as? Int ?? 0,
+                                         task: m["task"] as? String ?? "",
+                                         steps: m["steps"] as? [String] ?? [],
+                                         by: m["by"] as? String ?? "Votre support")
+            ticketLive = nil
+            state = nil
+            screen = .home
+            applyLevel()
+        case "ticket_live":
+            let slots = (m["slots"] as? [NSNumber] ?? []).map { Date(timeIntervalSince1970: $0.doubleValue) }
+            ticketLive = LiveTicket(ticket: m["ticket"] as? String ?? "",
+                                    number: m["number"] as? Int ?? 0,
+                                    task: m["task"] as? String ?? "", slots: slots,
+                                    by: m["by"] as? String ?? "Votre support")
+            ticketPlan = nil
+            state = nil
+            screen = .home
+            applyLevel()
+        case "ticket_slot_asked":
+            if ticketLive?.ticket == m["ticket"] as? String {
+                ticketLive?.other = true
+                ticketLive?.show = false
+            }
+            showNotice("C’est envoyé à \(helperName), avec la demande d’un autre horaire.")
         case "ticket_exists", "ticket_solved":
             // La demande a déjà son ticket : rien de nouveau n'est ouvert.
             let sol = m["solution"] as? [String: Any] ?? [:]
@@ -885,6 +961,10 @@ final class AppModel {
         case "ticket_scheduled":
             if let at = m["at"] as? Double, queued?.ticket == m["ticket"] as? String {
                 queued?.rdv = Date(timeIntervalSince1970: at)
+            }
+            if let at = m["at"] as? Double, ticketLive?.ticket == m["ticket"] as? String {
+                ticketLive?.chosenAt = Date(timeIntervalSince1970: at)
+                ticketLive?.show = true
             }
         case "remote_request":
             guard !sessionOpen else { return }

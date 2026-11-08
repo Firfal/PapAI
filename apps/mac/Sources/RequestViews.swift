@@ -115,6 +115,95 @@ struct QueuedView: View {
     }
 }
 
+struct ValidatedPlanView: View {
+    @Environment(AppModel.self) private var model
+    let ticket: ValidatedTicket
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Panneau {
+                VStack(alignment: .leading, spacing: 12) {
+                    Pastille(texte: "Demande n° \(ticket.number)", icone: "checkmark.seal.fill", ton: .vert, taille: 17)
+                    Text("Votre support a validé la marche à suivre")
+                        .font(rounded(40, .bold)).tracking(-0.7)
+                }
+            } corps: {
+                VStack(alignment: .leading, spacing: 16) {
+                    if !ticket.task.isEmpty {
+                        Text("« \(ticket.task) »").font(rounded(24, .medium))
+                            .padding(24).frame(maxWidth: .infinity, alignment: .leading).champ(T.r)
+                    }
+                    Text("\(ticket.by) a validé ce plan. Holo suit ces étapes avec vous.")
+                        .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    ForEach(Array(ticket.steps.enumerated()), id: \.offset) { i, step in
+                        Text("\(i + 1). \(step)").font(rounded(21))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            HStack(spacing: 14) {
+                Button { model.launchValidatedPlan() } label: {
+                    Text("Lancer avec Holo").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillStyle(height: 78, icone: "sparkles", plein: true))
+                .disabled(!model.connected)
+                Button { model.deferValidatedPlan() } label: {
+                    Text("Plus tard").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillStyle(filled: false, height: 78))
+            }
+        }
+    }
+}
+
+struct LiveTicketView: View {
+    @Environment(AppModel.self) private var model
+    let ticket: LiveTicket
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Panneau {
+                VStack(alignment: .leading, spacing: 12) {
+                    Pastille(texte: "Demande n° \(ticket.number)", icone: "person.wave.2.fill", ton: .violet, taille: 17)
+                    Text("Votre support veut vous aider en direct")
+                        .font(rounded(40, .bold)).tracking(-0.7)
+                }
+            } corps: {
+                VStack(alignment: .leading, spacing: 18) {
+                    if !ticket.task.isEmpty {
+                        Text("« \(ticket.task) »").font(rounded(24, .medium))
+                            .padding(24).frame(maxWidth: .infinity, alignment: .leading).champ(T.r)
+                    }
+                    if let at = ticket.chosenAt {
+                        Text("Rendez-vous choisi : \(rdvText(at)). PapAI vous préviendra à l’heure dite.")
+                            .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    } else if ticket.other {
+                        Text("C’est envoyé à \(model.helperName), avec la demande d’un autre horaire.")
+                            .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("Choisissez un créneau pour recevoir l’assistance de votre support.")
+                            .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                        ForEach(Array(ticket.slots.enumerated()), id: \.offset) { _, slot in
+                            Button(rdvText(slot)) { model.chooseTicketSlot(slot) }
+                                .buttonStyle(PillStyle(filled: false, height: 56, icone: "calendar"))
+                                .disabled(!model.connected)
+                        }
+                        Button("Aucun ne me convient") { model.askForAnotherTicketTime() }
+                            .buttonStyle(PillStyle(filled: false, height: 56))
+                            .disabled(!model.connected)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            Button { model.closeTicketLive() } label: {
+                Text(ticket.chosenAt != nil || ticket.other ? "D’accord" : "Plus tard").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PillStyle(height: 78, icone: "checkmark.circle", plein: true))
+        }
+    }
+}
+
 /// La demande a déjà son ticket : encore ouvert, on le dit ; réglé, on montre la solution.
 struct ExistingTicketView: View {
     @Environment(AppModel.self) private var model

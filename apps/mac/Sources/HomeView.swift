@@ -94,6 +94,27 @@ struct HomeView: View {
                     }
                     .buttonStyle(PressStyle())
                 }
+                if let p = model.ticketPlan, !p.show {
+                    Button { model.ticketPlan?.show = true } label: {
+                        Label("Plan validé · demande n° \(p.number)", systemImage: "checkmark.seal.fill")
+                            .font(rounded(17, .semibold)).foregroundStyle(Pastille.Ton.vert.texte)
+                            .padding(.horizontal, 18).frame(minHeight: 44)
+                            .background(Capsule().fill(Pastille.Ton.vert.fond))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(PressStyle())
+                }
+                if let t = model.ticketLive, !t.show {
+                    Button { model.ticketLive?.show = true } label: {
+                        Label(t.chosenAt.map { "Rendez-vous \(rdvText($0))" } ?? "Assistance en direct · demande n° \(t.number)",
+                              systemImage: "person.wave.2.fill")
+                            .font(rounded(17, .semibold)).foregroundStyle(Pastille.Ton.violet.texte)
+                            .padding(.horizontal, 18).frame(minHeight: 44)
+                            .background(Capsule().fill(Pastille.Ton.violet.fond))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(PressStyle())
+                }
             }
         }
         .padding(Self.marge)

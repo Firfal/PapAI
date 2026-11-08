@@ -5,6 +5,21 @@ struct SupportTicketSuggestion: Identifiable {
     var title: String
 }
 
+struct SupportTicketProposal {
+    var title: String
+    var steps: [String]
+    var warning: String
+}
+
+struct SupportTicketDecision {
+    var kind: String
+    var by: String
+    var steps: [String]
+    var slots: [Double]
+    var rdv: Double?
+    var other: Bool
+}
+
 /// Un ticket d'un utilisateur (`GET …/k/<clé>/tickets`), avec la personne d'où il vient.
 struct SupportTicket: Identifiable {
     var id: String { person.key + "/" + tid }
@@ -21,6 +36,8 @@ struct SupportTicket: Identifiable {
     var blocked: String?
     var suggestions: [SupportTicketSuggestion] = []
     var suggestionLancee: String?
+    var proposal: SupportTicketProposal?
+    var decision: SupportTicketDecision?
     var category: String
     var categoryBy: String
     var resolved: Double?
@@ -50,6 +67,20 @@ struct SupportTicket: Identifiable {
             return SupportTicketSuggestion(id: id, title: title)
         }
         suggestionLancee = d["suggestion_lancee"] as? String
+        if let proposal = d["proposal"] as? [String: Any] {
+            self.proposal = SupportTicketProposal(title: proposal["title"] as? String ?? "",
+                                                  steps: proposal["steps"] as? [String] ?? [],
+                                                  warning: proposal["warning"] as? String ?? "")
+        }
+        if let decision = d["decision"] as? [String: Any] {
+            self.decision = SupportTicketDecision(kind: decision["kind"] as? String ?? "",
+                                                  by: decision["by"] as? String ?? "",
+                                                  steps: decision["steps"] as? [String] ?? [],
+                                                  slots: (decision["slots"] as? [NSNumber] ?? []).map(\.doubleValue),
+                                                  rdv: (decision["rdv"] as? NSNumber)?.doubleValue
+                                                    ?? (d["rdv"] as? NSNumber)?.doubleValue,
+                                                  other: decision["other"] as? Bool ?? false)
+        }
         category = d["category"] as? String ?? "autre"
         categoryBy = d["category_by"] as? String ?? ""
         resolved = (d["resolved"] as? NSNumber)?.doubleValue
@@ -73,6 +104,10 @@ struct SupportTickets: View {
     @State private var highlight: String?    // ticket ouvert depuis un exemple
     @State private var suggestion: TicketStats.Suggestion?
     @State private var applying: AutomateLibrary.Entry?
+    @State private var refineTarget: SupportTicket?
+    @State private var refineText = ""
+    @State private var liveTicket: String?
+    @State private var liveSlots: [Date] = [Date().addingTimeInterval(3600)]
 
     private var shown: [SupportTicket] {
         (filter == 0 ? tickets.filter(\.isOpen) : tickets).filter { focus == nil || $0.category == focus }
@@ -146,6 +181,21 @@ struct SupportTickets: View {
         .sheet(item: $applying) { e in
             ApplyAutomateSheet(model: model, entry: e) { applying = nil }
         }
+        .alert("Préciser le plan", isPresented: Binding(
+            get: { refineTarget != nil },
+            set: { if !$0 { refineTarget = nil } }
+        )) {
+            TextField("Que faut-il préciser à Holo ?", text: $refineText)
+            Button("Annuler", role: .cancel) { refineTarget = nil }
+            Button("Envoyer") {
+                guard let t = refineTarget else { return }
+                let text = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
+                refineTarget = nil
+                if !text.isEmpty { Task { await act(t, "refine", ["text": text]) } }
+            }
+        } message: {
+            Text("Holo proposera un nouveau plan à partir de cette précision.")
+        }
         .task {
             while !Task.isCancelled {
                 await load()
@@ -186,6 +236,47 @@ struct SupportTickets: View {
                         .font(rounded(14)).foregroundStyle(T.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if let proposal = t.proposal {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(proposal.title.isEmpty ? "Plan proposé par Holo" : proposal.title)
+                            .font(rounded(15, .semibold))
+                        ForEach(Array(proposal.steps.enumerated()), id: \.offset) { i, step in
+                            Text("\(i + 1). \(step)").font(rounded(14))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        if !proposal.warning.isEmpty {
+                            Label(proposal.warning, systemImage: "exclamationmark.triangle")
+                                .font(rounded(14, .semibold)).foregroundStyle(T.danger)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(10).frame(maxWidth: .infinity, alignment: .leading).champ(T.r)
+                }
+                if let decision = t.decision {
+                    VStack(alignment: .leading, spacing: 6) {
+                        if decision.kind == "plan" {
+                            Text("Plan validé par \(decision.by.isEmpty ? "le support" : decision.by)")
+                                .font(rounded(14, .semibold))
+                            ForEach(Array(decision.steps.enumerated()), id: \.offset) { i, step in
+                                Text("\(i + 1). \(step)").font(rounded(14))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        } else if decision.kind == "live" {
+                            Text("Assistance en direct obligatoire").font(rounded(14, .semibold))
+                            if let rdv = decision.rdv {
+                                Text("Rendez-vous choisi : \(slotText(rdv))")
+                            } else if decision.other {
+                                Text("Aucun créneau ne convient.")
+                            } else {
+                                Text("Créneaux proposés :")
+                                ForEach(Array(decision.slots.enumerated()), id: \.offset) { _, at in
+                                    Text(slotText(at))
+                                }
+                            }
+                        }
+                    }
+                    .font(rounded(14)).padding(10).frame(maxWidth: .infinity, alignment: .leading).champ(T.r)
+                }
                 Text(when(t)).font(rounded(13)).foregroundStyle(T.muted)
             }
             Spacer(minLength: 0)
@@ -193,6 +284,54 @@ struct SupportTickets: View {
                 if t.isOpen && t.status != "en_cours" {
                     Button(busy == t.id ? "…" : "Prendre en charge") { Task { await act(t, "take") } }
                         .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
+                    if let proposal = t.proposal {
+                        if !proposal.steps.isEmpty {
+                            Button("Valider") { Task { await act(t, "validate") } }
+                                .buttonStyle(PillStyle(height: 40)).disabled(busy != nil)
+                        }
+                        Button("Préciser") {
+                            refineTarget = t
+                            refineText = ""
+                        }
+                        .buttonStyle(PillStyle(filled: false, height: 36)).disabled(busy != nil)
+                    } else if t.proposal == nil {
+                        Button("Proposer un plan") { Task { await act(t, "draft") } }
+                            .buttonStyle(PillStyle(filled: false, height: 36)).disabled(busy != nil)
+                    }
+                    Button("Assistance en direct obligatoire") {
+                        liveTicket = liveTicket == t.id ? nil : t.id
+                        liveSlots = [Date().addingTimeInterval(3600)]
+                    }
+                    .buttonStyle(PillStyle(filled: false, height: 36)).disabled(busy != nil)
+                    if liveTicket == t.id {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(liveSlots.indices, id: \.self) { i in
+                                HStack {
+                                    DatePicker("Créneau \(i + 1)", selection: slotBinding(i),
+                                               in: Date().addingTimeInterval(60)...Date().addingTimeInterval(30 * 86400))
+                                        .datePickerStyle(.compact)
+                                    if liveSlots.count > 1 {
+                                        Button("Retirer") { liveSlots.remove(at: i) }
+                                            .buttonStyle(.plain).disabled(busy != nil)
+                                    }
+                                }
+                            }
+                            HStack(spacing: 8) {
+                                if liveSlots.count < 3 {
+                                    Button("Ajouter un créneau") {
+                                        liveSlots.append(Date().addingTimeInterval(3600))
+                                    }
+                                    .buttonStyle(.plain).disabled(busy != nil)
+                                }
+                                Button("Proposer") {
+                                    let slots = liveSlots.map { Int($0.timeIntervalSince1970) }
+                                    Task { await act(t, "live", ["slots": slots]) }
+                                    liveTicket = nil
+                                }
+                                .buttonStyle(PillStyle(height: 36)).disabled(busy != nil)
+                            }
+                        }
+                    }
                 }
                 Button("Voir l’utilisateur") { openUser(t.person) }
                     .buttonStyle(PillStyle(filled: false, height: 36))
@@ -224,6 +363,7 @@ struct SupportTickets: View {
         case "rdv": ("Rendez-vous", .violet)
         case "en_cours": ("En cours", .vert)
         case "a_reprendre": ("À reprendre", .orange)
+        case "plan_valide": ("Plan validé", .vert)
         case "resolu": ("Résolu", .gris)
         default: (t.status, .gris)
         }
@@ -234,6 +374,20 @@ struct SupportTickets: View {
         let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "d MMM 'à' HH:mm"
         if t.status == "rdv", let r = t.rdv { return "Rendez-vous le " + f.string(from: Date(timeIntervalSince1970: r)) }
         return "Mis à jour le " + f.string(from: Date(timeIntervalSince1970: t.updated))
+    }
+
+    private func slotBinding(_ index: Int) -> Binding<Date> {
+        Binding(
+            get: { liveSlots.indices.contains(index) ? liveSlots[index] : Date().addingTimeInterval(3600) },
+            set: { if liveSlots.indices.contains(index) { liveSlots[index] = $0 } }
+        )
+    }
+
+    private func slotText(_ at: Double) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "fr_FR")
+        f.dateFormat = "EEEE d MMMM 'à' HH:mm"
+        return f.string(from: Date(timeIntervalSince1970: at))
     }
 
     // MARK: Réseau
@@ -279,7 +433,7 @@ struct SupportTickets: View {
         stats = parts.isEmpty ? nil : TicketStats.merge(parts)
     }
 
-    private func act(_ t: SupportTicket, _ action: String, _ extra: [String: String] = [:]) async {
+    private func act(_ t: SupportTicket, _ action: String, _ extra: [String: Any] = [:]) async {
         guard let url = URL(string: AutomateLibrary.base(t.person) + "/tickets/" + t.tid) else { return }
         busy = t.id; defer { busy = nil }
         var req = URLRequest(url: url, timeoutInterval: 15)
