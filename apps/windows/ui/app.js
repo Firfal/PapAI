@@ -60,8 +60,10 @@
   function helpCard() {
     const mic = S.microPresent;
     const busy = ui.dictating || S.dictation.phase !== 'idle';
-    const warn = ui.warning ? `<div class="pillChip" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
-        ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '';
+    const wait = S.queued && !S.queued.show ? `<button class="pillChip press" data-act="openQueued" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
+        ${icon('personWave', 20)}<span>Demande n° ${esc(S.queued.number)} ${S.queued.rdv ? '· rendez-vous ' + esc(rdvText(S.queued.rdv)) : 'en attente'}</span></button>` : '';
+    const warn = (ui.warning ? `<div class="pillChip" style="align-self:flex-start;gap:8px;padding:12px 18px;${f(17, 6)}">
+        ${icon('exclam', 20)}<span>${esc(ui.warning)}</span></div>` : '') + wait;
     return `<div class="mintCard homeCard" style="padding:32px;gap:16px">
       <div style="${f(44, 7)};letter-spacing:-0.8px;line-height:1.1">${(h => (h >= 19 || h < 5) ? "Bonsoir" : "Bonjour")(new Date().getHours())}${S.storedFirstName ? ' ' + esc(S.storedFirstName) : ''}</div>
       <div class="muted" style="${f(18, 5)}">Un souci sur l'ordinateur ? ${mic ? 'Dites-le simplement' : 'Écrivez ce dont vous avez besoin'}, un message part tout de suite à ${esc(S.helperName)}.</div>
@@ -102,14 +104,19 @@
       return `<div class="card row" style="padding:12px;gap:10px">
         <button class="row press grow" data-act="shortcut" data-arg="${esc(l.id)}" aria-label="${esc(l.title)}" style="gap:10px;text-align:left;min-height:36px">
           <span class="circle" style="width:36px;height:36px;background:var(--mint);color:var(--accent)">${icon(folderIcon((l.shortcut || {}).folder), 19)}</span>
-          <span style="${f(18, 6)}">${esc(l.title)}</span>
+          <span class="col" style="gap:2px"><span style="${f(18, 6)}">${esc(l.title)}</span>${l.publisher ? `<span class="muted" style="${f(14, 4)}">${esc('Fourni par ' + l.publisher)}</span>` : ''}</span>
         </button>
         ${steps ? `<button class="press accent" data-act="lesson" data-arg="${esc(l.id)}"
           style="white-space:nowrap;min-height:44px;padding:5px 10px;border-radius:999px;background:var(--mint);${f(15, 6)}">Montrez-moi</button>` : ''}
       </div>`;
     }).join('');
-    if (!S.lessons.length && !notice) return '';
-    return `<div class="col" style="gap:14px">${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes tutoriels</div>` : ''}${tiles}</div>`;
+    const running = S.automationRunning ? `<div class="card row" style="padding:18px;gap:14px;align-items:center">
+        <span class="grow" style="${f(18, 6)}">En cours : ${esc(S.automationRunning)}</span>
+        <button class="row press" data-act="stop" aria-label="Arrêter l'automate (Échap)"
+          style="gap:10px;height:52px;padding:0 20px;border-radius:999px;background:var(--ink);color:#fff">
+          ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
+    if (!S.lessons.length && !notice && !running) return '';
+    return `<div class="col" style="gap:14px">${running}${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes automates</div>` : ''}${tiles}</div>`;
   }
 
   const APP_STYLE = {
@@ -166,67 +173,103 @@
   }
 
   // ----------------------------------------------------------------- Session
+  const guardStopped = (st) => st === 'stopped' && S.stoppedBy === 'gardien';
   function sessionTitle(st) {
-    if (st === 'stopped' && S.stoppedBy === 'gardien') return "PapAI a arrêté l'assistance : démarche suspecte";
-    return { planning: 'Holo regarde votre écran…', awaiting_approval: `${S.HelperName} vérifie le plan`,
-      active: "Holo s'en occupe", awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !",
+    if (S.paused && S.sessionOpen) return "L'aide est en pause";
+    if (guardStopped(st)) return 'PapAI a arrêté : cette démarche peut être une arnaque';
+    return { planning: 'Holo regarde votre écran…', awaiting_approval: `${S.HelperName} vérifie votre demande`,
+      active: `${S.carer} s'en occupe`, awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !",
       stopped: "L'assistance est arrêtée." }[st];
   }
   function sessionSubtitle(st) {
+    if (S.paused && S.sessionOpen) return 'Vous pouvez utiliser votre ordinateur. Appuyez sur Reprendre quand vous voulez.';
+    if (guardStopped(st)) return null;
     return { planning: "Un instant, je prépare ce qu'il faut faire.",
       awaiting_approval: 'Rien ne se passera sur votre écran avant son accord.',
-      active: S.currentAction || "Je regarde l'écran…",
-      awaiting_helper: `Holo a une question. ${S.HelperName} a reçu une image de votre écran et va répondre. Restez là, ne touchez à rien.`,
+      active: "Pendant l'aide, laissez la souris et le clavier à Holo. Pause ou Arrêter restent toujours possibles.",
+      awaiting_helper: S.questionForMe ? "J'ai besoin d'une information que vous seul connaissez."
+        : `${S.HelperName} répond à une question de Holo. Restez là, ne touchez à rien.`,
       done: null, stopped: "Votre écran n'est plus partagé." }[st];
   }
 
-  function planList(current, compact) {
-    const head = compact ? `<div class="muted" style="${f(16, 6)}">${current ? `Étape ${current} sur ${S.plan.length}` : 'Le plan validé'}</div>` : '';
-    const rows = S.plan.map((step, i) => {
-      const past = current ? i + 1 < current : false;
-      const now = current === i + 1;
-      const d = compact ? 30 : 38;
-      const mark = past ? icon('check', compact ? 17 : 20, '#fff') : `<span style="${f(compact ? 15 : 18, 6)}">${i + 1}</span>`;
-      return `<div class="card row" style="gap:16px;padding:${compact ? 10 : 12}px"
-          aria-label="${esc(now ? 'En cours : ' + step : past ? 'Fait : ' + step : step)}">
-        <span class="circle" style="width:${d}px;height:${d}px;color:#fff;background:${past || now ? 'var(--accent)' : 'var(--ink)'}">${mark}</span>
-        <span class="grow" style="${f(compact ? 18 : 20, now ? 6 : 5)};color:${past ? 'var(--muted)' : 'var(--ink)'}">${esc(step)}</span>
-      </div>`;
+  // Où en est l'aide, sans détailler les étapes de Holo (comme sur le Mac).
+  function fraction(st) {
+    if (st === 'planning') return 0.15;
+    if (st === 'awaiting_approval') return 0.35;
+    if (st === 'active' || st === 'awaiting_helper') {
+      return S.planStep && S.plan.length ? 0.45 + 0.5 * Math.max(S.planStep - 1, 0) / S.plan.length : 0.5;
+    }
+    return st === 'done' ? 1 : 0;
+  }
+  const bar = (st, h) => `<div style="height:${h}px;border-radius:999px;background:var(--card);overflow:hidden" role="progressbar"
+      aria-label="Avancement" aria-valuenow="${Math.round(fraction(st) * 100)}" aria-valuemin="0" aria-valuemax="100">
+      <div style="height:100%;width:max(${h}px, ${fraction(st) * 100}%);border-radius:999px;background:var(--accent);transition:width .6s"></div></div>`;
+  function progress(st, phase) {
+    const steps = ['Holo regarde votre écran et prépare la suite', `${S.HelperName} vérifie et donne son accord`,
+      `${S.carer} s'en occupe, avec Holo`];
+    const rows = steps.map((text, i) => {
+      const done = i < phase, now = i === phase;
+      return `<div class="row" style="gap:14px" aria-label="${esc(done ? 'Fait : ' + text : now ? 'En cours : ' + text : text)}">
+        <span style="color:${done || now ? 'var(--accent)' : 'var(--muted)'}">${icon(done ? 'checkCircle' : now ? 'circleDotted' : 'circle', 24)}</span>
+        <span style="${f(21, now ? 6 : 4)};color:${done ? 'var(--muted)' : 'var(--ink)'}">${esc(text)}</span></div>`;
     }).join('');
-    return `<div class="col" style="gap:${compact ? 8 : 12}px">${head}${rows}</div>`;
+    return `<div class="col" style="gap:18px;padding:24px;border-radius:var(--r);background:rgba(255,255,255,.55)">${bar(st, 18)}${rows}</div>`;
   }
 
-  function history() {
-    const last4 = S.actions.slice(-4);
-    return `<div class="col" style="gap:8px"><div class="muted" style="${f(16, 6)}">Ce que j'ai fait</div>` +
-      last4.map((a, i) => {
-        const last = i === last4.length - 1;
-        return `<div class="row" style="gap:12px"><span class="accent">${icon(last ? 'circleDotted' : 'checkCircle', 22)}</span>
-          <span style="${f(18, last ? 6 : 4)};color:${last ? 'var(--ink)' : 'var(--muted)'}">${esc(a)}</span></div>`;
-      }).join('') + '</div>';
+  // Une question que Holo pose à la personne aidée, pour ce qu'elle seule sait.
+  function seniorQuestion() {
+    const sent = ui.seniorSent === S.question;
+    const options = (S.questionOptions || []).map((o) =>
+      `<button class="pill plain" data-act="seniorOption" data-arg="${esc(o)}" style="height:56px;padding:0 22px;${f(20, 6)}">${esc(o)}</button>`).join('');
+    const reply = sent
+      ? `<div class="row accent" style="gap:10px">${icon('checkCircle', 22)}<span style="${f(20, 6)}">Merci, c'est noté.</span></div>`
+      : `${options ? `<div class="row" style="gap:10px;flex-wrap:wrap">${options}</div>` : ''}
+        <div class="row" style="gap:12px">
+          <input id="seniorReply" class="grow" placeholder="Votre réponse" value="${esc(ui.seniorText || '')}"
+            style="${f(22, 5)};padding:16px 20px;border:0;border-radius:var(--r);background:var(--bg)">
+          ${pill('Répondre', 'seniorReply', { height: 56, disabled: !(ui.seniorText || '').trim() })}
+        </div>
+        <div class="muted" style="${f(15, 4)}">Ne donnez jamais de mot de passe ni de code : on ne vous les demandera pas.</div>`;
+    return `<div class="card col" style="padding:24px;gap:16px">
+      <div class="muted" style="${f(16, 6)}">Holo vous demande</div>
+      <div style="${f(28, 5)}">${esc(S.question)}</div>${reply}</div>`;
   }
 
   const endNote = (sym, text) => `<div class="row" style="gap:14px"><span class="accent" style="width:28px;display:flex;justify-content:center">${icon(sym, 22)}</span>
     <span class="muted" style="${f(19, 4)}">${esc(text)}</span></div>`;
 
   function sessionContent(st) {
-    if (st === 'awaiting_approval' && S.plan.length) return planList(null, false);
-    if (st === 'active') {
-      return `<div class="col" style="gap:16px">${S.actions.length ? history() : ''}${S.plan.length ? planList(S.planStep, true) : ''}</div>`;
+    if (st === 'planning' || st === 'awaiting_approval' || st === 'active') {
+      return progress(st, st === 'planning' ? 0 : st === 'awaiting_approval' ? 1 : 2);
     }
-    if (st === 'awaiting_helper' && S.question) {
-      return `<div class="card col" style="padding:24px;gap:8px">
-        <div class="muted" style="${f(16, 6)}">La question de Holo</div>
-        <div style="${f(24, 5)}">${esc(S.question)}</div></div>`;
-    }
+    if (st === 'awaiting_helper') return S.questionForMe && S.question ? seniorQuestion() : progress(st, 2);
     if (st === 'done') {
       return `<div class="col" style="gap:16px">
         <div class="card" style="padding:28px;${f(26, 5)}">${esc(S.answer || 'Voilà, c\'est fait.')}</div>
         ${endNote('lock', "Votre écran n'est plus partagé.")}
-        ${endNote('book', `${S.HelperName} peut en faire un tutoriel. Vous le retrouverez dans « Mes tutoriels » pour le refaire sans aide.`)}
+        ${endNote('book', `${S.HelperName} peut en faire un automate. Vous le retrouverez dans « Mes automates » pour le refaire sans aide.`)}
       </div>`;
     }
+    if (guardStopped(st)) {
+      const who = (S.helpers[0] || {}).name || 'votre support';
+      return `<div class="col" style="gap:20px;${f(23, 5)}">
+        <div>Ne payez rien et ne donnez aucun code.</div>
+        <div>Appelez ${esc(who)} à son numéro habituel.</div>
+        ${S.guardAcknowledged ? "<div>Votre support a vu l'alerte et s'en occupe</div>" : ''}</div>`;
+    }
     return '';
+  }
+
+  const canPause = (st) => st === 'active' || st === 'awaiting_helper' || S.paused;
+  function pauseButton(height, size) {
+    return `<button class="row press" data-act="pause" aria-label="${S.paused ? "Reprendre l'aide" : "Mettre l'aide en pause"}"
+        style="justify-content:center;gap:12px;height:${height}px;border-radius:999px;background:var(--card);color:var(--ink);flex:1">
+        ${icon(S.paused ? 'play' : 'pause', size - 4)}<span style="${f(size, 6)}">${S.paused ? 'Reprendre' : 'Pause'}</span></button>`;
+  }
+  function stopButton(height, size) {
+    return `<button class="row press" data-act="stop" aria-label="Arrêter l'assistance (Échap)"
+        style="justify-content:center;gap:14px;height:${height}px;border-radius:999px;background:var(--ink);color:#fff;flex:1">
+        ${icon('stop', size - 4, '#fff')}<span style="${f(size, 6)}">Arrêter</span></button>`;
   }
 
   function session() {
@@ -234,19 +277,39 @@
     const sub = sessionSubtitle(st);
     const banner = S.sessionOpen ? `<div class="pillChip" style="align-self:flex-start;gap:10px;padding:10px 18px;${f(16, 6)}">
       <span class="dot" style="background:var(--accent)"></span>Écran partagé</div>` : '';
-    const footer = (S.task && st !== 'stopped' && st !== 'awaiting_approval')
+    const footer = (S.task && st !== 'stopped' && st !== 'awaiting_approval' && !(st === 'awaiting_helper' && S.questionForMe))
       ? `<div class="muted" style="${f(16, 4)};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">Votre demande : ${esc(S.task)}</div>` : '';
     const bottom = S.sessionOpen
-      ? `<button class="row press" data-act="stop" aria-label="Arrêter l'assistance (Échap)"
-          style="justify-content:center;gap:14px;height:70px;border-radius:999px;background:var(--ink);color:#fff;width:100%">
-          ${icon('stop', 22, '#fff')}<span style="${f(26, 6)}">Arrêter</span></button>`
+      ? `<div class="row" style="gap:14px;width:100%">${canPause(st) ? pauseButton(70, 26) : ''}${stopButton(70, 26)}</div>`
       : pill("Retour à l'accueil", 'home', { height: 70, grow: true });
-    return mint(`${banner}
-      <div style="${f(40, 6)};letter-spacing:-0.6px;line-height:1.12">${esc(sessionTitle(st))}</div>
+    const inner = `${banner}
+      <div style="${f(guardStopped(st) ? 34 : 40, 6)};letter-spacing:-0.6px;line-height:1.12">${esc(sessionTitle(st))}</div>
       ${sub ? `<div class="fade" style="${f(24, 5)};color:${st === 'active' ? 'var(--ink)' : 'var(--muted)'}">${esc(sub)}</div>` : ''}
       <div class="scroll">${sessionContent(st)}</div>
-      <div class="spacer"></div>${footer}`, 34, 18) +
-      `<div class="row" style="margin-top:18px">${bottom}</div>`;
+      <div class="spacer"></div>${footer}`;
+    const card = guardStopped(st)
+      ? `<div class="col" style="padding:34px;gap:18px;border-radius:var(--rBig);background:var(--card);flex:1;min-height:0">${inner}</div>`
+      : mint(inner, 34, 18);
+    return card + `<div class="row" style="margin-top:18px">${bottom}</div>`;
+  }
+
+  // Petit encart pendant que Holo agit (MiniPanel du Mac) : la fenêtre se range
+  // en bas à droite pour qu'on voie ce qu'il fait ; Pause et Arrêter restent là.
+  function mini() {
+    const st = S.state || 'planning';
+    const title = S.paused && S.sessionOpen ? "L'aide est en pause" : ({ planning: 'Holo prépare la suite…',
+      awaiting_approval: `${S.HelperName} vérifie`, active: `${S.carer} s'en occupe`,
+      awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !" }[st] || 'PapAI');
+    return `<div class="col mini" style="gap:10px;padding:14px 16px">
+      <div class="row" style="gap:10px">
+        <span class="dot" style="background:${S.sessionOpen && !S.paused ? 'var(--accent)' : 'var(--muted)'}"></span>
+        <span class="grow" style="${f(17, 6)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</span>
+        <button class="circle press" data-act="expand" aria-label="Ouvrir PapAI en grand"
+          style="width:30px;height:30px;background:var(--bg)">${icon('expand', 14)}</button>
+      </div>
+      ${bar(st, 8)}
+      <div class="row" style="gap:8px">${canPause(st) ? pauseButton(40, 15) : ''}${stopButton(40, 15)}</div>
+    </div>`;
   }
 
   // ------------------------------------------------------------------ Lesson
@@ -257,7 +320,7 @@
     const i = Math.min(ui.lessonIndex, Math.max(0, steps.length - 1));
     let body;
     if (!steps.length) {
-      body = `<div style="${f(30, 6)}">Pas de pas à pas pour ce raccourci.</div>`;
+      body = `<div style="${f(30, 6)}">Cet automate n'a pas encore d'étapes.</div>`;
     } else {
       const s = steps[i];
       const img = s.image ? `<img alt="" src="${esc(S.httpBase)}/lessons/${encodeURIComponent(l.id)}/${encodeURIComponent(s.image)}"
@@ -295,8 +358,8 @@
 
   function onbWelcome() {
     return h1('Bienvenue sur PapAI', 52) +
-      lead("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Un proche est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.", 23) +
-      promise('hand', "Rien ne bouge sur votre écran sans l'accord de votre proche.", 20) +
+      lead("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.", 23) +
+      promise('hand', "Rien ne bouge sur votre écran sans l'accord de votre support.", 20) +
       promise('stopCircle', 'Vous pouvez tout arrêter à tout moment.', 20) +
       promise('lock', "Votre écran n'est partagé que quand vous le demandez.", 20);
   }
@@ -332,7 +395,7 @@
     return h1('Deux autorisations, déjà prêtes') +
       lead("Sur Windows, rien à cocher : PapAI peut voir l'écran et utiliser la souris, mais seulement quand vous le demandez.") +
       permissionRow('Voir mon écran', 'Pour que Holo voie ce que vous voyez. Jamais sans votre demande.') +
-      permissionRow('Utiliser la souris et le clavier', "Pour cliquer à votre place, uniquement après l'accord de votre proche.");
+      permissionRow('Utiliser la souris et le clavier', "Pour cliquer à votre place, uniquement après l'accord de votre support.");
   }
 
   // ------------------------------------------------------------ HelpersPanel
@@ -345,29 +408,63 @@
           style="width:36px;height:36px;background:var(--bg)">${icon('xmark', 16)}</button>`}
       </div>`).join('');
     const add = S.pairCode ? '' :
-      `<div>${pill(S.helpers.length ? 'Ajouter un autre proche' : 'Ajouter un proche', 'pair', { filled: !S.helpers.length, height: 60, disabled: !S.connected })}</div>
+      `<div>${pill(S.helpers.length ? 'Ajouter un autre support' : 'Ajouter un support', 'pair', { filled: !S.helpers.length, height: 60, disabled: !S.connected })}</div>
        ${S.connected ? '' : `<div class="muted" style="${f(16, 4)}">Connexion au serveur en cours…</div>`}`;
-    const added = S.pairAdded ? `<div class="row accent" style="gap:8px;${f(19, 6)}">${icon('checkCircle', 22)}${esc(S.pairAdded)} fait maintenant partie de vos proches.</div>` : '';
-    const code = S.pairCode ? `<div class="card col" style="padding:22px;gap:10px;align-items:center;flex:none">
-        ${S.pairQR ? `<img src="${S.pairQR}" alt="QR code à scanner par votre proche" style="width:170px;height:170px;image-rendering:pixelated">` : ''}
+    const added = S.pairAdded ? `<div class="row accent" style="gap:8px;${f(19, 6)}">${icon('checkCircle', 22)}${esc(S.pairAdded)} fait maintenant partie de votre support.</div>` : '';
+    const code = S.pairCode ? `<div class="card col" style="padding:18px 22px;gap:8px;align-items:center;flex:none">
+        ${S.pairQR ? `<img src="${S.pairQR}" alt="QR code à scanner par votre support" style="width:170px;height:170px;image-rendering:pixelated">` : ''}
         <div class="muted" style="${f(16, 4)}">ou le code</div>
         <div style="font-size:${38 * S.textScale}px;font-weight:600;letter-spacing:4px;font-variant-numeric:tabular-nums;user-select:text">${esc(S.pairCode.slice(0, 3))} ${esc(S.pairCode.slice(3))}</div>
-        <div class="muted" style="${f(15, 4)}">Valable 10 minutes</div>
+        <div class="muted" style="${f(15, 4)}">${S.pairLong ? 'Valable 24 heures' : 'Valable 10 minutes'}</div>
+        ${S.pairURL ? `<button class="accent press" data-act="shareInvite" style="${f(17, 6)}">Envoyer par SMS, WhatsApp…</button>` : ''}
+        ${ui.inviteCopied ? `<div class="accent" style="max-width:260px;text-align:center;${f(15, 6)}">${esc(ui.inviteCopied)}</div>` : ''}
+        ${S.pairURL ? `<div class="muted" style="max-width:240px;text-align:center;word-break:break-all;user-select:text;${f(13, 4)}">Sans l'app PapAI : ${esc(S.pairURL)}</div>` : ''}
         <button class="muted" data-act="stopPair" style="${f(17, 6)}">Annuler</button>
       </div>` : '';
     return `<div class="row" style="align-items:flex-start;gap:28px">
       <div class="col grow" style="gap:20px">
-        <div style="${f(onb ? 44 : 34, 6)};letter-spacing:-0.6px;line-height:1.1">${onb ? 'Qui va vous aider ?' : 'Mes proches'}</div>
-        <div class="muted" style="${f(20, 4)}">Votre fille, votre fils, un ami… Il ou elle scanne le code avec son téléphone et donne son prénom. Vous pouvez en ajouter plusieurs.</div>
+        <div style="${f(onb ? 44 : 34, 6)};letter-spacing:-0.6px;line-height:1.1">${onb ? 'Qui va vous aider ?' : 'Mon support'}</div>
+        <div class="muted" style="${f(20, 4)}">Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.</div>
         ${added}${rows}${add}
       </div>${code}</div>`;
+  }
+
+  // ------------------------------------------------------------- PairRequest
+  function pairAsk() {
+    const r = S.pairRequest;
+    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Nouveau support</span></div>
+      <div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.name)} veut devenir votre support</div>
+      ${r.relation ? `<div class="card" style="padding:24px;${f(26, 5)}">${esc(r.relation)}</div>` : ''}
+      ${lead("Cette personne vient de taper votre code à 6 chiffres. Acceptez seulement si vous la connaissez et que vous lui avez donné ce code.")}`, 40, 22) +
+      `<div class="row" style="gap:14px;margin-top:18px">
+        ${pill('Refuser', 'refusePair', { filled: false, height: 78, grow: true })}
+        ${pill("Accepter", 'acceptPair', { height: 78, grow: true, disabled: !S.connected })}
+      </div>`;
+  }
+
+  // ------------------------------------------------- Demande en attente (ticket)
+  function rdvText(at) {
+    return new Date(at * 1000).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function queued() {
+    const q = S.queued;
+    const slots = [['Dans 1 heure', '1h'], ['Demain à 9 h', 'demain9'], ['Demain à 14 h', 'demain14']];
+    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Demande n° ${esc(q.number)}</span></div>
+      <div style="${f(44, 6)};letter-spacing:-0.7px;line-height:1.1">Votre demande est partie</div>
+      ${q.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(q.task)} »</div>` : ''}
+      ${q.rdv ? lead(`Rendez-vous ${esc(rdvText(q.rdv))}. PapAI vous préviendra à l'heure dite.`)
+        : lead(`Personne n'est disponible pour l'instant. PapAI vous préviendra dès que ${esc(S.helperName)} sera là. Vous pouvez aussi fixer un rendez-vous.`)}
+      ${q.rdv ? '' : `<div class="row" style="gap:10px;flex-wrap:wrap">${slots.map(([label, v]) =>
+        `<button class="pill plain" data-act="scheduleTicket" data-arg="${v}" style="height:56px;padding:0 22px;${f(20, 6)}">${label}</button>`).join('')}</div>`}`, 40, 22) +
+      `<div class="row" style="gap:14px;margin-top:18px">${pill("D'accord", 'closeQueued', { height: 78, grow: true })}</div>`;
   }
 
   // ----------------------------------------------------------- RemoteRequest
   function remote() {
     const r = S.remoteRequest;
-    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Proposition d'aide</span></div>
-      <div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.from)} propose de vous aider</div>
+    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">${r.rdv ? "C'est l'heure de votre rendez-vous" : r.ticket ? 'Votre demande en attente' : "Proposition d'aide"}</span></div>
+      <div style="${f(48, 6)};letter-spacing:-0.7px;line-height:1.1">${esc(r.from)} ${r.ticket ? 'est disponible pour vous aider' : 'propose de vous aider'}</div>
       ${r.task ? `<div class="card" style="padding:24px;${f(26, 5)}">« ${esc(r.task)} »</div>` : ''}
       ${lead(`Si vous acceptez, PapAI va regarder votre écran. Rien ne bouge avant l'accord de ${r.from}, et vous pouvez arrêter à tout moment.`)}`, 40, 22) +
       `<div class="row" style="gap:14px;margin-top:18px">
@@ -386,11 +483,12 @@
       `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
     return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--bg)">
       <div style="${f(30, 6)}">Réglages</div>
+      ${S.orgName ? `<div class="muted" style="${f(15, 5)}">Poste géré par ${esc(S.orgName)}</div>` : ''}
       ${field('Prénom', 'setName', ui.settings.name, 'Jeanne')}
-      ${field('Serveur', 'setServer', ui.settings.server, 'ws://localhost:8000/ws/bridge')}
+      ${field('Serveur', 'setServer', ui.settings.server, 'serveur PapAI officiel')}
       <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Taille du texte</div><div class="seg">${seg}</div></div>
       <div class="row" style="gap:12px">
-        ${pill(`Mes proches (${S.helpers.length})`, 'openHelpers', { filled: false, height: 50 })}
+        ${pill(`Mon support (${S.helpers.length})`, 'openHelpers', { filled: false, height: 50 })}
         ${pill("Revoir l'accueil", 'replayOnboarding', { filled: false, height: 50 })}
         ${S.screenConsent ? pill("Retirer l'accord de partage", 'revokeConsent', { filled: false, height: 50 }) : ''}
       </div>
@@ -414,14 +512,16 @@
         <span style="${f(17, 6)}">${danger ? 'Attention' : 'Pour information'}</span></div>
       <div style="${f(30, 6)}">${esc(a.title)}</div>
       ${a.detail ? `<div class="muted" style="${f(19, 5)}">${esc(a.detail)}</div>` : ''}
-      ${a.acknowledged ? `<div style="${f(20, 6)}">Un proche a vu l'alerte et s'en occupe</div>` : ''}
+      ${a.acknowledged ? `<div style="${f(20, 6)}">Votre support a vu l'alerte et s'en occupe</div>` : ''}
       ${a.blocked ? '' : `<div class="row"><div class="spacer"></div>${pill("J'ai compris", 'dismissAlert', { height: 56 })}</div>`}</div>`;
   }
 
   // ------------------------------------------------------------------- rendu
   function body() {
+    if (S.pairRequest) return pairAsk();
     if (!S.onboarded) return onboarding();
     if (S.remoteRequest) return remote();
+    if (S.queued && S.queued.show) return queued();
     if (S.screen === 'consent') return consent();
     if (S.screen === 'session') return session();
     if (S.screen === 'lesson' && S.lesson) return lesson();
@@ -440,7 +540,9 @@
     const a = document.activeElement;
     const focusId = a && a.id ? a.id : null;
     const sel = focusId && a.setSelectionRange ? [a.selectionStart, a.selectionEnd] : null;
-    document.getElementById('root').innerHTML = header() + `<div class="main">${body()}</div>`;
+    const compact = S.compact && S.screen === 'session' && S.onboarded && !S.remoteRequest;
+    if (document.body) document.body.classList.toggle('compact', compact);
+    document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${body()}</div>`;
     document.getElementById('sheet').innerHTML =
       S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
         : ui.sheet === 'helpers' ? helpersSheet() : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
@@ -515,16 +617,36 @@
     share: () => call('give_consent'),
     revokeConsent: () => { S.screenConsent = false; render(); call('revoke_consent'); },
     stop: () => call('stop'),
+    pause: () => call('toggle_pause'),
+    expand: () => call('expand_window'),
+    seniorOption: (o) => acts.seniorReply(o),
+    seniorReply: (o) => {
+      const t = String(o || ui.seniorText || '').trim();
+      if (!t || !S.question) return;
+      ui.seniorSent = S.question; ui.seniorText = '';
+      call('answer_senior', t);
+      render();
+    },
     home: () => call('back_home'),
     closeLesson: () => call('close_lesson'),
     prevStep: () => { ui.lessonIndex = Math.max(0, ui.lessonIndex - 1); render(); },
     nextStep: lessonNext,
     onbBack: () => setStep(Math.max(0, S.onboardingStep - 1)),
     onbNext,
-    pair: () => call('start_pairing'),
-    stopPair: () => call('stop_pairing'),
+    pair: () => { ui.inviteCopied = null; call('start_pairing'); },
+    stopPair: () => { ui.inviteCopied = null; call('stop_pairing'); },
+    shareInvite: () => Promise.resolve(call('copy_invitation')).then((ok) => {
+      ui.inviteCopied = ok ? "Invitation copiée : collez-la dans un SMS, WhatsApp ou un mail."
+        : "Copie impossible : recopiez le lien ci-dessous.";
+      render();
+    }),
     removeHelper: (id) => call('remove_helper', id),
+    acceptPair: () => call('answer_pair', true),
+    refusePair: () => call('answer_pair', false),
     acceptRemote: () => call('accept_remote'),
+    scheduleTicket: (slot) => call('schedule_ticket', slot),
+    closeQueued: () => call('close_queued'),
+    openQueued: () => { S.queued.show = true; render(); call('open_queued'); },
     refuseRemote: () => call('refuse_remote'),
   };
 
@@ -538,6 +660,11 @@
     const t = e.target;
     if (t.id === 'req') { ui.request = t.value; autosize(t); }
     else if (t.id === 'name') ui.name = t.value;
+    else if (t.id === 'seniorReply') {
+      const was = !(ui.seniorText || '').trim(), now = !t.value.trim();
+      ui.seniorText = t.value;
+      if (was !== now) render();
+    }
     else if (t.id === 'setName') ui.settings.name = t.value;
     else if (t.id === 'setServer') ui.settings.server = t.value;
   });
@@ -549,6 +676,7 @@
       if (S.onboarded && S.screen === 'session' && S.sessionOpen) { ui.sheet = null; return acts.stop(); }
       if (ui.sheet) { ui.sheet === 'helpers' ? acts.closeHelpers() : acts.closeSheet(); return; }
       if (S.alert) return acts.dismissAlert();
+      if (S.pairRequest) return acts.refusePair();
       if (!S.onboarded) return;
       if (S.remoteRequest) return acts.refuseRemote();
       if (S.screen === 'consent') return acts.cancelConsent();
@@ -559,6 +687,8 @@
     if (S.alert) { e.preventDefault(); acts.dismissAlert(); return; }
     if (t && t.tagName === 'BUTTON') return;
     if (t && t.id === 'req') { e.preventDefault(); submit(); return; }
+    if (t && t.id === 'seniorReply') { e.preventDefault(); acts.seniorReply(); return; }
+    if (S.pairRequest) return;
     if (!S.onboarded) { e.preventDefault(); onbNext(); return; }
     if (S.remoteRequest) return;
     if (S.screen === 'consent' && S.connected) acts.share();
@@ -576,6 +706,8 @@
       if (m && S.dictation.phase === 'idle') ui.dictating = false;
       ui.lastDictMsg = m || null;
       if (S.onboarded) ui.name = null;
+      // Holo peut reposer la même question plus tard : la réponse vaut pour une seule question.
+      if (!(S.questionForMe && S.question && S.state === 'awaiting_helper')) ui.seniorSent = null;
       if (was && was !== S.screen && S.screen === 'home') {
         ui.warning = null; ui.submitting = false; ui.dictating = false;
       }
@@ -602,7 +734,10 @@
     open_lesson: (id) => { S.lesson = S.lessons.find((l) => l.id === id); S.screen = 'lesson'; render(); },
     close_lesson: () => { S.screen = 'home'; render(); },
     back_home: () => { S.screen = 'home'; S.state = null; ui.submitting = false; render(); },
-    stop: () => { S.state = 'stopped'; S.sessionOpen = false; render(); },
+    stop: () => { S.state = 'stopped'; S.sessionOpen = false; S.compact = false; render(); },
+    toggle_pause: () => { S.paused = !S.paused; render(); },
+    expand_window: () => { S.compact = false; render(); },
+    answer_senior: () => {},
     finish_onboarding: () => { S.onboarded = true; render(); },
     add_home_folder: () => ({ ok: false, message: "Le choix d'un dossier se fait dans l'app Windows." }),
   };

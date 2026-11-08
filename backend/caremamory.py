@@ -22,14 +22,18 @@ from papai_tools import MODEL, TEMPERATURE, make_client, observation
 
 from .sessions import Session
 
-LESSONS_DIR = Path(__file__).parent.parent / "lessons"
+def lessons_dir() -> Path:
+    """Les fiches et automatismes de l'espace en cours."""
+    from . import space
+    return space.current().lessons_dir
+
 
 client = make_client()
 
 # Holo accepte 5 images par requête.
 MAX_LESSON_FRAMES = 4
 
-PROMPT = """Tu rédiges une fiche pour une personne âgée peu à l'aise avec l'informatique,
+PROMPT = """Tu rédiges une fiche pour une personne peu à l'aise avec l'informatique,
 à partir d'une manipulation qu'un assistant vient de réussir sur son ordinateur.
 Tu reçois la liste des actions et de vraies captures de son écran, prises pendant
 la manipulation.
@@ -67,7 +71,7 @@ def _trajectory(session: Session, ids: list[str]) -> str:
             frame = e.get("frame", "")
             lines.append(f"- [{e['tool']}] {target}" + (f"   (capture {frame})" if frame else ""))
         elif e["kind"] == "helper_reply":
-            lines.append(f"- Le proche a précisé : {e.get('text','')}")
+            lines.append(f"- Le support a précisé : {e.get('text','')}")
         elif e["kind"] == "answer":
             lines.append(f"\nRésultat annoncé : {e.get('content','')}")
 
@@ -264,7 +268,7 @@ def approve_and_save(lesson: dict, session: Session) -> dict:
     lesson["approved_by_helper"] = True
     lesson["approved_at"] = time.time()
 
-    folder = LESSONS_DIR / lesson["id"]
+    folder = lessons_dir() / lesson["id"]
     folder.mkdir(parents=True, exist_ok=True)
 
     for i, step in enumerate(lesson["steps"], start=1):
@@ -284,10 +288,10 @@ def approve_and_save(lesson: dict, session: Session) -> dict:
 
 
 def list_lessons() -> list[dict]:
-    if not LESSONS_DIR.exists():
+    if not lessons_dir().exists():
         return []
     out = []
-    for f in sorted(LESSONS_DIR.glob("*/lesson.json")):
+    for f in sorted(lessons_dir().glob("*/lesson.json")):
         try:
             out.append(json.loads(f.read_text(encoding="utf-8")))
         except (OSError, json.JSONDecodeError):

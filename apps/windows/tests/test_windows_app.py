@@ -88,6 +88,76 @@ def unit() -> None:
     m._apply_status({"state": "active", "plan_approved": True})
     check(m.state == "stopped", "un status tardif ne relance pas une session arrêtée")
 
+    # Parité Mac : Pause, question à la personne, encart pendant que Holo agit.
+    out, compacts = [], []
+
+    class FakeBridge:
+        def send(self, payload): out.append(payload)
+        def ask_help(self, task, requested_by=None): pass
+        def stop(self): pass
+
+    m = Model(demo="", on_compact=compacts.append)
+    m.bridge = FakeBridge()
+    m.helpers = [{"id": "1", "name": "Claire", "relation": ""}]
+    m.ask_help("Mes photos")
+    m._apply_status({"state": "active", "plan_approved": True, "helper_name": "Théo"})
+    check(m.compact and compacts == [True], "Holo agit : la fenêtre devient l'encart")
+    check(m.snapshot()["carer"] == "Théo", "l'encart dit qui s'occupe de l'aide")
+    m.expand_window()
+    check(not m.compact and compacts == [True, False], "agrandir : la grande fenêtre revient")
+    m.toggle_pause()
+    check(out[-1] == {"type": "pause"} and m.snapshot()["paused"], "Pause envoyée au serveur")
+    m.toggle_pause()
+    check(out[-1] == {"type": "resume"} and not m.paused, "Reprendre envoyé au serveur")
+    m._apply_status({"state": "awaiting_helper", "paused": False,
+                     "question": {"question": "Ordinateur ou clé USB ?", "options": ["Ordinateur", "Clé USB"],
+                                  "to": "senior"}})
+    snap = m.snapshot()
+    check(snap["questionForMe"] and snap["questionOptions"] == ["Ordinateur", "Clé USB"] and not m.compact,
+          "question posée à la personne : grande fenêtre et réponses proposées")
+    m.answer_senior("  Clé USB ")
+    check(out[-1] == {"type": "senior_answer", "text": "Clé USB"}, "réponse de la personne envoyée")
+    m.answer_senior("   ")
+    check(out[-1]["text"] == "Clé USB", "réponse vide ignorée")
+    m._apply_status({"state": "awaiting_helper", "question": {"question": "?", "to": "helper"}})
+    check(not m.question_for_me and m.compact, "question pour l'aidant : encart, la personne attend")
+    m.send_dictation("Mes photos de Noël", final=True)
+    check(out[-1] == {"type": "dictation", "text": "Mes photos de Noël", "final": True}, "dictée transmise à l'aidant")
+    m.stop()
+    check(not m.compact and compacts[-1] is False, "Arrêter : la grande fenêtre revient")
+    m.toggle_pause()
+    check(out[-1]["type"] == "dictation", "pas de Pause hors session")
+    m._handle({"type": "alert", "level": "danger", "title": "x", "alert_id": "a1"})
+    m._handle({"type": "alert_acknowledged", "alert_id": "a1"})
+    check(m.snapshot()["guardAcknowledged"], "accusé du proche gardé pour l'écran de fin")
+
+    # Ticket : sans support disponible, la demande attend ; rendez-vous ; reprise.
+    asks = []
+
+    class TicketBridge(FakeBridge):
+        def ask_help(self, task, requested_by=None, ticket=None): asks.append((task, requested_by, ticket))
+
+    t = Model(demo="", on_compact=lambda _c: None)
+    t.bridge = TicketBridge()
+    t.ask_help("Imprimer")
+    t._handle({"type": "ticket_queued", "ticket": "t1", "number": 4, "task": "Imprimer"})
+    snap = t.snapshot()
+    check(snap["queued"]["number"] == 4 and snap["queued"]["show"] and snap["screen"] == "home" and not snap["sessionOpen"],
+          "aucun support disponible : la demande attend, retour à l'accueil")
+    t.schedule_ticket("demain9")
+    check(out[-1]["type"] == "ticket_schedule" and out[-1]["ticket"] == "t1" and out[-1]["at"] > time.time(),
+          "rendez-vous demandé au serveur")
+    t._handle({"type": "ticket_scheduled", "ticket": "t1", "at": 123})
+    t.close_queued()
+    check(t.queued["rdv"] == 123 and not t.snapshot()["queued"]["show"], "rendez-vous gardé, l'accueil revient")
+    t._handle({"type": "remote_request", "from": "Claire", "task": "Imprimer", "ticket": "t1", "rdv": True})
+    check(t.snapshot()["remoteRequest"]["rdv"], "à l'heure du rendez-vous : proposition affichée")
+    t.refuse_remote()
+    check(out[-1] == {"type": "remote_answer", "accepted": False, "ticket": "t1"}, "pas disponible : le ticket est signalé")
+    t._handle({"type": "remote_request", "from": "Claire", "task": "Imprimer", "ticket": "t1"})
+    t.accept_remote()
+    check(asks[-1] == ("Imprimer", "Claire", "t1"), "accepté : la session reprend le ticket")
+
     # Bridge sans serveur : exécutions refusées sans plan validé, puis après arrêt.
     sent = []
 
@@ -116,12 +186,6 @@ def unit() -> None:
     check(sent[3]["refused"] and len(calls) == 1, "execute refusé après Arrêter")
     check(len(sent) == 4, "aucune capture envoyée après Arrêter")
 
-    b.guard = lambda: {"type": "guard", "processes": ["AnyDesk"], "window": "Alerte", "url": ""}
-    asyncio.run(b._send_guard(WS()))
-    check(sent[-1]["type"] == "guard" and "png_b64" not in sent[-1], "gardien : signaux textuels seuls")
-    b.guard = lambda: 1 / 0
-    asyncio.run(b._send_guard(WS()))
-    check(len(sent) == 5, "gardien : une erreur ne casse rien")
     check(core.guard_signals() is None or core.guard_signals()["type"] == "guard", "guard_signals hors Windows")
 
     m = Model(demo="home")
@@ -211,6 +275,64 @@ def unit() -> None:
     m.request_consent("Mes photos")
     check(m.screen == "consent", "accord retiré dans Réglages : redemandé")
 
+    # Automatismes importés : actions de premier niveau, jamais de commande.
+    g = core.StopGate()
+    check(not core.play_actions({"actions": [{"do": "shell", "cmd": "del"}]}, bytes, g)[0],
+          "action inconnue (shell) refusée")
+    check(not core.open_https("http://exemple.fr")[0] and not core.open_https("https://a:b@x.fr")[0],
+          "lien : https seul, sans identifiant")
+    check(not core.open_settings("regedit")[0], "page de Réglages hors liste refusée")
+    check(not core.template_name_ok("../x.dotx") and not core.template_name_ok("macro.docm")
+          and core.template_name_ok("Lettre Acme.dotx"), "modèles : nom simple, sans macros")
+    with tempfile.TemporaryDirectory() as d:
+        ok, _ = core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04x")], Path(d))
+        check(ok and (Path(d) / "Lettre Acme.dotx").is_file(), "modèle Word copié")
+        check(not core.install_templates([("faux.dotx", b"MZ")], Path(d))[0], "fichier non Office refusé")
+        core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04v2")], Path(d))
+        check((Path(d) / "Lettre Acme.dotx").read_bytes().endswith(b"v2")
+              and (Path(d) / "Lettre Acme (avant PapAI).dotx").is_file(),
+              "modèle déjà présent : gardé à côté, jamais écrasé")
+        core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04v3")], Path(d))
+        check((Path(d) / "Lettre Acme (avant PapAI 2).dotx").read_bytes().endswith(b"v2"),
+              "deux remplacements de suite : chaque ancienne version est gardée")
+        real_replace = core.os.replace
+        core.os.replace = lambda *a: (_ for _ in ()).throw(PermissionError("ouvert dans Word"))
+        try:
+            check(core.install_templates([("Lettre Acme.dotx", b"PK\x03\x04v4")], Path(d))[0] is False,
+                  "échec d'installation remonté")
+        finally:
+            core.os.replace = real_replace
+        check(sorted(p.name for p in Path(d).iterdir()) == sorted(
+                  ["Lettre Acme.dotx", "Lettre Acme (avant PapAI).dotx", "Lettre Acme (avant PapAI 2).dotx"]),
+              "échec d'installation : ni fichier temporaire ni sauvegarde en trop")
+    if not core.WINDOWS:
+        check(not core.antivirus_scan()[0], "scan antivirus : seulement sous Windows")
+    g.raise_stop()
+    check(core.play_actions({"actions": [{"do": "open_url", "url": "https://x.fr"}]}, bytes, g)
+          == (False, "Arrêté."), "Arrêter : aucune action d'automatisme jouée")
+
+    m = Model(demo="home")
+    m.revoke_consent()
+    m.lessons = [{"id": "imp-000000000001", "title": "Google", "platforms": ["windows"],
+                  "actions": [{"do": "holo", "goal": "Remettre Google", "steps": ["a"]}]},
+                 {"id": "imp-000000000002", "title": "Mac seul", "platforms": ["mac"],
+                  "actions": [{"do": "open_settings", "page": "printers"}]}]
+    m.run_shortcut("imp-000000000002")
+    check(m.screen == "home" and "autre ordinateur" in (m.notice or ""), "automatisme d'une autre plateforme refusé")
+    m.lessons.append({"id": "imp-000000000003", "title": "Long", "platforms": ["windows"],
+                      "actions": [{"do": "open_url", "url": "https://x.fr"}]})
+    m.automation_running = "Scan"
+    m.run_shortcut("imp-000000000003")
+    check(m.snapshot()["automationRunning"] == "Scan", "un seul automatisme à la fois, Arrêter visible")
+    m.stop()
+    check(m.gate.is_stopped, "Arrêter depuis l'accueil lève le verrou de l'automatisme")
+    m.automation_running = None
+    m.run_shortcut("imp-000000000001")
+    check(m.screen == "consent", "automatisme avec Holo : accord du partage d'abord")
+    m.give_consent()
+    check(wait_until(lambda: m.screen == "session" and m.task == "Remettre Google", 3),
+          "puis lancé en un clic, sans validation d'un aidant")
+
 
 def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
     import websockets
@@ -266,8 +388,124 @@ def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
     asyncio.run(aidant())
 
 
+def pairing() -> None:
+    """Ajout d'un support identique au Mac : QR papai://, invitation 24 h, lien en texte."""
+    sent = []
+    m = Model()
+    m._send = sent.append
+    m.start_pairing()
+    check(sent and sent[-1] == {"type": "pair_start", "long": True}, "pair_start long, comme le Mac")
+    m._handle({"type": "pair_code", "code": "482913", "url": "https://h/k/c/p/482913",
+               "app_url": "papai://pair?u=x&n=Jeanne", "expires_in": 86400, "long": True})
+    snap = m.snapshot()
+    check(m.pair_app_url == "papai://pair?u=x&n=Jeanne" and snap["pairLong"] and snap["pairExpires"] == 86400,
+          "le QR porte app_url, invitation 24 h")
+    m._handle({"type": "pair_code", "code": "111222", "url": "http://h:8000/p/111222"})
+    check(m.pair_app_url == "papai://pair?u=http%3A%2F%2Fh%3A8000%2Fp%2F111222" and not m.pair_long,
+          "ancien serveur sans app_url : lien papai:// construit")
+    check("valable 10 minutes" in m.invitation_text, "code de 10 minutes : l'invitation le dit")
+    m.pair_long = True
+    check("valable 24 heures" in m.invitation_text, "invitation de 24 heures, texte du Mac")
+    m.stop_pairing()
+    check(m.pair_code is None and m.pair_app_url is None and not m.pair_long, "Annuler efface tout")
+
+    # Code tapé sans clé : la personne accepte ce support sur son écran.
+    m._handle({"type": "pair_confirm", "req": 7, "name": "Claire", "relation": "Service informatique"})
+    check(m.snapshot()["pairRequest"] == {"req": 7, "name": "Claire", "relation": "Service informatique"},
+          "demande d'un nouveau support affichée")
+    m.answer_pair(True)
+    check(sent[-1] == {"type": "pair_decision", "req": 7, "accept": True} and m.pair_request is None,
+          "Accepter envoie pair_decision")
+    m._handle({"type": "pair_confirm", "req": 8, "name": "Intrus"})
+    m.answer_pair(False)
+    check(sent[-1] == {"type": "pair_decision", "req": 8, "accept": False}, "Refuser envoie pair_decision")
+
+    # Premier lancement sans serveur réglé : l'espace est créé, l'adresse gardée.
+    from papai import settings
+    saved = os.environ.pop("PAPAI_SERVER", None)
+    try:
+        settings.save({"server": ""})
+        m = Model()
+        check(settings.needs_space(m.prefs), "aucun serveur réglé : il faut un espace")
+        m._provision = lambda: "wss://srv/k/cle-de-test-123/ws/bridge"
+        m._create_space()
+        check(m.server_url == "wss://srv/k/cle-de-test-123/ws/bridge" and not settings.needs_space(m.prefs),
+              "l'espace créé est gardé : plus rien à régler")
+        check(settings.provision("http://127.0.0.1:9", timeout=1) is None, "serveur injoignable : pas d'espace")
+        settings.save({"server": ""})
+        m = Model()
+        essais, attentes = iter([None, None, "wss://srv/k/cle-apres-coupure/ws/bridge"]), []
+        m._provision = lambda: next(essais)
+        m._create_space(wait=attentes.append)
+        check(m.server_url == "wss://srv/k/cle-apres-coupure/ws/bridge" and attentes == [5, 10],
+              "hors ligne au premier lancement : l'espace est créé au retour du réseau")
+        settings.save({"server": ""})
+        m = Model()
+
+        def choisi_pendant():
+            settings.save({"server": "ws://mon-serveur:8000/ws/bridge"})
+            return "wss://srv/k/cle-officielle/ws/bridge"
+        m._provision = choisi_pendant
+        m._create_space(wait=lambda _: None)
+        check(settings.load().get("server") == "ws://mon-serveur:8000/ws/bridge",
+              "un serveur choisi pendant la création n'est pas écrasé")
+
+        # Poste d'entreprise : jeton d'inscription déposé par le service IT.
+        os.environ["PAPAI_ORG"] = "ins-jeton-de-test"
+        check(settings.org_token() == "ins-jeton-de-test", "jeton d'organisation lu dans PAPAI_ORG")
+        settings.save({"server": "", "orgJoined": "", "orgName": ""})
+        m = Model()
+
+        def inscrit():
+            m._org_name = "Acme"
+            return "wss://srv/k/cle-poste-acme/ws/bridge"
+        m._provision = inscrit
+        m._create_space(wait=lambda _: None)
+        check(m.prefs.get("orgJoined") == "ins-jeton-de-test" and m.snapshot()["orgName"] == "Acme",
+              "premier lancement avec jeton : le poste est inscrit dans l'organisation")
+        check(not m._org_pending(), "jeton déjà utilisé : rien de plus à faire")
+        settings.save({"server": "wss://srv/k/cle-poste-seul/ws/bridge", "orgJoined": "", "orgName": ""})
+        m = Model()
+        check(m._org_pending(), "poste déjà installé + jeton déposé : il doit rejoindre l'organisation")
+        essais, attentes = iter([None, "Acme"]), []
+        m._join = lambda tok: next(essais)
+        m._join_org(wait=attentes.append)
+        check(settings.load().get("orgName") == "Acme" and attentes == [5],
+              "hors ligne : le poste rejoint l'organisation au retour du réseau")
+        settings.save({"orgJoined": "", "orgName": ""})
+        m = Model()
+        m._join = lambda tok: ""
+        m._join_org(wait=lambda _: (_ for _ in ()).throw(AssertionError("ne doit pas réessayer")))
+        check(not settings.load().get("orgName"), "jeton refusé par le serveur : pas de nouvel essai")
+        m = Model()
+        reel, envois = settings.provision, []
+
+        def refuse(org="", info=None, **_):
+            envois.append(org)
+            if org:
+                info.update({"error": "Jeton d'organisation inconnu.", "status": 403})
+                return None
+            return "wss://srv/k/cle-hors-org/ws/bridge"
+        settings.provision = refuse
+        try:
+            url = m._provision()
+        finally:
+            settings.provision = reel
+        check(url == "wss://srv/k/cle-hors-org/ws/bridge" and envois == ["ins-jeton-de-test", ""] and not m._org_name,
+              "jeton refusé à l'inscription : le poste a quand même son espace, hors organisation")
+        os.environ["PAPAI_ORG"] = "pas-un-jeton"
+        check(settings.org_token() == "", "jeton mal formé ignoré")
+        os.environ.pop("PAPAI_ORG", None)
+    finally:
+        os.environ.pop("PAPAI_ORG", None)
+        settings.save({"server": "", "orgJoined": "", "orgName": ""})
+        if saved is not None:
+            os.environ["PAPAI_SERVER"] = saved
+
+
 if __name__ == "__main__":
     unit()
+    pairing()
     if "--serveur" in sys.argv:
         with_server()
     print(f"{ok} vérifications passées")

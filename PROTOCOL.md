@@ -34,11 +34,11 @@ connaît doit accepter qu'il manque (ancien serveur) ou soit `null`.
 Envoie :
 - `{"type":"hello","os":"macos","name":"Sophie"}` à chaque connexion. `name` : le prénom saisi sur l'ordinateur (absent tant qu'il n'est pas saisi).
 - `{"type":"profile","name":"Sophie"}` quand le prénom change. Le serveur le garde et le transmet aux aidants (`senior`).
-- `{"type":"help_request","task":"…"}` quand elle appuie sur « J'ai besoin d'aide ».
+- `{"type":"help_request","task":"…"}` quand elle appuie sur « Demander une assistance ».
 - `{"type":"stop"}` bouton Arrêter. **Le verrou local passe d'abord** : plus aucune action exécutée, même hors ligne.
 - `{"type":"frame","req":R,"frame_id":"…","png_b64":"…","width":W,"height":H}` en réponse à `capture`. La fenêtre PapAI est exclue de la capture.
 - `{"type":"result","req":R,"result":"texte","refused":false}` en réponse à `execute`. `refused:true` si arrêt ou action interdite.
-- `{"type":"automation_failed","title":"…","detail":"…"}` quand un automatisme ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
+- `{"type":"automation_failed","title":"…","detail":"…"}` quand un automate ne peut pas se rejouer (dossier absent). Le serveur prévient l'aidant.
 - `{"type":"pair_start"}` pour ajouter un proche (QR, 10 min) ; `{"type":"pair_start","long":true}` pour une **invitation à envoyer** par SMS, WhatsApp, Mail… (24 h). Le serveur répond `pair_code`.
 - `{"type":"remove_helper","id":"…"}` retire un proche.
 - `{"type":"remote_answer","accepted":false}` refus d'une session proposée par un proche. En cas d'accord, l'app envoie directement `help_request` avec `"requested_by":"Claire"`.
@@ -53,7 +53,7 @@ Reçoit :
 - `{"type":"pair_code","code":"482913","url":"http://…/p/482913","app_url":"papai://pair?u=http%3A%2F%2F…%2Fp%2F482913","expires_in":600}` code à afficher.
   Le QR contient `app_url` (ouvre l'app iPhone) ; le code et `url` restent affichés en texte pour le secours web.
   Ancien serveur sans `app_url` : l'app le construit, `papai://pair?u=` + `url` encodée (tous caractères réservés).
-- `{"type":"lessons_changed","title":"…"}` le proche vient de valider un tutoriel : l'app relit `/lessons`.
+- `{"type":"lessons_changed","title":"…"}` le proche vient de valider un automate : l'app relit `/lessons`.
 - `{"type":"remote_request","from":"Claire","task":"…"}` un proche propose une session : rien ne démarre sans l'accord de la personne aidée.
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
 
@@ -69,7 +69,7 @@ Reçoit :
 - `{"type":"frame","frame_id":"…","png_b64":"…"}` capture de l'écran de l'aîné
 - `{"type":"question","question":"…","options":["…"]}`
 - `{"type":"answer","content":"…"}` fin de tâche
-- `{"type":"alert","title":"…","detail":"…"}` un automatisme a échoué
+- `{"type":"alert","title":"…","detail":"…"}` un automate a échoué
 - `{"type":"lesson_pending"}`, `{"type":"lesson_draft","lesson":{…},"preview":{frame_id:png_b64}}`, `{"type":"lesson_saved","lesson":{…}}`
   Chaque étape du brouillon a un `frame` : une vraie capture de la session, présente dans `preview`. Jamais d'image fabriquée. Sans aucune capture, le serveur répond `refused`.
 - `{"type":"refused","reason":"…"}`, `{"type":"ack","what":"pause|click"}`
@@ -79,8 +79,8 @@ Envoie :
 - `{"type":"answer","text":"…"}` réponse à une question
 - `{"type":"pause"}` · `{"type":"refresh"}` · `{"type":"click","frame_id":"…","x":0..1,"y":0..1}` (seulement en `awaiting_helper`)
 - `{"type":"remote_request","text":"…","from":"Claire"}` proposer une session (seulement s'il n'y en a pas d'ouverte). Réponses : `ack` `remote_request`, puis `remote_refused` ou `remote_accepted`.
-- `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automatisme »
-  Si Holo n'a pas pu rédiger la fiche, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
+- `{"type":"draft_lesson"}` puis `{"type":"approve_lesson","lesson":{"title":"…","steps":[{"instruction":"…"}]}}` = « Garder comme automate »
+  Si Holo n'a pas pu rédiger l'automate, le serveur répond `refused` après `lesson_pending` : l'app arrête d'afficher « Rédaction en cours… ».
 
 ## Dictée de la demande
 
@@ -93,22 +93,10 @@ jamais le serveur. Erreurs : 404 mauvaise clé, 503 `{"error":"gladia_absent"}`
 
 ## Gardien anti-arnaque
 
-L'app de la personne aidée observe en continu **trois signaux textuels**, et
-n'envoie que ceux-là. Jamais de capture, jamais d'appel au modèle à ce stade :
-
-```json
-{"type":"guard",
- "processes":["Safari","AnyDesk"],
- "window":"Votre ordinateur est infecté",
- "url":"https://mabanque.exemple.fr"}
-```
-
-Fréquence conseillée : toutes les 5 à 10 secondes. Le serveur évalue
-(`backend/guard.py`) et ne répond que s'il reconnaît une situation. Une même
-situation ne resonne pas avant 5 minutes — une alerte qui se répète est une
-alerte qu'on apprend à ignorer.
-
-Quand ça se déclenche, l'aidant **et** la personne aidée reçoivent :
+Les apps n'envoient plus de signaux en continu : PapAI n'est plus un outil de
+surveillance, il exécute des automates fournis par un support. Le serveur
+sait toujours traiter un message `guard` (`backend/guard.py`) si une app en
+envoie un ponctuellement, et répond alors par :
 
 ```json
 {"type":"alert","level":"danger|attention|info","title":"…","detail":"…"}
@@ -199,9 +187,9 @@ sont arrêtées aussi. L'alerte est renvoyée aux aidants et au pont à la recon
 Les alertes de veille partent immédiatement à partir des signaux textuels,
 sans attendre de capture ni de confirmation visuelle de Holo.
 `status.stopped_by` est optionnel (`null` hors arrêt explicite). La valeur
-`gardien` est conservée même après rejet de l'alerte : l'iPhone, le web et
-Windows affichent « PapAI a arrêté l'assistance : démarche suspecte » ;
-la fin Mac adaptée à l'aidé est décrite ci-dessous. Aucun de ces écrans
+`gardien` est conservée même après rejet de l'alerte : l'iPhone et le web
+affichent « PapAI a arrêté l'assistance : démarche suspecte » ;
+la fin Mac et Windows adaptée à l'aidé est décrite ci-dessous. Aucun de ces écrans
 n'attribue l'arrêt à la personne aidée. Les autres causes restent inchangées.
 `status.execution_started` est un booléen irréversible dans une session, posé
 juste avant l'envoi d'une action Holo ou d'un clic du proche au pont. Il peut
@@ -210,7 +198,7 @@ Seule la valeur explicite `false` permet d'affirmer « Rien n'a été fait sur
 son ordinateur ». Si `true` ou absent (ancien serveur), l'aidant lit
 « L'assistance est arrêtée. Vérifiez avec Sophie ce qui a été fait. »
 `status.guard_acknowledged` conserve l'accusé anonyme après rejet de l'alerte.
-La fin Mac du gardien est une carte blanche : « PapAI a arrêté : cette démarche
+La fin Mac (et Windows) du gardien est une carte blanche : « PapAI a arrêté : cette démarche
 peut être une arnaque », sans paiement/code et appel du premier proche connu
 à son numéro habituel. Aucune carte « Tout va bien » ne coexiste avec une alerte.
 Sur Windows, `level: danger` ou `blocked: true` lève immédiatement le verrou
@@ -226,13 +214,67 @@ page bancaire ouverte.
 
 Consulter sa banque seule ne déclenche rien.
 
-## Automatismes
+## Automates
 
-`GET /lessons` renvoie les automatismes validés. Chacun a `title`, `steps`
+`GET /lessons` renvoie les automates validés. Chacun a `title`, `steps`
 (pas à pas, mode « Montre-moi ») et `shortcut` `{"folder":"pictures","subfolder":"Noël 2025"}`
 que l'app rejoue **localement, sans modèle** : elle ouvre le dossier connu du système.
 Si le dossier n'existe plus, elle n'invente rien : `automation_failed`.
 `GET /lessons/{id}/{image}` sert les captures des étapes.
+
+### Automates importés par un support (fichier `.papai`)
+
+Un service IT ou un proche fournit un automate ; **l'importer, c'est le
+valider**. La personne le lance ensuite seule, en un clic, sans attendre
+l'accord d'un support. Exemples dans [`automations/`](automations/).
+
+```json
+{"papai": 1,
+ "title": "Lancer un scan antivirus",
+ "publisher": "Service IT Acme",
+ "description": "…",
+ "platforms": ["windows"],
+ "actions": [{"do": "antivirus_scan"}],
+ "steps": ["Texte du mode « Montre-moi »", "…"]}
+```
+
+Uniquement des **actions de premier niveau**, connues de l'app. **Jamais de
+commande, de script (PowerShell, shell), d'exécutable ni de chemin libre** :
+toute autre valeur de `do` est refusée à l'import.
+
+| `do` | Paramètres | Effet |
+|---|---|---|
+| `open_folder` | `folder` (pictures, documents, downloads, desktop, videos, music), `subfolder` (un nom) | Ouvre le dossier. |
+| `open_settings` | `page` : printers, default_apps, updates, antivirus, wifi, bluetooth, sound, display | Ouvre la page des Réglages (`ms-settings:` sur Windows, `x-apple.systempreferences:` sur Mac). |
+| `open_url` | `url` en `https://`, sans identifiant | Ouvre le lien dans le navigateur. |
+| `install_templates` | `files` : 1 à 5 `{"name":"Lettre.dotx","data":"<base64>"}`, `.dotx`/`.potx`/`.xltx` (sans macros) | Copie les modèles dans le dossier des modèles personnels de Word. |
+| `antivirus_scan` | — (Windows seulement) | Scan rapide Microsoft Defender : `MpCmdRun.exe -Scan -ScanType 1`, exécutable et arguments fixes, sans shell. Menace trouvée : `automation_failed`. |
+| `holo` | `goal`, `steps` (≤ 12) — une seule, en dernier | Holo fait la tâche à l'écran, avec ce plan déjà validé. |
+
+Routes (protégées par la clé, ou depuis la machine du serveur sans `/k/CLÉ`) :
+
+- `POST /k/CLÉ/automations` (corps : le fichier `.papai`) : `200` et la fiche
+  enregistrée (`id` en `imp-…`, `source:"import"`, `approved_by`,
+  `approved_at`), ou `422 {"error":"…"}` qui dit en clair ce qui est refusé.
+  Les modèles sont rangés à part et servis par `GET /lessons/{id}/{nom}`.
+  L'ordinateur reçoit `lessons_changed`.
+- `DELETE /k/CLÉ/automations/{id}` : retire un automate importé.
+- La page du support (`/a/CLÉ`) a un bouton « Importer un automate ».
+
+Lancement, côté app :
+
+1. Vérifier que `platforms` contient le système ; sinon ne rien faire.
+2. Jouer les actions locales dans l'ordre, en relisant le verrou Arrêter avant
+   chacune. Un échec : `automation_failed` et on s'arrête.
+3. S'il y a une action `holo` : la première fois, l'accord de partage d'écran ;
+   puis `{"type":"run_automation","id":"imp-…"}` sur `/ws/bridge`.
+   Le serveur ouvre une session dont le plan est déjà validé
+   (`plan_approved:true`, journal `plan_preapproved` avec `by`), répond
+   `{"type":"session","id":"…","helper_url":"…","automation":"imp-…"}` et
+   l'agent agit aussitôt. Arrêter, les actions sensibles bloquées et
+   l'exclusion de la fenêtre PapAI s'appliquent comme pour une demande.
+   Automate inconnu, sans `holo` ou d'une autre plateforme :
+   `{"type":"automation_refused","id":"…","reason":"…"}`.
 
 ## Proches
 
@@ -248,8 +290,104 @@ En ligne, ces routes passent aussi par `/k/{clé}/p/…`. Les proches sont gard�
   L'app lit `u` (`https://…[/k/<clé>]/p/<code>`), demande prénom et lien, fait le POST sur `u`,
   puis enregistre `serverURL = server + "/k/" + key` et `helperKey = key`, et se connecte.
 - Le scanner de l'app accepte `papai://pair?u=…` comme l'ancien `https://…/p/<code>`.
-- Saisie du code à la main : POST sur `<serverURL déjà connu>/p/<code>`.
+- Saisie du code à la main : le support ne tape que le code, jamais d'adresse. POST sur
+  `<serverURL réglé>/p/<code>`, ou sur `https://papai-450417131702.europe-west1.run.app/p/<code>`
+  (serveur officiel) si l'app n'est pas encore réglée. En ligne, `GET /p`, `GET /p/<code>` et
+  `POST /p/<code>` répondent donc aussi sans clé : le code est le secret (une seule fois, 10 min
+  ou 24 h), et la réponse donne `server` et `key`. Voir « Plusieurs espaces » : le code tapé
+  sans clé cherche son espace et doit être accepté sur l'ordinateur aidé.
 - Arguments de lancement `-serverURL` et `-helperKey` (dépannage, démo) : l'app les enregistre.
+
+## Plusieurs espaces (un par ordinateur aidé)
+
+Le serveur héberge un **espace** par ordinateur aidé : sa clé, ses supports (`family.json`), ses
+sessions, son alerte en cours, ses fiches et automatismes. `/k/<clé>/…` choisit l'espace. L'espace
+historique (`PAPAI_AIDANT_KEY`) garde `family.json` et `lessons/` à la racine ; les autres vivent
+dans `$PAPAI_DATA_DIR/spaces/<id>/` (par défaut `data/spaces/`). Un support suit plusieurs
+personnes aidées en gardant une clé par espace.
+
+- **Premier lancement** (Windows, Mac) sans serveur réglé : `POST /spaces` sur le serveur officiel
+  → `{"key","server","bridge_url"}` (`bridge_url` = `wss://…/k/<clé>/ws/bridge`). L'app garde
+  `bridge_url` comme serveur : rien à régler. Limité à 5 créations par heure et par adresse IP (429).
+- **Clé inconnue mais bien formée** (12 à 64 caractères `A-Za-z0-9_-`) sur `/k/<clé>/ws/bridge` :
+  l'ordinateur revient après un redéploiement qui a effacé le disque, un espace est recréé à sa
+  clé (même limite). Les supports sont restaurés par `known_helpers`.
+- **Code tapé sans clé** (`POST /p/<code>`) : le serveur cherche l'espace dont le code est valide.
+  Code inconnu → 400 ; plus de 10 codes faux en 10 min depuis une même adresse → 429.
+  En ligne (`PAPAI_PUBLIC=1`), avec plusieurs espaces 6 chiffres se devinent : l'ordinateur aidé
+  doit accepter le support.
+  - serveur → pont : `{"type":"pair_confirm","req":N,"name","relation"}` ;
+  - pont → serveur : `{"type":"pair_decision","req":N,"accept":true|false}`.
+  Sans réponse en 120 s, ou refus : 403 `{"ok":false,"error"}`. Les liens avec clé (QR, SMS :
+  `/k/<clé>/p/<code>`) ne demandent pas cette confirmation.
+- Le jeton d'une session (`/h/<jeton>`, `/ws/helper/<jeton>`) désigne aussi son espace.
+- Test : `python tests/test_appairage_code.py` (deux espaces, confirmation, force brute).
+
+## Organisations (service IT)
+
+Un service IT suit tous les postes de ses employés sans les appairer un par un. Données dans
+`$PAPAI_DATA_DIR/orgs/<id>/` (`org.json`, `lessons/`) ; le poste garde `org` et `label` dans son `space.json`.
+
+- `POST /orgs` `{"name"}` → `{"id","name","enroll_token","support_token","server","support_url","app_url"}`.
+  3 créations par heure et par adresse IP (429). Les deux jetons ne sont donnés qu'ici.
+  - `enroll_token` (`ins-…`) : déposé sur les postes. Windows : `apps\windows\organisation.txt`
+    (ignoré par git) ou `PAPAI_ORG`. Mac : préférence `orgToken` (`defaults write`, profil MDM) ou `PAPAI_ORG`.
+  - `support_token` (`sup-…`) : donné aux supports (personnes ou support IA). `support_url` =
+    `<server>/o/<jeton>` (page web), `app_url` = `papai://org?u=<server>&t=<jeton>` (Android, iPhone).
+- `POST /spaces` `{"org": "<enroll_token>", "name": "<utilisateur · poste>"}` : le poste s'inscrit
+  au premier lancement (pas de limite par IP). Réponse : en plus, `"org": "<nom>"`.
+  Jeton inconnu → 403 : l'app crée alors son espace sans organisation. Plus de
+  `PAPAI_ORG_ENROLLS_PER_HOUR` (200 par défaut) inscriptions par heure pour une organisation → 429 :
+  l'app réessaie plus tard, comme hors ligne.
+- `POST /k/<clé>/org` `{"org","name"}` : un poste déjà installé rejoint l'organisation → `{"org"}`.
+  403 jeton inconnu, 409 si le poste appartient à une autre organisation ou si c'est l'espace historique.
+- `GET /o/<support_token>/spaces` → `{"org","server","spaces":[{"key","name","label","online"}]}`
+  (`name` = prénom donné sur le poste, sinon `label`). Le support garde une liaison par `key`
+  (`<server>/k/<key>`), comme après un appairage. Jeton inconnu → 404.
+- `GET|POST /o/<support_token>/automations`, `DELETE /o/<support_token>/automations/<id>` : catalogue
+  de l'organisation (même format `.papai` que `POST /k/<clé>/automations`). Un import est copié sur
+  chaque poste et sur ceux qui s'inscrivent plus tard ; un retrait l'enlève partout. Les postes
+  connectés reçoivent `lessons_changed`.
+- `GET /o/<support_token>` : page web de l'organisation (postes, automatismes partagés). Elle ajoute
+  les postes à « Mes personnes aidées » de ce navigateur (`papai_people`, `papai_orgs`).
+- Test : `python tests/test_organisation.py`.
+
+## Tickets (chaque demande d'assistance)
+
+Chaque demande devient un ticket, gardé dans `<espace>/tickets.json` (500 derniers, texte seulement :
+aucune capture). Numéro `number` par espace, ou unique dans l’organisation (`orgs/<id>/tickets_seq`), affiché `T-0001`. Statuts : `nouveau`, `en_attente`
+(aucun support disponible), `rdv`, `en_cours`, `a_reprendre` (session arrêtée ou échouée), `resolu`.
+`source` : `personne`, `support` ou `automatisme`. Le ticket suit la session (`plan`, `steps_done`,
+`helper`, `stopped_by`, `tokens`) ; `assignee`, `closed_by`, `notes` [{t, by, text}], `rdv` (secondes Unix).
+
+**Ordinateur aidé (`/ws/bridge`)**
+- `help_request` peut porter `"ticket"` (reprise d'un ticket proposé par `remote_request`).
+- Sans `requested_by` ni `ticket`, si l'espace a un support connu (appairé ou organisation) mais
+  aucun connecté : pas de session. Serveur → `{"type":"ticket_queued","ticket","number","task"}`.
+  L'app revient à l'accueil et propose un rendez-vous. Sans aucun support connu : session comme avant.
+- `session` porte en plus `"ticket"` et `"number"`.
+- App → `{"type":"ticket_schedule","ticket","at"}` (entre 1 min et 30 jours) →
+  `{"type":"ticket_scheduled","ticket","number","at"}` ou `{"type":"ticket_refused","ticket","reason"}`.
+  `ticket_scheduled` arrive aussi quand le support fixe le rendez-vous (avec `by`).
+- Le serveur repropose la demande par `remote_request` avec `"ticket"`, `"number"` et `"rdv"` (vrai à
+  l'heure du rendez-vous) : quand un support se connecte (`/ws/aidant`, au plus une fois par 10 min et
+  par ticket), quand l'ordinateur se reconnecte avec un support en ligne, à l'heure d'un rendez-vous
+  (vérifié toutes les `PAPAI_RDV_TICK_S` secondes, 20 par défaut), ou quand un support prend le ticket.
+  Accepter = `help_request` avec `requested_by` et `ticket` ; refuser = `remote_answer` avec `ticket`
+  (note « Pas disponible » sur le ticket, qui reste en attente).
+
+**Support (`/ws/aidant`)** : `hello` porte `tickets_waiting` (nombre en attente ou rendez-vous échu).
+Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_due","ticket","number","task"}`.
+
+**HTTP**
+- `GET /k/<clé>/tickets` → `{"tickets":[…]}` (200 plus récents d'abord).
+- `POST /k/<clé>/tickets/<id>` `{"action","by","text"?,"at"?}` → `{"ticket"}`. Actions : `take`
+  (propose la session à la personne ; 409 si ordinateur hors ligne ou session en cours), `note`,
+  `schedule` (`at`), `close`, `reopen` (409 pendant une session).
+- `GET /o/<support_token>/tickets` → `{"org","tickets":[… + "space","poste","online"]}` ;
+  `POST /o/<support_token>/tickets/<clé du poste>/<id>` : mêmes actions (404 hors organisation).
+- `GET /tickets.js` : liste commune à la page du support et à celle de l'organisation (filtres, export CSV).
+- Test : `python tests/test_tickets.py`.
 
 ## Prénom et invitation (7 novembre au soir)
 

@@ -40,7 +40,7 @@ data class PairLink(
 }
 
 object PairingPolicy {
-    const val refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR depuis le Mac de votre proche (Réglages > Proches)."
+    const val refusal = "Ce lien n'est pas sûr. Demandez un nouveau QR code depuis l'ordinateur de la personne aidée (Réglages > Mon support)."
     const val officialHost = "papai-450417131702.europe-west1.run.app"
 
     fun isOfficial(base: String): Boolean = runCatching {
@@ -55,7 +55,7 @@ object PairingPolicy {
 
     fun presentation(link: PairLink) = PairingPresentation(
         server = if (isOfficial(link.base)) "Serveur PapAI officiel"
-            else "Serveur inconnu : ne continuez que si votre proche vous a donné ce lien en personne",
+            else "Serveur inconnu : ne continuez que si la personne aidée vous a donné ce lien elle-même",
         domain = link.host,
     )
 
@@ -83,15 +83,13 @@ object PairingPolicy {
             (ip[0] == 172 && ip[1] in 16..31) || (ip[0] == 192 && ip[1] == 168)
     }
 
-    fun needsConfirmation(hasWorkingLink: Boolean, confirmed: Boolean = false): Boolean = hasWorkingLink && !confirmed
-
     fun responseOrigin(link: PairLink, responseServer: String?): String = origin(link.base)
 }
 
 data class PairingPresentation(
     val title: String = "Relier ce téléphone",
-    val description: String = "Vous serez prévenu quand elle demande de l’aide sur son ordinateur. Rien ne bouge sans votre accord.",
-    val relationLabel: String = "Votre lien avec votre proche",
+    val description: String = "Vous serez prévenu dès qu’une demande d’aide arrive sur son ordinateur. Rien ne bouge sans votre accord.",
+    val relationLabel: String = "Votre lien avec la personne aidée",
     val server: String,
     val domain: String,
 )

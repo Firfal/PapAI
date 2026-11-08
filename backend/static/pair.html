@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#EEF0EE">
-<title>PapAI · Devenir aidant</title>
+<title>PapAI · Devenir support</title>
 <style>
   :root { --bg:#EEF0EE; --card:#fff; --ink:#111312; --muted:#7A807C; --accent:#2E9E5B; --mint:#E2F2E7; --err:#C0392B; }
   * { box-sizing: border-box; }
@@ -35,8 +35,8 @@
 <div class="brand">PapAI</div>
 
 <form class="card" id="form">
-  <h1>Devenir aidant</h1>
-  <p>Vous serez prévenu quand votre proche demande de l'aide sur son ordinateur. Rien ne se passe sur son écran sans votre accord.</p>
+  <h1>Devenir support</h1>
+  <p>Vous serez prévenu quand la personne aidée demande de l'aide sur son ordinateur. Rien ne se passe sur son écran sans votre accord.</p>
   <div id="appRow" hidden>
     <a class="btn app" id="openApp" href="#">Ouvrir dans l'app PapAI</a>
     <p class="hint">Pas d'app sur ce téléphone ? Remplissez simplement ce formulaire.</p>
@@ -51,9 +51,9 @@
   <select id="relation">
     <option value="sa fille">Je suis sa fille</option>
     <option value="son fils">Je suis son fils</option>
-    <option value="sa petite-fille">Je suis sa petite-fille</option>
-    <option value="son petit-fils">Je suis son petit-fils</option>
     <option value="un proche">Un ou une proche</option>
+    <option value="un collègue">Un ou une collègue</option>
+    <option value="le service informatique">Le service informatique</option>
     <option value="un voisin">Un voisin, une voisine</option>
     <option value="">Autre</option>
   </select>
@@ -64,8 +64,8 @@
 <div class="card" id="done" hidden>
   <div class="ok">✓</div>
   <h1 id="doneTitle">C'est fait</h1>
-  <p>Votre prénom apparaît maintenant sur l'ordinateur de votre proche. Gardez la page aidant ouverte ou ajoutez-la à l'écran d'accueil de votre téléphone.</p>
-  <a class="btn" id="aidant" href="#">Ouvrir l'espace aidant</a>
+  <p>Votre prénom apparaît maintenant sur l'ordinateur de la personne aidée. Gardez la page support ouverte ou ajoutez-la à l'écran d'accueil de votre téléphone.</p>
+  <a class="btn" id="aidant" href="#">Ouvrir l'espace support</a>
 </div>
 
 <script>
@@ -74,6 +74,7 @@
   const base = m ? m[1] : "";
   let code = m && m[2] ? m[2] : "";
   const $ = (id) => document.getElementById(id);
+  try { $("name").value = localStorage.getItem("papai_name") || ""; } catch (e) {}
   if (!code) $("codeRow").hidden = false;
   else {
     // L'app iPhone fait elle-même l'appairage à partir de cette adresse.

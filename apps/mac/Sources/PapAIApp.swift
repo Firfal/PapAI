@@ -25,10 +25,14 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 22) {
             Header().padding(.top, 24)
             Group {
-                if !model.onboarded {
+                if let p = model.pairRequest {
+                    PairRequestView(request: p)
+                } else if !model.onboarded {
                     OnboardingView()
                 } else if let r = model.remoteRequest {
                     RemoteRequestView(request: r)
+                } else if let q = model.queued, model.queuedShown {
+                    QueuedView(ticket: q)
                 } else if !(model.screenOK && model.axOK) && !model.permissionsDismissed && model.screen == .home {
                     PermissionsView()
                 } else {
@@ -51,12 +55,13 @@ struct RootView: View {
         .sheet(isPresented: $model.showSettings) { SettingsView() }
         .sheet(isPresented: $model.showHelpers) {
             VStack(alignment: .trailing, spacing: 18) {
-                HelpersPanel()
+                ScrollView { HelpersPanel() }
                 Button("Fermer") { model.stopPairing(); model.showHelpers = false }
                     .buttonStyle(PillStyle(height: 54)).keyboardShortcut(.cancelAction)
             }
-            .padding(36).frame(width: 820).frame(minHeight: 460).background(T.mint)
+            .padding(24).frame(width: 820, height: 580).background(T.mint)
             .environment(model)
+            .onDisappear { model.stopPairing() }
         }
     }
 }
@@ -79,13 +84,19 @@ struct WindowGrabber: NSViewRepresentable {
 enum Snapshot {
     static func scheduleIfAsked(_ model: AppModel) {
         guard let path = ProcessInfo.processInfo.environment["PAPAI_SNAPSHOT"] else { return }
+        // PAPAI_SNAPSHOT_SIZE=900x640 : vérifier la plus petite fenêtre.
+        if let t = ProcessInfo.processInfo.environment["PAPAI_SNAPSHOT_SIZE"]?.split(separator: "x"),
+           t.count == 2, let w = Double(t[0]), let h = Double(t[1]) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { model.window?.setContentSize(NSSize(width: w, height: h)) }
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-            if let v = model.window?.contentView,
+            if let v = (model.window?.attachedSheet ?? model.window)?.contentView,
                let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
                 v.cacheDisplay(in: v.bounds, to: rep)
                 try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
             }
             NSApp.terminate(nil)
+            exit(0)
         }
     }
 }

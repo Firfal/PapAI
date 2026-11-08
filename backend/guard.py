@@ -98,7 +98,7 @@ def evaluer(processus: list[str], fenetre: str = "", url: str = "") -> Alerte | 
             f"Le logiciel « {outil} » permet à une autre personne de voir et "
             f"commander cet ordinateur, et une page bancaire ou de paiement est "
             f"ouverte. Si vous êtes au téléphone avec quelqu'un qui vous guide, "
-            f"raccrochez et appelez votre proche.",
+            f"raccrochez et appelez votre support.",
             f"outil={outil} + argent={argent or banque}",
             True,
         )
@@ -120,7 +120,7 @@ def evaluer(processus: list[str], fenetre: str = "", url: str = "") -> Alerte | 
             "Cette alerte à l'écran est fausse",
             "Une page affiche que votre ordinateur serait infecté ou bloqué, et "
             "vous demande d'appeler un numéro. Microsoft et Apple ne font jamais "
-            "ça. N'appelez pas : fermez la fenêtre et prévenez votre proche.",
+            "ça. N'appelez pas : fermez la fenêtre et prévenez votre support.",
             f"titre={titre_alarmant}",
             True,
         )
@@ -131,7 +131,7 @@ def evaluer(processus: list[str], fenetre: str = "", url: str = "") -> Alerte | 
             "Achat difficile à annuler",
             f"Le site « {argent} » sert à envoyer de l'argent d'une façon qu'on "
             f"ne peut presque jamais récupérer. Si quelqu'un vous a demandé de "
-            f"le faire, parlez-en d'abord à votre proche.",
+            f"le faire, parlez-en d'abord à votre support.",
             f"argent={argent}",
             True,
         )
@@ -191,7 +191,7 @@ def evaluer_demande(texte: str) -> Alerte | None:
         r"(?:(?:un|le|ce|the|a)\s+)?(?:virement|transfer)\b", t
     ))
     if confirmation_virement:
-        return _risque("Confirmation d'un virement : vérifiez le destinataire avec votre proche.")
+        return _risque("Confirmation d'un virement : vérifiez le destinataire avec votre support.")
     envoi = bool(re.search(r"\b(envoyer|envoi|transferer|transfert|transmettre|donner|send|transfer)\b", t))
     if envoi:
         objet_monetaire = (
@@ -334,17 +334,17 @@ un plan d'actions. Détecte notamment fraude financière, faux support, pression
 transmission de secrets et de codes de sécurité. Une simple consultation de
 documents ou un article d'information n'est pas une arnaque. Ne propose aucune
 action. Réponds uniquement en JSON :
-{"suspect": true|false, "raison": "une courte raison factuelle pour le proche"}."""
+{"suspect": true|false, "raison": "une courte raison factuelle pour le support"}."""
 
 
 # ----------------------------------------------------- confirmation modèle
 
-PROMPT_CONFIRMATION = """Tu regardes l'écran d'une personne âgée. Un indice technique
+PROMPT_CONFIRMATION = """Tu regardes l'écran d'une personne. Un indice technique
 laisse penser qu'elle est peut-être victime d'une arnaque : {motif}
 
-Dis en deux phrases, à son proche aidant, ce que tu vois réellement à l'écran et
+Dis en deux phrases, à son support, ce que tu vois réellement à l'écran et
 si cela confirme ou non le soupçon. Sois factuel : décris, ne dramatise pas, et
 dis clairement si tout semble normal.
 
 Réponds uniquement par un objet JSON :
-{{"confirme": true|false, "description": "deux phrases pour le proche"}}"""
+{{"confirme": true|false, "description": "deux phrases pour le support"}}"""

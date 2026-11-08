@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#EEF0EE">
-<title>PapAI · aider un proche</title>
+<title>PapAI · Support</title>
 <style>
   /* Direction « Soin », identique aux apps Swift (apps/ios/Sources/Theme.swift,
      apps/mac/Sources/Theme.swift) : mêmes couleurs, mêmes rayons, mêmes écrans. */
@@ -36,6 +36,18 @@
   .hello small { display: block; font-size: 14px; color: var(--muted); }
   .hello strong { font-size: 20px; font-weight: 600; }
   header .spacer { flex: 1; }
+  .people { display: flex; gap: 8px; overflow-x: auto; padding: 0 20px 12px; scrollbar-width: none; }
+  .people::-webkit-scrollbar { display: none; }
+  .person { flex: none; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px 6px 6px;
+            border-radius: 999px; background: var(--card); color: var(--ink); font: inherit; font-size: 15px;
+            font-weight: 600; border: 0; cursor: pointer; text-decoration: none; }
+  .person .avatar { width: 32px; height: 32px; font-size: 15px; }
+  .person.here { background: var(--ink); color: #fff; }
+  .person.asking { box-shadow: 0 0 0 2px #D9453B inset; }
+  .person small { font-weight: 400; font-size: 12px; opacity: .7; }
+  .person .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .person .dot.on { background: var(--accent); }
+  .person.add { padding: 6px 16px; color: var(--accent); }
   .round { width: 48px; height: 48px; border-radius: 50%; background: var(--card); flex: none;
            display: flex; align-items: center; justify-content: center; }
   svg.i { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2;
@@ -226,10 +238,12 @@
 
 <header>
   <div class="avatar" id="me">A</div>
-  <div class="hello"><small>Bonjour</small><strong id="meName">Aidant</strong></div>
+  <div class="hello"><small>Bonjour</small><strong id="meName">Support</strong></div>
   <div class="spacer"></div>
   <div class="round" aria-hidden="true"><svg class="i"><use href="#i-bell"/></svg></div>
 </header>
+
+<nav class="people" id="people" aria-label="Mes personnes aidées" hidden></nav>
 
 <div id="lost" hidden role="status"><div class="spinner" style="border-color:rgba(255,255,255,.3);border-top-color:#fff;width:16px;height:16px"></div><span>Connexion perdue</span><span>reconnexion…</span></div>
 
@@ -246,16 +260,26 @@
   <section id="v-idle" class="stack">
     <div class="mint idle-hero" id="allWell">
       <h1>Tout va bien</h1>
-      <p id="idleSub">Vous serez prévenu dès que votre proche demande de l'aide.</p>
+      <p id="idleSub">Vous serez prévenu dès que la personne aidée demande de l'aide.</p>
     </div>
     <div class="card remote" id="remote">
-      <h3 class="section-title">Proposer une session</h3>
-      <p>Votre proche devra l'accepter sur son ordinateur.</p>
-      <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Pourquoi cette session">
+      <h3 class="section-title">Proposer une assistance</h3>
+      <p>La personne aidée devra l'accepter sur son ordinateur.</p>
+      <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Objet de l'assistance">
       <button class="capsule" id="remoteSend" type="button">Proposer</button>
     </div>
-    <h3 class="section-title">Derniers automatismes</h3>
-    <div id="lessons" class="stack"><p class="muted" style="font-size:15px">Aucun automatisme pour l'instant.</p></div>
+    <div id="ticketsCard" class="stack" hidden>
+      <h3 class="section-title">Tickets</h3>
+      <div id="tickets"></div>
+    </div>
+    <h3 class="section-title">Derniers automates</h3>
+    <div id="lessons" class="stack"><p class="muted" style="font-size:15px">Aucun automate pour l'instant.</p></div>
+    <div class="card stack" id="importCard" hidden>
+      <h3 class="section-title">Importer un automate</h3>
+      <p>Un fichier <code>.papai</code> fourni par un support informatique ou préparé par vous. En l'important, vous le validez : la personne aidée pourra le lancer seule, en un clic.</p>
+      <input type="file" id="importFile" accept=".papai,application/json" aria-label="Fichier d'automate">
+      <p class="muted" id="importMsg" role="status" style="font-size:15px"></p>
+    </div>
   </section>
 
   <!-- Carte de la demande, commune à l'attente, au plan et à la validation -->
@@ -263,7 +287,7 @@
     <div class="mint request">
       <div class="who">
         <div class="avatar" id="procheInitial">P</div>
-        <div><small id="since">Demande · à l'instant</small><strong>Votre proche</strong></div>
+        <div><small id="since">Demande · à l'instant</small><strong>La personne aidée</strong></div>
       </div>
       <p class="quote" id="task"></p>
       <button class="thumb" id="thumb" type="button" hidden aria-label="Agrandir la dernière capture">
@@ -280,7 +304,7 @@
   <!-- Holo agit, ou l'aidant a la main -->
   <section id="v-live" class="stack" hidden>
     <div class="mint question" id="question" hidden>
-      <small id="questionTitle">Votre proche a besoin de vous</small>
+      <small id="questionTitle">La personne aidée a besoin de vous</small>
       <h2 id="qtext"></h2>
       <div class="options" id="options"></div>
       <div class="reply">
@@ -295,20 +319,20 @@
     </div>
     <div class="shot" id="shot">
       <div id="empty">En attente de la première capture d'écran…</div>
-      <img id="frame" alt="Écran de votre proche" style="display:none">
+      <img id="frame" alt="Écran de la personne aidée" style="display:none">
       <div id="pin"></div>
     </div>
     <div class="card working" id="working">
       <div class="spinner"></div>
-      <div><strong id="workingTitle">Holo travaille sur l'ordinateur de votre proche</strong><small id="workingTask"></small></div>
+      <div><strong id="workingTitle">Holo travaille sur l'ordinateur de la personne aidée</strong><small id="workingTask"></small></div>
     </div>
     <div class="hand" id="hand" hidden>
       <button class="capsule" id="arm" type="button">Prendre la main</button>
-      <p>Vous pouvez cliquer vous-même sur l'écran de votre proche.</p>
+      <p>Vous pouvez cliquer vous-même sur l'écran de la personne aidée.</p>
     </div>
     <div id="aimbar" hidden aria-live="polite">
       <div class="card aim">
-        <strong id="aimText">Touchez l'écran de votre proche à l'endroit où il faut cliquer.</strong>
+        <strong id="aimText">Touchez l'écran de la personne aidée à l'endroit où il faut cliquer.</strong>
         <small id="freshText"></small>
         <button class="link" id="refresh" type="button" hidden>Rafraîchir</button>
       </div>
@@ -327,12 +351,12 @@
       <h2 id="doneAnswer">Holo a terminé.</h2>
     </div>
     <div id="makeWrap">
-      <button class="capsule" id="makeLesson" type="button">Garder comme automatisme</button>
-      <p class="hint">Holo transforme cette session en pas à pas que votre proche pourra relancer seul.</p>
+      <button class="capsule" id="makeLesson" type="button">Garder comme automate</button>
+      <p class="hint">Holo transforme cette assistance en automate que la personne aidée pourra relancer sans aide.</p>
     </div>
     <div class="draft" id="draft" hidden>
-      <h3>Brouillon de l'automatisme</h3>
-      <input type="text" id="lessonTitle" placeholder="Titre" aria-label="Titre de l'automatisme">
+      <h3>Brouillon de l'automate</h3>
+      <input type="text" id="lessonTitle" placeholder="Titre" aria-label="Titre de l'automate">
       <div id="steps"></div>
       <button class="capsule" id="approve" type="button">Valider</button>
     </div>
@@ -345,8 +369,8 @@
   <!-- Arrêté ou refusé -->
   <section id="v-stopped" class="stopped" hidden>
     <div class="round" style="width:64px;height:64px"><svg class="i" style="width:24px;height:24px"><use id="stoppedIcon" href="#i-pause"/></svg></div>
-    <h2 id="stoppedTitle">Votre proche a arrêté l'assistance</h2>
-    <p id="stoppedDetail">L'assistance est arrêtée. Vérifiez avec votre proche ce qui a été fait.</p>
+    <h2 id="stoppedTitle">La personne aidée a arrêté l'assistance</h2>
+    <p id="stoppedDetail">L'assistance est arrêtée. Vérifiez avec la personne aidée ce qui a été fait.</p>
     <button class="back" data-home type="button">Retour à l'accueil</button>
   </section>
 
@@ -382,19 +406,20 @@
 <div class="scrim" id="refuseSheet" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="refuseTitle">
     <h2 id="refuseTitle">Refuser ce plan ?</h2>
-    <p>Votre proche sera prévenu que rien ne sera fait.</p>
+    <p>La personne aidée sera prévenu que rien ne sera fait.</p>
     <button class="capsule" id="refuseYes" type="button">Refuser le plan</button>
     <button class="capsule light" id="refuseNo" type="button">Annuler</button>
   </div>
 </div>
 
 <div id="zoom" hidden>
-  <img id="zoomImg" alt="Dernière capture de l'écran de votre proche">
+  <img id="zoomImg" alt="Dernière capture de l'écran de la personne aidée">
   <button class="roundbtn" id="zoomClose" type="button" aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button>
 </div>
 
 <div id="toast" role="alert"></div>
 
+<script src="/tickets.js"></script>
 <script>
 const token = location.pathname.split('/').filter(Boolean).pop();
 const $ = id => document.getElementById(id);
@@ -419,6 +444,141 @@ let lessonBusy = false, savedTitle = null, hasDraft = false;
 let myName = '';
 try { myName = localStorage.getItem('papai_name') || ''; } catch (e) {}
 if (myName) { $('meName').textContent = myName; $('me').textContent = myName[0].toUpperCase(); }
+
+/* ------------------------------------------------- mes personnes aidées */
+
+// Un support suit plusieurs personnes : chaque lien /a/<clé> déjà ouvert est
+// gardé dans ce navigateur, et un canal discret par personne dit qui demande
+// une assistance, sans quitter la page en cours.
+const PEOPLE_KEY = 'papai_people';
+const herePath = location.pathname.replace(/\/+$/, '');
+const ASKING = ['waiting_consent', 'planning', 'awaiting_approval', 'awaiting_helper'];
+let people = [];
+try {
+  people = JSON.parse(localStorage.getItem(PEOPLE_KEY) || '[]')
+    .filter(p => p && typeof p.path === 'string' && /^\/a\/[A-Za-z0-9_-]+$/.test(p.path));
+} catch (e) { people = []; }
+const watchers = {};
+
+function savePeople() {
+  try { localStorage.setItem(PEOPLE_KEY, JSON.stringify(people.slice(0, 200))); } catch (e) {}
+}
+
+function rememberHere() {
+  if (!permanent || !/^\/a\/[A-Za-z0-9_-]+$/.test(herePath)) return;
+  const i = people.findIndex(p => p.path === herePath);
+  const name = seniorName || (i >= 0 ? people[i].name : '');
+  if (i >= 0) people[i].name = name; else people.push({ path: herePath, name });
+  savePeople();
+  watchPeople();
+}
+
+function forgetPerson(path) {
+  people = people.filter(p => p.path !== path);
+  savePeople();
+  const w = watchers[path];
+  if (w) { w.closed = true; if (w.ws) w.ws.close(); delete watchers[path]; }
+  renderPeople();
+}
+
+function watchPeople() {
+  for (const p of people) {
+    if (p.path === herePath || watchers[p.path]) continue;
+    const w = watchers[p.path] = { online: false, asking: false, closed: false, ws: null, wait: 2000 };
+    const open = () => {
+      if (w.closed) return;
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = w.ws = new WebSocket(`${proto}://${location.host}/ws/aidant/${p.path.split('/').pop()}`);
+      ws.onopen = () => { w.wait = 2000; };
+      ws.onmessage = ev => {
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (m.type === 'refused') { w.closed = true; ws.close(); }
+        else if (m.type === 'hello') {
+          w.online = !!m.bridge; w.asking = !!m.tickets_waiting;
+          if (m.senior && m.senior !== p.name) { p.name = m.senior; savePeople(); }
+        }
+        else if (m.type === 'senior' && m.name) { p.name = m.name; savePeople(); }
+        else if (m.type === 'status') {
+          const was = w.asking;
+          w.asking = ASKING.includes(m.state);
+          if (w.asking && !was) {
+            toast(`${p.name || 'Une personne aidée'} demande une assistance.`);
+            if (navigator.vibrate) navigator.vibrate(200);
+          }
+        }
+        else if (m.type === 'alert_cleared') { w.asking = false; }
+        else if (m.type === 'ticket_due') { w.asking = true; toast(`${p.name || 'Une personne aidée'} : rendez-vous`); }
+        else if (m.type === 'alert') { w.asking = true; toast(`${p.name || 'Une personne aidée'} : ${m.title || 'alerte'}`); }
+        renderPeople();
+      };
+      ws.onclose = () => {
+        w.online = false; renderPeople();
+        if (!w.closed) { setTimeout(open, w.wait); w.wait = Math.min(w.wait * 2, 30000); }
+      };
+    };
+    open();
+  }
+  renderPeople();
+}
+
+// Organisations suivies (page /o/<jeton>) : les postes inscrits depuis la
+// dernière visite rejoignent la liste.
+async function refreshOrgs() {
+  let orgs = [];
+  try { orgs = JSON.parse(localStorage.getItem('papai_orgs') || '[]'); } catch (e) {}
+  for (const t of Array.isArray(orgs) ? orgs : []) {
+    try {
+      const r = await fetch(`/o/${encodeURIComponent(t)}/spaces`);
+      if (!r.ok) continue;
+      for (const s of (await r.json()).spaces || []) {
+        const path = `/a/${s.key}`;
+        if (!people.some(p => p.path === path)) people.push({ path, name: s.name || '' });
+      }
+    } catch (e) {}
+  }
+  savePeople();
+  watchPeople();
+}
+
+function renderPeople() {
+  const nav = $('people');
+  nav.hidden = !permanent;
+  if (!permanent) return;
+  nav.replaceChildren();
+  const others = people.filter(p => p.path !== herePath);
+  const asking = others.filter(p => watchers[p.path] && watchers[p.path].asking).length;
+  document.title = (asking ? `(${asking}) ` : '') + 'PapAI · Support';
+  for (const p of people) {
+    const here = p.path === herePath;
+    const w = watchers[p.path];
+    const el = document.createElement(here ? 'span' : 'a');
+    el.className = 'person' + (here ? ' here' : '') + (w && w.asking ? ' asking' : '');
+    if (!here) el.href = p.path;
+    const name = p.name || 'Personne aidée';
+    const av = document.createElement('span');
+    av.className = 'avatar'; av.textContent = name[0].toUpperCase();
+    const label = document.createElement('span');
+    label.textContent = name;
+    el.append(av, label);
+    if (!here) {
+      const dot = document.createElement('span');
+      dot.className = 'dot' + (w && w.online ? ' on' : '');
+      dot.title = w && w.online ? 'Ordinateur connecté' : 'Ordinateur hors ligne';
+      el.append(dot);
+      if (w && w.asking) {
+        const s = document.createElement('small'); s.textContent = 'demande une assistance'; el.append(s);
+      }
+      el.oncontextmenu = e => {
+        e.preventDefault();
+        if (confirm(`Retirer ${name} de vos personnes aidées dans ce navigateur ?`)) forgetPerson(p.path);
+      };
+    }
+    nav.append(el);
+  }
+  const add = document.createElement('a');
+  add.className = 'person add'; add.href = '/p'; add.textContent = '+ Ajouter une personne';
+  nav.append(add);
+}
 
 /* ------------------------------------------------------------- connexion */
 
@@ -485,7 +645,7 @@ function render() {
   $('browserLabel').hidden = !isWebLive;
   $('browserTitle').textContent = browserTitle();
   $('thumbTitle').textContent = isWebLive ? browserTitle() : 'Son écran';
-  $('frame').alt = isWebLive ? browserTitle() : 'Écran de votre proche';
+  $('frame').alt = isWebLive ? browserTitle() : 'Écran de la personne aidée';
   $('empty').textContent = isWebLive
     ? 'En attente de la première image de Chrome PapAI…'
     : "En attente de la première capture d'écran…";
@@ -496,7 +656,7 @@ function render() {
 
   $('task').textContent = task ? `« ${task} »` : '';
   $('waiting').hidden = s === 'approval';
-  $('waitingText').textContent = s === 'waiting' ? "En attente de l'autorisation de votre proche" : "Holo regarde l'écran…";
+  $('waitingText').textContent = s === 'waiting' ? "En attente de l'autorisation de la personne aidée" : "Holo regarde l'écran…";
   $('plan').hidden = s !== 'approval';
   $('thumb').hidden = !(s === 'approval' && frameSrc);
   tickSince();
@@ -508,9 +668,9 @@ function render() {
   $('working').hidden = s !== 'active';
   $('workingTitle').textContent = isWebLive
     ? `Holo travaille dans ${browserTitle()}`
-    : "Holo travaille sur l'ordinateur de votre proche";
+    : "Holo travaille sur l'ordinateur de la personne aidée";
   $('workingTask').textContent = task ? `« ${task} »` : '';
-  $('questionTitle').textContent = isWebLive ? 'Holo a une question' : 'Votre proche a besoin de vous';
+  $('questionTitle').textContent = isWebLive ? 'Holo a une question' : 'La personne aidée a besoin de vous';
   $('question').hidden = s !== 'helper' || armed || !$('qtext').textContent;
   $('hand').hidden = s !== 'helper' || armed || isWebLive;
   $('aimbar').hidden = !armed || isWebLive;
@@ -519,14 +679,14 @@ function render() {
   $('makeWrap').hidden = !!savedTitle || hasDraft;
   $('draft').hidden = !hasDraft || !!savedTitle;
   $('saved').hidden = !savedTitle;
-  if (savedTitle) $('savedText').textContent = `Automatisme « ${savedTitle} » enregistré.`;
+  if (savedTitle) $('savedText').textContent = `Automate « ${savedTitle} » enregistré.`;
   $('makeLesson').disabled = lessonBusy;
-  $('makeLesson').innerHTML = lessonBusy ? '<div class="spinner"></div>Rédaction en cours…' : 'Garder comme automatisme';
+  $('makeLesson').innerHTML = lessonBusy ? '<div class="spinner"></div>Rédaction en cours…' : 'Garder comme automate';
 
   $('stoppedTitle').textContent = stoppedBy === 'gardien' ? "PapAI a arrêté l'assistance : démarche suspecte"
-    : refusedByMe ? 'Vous avez refusé le plan' : "Votre proche a arrêté l'assistance";
+    : refusedByMe ? 'Vous avez refusé le plan' : "La personne aidée a arrêté l'assistance";
   $('stoppedDetail').textContent = executionStarted === false ? "Rien n'a été fait sur son ordinateur."
-    : `L'assistance est arrêtée. Vérifiez avec ${seniorName || 'votre proche'} ce qui a été fait.`;
+    : `L'assistance est arrêtée. Vérifiez avec ${seniorName || 'la personne aidée'} ce qui a été fait.`;
   $('stoppedIcon').setAttribute('href', refusedByMe ? '#i-x' : '#i-pause');
   $('remote').hidden = !!state && !['done', 'stopped'].includes(state);
   tickFreshness();
@@ -539,28 +699,79 @@ function tickSince() {
 }
 setInterval(tickSince, 20000);
 
-/* ----------------------------------------------------- les automatismes */
+/* ----------------------------------------------------- les automates */
+
+// Tickets de la personne suivie : demandes en attente, rendez-vous, historique.
+async function loadTickets() {
+  if (!permanent || !window.PapaiTickets) return;
+  try {
+    const r = await fetch(`/k/${encodeURIComponent(token)}/tickets`);
+    if (!r.ok) return;
+    const list = (await r.json()).tickets || [];
+    $('ticketsCard').hidden = !list.length;
+    PapaiTickets.render($('tickets'), list.slice(0, 20), async (t, action, extra) => {
+      const x = await fetch(`/k/${encodeURIComponent(token)}/tickets/${encodeURIComponent(t.id)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, by: myName || 'Support', ...(extra || {}) }) });
+      const d = await x.json().catch(() => ({}));
+      if (!x.ok) toast(d.error || 'Action impossible.');
+      else if (action === 'take') toast("Proposition envoyée : la personne doit l'accepter sur son ordinateur.");
+      loadTickets();
+    });
+  } catch (e) {}
+}
 
 async function loadLessons() {
   if (!permanent) return;
+  $('importCard').hidden = false;
   try {
     const r = await fetch(`/k/${encodeURIComponent(token)}/lessons`);
     if (!r.ok) return;
     const list = await r.json();
     const items = Array.isArray(list) ? list : (list.lessons || []);
-    if (!items.length) return;
-    $('lessons').innerHTML = '';
-    items.slice(0, 5).forEach(l => {
+    $('lessons').innerHTML = items.length ? '' :
+      '<p class="muted" style="font-size:15px">Aucun automate pour l\'instant.</p>';
+    items.slice(0, 8).forEach(l => {
       const d = document.createElement('div');
       d.className = 'card lesson';
       d.innerHTML = '<span class="check"><svg class="i"><use href="#i-check"/></svg></span><div><strong></strong><small></small></div>';
-      d.querySelector('strong').textContent = l.title || 'Automatisme';
-      const n = (l.steps || []).length;
-      d.querySelector('small').textContent = `${n} étape${n > 1 ? 's' : ''}`;
+      d.querySelector('strong').textContent = l.title || 'Automate';
+      const n = (l.steps || []).length, a = (l.actions || []).length;
+      d.querySelector('small').textContent = l.source === 'import'
+        ? `Fourni par ${l.publisher || '?'} · ${a} action${a > 1 ? 's' : ''}`
+        : `${n} étape${n > 1 ? 's' : ''}`;
+      if (l.source === 'import') {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'capsule'; b.textContent = 'Retirer';
+        b.style.marginLeft = 'auto';
+        b.onclick = async () => {
+          await fetch(`/k/${encodeURIComponent(token)}/automations/${encodeURIComponent(l.id)}`, { method: 'DELETE' });
+          loadLessons();
+        };
+        d.appendChild(b);
+      }
       $('lessons').appendChild(d);
     });
   } catch (e) {}
 }
+
+$('importFile').addEventListener('change', async (ev) => {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  $('importMsg').textContent = 'Import…';
+  try {
+    const r = await fetch(`/k/${encodeURIComponent(token)}/automations`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: await file.text() });
+    const j = await r.json().catch(() => ({}));
+    $('importMsg').textContent = r.ok
+      ? `« ${j.title} » est disponible sur l'ordinateur.`
+      : (j.error || 'Import refusé.');
+    if (r.ok) loadLessons();
+  } catch (e) {
+    $('importMsg').textContent = 'Le serveur ne répond pas.';
+  }
+  ev.target.value = '';
+});
 
 /* ------------------------------------------- fraîcheur de la capture */
 
@@ -596,7 +807,7 @@ function clearAim() {
   target = null;
   $('pin').style.display = 'none';
   $('loupe').style.display = 'none';
-  $('aimText').textContent = "Touchez l'écran de votre proche à l'endroit où il faut cliquer.";
+  $('aimText').textContent = "Touchez l'écran de la personne aidée à l'endroit où il faut cliquer.";
 }
 
 function requestRefresh() {
@@ -651,7 +862,8 @@ function onMessage(ev) {
     stoppedBy = m.stopped_by || null;
     executionStarted = typeof m.execution_started === 'boolean' ? m.execution_started : null;
     if (m.task !== undefined) task = m.task || '';
-    if (m.session !== sessionId) {
+    const nouvelle = m.session !== sessionId;
+    if (nouvelle) {
       wasWebLive = false;
       sessionId = m.session; requestAt = Date.now();
     }
@@ -664,7 +876,9 @@ function onMessage(ev) {
       $('thumb').hidden = true;
       if (armed) setArmed(false);
     }
-    if (['waiting_consent', 'planning'].includes(state) && prev !== state) {
+    // Un automate importé commence directement en `active` : plan déjà validé.
+    const debut = ['waiting_consent', 'planning'].includes(state) || (nouvelle && state === 'active');
+    if (debut && prev !== state) {
       home = false;
       if (prev === null || ['done', 'stopped'].includes(prev)) {
         refusedByMe = false; savedTitle = null; hasDraft = false; lessonBusy = false;
@@ -719,11 +933,22 @@ function onMessage(ev) {
 
   else if (m.type === 'question') { showQuestion(m); render(); }
 
+  else if (m.type === 'tickets_changed') { loadTickets(); }
+
+  else if (m.type === 'ticket_due') {
+    toast(`Rendez-vous : demande T-${String(m.number).padStart(4, '0')} « ${m.task} »`);
+    if (navigator.vibrate) navigator.vibrate(200);
+    loadTickets();
+  }
+
   else if (m.type === 'hello') {
     seniorName = m.senior || '';
-    if (!m.bridge) $('idleSub').textContent = "L'ordinateur de votre proche n'est pas connecté pour le moment.";
-    else $('idleSub').textContent = "Vous serez prévenu dès que votre proche demande de l'aide.";
+    rememberHere();
+    if (!m.bridge) $('idleSub').textContent = "L'ordinateur de la personne aidée n'est pas connecté pour le moment.";
+    else $('idleSub').textContent = "Vous serez prévenu dès que la personne aidée demande de l'aide.";
     loadLessons();
+    loadTickets();
+    if (m.tickets_waiting) toast(`${m.tickets_waiting} demande${m.tickets_waiting > 1 ? 's' : ''} en attente d'un support.`);
     // Le serveur envoie l'état juste après « hello » s'il a une demande en cours.
     // Sans état (serveur redémarré), on ne garde pas un plan fantôme à l'écran.
     sawStatus = false;
@@ -748,7 +973,7 @@ function onMessage(ev) {
     $('alertTitle').textContent = m.title || 'Attention';
     $('alertDetail').textContent = m.detail || '';
     $('alertCall').hidden = !guardAlertId;
-    $('alertCall').textContent = m.acknowledged || m.acknowledged_by ? "Un proche s'en occupe" : "Je m'en occupe";
+    $('alertCall').textContent = m.acknowledged || m.acknowledged_by ? "Un support s'en occupe" : "Je m'en occupe";
     $('alertCall').disabled = !!(m.acknowledged || m.acknowledged_by);
     $('alertOk').textContent = guardAlertId ? "C'est normal" : "J'ai compris";
     $('alert').hidden = false;
@@ -758,7 +983,7 @@ function onMessage(ev) {
   }
 
   else if (m.type === 'alert_acknowledged' && m.alert_id === guardAlertId) {
-    $('alertCall').textContent = "Un proche s'en occupe";
+    $('alertCall').textContent = "Un support s'en occupe";
     $('alertCall').disabled = true;
   }
 
@@ -769,11 +994,11 @@ function onMessage(ev) {
     render();
   }
 
-  else if (m.type === 'senior') { seniorName = m.name || ''; render(); }
+  else if (m.type === 'senior') { seniorName = m.name || ''; rememberHere(); render(); }
 
-  else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. Votre proche doit l’accepter sur son ordinateur.');
-  else if (m.type === 'remote_refused') toast('Votre proche a refusé la session pour le moment.');
-  else if (m.type === 'remote_accepted') toast('Votre proche a accepté. Holo prépare un plan.');
+  else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. La personne aidée doit l’accepter sur son ordinateur.');
+  else if (m.type === 'remote_refused') toast('La personne aidée a refusé l’assistance pour le moment.');
+  else if (m.type === 'remote_accepted') toast('La personne aidée a accepté. Holo prépare un plan.');
 
   else if (m.type === 'answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
 
@@ -786,7 +1011,7 @@ function onMessage(ev) {
 
   else if (m.type === 'ack' && m.what === 'click') {
     sending = false;
-    toast('Clic transmis à l’ordinateur de votre proche.');
+    toast('Clic transmis à l’ordinateur de la personne aidée.');
     setArmed(false);
   }
 
@@ -810,7 +1035,7 @@ function onMessage(ev) {
       if (s.checkpoint) {
         const c = document.createElement('div');
         c.className = 'cp';
-        c.textContent = 'Votre proche doit voir : ' + s.checkpoint;
+        c.textContent = 'La personne aidée doit voir : ' + s.checkpoint;
         d.appendChild(c);
       }
       const b64 = m.preview && m.preview[s.frame];
@@ -826,7 +1051,7 @@ function onMessage(ev) {
   }
 
   else if (m.type === 'lesson_saved') {
-    savedTitle = (m.lesson && m.lesson.title) || 'Automatisme';
+    savedTitle = (m.lesson && m.lesson.title) || 'Automate';
     hasDraft = false;
     loadLessons();
     render();
@@ -913,7 +1138,7 @@ $('confirm').onclick = () => {
   tickFreshness();
 };
 
-// L'automatisme se rédige une fois la session terminée, jamais pendant.
+// L'automate se rédige une fois la session terminée, jamais pendant.
 $('makeLesson').onclick = () => { if (send({ type: 'draft_lesson' })) { lessonBusy = true; render(); } };
 $('approve').onclick = () => {
   const steps = [...$('steps').querySelectorAll('textarea')].map(t => ({ instruction: t.value.trim() }));
@@ -925,6 +1150,9 @@ $('remoteSend').onclick = () => {
 };
 
 render();
+renderPeople();
+refreshOrgs();
+watchPeople();
 connect();
 </script>
 </body>

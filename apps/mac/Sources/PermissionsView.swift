@@ -64,25 +64,41 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Réglages").font(rounded(30, .semibold))
-            field("Prénom", text: $name, prompt: "Votre prénom")
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Taille du texte").font(rounded(15, .semibold)).foregroundStyle(T.muted)
-                Picker("", selection: Binding(get: { model.textScale }, set: { model.setTextScale($0) })) {
-                    ForEach(TextScale.options, id: \.value) { Text($0.label).tag($0.value) }
-                }
-                .pickerStyle(.segmented).labelsHidden()
-            }
-            HStack(spacing: 12) {
-                Button("Mes proches (\(model.helpers.count))") {
-                    dismiss()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.showHelpers = true }
-                }.buttonStyle(PillStyle(filled: false, height: 50))
-                Button("Revoir l'accueil") {
-                    UserDefaults.standard.set(false, forKey: "onboarded")
-                    model.onboarded = false
-                    dismiss()
-                }.buttonStyle(PillStyle(filled: false, height: 50))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Réglages").font(rounded(30, .semibold))
+                    if !model.orgName.isEmpty {
+                        Text("Poste géré par \(model.orgName)").font(rounded(15)).foregroundStyle(T.muted)
+                    }
+                    field("Prénom", text: $name, prompt: "Votre prénom")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Taille du texte").font(rounded(15, .semibold)).foregroundStyle(T.muted)
+                        Picker("", selection: Binding(get: { model.textScale }, set: { model.setTextScale($0) })) {
+                            ForEach(TextScale.options, id: \.value) { Text($0.label).tag($0.value) }
+                        }
+                        .pickerStyle(.segmented).labelsHidden()
+                    }
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Mon support").font(rounded(22, .semibold))
+                        Text("Reliez le téléphone de votre support à cet ordinateur : QR code, code à 6 chiffres ou lien à envoyer.")
+                            .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                        Button("Ajouter un support") {
+                            dismiss()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.openSupportPairing() }
+                        }.buttonStyle(PillStyle(height: 54))
+                        if !model.helpers.isEmpty {
+                            Button("Mon support (\(model.helpers.count))") {
+                                dismiss()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.showHelpers = true }
+                            }.buttonStyle(PillStyle(filled: false, height: 50))
+                        }
+                    }
+                    Button("Revoir l'accueil") {
+                        UserDefaults.standard.set(false, forKey: "onboarded")
+                        model.onboarded = false
+                        dismiss()
+                    }.buttonStyle(PillStyle(filled: false, height: 50))
+                }.frame(maxWidth: .infinity, alignment: .leading)
             }
             HStack {
                 Spacer()
@@ -96,7 +112,7 @@ struct SettingsView: View {
             }
         }
         .foregroundStyle(T.ink)
-        .padding(32).frame(width: 520).background(T.bg)
+        .padding(24).frame(width: 560, height: 580).background(T.bg)
         .onAppear { name = model.firstName }
     }
 
