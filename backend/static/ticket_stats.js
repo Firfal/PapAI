@@ -44,7 +44,9 @@
               background: var(--ps-track); color: var(--ps-ink); width: 100%; box-sizing: border-box; }
     .ps-form .ps-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 15px; }
     .ps-form .ps-light { background: none; color: var(--ps-bar); box-shadow: inset 0 0 0 1.5px var(--ps-bar-soft); }
-    .ps-empty { color: var(--ps-muted); font-size: 15px; margin: 0; }`;
+    .ps-empty { color: var(--ps-muted); font-size: 15px; margin: 0; }
+    .ps-line { margin: 0; font-size: 15px; }
+    .ps-line b { font-weight: 600; }`;
   document.head.appendChild(css);
 
   function el(tag, cls, text) {
@@ -143,6 +145,40 @@
     }
   }
 
+  // Carte « Cette semaine » : `stats.week` (7 derniers jours). onSuggest(sug) comme render.
+  function renderWeek(box, st, opts) {
+    opts = opts || {};
+    const w = (st && st.week) || {};
+    box.replaceChildren();
+    box.classList.add('ps');
+    box.append(el('h4', '', 'Cette semaine'));
+    if (!w.count && !w.resolved) { box.append(el('p', 'ps-empty', 'Aucune demande ces 7 derniers jours.')); return; }
+    const kpis = el('div', 'ps-kpis');
+    const kpi = (v, l) => { const k = el('div', 'ps-kpi'); k.append(el('b', '', v), el('span', '', l)); kpis.append(k); };
+    kpi(String(w.count || 0), 'demandes reçues');
+    kpi(String(w.resolved || 0), 'réglées');
+    kpi(`${Math.round((w.automate_share || 0) * 100)} %`, 'réglées par un automate');
+    kpi(duration(w.mean_resolution_s), 'temps moyen');
+    box.append(kpis);
+    if ((w.top || []).length) {
+      const p = el('p', 'ps-line'); p.append(el('b', '', 'En tête : '),
+        w.top.map(c => `${c.label} (${c.count})`).join(', '));
+      box.append(p);
+    }
+    const a = w.automate;
+    const p = el('p', 'ps-line');
+    p.append(el('b', '', 'Automate le plus utile : '),
+      a ? `« ${a.title} », ${a.count} demande${a.count > 1 ? 's' : ''} réglée${a.count > 1 ? 's' : ''}` : 'aucun cette semaine');
+    box.append(p);
+    if (w.suggestion) {
+      const b = el('div', 'ps-sug');
+      const go = el('button', '', 'Créer l’automate'); go.type = 'button';
+      go.onclick = () => opts.onSuggest && opts.onSuggest(w.suggestion);
+      b.append(el('p', '', w.suggestion.text), go);
+      box.append(b);
+    }
+  }
+
   // Formulaire d'automate prérempli. submit(pack) → Promise<{ok, error}>
   function draftForm(box, draft, publisher, submit) {
     box.replaceChildren();
@@ -183,5 +219,5 @@
     title.focus();
   }
 
-  window.PapaiStats = { render, draftForm, duration };
+  window.PapaiStats = { render, renderWeek, draftForm, duration };
 })();

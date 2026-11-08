@@ -263,4 +263,70 @@ def stats(tickets: list[dict], now: float | None = None, weeks: int = WEEKS) -> 
                    "automate_share": round(by_automate / resolved, 3) if resolved else 0.0,
                    "median_resolution_s": _median(all_res)},
         "suggestions": suggestions,
+        "week": week(tickets, now, suggestions),
+    }
+
+
+WEEK_S = 7 * 86400
+AUTOMATES_MAX = 20
+
+
+def _automate_key(t: dict) -> tuple[str, str]:
+    title = str(t.get("task", "")).strip()[:120] or "Automate"
+    return str(t.get("automation") or "") or "titre:" + title, title
+
+
+def week(tickets: list[dict], now: float | None = None, suggestions: list[dict] | None = None) -> dict:
+    """Point des 7 derniers jours pour la carte « Cette semaine ».
+
+    Reçues : créées dans les 7 jours. Réglées : passées à `resolu` dans les
+    7 jours (date `resolved`, sinon `updated`), quelle que soit leur date
+    d'arrivée. Temps moyen sur ces tickets réglés. L'automate le plus utile est
+    celui qui a réglé le plus de tickets dans la semaine. Rien n'est envoyé :
+    le calcul est fait à la lecture.
+    """
+    now = time.time() if now is None else now
+    since = now - WEEK_S
+    by = {c: 0 for c in IDS}
+    count = resolved = by_automate = 0
+    total_s = 0.0
+    autos: dict[str, dict] = {}
+    for t in tickets:
+        t = ensure(dict(t))
+        try:
+            created = float(t.get("created") or 0)
+        except (TypeError, ValueError):
+            created = 0.0
+        if since <= created <= now:
+            count += 1
+            by[t["category"]] += 1
+        r = _resolution_s(t)
+        if r is None:
+            continue
+        try:
+            end = float(t.get("resolved") or t.get("updated") or 0)
+        except (TypeError, ValueError):
+            continue
+        if not since <= end <= now:
+            continue
+        resolved += 1
+        total_s += r
+        if t.get("source") == "automatisme":
+            by_automate += 1
+            key, title = _automate_key(t)
+            a = autos.setdefault(key, {"key": key, "title": title, "count": 0})
+            a["count"] += 1
+    top = sorted((c for c in IDS if by[c]), key=lambda c: (-by[c], IDS.index(c)))[:3]
+    automates = sorted(autos.values(), key=lambda a: (-a["count"], a["title"]))[:AUTOMATES_MAX]
+    return {
+        "since": datetime.fromtimestamp(since, timezone.utc).date().isoformat(), "days": 7,
+        "count": count, "resolved": resolved, "by_automate": by_automate,
+        "automate_share": round(by_automate / resolved, 3) if resolved else 0.0,
+        "mean_resolution_s": round(total_s / resolved) if resolved else None,
+        "resolution_total_s": round(total_s),
+        "by": by,
+        "top": [{"id": c, "label": LABELS[c], "count": by[c]} for c in top],
+        "automates": automates,
+        "automate": automates[0] if automates else None,
+        "suggestion": (suggestions or [None])[0],
     }
