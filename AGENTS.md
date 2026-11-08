@@ -45,7 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794101395-etape-prenom` | Reproduire et corriger l'étape prénom Mac | `apps/mac/Sources/OnboardingView.swift`, `apps/mac/Sources/Model.swift`, `apps/mac/Sources/PapAIApp.swift`, `apps/mac/Sources/PermissionsView.swift`, `TODO.md` | 8 nov. |
 
 ## Journal
 
