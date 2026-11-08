@@ -69,16 +69,6 @@
   </div>
   <label for="name">Votre prénom</label>
   <input id="name" autocomplete="given-name" maxlength="40" placeholder="Claire" required>
-  <label for="relation">Votre lien avec la personne aidée</label>
-  <select id="relation">
-    <option value="sa fille">Je suis sa fille</option>
-    <option value="son fils">Je suis son fils</option>
-    <option value="un proche">Un ou une proche</option>
-    <option value="un collègue">Un ou une collègue</option>
-    <option value="le service informatique">Le service informatique</option>
-    <option value="un voisin">Un voisin, une voisine</option>
-    <option value="">Autre</option>
-  </select>
   <div class="err" id="err"></div>
   <div id="waiting" role="status" hidden><progress aria-label="En attente"></progress><p>Demandez à la personne aidée d'appuyer sur Accepter sur son ordinateur (2 min).</p></div>
   <button id="go" type="submit">Rejoindre</button>
@@ -122,7 +112,7 @@
     try {
       const r = await fetch(invitation ? invitation[0] : `${base}/p/${c}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, relation: $("relation").value }),
+        body: JSON.stringify({ name }),
       });
       const data = await r.json();
       if (r.status === 408 || r.status === 409 || (r.status === 403 && data.refused === true)) {

@@ -146,18 +146,6 @@ struct PairSheet: View {
         label("Votre prénom")
         TextField("Claire", text: $name)
             .textContentType(.givenName).font(.system(size: 17)).padding(16).soinField()
-        label("Votre lien avec la personne aidée")
-        FlowLayout(spacing: 8) {
-            ForEach(PairServer.relations, id: \.value) { r in
-                Button { relation = relation == r.value ? "" : r.value } label: {
-                    Text(r.label).font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(relation == r.value ? .white : Soin.ink)
-                        .padding(.horizontal, 16).frame(minHeight: 44)
-                        .background(relation == r.value ? Soin.accent : Soin.card, in: Capsule())
-                        .overlay(Capsule().strokeBorder(relation == r.value ? Color.clear : Soin.hairline, lineWidth: 1))
-                }
-            }
-        }
         if model.pairBusy {
             HStack {
                 ProgressView()
