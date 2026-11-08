@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PapAI · Pitch</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+/* Layout : une scène fixe 1920×1080 (le bureau de Christine), un ticket qui avance d'état à chaque slide.
+   Un seul look clair, choisi : les couleurs de l'app PapAI (bleu + encre), posées en dur ici. */
+:root {
+  color-scheme: light;
+  --bg: #F1F4FD;          /* fond bleu-lavande de l'app */
+  --bg2: #E8EDFC;
+  --card: #FFFFFF;
+  --ink: #141A33;         /* encre */
+  --muted: #5A6178;
+  --faint: #9AA1B8;
+  --line: #DFE4F2;
+  --accent: #2F6EF7;      /* le bleu PapAI */
+  --accent-deep: #1A56E0;
+  --accent-pale: #EAF1FF;
+  --pip: #F58A3A;         /* pépin du logotype, rien d'autre */
+  --stage-bg: #0D1124;
+  --slide-bg: var(--bg);
+
+  --display: "Bricolage Grotesque", "SF Pro Display", system-ui, sans-serif;
+  --body: "Geist", "SF Pro Text", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* une courbe signature (ease-out franc), une pour ce qui bouge à l'écran, un ressort pour le ticket */
+  --ease: cubic-bezier(.23, 1, .32, 1);
+  --in-out: cubic-bezier(.77, 0, .175, 1);
+  --spring: linear(0, .06 3%, .22 7%, .46 12%, .72 18%, .9 24%, 1 30%, 1.04 36%, 1.05 42%, 1.04 50%, 1.015 62%, 1 75%, .998 88%, 1);
+}
+
+/* === FIXED 16:9 STAGE (frontend-slides viewport-base.css) === */
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: var(--stage-bg); }
+.deck-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--stage-bg); }
+.deck-stage { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; background: var(--slide-bg); }
+.slide { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; display: block; visibility: hidden; opacity: 0; pointer-events: none; background: transparent; }
+.slide.active { visibility: visible; opacity: 1; pointer-events: auto; z-index: 2; }
+.slide.leaving { visibility: visible; opacity: 1; z-index: 1; pointer-events: none; }
+img, svg { max-width: 100%; max-height: 100%; }
+@media print {
+  html, body { overflow: visible; background: #fff; }
+  .deck-viewport { position: static; }
+  .deck-stage { position: relative; transform: none !important; }
+  .slide { position: relative; visibility: visible; opacity: 1; page-break-after: always; }
+  .chrome { display: none; }
+}
+
+body { font-family: var(--body); color: var(--ink); -webkit-font-smoothing: antialiased; }
+::selection { background: var(--accent-pale); }
+
+/* === LE BUREAU : fond commun, il ne bouge jamais === */
+.desk { position: absolute; inset: 0; z-index: 0;
+  background:
+    radial-gradient(1200px 700px at 85% -10%, #DCE6FF 0%, transparent 60%),
+    radial-gradient(900px 600px at -5% 110%, #E9E4FB 0%, transparent 60%),
+    linear-gradient(var(--bg), var(--bg2)); }
+.pad { position: absolute; inset: 0; padding: 200px 160px 120px; box-sizing: border-box; }
+
+/* === LE TICKET : la signature du deck. Il change d'état à chaque slide, comme une vraie demande === */
+.ticket { position: absolute; left: 160px; top: 72px; z-index: 5; display: flex; align-items: center; gap: 18px;
+  font-family: var(--mono); font-size: 22px; color: var(--muted); letter-spacing: .02em; }
+.ticket .id { color: var(--faint); }
+.ticket .state { position: relative; display: inline-flex; align-items: center; gap: 12px; height: 48px; padding: 0 22px 0 18px;
+  border-radius: 24px; background: var(--card); color: var(--ink); font-family: var(--body); font-weight: 600; font-size: 22px; letter-spacing: 0;
+  box-shadow: 0 0 0 1px var(--line), 0 10px 30px -12px rgba(42,63,143,.35); }
+.ticket .state i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px var(--accent-pale); }
+.ticket .state.done i { background: var(--ink); box-shadow: 0 0 0 5px #E7E9F0; }
+.ticket .state.pop { animation: pop .7s var(--spring); }
+@keyframes pop { 0% { transform: scale(.86); } 100% { transform: none; } }
+/* la ligne du ticket : son avancement dans le pitch */
+.track { position: absolute; left: 160px; right: 160px; top: 148px; height: 2px; background: var(--line); z-index: 4; border-radius: 1px; }
+.track b { position: absolute; inset: 0; background: var(--accent); transform-origin: 0 0; transform: scaleX(0); transition: transform .9s var(--spring); border-radius: 1px; }
+.brand { position: absolute; right: 160px; top: 76px; z-index: 5; height: 40px; color: var(--ink); }
+.brand svg { height: 40px; width: auto; display: block; }
+
+/* === TYPE === */
+h1, h2, .say { font-family: var(--display); font-weight: 700; letter-spacing: -.035em; line-height: .98; margin: 0; text-wrap: balance; color: var(--ink); }
+h2 { font-size: 112px; }
+.lead { font-size: 40px; line-height: 1.3; color: var(--muted); max-width: 1180px; margin: 36px 0 0; text-wrap: balance; }
+.blue { color: var(--accent); }
+.small { font-family: var(--mono); font-size: 20px; color: var(--faint); letter-spacing: .02em; }
+
+/* === ENTRÉES : chaque calque arrive décalé, une seule fois par slide === */
+.slide .r { opacity: 0; transform: translateY(26px); }
+.slide.active .r { animation: rise .9s var(--ease) both; animation-delay: calc(var(--d, 0) * 1ms); }
+@keyframes rise { to { opacity: 1; transform: none; } }
+
+/* === CHANGEMENT DE SLIDE : le bureau reste, ce qui est posé dessus glisse (View Transitions, comme Pullback) === */
+.slide.active h2, .slide.active .say { view-transition-name: vt-title; }
+.slide.active .hero { view-transition-name: vt-hero; }
+.ticket { view-transition-name: vt-ticket; }
+.brand { view-transition-name: vt-brand; }
+.track { view-transition-name: vt-track; }
+::view-transition-group(*) { animation-duration: .7s; animation-timing-function: var(--in-out); }
+::view-transition-group(vt-ticket), ::view-transition-group(vt-brand), ::view-transition-group(vt-track) { animation: none; }
+::view-transition-old(vt-ticket), ::view-transition-old(vt-brand), ::view-transition-old(vt-track) { display: none; }
+::view-transition-new(vt-ticket), ::view-transition-new(vt-brand), ::view-transition-new(vt-track) { animation: none; }
+::view-transition-old(root) { animation: vt-out .3s var(--ease) both; }
+::view-transition-new(root) { animation: vt-in .45s var(--ease) .08s both; }
+::view-transition-old(vt-title), ::view-transition-new(vt-title) { inline-size: auto; block-size: auto; }
+::view-transition-old(vt-title) { animation: vt-out .25s cubic-bezier(.55,0,1,.45) both; }
+::view-transition-new(vt-title) { animation: vt-in .45s var(--ease) .25s both; }
+::view-transition-old(vt-hero) { animation: vt-out .5s linear both; }
+::view-transition-new(vt-hero) { animation: vt-in .45s var(--ease) .25s both; }
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; } }
+
+/* =========================================================
+   1 · LA DEMANDE
+   ========================================================= */
+.s-hook .who { display: inline-flex; align-items: center; gap: 16px; font-size: 26px; color: var(--muted); }
+.s-hook .who .av { width: 56px; height: 56px; border-radius: 50%; background: var(--accent-pale); color: var(--accent-deep);
+  display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 26px; }
+.s-hook .say { font-size: 168px; margin-top: 64px; max-width: 1500px; }
+.s-hook .say .ch { opacity: 0; }
+.s-hook.active .say .ch { animation: ch .01s linear both; animation-delay: calc(500ms + var(--i) * 42ms); }
+@keyframes ch { to { opacity: 1; } }
+.s-hook .caret { display: inline-block; width: 10px; height: .82em; margin-left: 8px; background: var(--accent); vertical-align: -.06em; border-radius: 3px;
+  animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.s-hook .foot { position: absolute; left: 160px; bottom: 120px; }
+
+/* =========================================================
+   2 · LE COÛT
+   ========================================================= */
+.s-cost .num { font-family: var(--display); font-weight: 800; font-size: 400px; letter-spacing: -.06em; line-height: .8; color: var(--accent);
+  font-variant-numeric: tabular-nums; margin-top: 30px; }
+.s-cost .num small { font-size: 160px; letter-spacing: -.04em; margin-left: 18px; }
+.s-cost .what { font-family: var(--display); font-weight: 700; font-size: 64px; letter-spacing: -.03em; margin-top: 40px; }
+.s-cost .lead { margin-top: 22px; }
+.s-cost .src { position: absolute; left: 160px; bottom: 96px; }
+
+/* =========================================================
+   3 · LA BOUCLE
+   ========================================================= */
+.s-loop .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; margin-top: 110px; position: relative; }
+.s-loop .wire { position: absolute; left: 36px; right: 36px; top: 35px; height: 3px; background: var(--line); border-radius: 2px; }
+.s-loop .wire b { position: absolute; inset: 0; background: var(--accent); transform-origin: 0 0; transform: scaleX(0); border-radius: 2px; }
+.s-loop.active .wire b { animation: wire 2.2s var(--in-out) .5s both; }
+@keyframes wire { to { transform: scaleX(1); } }
+.s-loop .st { position: relative; }
+.s-loop .st .n { width: 72px; height: 72px; border-radius: 50%; background: var(--card); color: var(--accent-deep); display: grid; place-items: center;
+  font-family: var(--display); font-weight: 700; font-size: 32px; box-shadow: 0 0 0 1px var(--line), 0 12px 30px -14px rgba(42,63,143,.4); position: relative; }
+.s-loop .st.key .n { background: var(--accent); color: #fff; box-shadow: 0 0 0 8px var(--accent-pale), 0 16px 40px -12px rgba(47,110,247,.6); }
+.s-loop .st h3 { font-family: var(--display); font-weight: 700; font-size: 50px; letter-spacing: -.03em; margin: 40px 0 14px; line-height: 1.02; }
+.s-loop .st p { font-size: 28px; line-height: 1.35; color: var(--muted); margin: 0; max-width: 340px; }
+
+/* =========================================================
+   4 · EN DIRECT (la carte du plan, telle que le support la voit : sert aussi de plan B)
+   ========================================================= */
+.s-live .cols { display: grid; grid-template-columns: 1fr 760px; gap: 120px; align-items: center; height: 100%; }
+.s-live .badge { display: inline-flex; align-items: center; gap: 14px; height: 52px; padding: 0 24px; border-radius: 26px;
+  background: var(--ink); color: #fff; font-weight: 600; font-size: 24px; letter-spacing: .04em; text-transform: uppercase; }
+.s-live .badge i { width: 12px; height: 12px; border-radius: 50%; background: #5B8CFF; animation: live 1.6s var(--ease) infinite; }
+@keyframes live { 0% { box-shadow: 0 0 0 0 rgba(91,140,255,.7); } 100% { box-shadow: 0 0 0 16px rgba(91,140,255,0); } }
+.s-live h2 { margin-top: 40px; }
+.phone { width: 760px; border-radius: 44px; background: var(--card); overflow: hidden;
+  box-shadow: 0 0 0 1px var(--line), 0 60px 120px -40px rgba(42,63,143,.45); }
+.phone .hd { background: linear-gradient(90deg, #1F5FF0, #3D7FFF); color: #fff; padding: 40px 44px 34px; }
+.phone .hd .t { font-family: var(--display); font-weight: 700; font-size: 40px; letter-spacing: -.02em; }
+.phone .hd .s { font-size: 22px; opacity: .9; margin-top: 8px; }
+.phone .bd { padding: 34px 44px 40px; display: flex; flex-direction: column; gap: 18px; }
+.phone .ask { background: var(--accent-pale); border-radius: 20px; padding: 22px 26px; font-size: 26px; line-height: 1.35; }
+.phone .ask b { display: block; font-size: 18px; color: var(--accent-deep); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.phone .lbl { font-size: 18px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-top: 10px; }
+.phone .step { display: flex; gap: 18px; align-items: center; font-size: 26px; padding: 16px 20px; border-radius: 16px; box-shadow: 0 0 0 1px var(--line); }
+.phone .step em { font-style: normal; width: 40px; height: 40px; flex: none; border-radius: 50%; background: var(--accent-pale); color: var(--accent-deep);
+  display: grid; place-items: center; font-weight: 600; font-size: 20px; }
+.phone .acts { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 14px; margin-top: 14px; }
+.phone .acts span { height: 72px; border-radius: 36px; display: grid; place-items: center; font-weight: 600; font-size: 24px; box-shadow: 0 0 0 1px var(--line); }
+.phone .acts .ok { background: linear-gradient(90deg, #1F5FF0, #3D7FFF); color: #fff; box-shadow: 0 14px 30px -12px rgba(47,110,247,.7); }
+.s-live.active .phone .ok { animation: tap 1s var(--ease) 2.4s both; }
+@keyframes tap { 0%, 100% { transform: none; } 40% { transform: scale(.95); } }
+
+/* =========================================================
+   5 · UNE FOIS, PARTOUT
+   ========================================================= */
+.s-fleet .cols { display: grid; grid-template-columns: 1fr 700px; gap: 110px; align-items: end; margin-top: 70px; }
+.s-fleet .lib { display: flex; flex-direction: column; gap: 16px; }
+.s-fleet .lib .it { display: flex; align-items: center; gap: 22px; padding: 24px 30px; border-radius: 22px; background: var(--card);
+  font-size: 30px; box-shadow: 0 0 0 1px var(--line), 0 10px 30px -18px rgba(42,63,143,.35); }
+.s-fleet .lib .it i { width: 14px; height: 14px; border-radius: 4px; background: var(--accent); flex: none; }
+.s-fleet .lib .it span { margin-left: auto; font-size: 22px; color: var(--muted); font-family: var(--mono); }
+.s-fleet .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 14px; }
+.s-fleet .grid i { aspect-ratio: 1.3; border-radius: 10px; background: var(--card); box-shadow: 0 0 0 1px var(--line); }
+.s-fleet.active .grid i { animation: lit .5s var(--ease) both; animation-delay: calc(1200ms + var(--k) * 22ms); }
+@keyframes lit { to { background: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 8px 18px -8px rgba(47,110,247,.7); } }
+.s-fleet .cap { margin-top: 22px; display: flex; justify-content: space-between; }
+
+/* =========================================================
+   6 · SOUS CONTRÔLE
+   ========================================================= */
+.s-trust .rules { margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
+.s-trust .rules div { font-family: var(--display); font-weight: 700; font-size: 128px; letter-spacing: -.045em; line-height: 1.04; }
+.s-trust .rules div:nth-child(2) { color: var(--accent); }
+.s-trust .lead { margin-top: 56px; }
+
+/* =========================================================
+   7 · DÉJÀ INSTALLÉ
+   ========================================================= */
+.s-deploy .cols { display: grid; grid-template-columns: 1fr 820px; gap: 110px; align-items: start; margin-top: 70px; }
+.s-deploy .lead { margin-top: 10px; }
+.code { background: var(--ink); color: #DDE5FF; border-radius: 28px; padding: 46px 52px; font-family: var(--mono); font-size: 27px; line-height: 1.75;
+  box-shadow: 0 50px 100px -40px rgba(20,26,51,.6); white-space: pre; }
+.code .k { color: #8FB0FF; }
+.code .c { color: #6E7697; }
+.code .sep { display: block; height: 22px; }
+
+/* =========================================================
+   8 · FIN
+   ========================================================= */
+.s-end .mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.s-end .logo { height: 220px; color: var(--ink); }
+.s-end .logo svg { height: 220px; width: auto; }
+.s-end .say { font-size: 104px; margin-top: 70px; }
+.s-end .cred { margin-top: 70px; display: flex; gap: 40px; font-size: 28px; color: var(--muted); }
+.s-end .cred b { color: var(--ink); font-weight: 600; }
+
+/* === CHROME HORS SCÈNE === */
+.chrome { position: fixed; right: 18px; bottom: 14px; z-index: 50; font: 500 12px/1 var(--mono); color: rgba(255,255,255,.45); letter-spacing: .04em; user-select: none; }
+.hit { position: fixed; top: 0; bottom: 0; width: 33%; z-index: 40; cursor: default; }
+.hit.l { left: 0; } .hit.rr { right: 0; width: 67%; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .slide .r, .s-hook .say .ch { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .s-loop .wire b { transform: none; animation: none !important; }
+  .s-fleet .grid i { background: var(--accent); animation: none !important; }
+  .track b, .ticket .state { transition: none; animation: none !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+
+<div class="deck-viewport">
+<div class="deck-stage" id="stage">
+  <div class="desk"></div>
+  <div class="ticket" aria-hidden="true"><span class="id">Demande #0412</span><span class="state" id="state"><i></i><span id="stateTxt">Nouvelle</span></span></div>
+  <div class="track" aria-hidden="true"><b id="track"></b></div>
+  <div class="brand" aria-label="PapAI"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="5 15 235 101">
+<g fill="currentColor">
+<path d="M32.064 96.96C28.928 96.96 26.048 96.352 23.424 95.136C20.8 93.92 18.656 92.256 16.992 90.144C15.328 87.968 14.368 85.504 14.112 82.752V63.072C14.368 60.32 15.328 57.824 16.992 55.584C18.656 53.344 20.8 51.584 23.424 50.304C26.048 49.024 28.928 48.384 32.064 48.384C36.48 48.384 40.384 49.44 43.776 51.552C47.232 53.664 49.92 56.544 51.84 60.192C53.824 63.84 54.816 68 54.816 72.672C54.816 77.344 53.824 81.504 51.84 85.152C49.92 88.8 47.232 91.68 43.776 93.792C40.384 95.904 36.48 96.96 32.064 96.96ZM5.18402 115.68V49.344H19.872V61.344L17.472 72.672L19.68 84V115.68H5.18402ZM29.376 83.712C31.488 83.712 33.312 83.232 34.848 82.272C36.448 81.312 37.696 80 38.592 78.336C39.488 76.672 39.936 74.784 39.936 72.672C39.936 70.496 39.488 68.576 38.592 66.912C37.696 65.248 36.448 63.968 34.848 63.072C33.312 62.112 31.52 61.632 29.472 61.632C27.424 61.632 25.6 62.112 24 63.072C22.464 63.968 21.248 65.248 20.352 66.912C19.456 68.576 19.008 70.496 19.008 72.672C19.008 74.784 19.424 76.672 20.256 78.336C21.152 80 22.4 81.312 24 82.272C25.6 83.232 27.392 83.712 29.376 83.712Z"/>
+<path d="M78.8858 96.96C74.5978 96.96 70.7578 95.904 67.3658 93.792C64.0378 91.68 61.3818 88.8 59.3978 85.152C57.4778 81.504 56.5178 77.344 56.5178 72.672C56.5178 68 57.4778 63.84 59.3978 60.192C61.3818 56.544 64.0378 53.664 67.3658 51.552C70.7578 49.44 74.5978 48.384 78.8858 48.384C82.0218 48.384 84.8378 48.992 87.3338 50.208C89.8938 51.424 91.9738 53.12 93.5738 55.296C95.1738 57.408 96.0698 59.84 96.2618 62.592V82.752C96.0698 85.504 95.1738 87.968 93.5738 90.144C92.0378 92.256 89.9898 93.92 87.4298 95.136C84.8698 96.352 82.0218 96.96 78.8858 96.96ZM81.8618 83.712C84.9978 83.712 87.5258 82.688 89.4458 80.64C91.3658 78.528 92.3258 75.872 92.3258 72.672C92.3258 70.496 91.8778 68.576 90.9818 66.912C90.1498 65.248 88.9338 63.968 87.3338 63.072C85.7978 62.112 84.0058 61.632 81.9578 61.632C79.9098 61.632 78.0858 62.112 76.4858 63.072C74.9498 63.968 73.7018 65.248 72.7418 66.912C71.8458 68.576 71.3978 70.496 71.3978 72.672C71.3978 74.784 71.8458 76.672 72.7418 78.336C73.6378 80 74.8858 81.312 76.4858 82.272C78.0858 83.232 79.8778 83.712 81.8618 83.712ZM91.7498 96V83.424L93.9578 72.096L91.7498 60.768V49.344H106.15V96H91.7498Z"/>
+<path d="M140.492 96.96C137.356 96.96 134.476 96.352 131.852 95.136C129.228 93.92 127.084 92.256 125.42 90.144C123.756 87.968 122.796 85.504 122.54 82.752V63.072C122.796 60.32 123.756 57.824 125.42 55.584C127.084 53.344 129.228 51.584 131.852 50.304C134.476 49.024 137.356 48.384 140.492 48.384C144.908 48.384 148.812 49.44 152.204 51.552C155.66 53.664 158.348 56.544 160.268 60.192C162.252 63.84 163.244 68 163.244 72.672C163.244 77.344 162.252 81.504 160.268 85.152C158.348 88.8 155.66 91.68 152.204 93.792C148.812 95.904 144.908 96.96 140.492 96.96ZM113.612 115.68V49.344H128.3V61.344L125.9 72.672L128.108 84V115.68H113.612ZM137.804 83.712C139.916 83.712 141.74 83.232 143.276 82.272C144.876 81.312 146.124 80 147.02 78.336C147.916 76.672 148.364 74.784 148.364 72.672C148.364 70.496 147.916 68.576 147.02 66.912C146.124 65.248 144.876 63.968 143.276 63.072C141.74 62.112 139.948 61.632 137.9 61.632C135.852 61.632 134.028 62.112 132.428 63.072C130.892 63.968 129.676 65.248 128.78 66.912C127.884 68.576 127.436 70.496 127.436 72.672C127.436 74.784 127.852 76.672 128.684 78.336C129.58 80 130.828 81.312 132.428 82.272C134.028 83.232 135.82 83.712 137.804 83.712Z"/>
+<path d="M187.313 96.96C183.025 96.96 179.185 95.904 175.793 93.792C172.465 91.68 169.809 88.8 167.825 85.152C165.905 81.504 164.945 77.344 164.945 72.672C164.945 68 165.905 63.84 167.825 60.192C169.809 56.544 172.465 53.664 175.793 51.552C179.185 49.44 183.025 48.384 187.313 48.384C190.449 48.384 193.265 48.992 195.761 50.208C198.321 51.424 200.401 53.12 202.001 55.296C203.601 57.408 204.497 59.84 204.689 62.592V82.752C204.497 85.504 203.601 87.968 202.001 90.144C200.465 92.256 198.417 93.92 195.857 95.136C193.297 96.352 190.449 96.96 187.313 96.96ZM190.289 83.712C193.425 83.712 195.953 82.688 197.873 80.64C199.793 78.528 200.753 75.872 200.753 72.672C200.753 70.496 200.305 68.576 199.409 66.912C198.577 65.248 197.361 63.968 195.761 63.072C194.225 62.112 192.433 61.632 190.385 61.632C188.337 61.632 186.513 62.112 184.913 63.072C183.377 63.968 182.129 65.248 181.169 66.912C180.273 68.576 179.825 70.496 179.825 72.672C179.825 74.784 180.273 76.672 181.169 78.336C182.065 80 183.313 81.312 184.913 82.272C186.513 83.232 188.305 83.712 190.289 83.712ZM200.177 96V83.424L202.385 72.096L200.177 60.768V49.344H214.577V96H200.177Z"/>
+<path d="M222.039 96V49.344H236.727V96H222.039Z"/>
+</g>
+<g fill="#F58A3A">
+<path d="M230.789 18.3313C235.343 18.3313 238.459 23.3646 239.058 30.0756C239.777 37.9851 235.822 43.4977 230.789 43.4977C225.756 43.4977 221.801 37.9851 222.52 30.0756C223.119 23.3646 226.235 18.3313 230.789 18.3313Z"/>
+<path d="M230.07 19.0503C229.95 17.3725 230.43 16.1741 231.508 15.4551L232.467 16.294C231.748 16.8932 231.508 17.8519 231.748 19.0503H230.07Z"/>
+</g>
+</svg>
+</div>
+
+  <!-- 1 · La demande -->
+  <section class="slide s-hook" data-state="Nouvelle" aria-label="La demande">
+    <div class="pad">
+      <div class="who r" style="--d:100"><span class="av">C</span>Christine · Comptabilité · 9 h 12</div>
+      <div class="say" data-type>« Je ne retrouve plus le dossier des factures. »<span class="caret"></span></div>
+    </div>
+  </section>
+
+  <!-- 2 · Le coût -->
+  <section class="slide s-cost" data-state="En attente" aria-label="Le coût">
+    <div class="pad">
+      <div class="num hero r" style="--d:0"><span data-count="22">22</span><small>$</small></div>
+      <div class="what r" style="--d:250">par demande de niveau 1.</div>
+      <p class="lead r" style="--d:450">Et le plus souvent, le support connaît déjà la réponse.</p>
+      <div class="small src r" style="--d:700">Coût moyen d'un ticket de niveau 1, MetricNet</div>
+    </div>
+  </section>
+
+  <!-- 3 · La boucle -->
+  <section class="slide s-loop" data-state="Plan proposé" aria-label="Comment ça marche">
+    <div class="pad">
+      <h2 class="r">Rien ne bouge sans <span class="blue">le support.</span></h2>
+      <div class="steps hero">
+        <div class="wire"><b></b></div>
+        <div class="st r" style="--d:350"><div class="n">1</div><h3>Christine demande</h3><p>À la voix, avec ses mots.</p></div>
+        <div class="st r" style="--d:650"><div class="n">2</div><h3>Holo propose</h3><p>Il regarde l'écran et écrit un plan.</p></div>
+        <div class="st key r" style="--d:950"><div class="n">3</div><h3>Le support valide</h3><p>Depuis son téléphone, d’un geste.</p></div>
+        <div class="st r" style="--d:1250"><div class="n">4</div><h3>Holo exécute</h3><p>Sous les yeux de Christine.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · En direct -->
+  <section class="slide s-live" data-state="À valider" aria-label="Démo en direct">
+    <div class="pad">
+      <div class="cols">
+        <div>
+          <div class="badge r"><i></i>En direct</div>
+          <h2 class="r" style="--d:150">Sur le Mac de Christine.</h2>
+        </div>
+        <div class="phone hero r" style="--d:300">
+          <div class="hd"><div class="t">Christine demande de l'aide</div><div class="s">Acme · Mac · il y a 8 s</div></div>
+          <div class="bd">
+            <div class="ask"><b>Sa demande</b>Je ne retrouve plus le dossier des factures.</div>
+            <div class="lbl">Plan de Holo</div>
+            <div class="step"><em>1</em>Ouvrir le Finder</div>
+            <div class="step"><em>2</em>Aller dans Documents</div>
+            <div class="step"><em>3</em>Ouvrir « Factures 2026 »</div>
+            <div class="acts"><span class="ok">Valider</span><span>Préciser</span><span>Refuser</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 · Une fois, partout -->
+  <section class="slide s-fleet" data-state="Automate" aria-label="Les automates">
+    <div class="pad">
+      <h2 class="r">Réglé une fois.<br><span class="blue">Rejoué partout.</span></h2>
+      <div class="cols">
+        <div class="lib">
+          <div class="it r" style="--d:300"><i></i>Se connecter au Wi-Fi<span>Mac · Windows</span></div>
+          <div class="it r" style="--d:420"><i></i>Installer les modèles Word d'Acme<span>Mac · Windows</span></div>
+          <div class="it r" style="--d:540"><i></i>Ajouter l'imprimante de l'accueil<span>Windows</span></div>
+          <div class="it r" style="--d:660"><i></i>Lancer un scan antivirus<span>Windows</span></div>
+        </div>
+        <div class="hero r" style="--d:500">
+          <div class="grid" id="fleet"></div>
+          <div class="cap small"><span>60 postes d'Acme</span><span>un clic</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · Sous contrôle -->
+  <section class="slide s-trust" data-state="En cours" aria-label="Sous contrôle">
+    <div class="pad">
+      <div class="rules hero">
+        <div class="r" style="--d:0">Rien sans plan validé.</div>
+        <div class="r" style="--d:350">Arrêter, à tout moment.</div>
+        <div class="r" style="--d:700">Jamais une fenêtre de sécurité.</div>
+      </div>
+      <p class="lead r" style="--d:1100">Et un gardien repère les arnaques à la prise en main.</p>
+    </div>
+  </section>
+
+  <!-- 7 · Déjà installé -->
+  <section class="slide s-deploy" data-state="C'est fait" aria-label="Déploiement">
+    <div class="pad">
+      <h2 class="r">Rien à installer<br><span class="blue">pour l'employé.</span></h2>
+      <div class="cols">
+        <p class="lead r" style="--d:300">L'IT déploie PapAI avec ses outils habituels. Christine l'ouvre : son nom est là, son support aussi.</p>
+        <div class="code hero r" style="--d:450"><span class="c"># Windows · stratégie de groupe</span>
+<span class="k">HKLM\SOFTWARE\Policies\PapAI</span>
+  OrgToken   ins-••••••••
+  Server     papai.acme.fr
+<span class="sep"></span><span class="c"># Mac · profil géré (MDM)</span>
+<span class="k">PapAI · préférences gérées</span>
+  orgToken   ins-••••••••</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · Fin -->
+  <section class="slide s-end" data-state="Résolue" aria-label="PapAI">
+    <div class="mid">
+      <div class="logo hero r"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="5 15 235 101">
+<g fill="currentColor">
+<path d="M32.064 96.96C28.928 96.96 26.048 96.352 23.424 95.136C20.8 93.92 18.656 92.256 16.992 90.144C15.328 87.968 14.368 85.504 14.112 82.752V63.072C14.368 60.32 15.328 57.824 16.992 55.584C18.656 53.344 20.8 51.584 23.424 50.304C26.048 49.024 28.928 48.384 32.064 48.384C36.48 48.384 40.384 49.44 43.776 51.552C47.232 53.664 49.92 56.544 51.84 60.192C53.824 63.84 54.816 68 54.816 72.672C54.816 77.344 53.824 81.504 51.84 85.152C49.92 88.8 47.232 91.68 43.776 93.792C40.384 95.904 36.48 96.96 32.064 96.96ZM5.18402 115.68V49.344H19.872V61.344L17.472 72.672L19.68 84V115.68H5.18402ZM29.376 83.712C31.488 83.712 33.312 83.232 34.848 82.272C36.448 81.312 37.696 80 38.592 78.336C39.488 76.672 39.936 74.784 39.936 72.672C39.936 70.496 39.488 68.576 38.592 66.912C37.696 65.248 36.448 63.968 34.848 63.072C33.312 62.112 31.52 61.632 29.472 61.632C27.424 61.632 25.6 62.112 24 63.072C22.464 63.968 21.248 65.248 20.352 66.912C19.456 68.576 19.008 70.496 19.008 72.672C19.008 74.784 19.424 76.672 20.256 78.336C21.152 80 22.4 81.312 24 82.272C25.6 83.232 27.392 83.712 29.376 83.712Z"/>
+<path d="M78.8858 96.96C74.5978 96.96 70.7578 95.904 67.3658 93.792C64.0378 91.68 61.3818 88.8 59.3978 85.152C57.4778 81.504 56.5178 77.344 56.5178 72.672C56.5178 68 57.4778 63.84 59.3978 60.192C61.3818 56.544 64.0378 53.664 67.3658 51.552C70.7578 49.44 74.5978 48.384 78.8858 48.384C82.0218 48.384 84.8378 48.992 87.3338 50.208C89.8938 51.424 91.9738 53.12 93.5738 55.296C95.1738 57.408 96.0698 59.84 96.2618 62.592V82.752C96.0698 85.504 95.1738 87.968 93.5738 90.144C92.0378 92.256 89.9898 93.92 87.4298 95.136C84.8698 96.352 82.0218 96.96 78.8858 96.96ZM81.8618 83.712C84.9978 83.712 87.5258 82.688 89.4458 80.64C91.3658 78.528 92.3258 75.872 92.3258 72.672C92.3258 70.496 91.8778 68.576 90.9818 66.912C90.1498 65.248 88.9338 63.968 87.3338 63.072C85.7978 62.112 84.0058 61.632 81.9578 61.632C79.9098 61.632 78.0858 62.112 76.4858 63.072C74.9498 63.968 73.7018 65.248 72.7418 66.912C71.8458 68.576 71.3978 70.496 71.3978 72.672C71.3978 74.784 71.8458 76.672 72.7418 78.336C73.6378 80 74.8858 81.312 76.4858 82.272C78.0858 83.232 79.8778 83.712 81.8618 83.712ZM91.7498 96V83.424L93.9578 72.096L91.7498 60.768V49.344H106.15V96H91.7498Z"/>
+<path d="M140.492 96.96C137.356 96.96 134.476 96.352 131.852 95.136C129.228 93.92 127.084 92.256 125.42 90.144C123.756 87.968 122.796 85.504 122.54 82.752V63.072C122.796 60.32 123.756 57.824 125.42 55.584C127.084 53.344 129.228 51.584 131.852 50.304C134.476 49.024 137.356 48.384 140.492 48.384C144.908 48.384 148.812 49.44 152.204 51.552C155.66 53.664 158.348 56.544 160.268 60.192C162.252 63.84 163.244 68 163.244 72.672C163.244 77.344 162.252 81.504 160.268 85.152C158.348 88.8 155.66 91.68 152.204 93.792C148.812 95.904 144.908 96.96 140.492 96.96ZM113.612 115.68V49.344H128.3V61.344L125.9 72.672L128.108 84V115.68H113.612ZM137.804 83.712C139.916 83.712 141.74 83.232 143.276 82.272C144.876 81.312 146.124 80 147.02 78.336C147.916 76.672 148.364 74.784 148.364 72.672C148.364 70.496 147.916 68.576 147.02 66.912C146.124 65.248 144.876 63.968 143.276 63.072C141.74 62.112 139.948 61.632 137.9 61.632C135.852 61.632 134.028 62.112 132.428 63.072C130.892 63.968 129.676 65.248 128.78 66.912C127.884 68.576 127.436 70.496 127.436 72.672C127.436 74.784 127.852 76.672 128.684 78.336C129.58 80 130.828 81.312 132.428 82.272C134.028 83.232 135.82 83.712 137.804 83.712Z"/>
+<path d="M187.313 96.96C183.025 96.96 179.185 95.904 175.793 93.792C172.465 91.68 169.809 88.8 167.825 85.152C165.905 81.504 164.945 77.344 164.945 72.672C164.945 68 165.905 63.84 167.825 60.192C169.809 56.544 172.465 53.664 175.793 51.552C179.185 49.44 183.025 48.384 187.313 48.384C190.449 48.384 193.265 48.992 195.761 50.208C198.321 51.424 200.401 53.12 202.001 55.296C203.601 57.408 204.497 59.84 204.689 62.592V82.752C204.497 85.504 203.601 87.968 202.001 90.144C200.465 92.256 198.417 93.92 195.857 95.136C193.297 96.352 190.449 96.96 187.313 96.96ZM190.289 83.712C193.425 83.712 195.953 82.688 197.873 80.64C199.793 78.528 200.753 75.872 200.753 72.672C200.753 70.496 200.305 68.576 199.409 66.912C198.577 65.248 197.361 63.968 195.761 63.072C194.225 62.112 192.433 61.632 190.385 61.632C188.337 61.632 186.513 62.112 184.913 63.072C183.377 63.968 182.129 65.248 181.169 66.912C180.273 68.576 179.825 70.496 179.825 72.672C179.825 74.784 180.273 76.672 181.169 78.336C182.065 80 183.313 81.312 184.913 82.272C186.513 83.232 188.305 83.712 190.289 83.712ZM200.177 96V83.424L202.385 72.096L200.177 60.768V49.344H214.577V96H200.177Z"/>
+<path d="M222.039 96V49.344H236.727V96H222.039Z"/>
+</g>
+<g fill="#F58A3A">
+<path d="M230.789 18.3313C235.343 18.3313 238.459 23.3646 239.058 30.0756C239.777 37.9851 235.822 43.4977 230.789 43.4977C225.756 43.4977 221.801 37.9851 222.52 30.0756C223.119 23.3646 226.235 18.3313 230.789 18.3313Z"/>
+<path d="M230.07 19.0503C229.95 17.3725 230.43 16.1741 231.508 15.4551L232.467 16.294C231.748 16.8932 231.508 17.8519 231.748 19.0503H230.07Z"/>
+</g>
+</svg>
+</div>
+      <div class="say r" style="--d:250">Le support valide. <span class="blue">Holo exécute.</span></div>
+      <div class="cred r" style="--d:550"><span><b>Holo</b> · H Company</span><span><b>Gladia</b> · la voix</span><span><b>Devin</b> · l'équipe</span></div>
+    </div>
+  </section>
+</div>
+</div>
+<div class="hit l" id="hitL" aria-hidden="true"></div><div class="hit rr" id="hitR" aria-hidden="true"></div>
+<div class="chrome" id="count">1 / 8</div>
+
+<script>
+(() => {
+  const stage = document.getElementById('stage');
+  const slides = [...document.querySelectorAll('.slide')];
+  const state = document.getElementById('state'), stateTxt = document.getElementById('stateTxt'), track = document.getElementById('track'), count = document.getElementById('count');
+  const still = matchMedia('(prefers-reduced-motion: reduce)');
+  let i = -1, timers = [];
+
+  // la scène 1920×1080 tient dans la fenêtre, sans jamais se réorganiser
+  function fit() {
+    const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+    stage.style.transform = `translate(${(innerWidth - 1920 * s) / 2}px, ${(innerHeight - 1080 * s) / 2}px) scale(${s})`;
+  }
+  addEventListener('resize', fit); fit();
+
+  // texte tapé : une lettre par span, le CSS fait le rythme
+  document.querySelectorAll('[data-type]').forEach(el => {
+    const caret = el.querySelector('.caret'); if (caret) caret.remove();
+    const t = el.textContent; el.textContent = '';
+    [...t].forEach((c, k) => { const s = document.createElement('span'); s.className = 'ch'; s.style.setProperty('--i', k); s.textContent = c; el.appendChild(s); });
+    if (caret) el.appendChild(caret);
+    el.setAttribute('aria-label', t);
+  });
+
+  // le parc : 60 postes qui s'allument l'un après l'autre
+  const fleet = document.getElementById('fleet');
+  for (let k = 0; k < 60; k++) { const c = document.createElement('i'); c.style.setProperty('--k', k); fleet.appendChild(c); }
+
+  // les chiffres montent une fois posés
+  function countUp(sl) {
+    sl.querySelectorAll('[data-count]').forEach(el => {
+      const to = +el.dataset.count; if (still.matches) { el.textContent = to; return; }
+      el.textContent = '0'; const t0 = performance.now() + 300, dur = 1100;
+      const tick = now => { const p = Math.max(0, Math.min(1, (now - t0) / dur)); el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))); if (p < 1) timers.push(requestAnimationFrame(tick)); };
+      timers.push(requestAnimationFrame(tick));
+    });
+  }
+
+  function render(n) {
+    timers.forEach(cancelAnimationFrame); timers = [];
+    slides.forEach(s => s.classList.remove('active'));
+    const sl = slides[n]; sl.classList.add('active');
+    // le ticket avance d'état
+    const st = sl.dataset.state;
+    if (stateTxt.textContent !== st) { stateTxt.textContent = st; state.classList.remove('pop'); void state.offsetWidth; state.classList.add('pop'); }
+    state.classList.toggle('done', n === slides.length - 1);
+    track.style.transform = `scaleX(${n / (slides.length - 1)})`;
+    countUp(sl);
+    count.textContent = (n + 1) + ' / ' + slides.length;
+    try { history.replaceState(null, '', '#' + (n + 1)); } catch (e) {}
+  }
+  function go(n) {
+    n = Math.max(0, Math.min(slides.length - 1, n));
+    if (n === i) return;
+    const first = i < 0; i = n;
+    if (!first && !still.matches && document.startViewTransition && !document.hidden) {
+      const v = document.startViewTransition(() => render(n));
+      v.ready.catch(() => {}); v.finished.catch(() => {});
+    } else render(n);
+  }
+
+  addEventListener('keydown', e => {
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); go(i + 1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); go(i - 1); }
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(slides.length - 1);
+    else if (e.key === 'f' || e.key === 'F') { const d = document.documentElement; (document.fullscreenElement ? document.exitFullscreen() : d.requestFullscreen?.())?.catch?.(() => {}); }
+    else if (/^[1-8]$/.test(e.key)) go(+e.key - 1);
+  });
+  document.getElementById('hitL').addEventListener('click', () => go(i - 1));
+  document.getElementById('hitR').addEventListener('click', () => go(i + 1));
+  let tx = null;
+  addEventListener('touchstart', e => { tx = e.touches[0].clientX; }, { passive: true });
+  addEventListener('touchend', e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 40) go(i + (dx < 0 ? 1 : -1)); tx = null; });
+
+  const h = parseInt(location.hash.slice(1), 10);
+  go(Number.isFinite(h) ? h - 1 : 0);
+})();
+</script>
+
+</body>
+</html>
