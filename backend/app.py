@@ -764,7 +764,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     S().tickets.note(again, S().family.senior or "L’utilisateur", "Le problème est revenu.")
                     S().tickets.update(again, status="nouveau", closed_by="", end="", solution="")
                     ticket, reopened = again, True
-                if ticket is None and not by and not msg.get("new"):
+                if ticket is None and not by and not msg.get("new") and "tidy" not in msg:
                     same = S().tickets.same(task)
                     if same is not None:
                         await _same_ticket(ws, same)

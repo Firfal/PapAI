@@ -628,7 +628,7 @@ Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus 
   le serveur mémorise `suggestion_lancee`, ajoute la note « Automate proposé lancé : <titre> » et garde
   le statut du ticket.
 - **Pas de ticket en double.** Avant d'ouvrir un ticket pour une demande de l'utilisateur (ni
-  `ticket`, ni `requested_by`, ni `new`), le serveur cherche un ticket de l'espace qui porte déjà
+  `ticket`, ni `requested_by`, ni `new`, ni `tidy`), le serveur cherche un ticket de l'espace qui porte déjà
   cette demande (mêmes mots, sans accents ni mots vides, radical de 5 lettres ; tickets
   d'automates exclus) : ouvert d'abord, sinon réglé depuis moins de 90 jours. Pas de session.
   - Ouvert → `{"type":"ticket_exists","ticket","number","task","status","rdv"}` ; le ticket reçoit
