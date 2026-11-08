@@ -84,8 +84,8 @@ struct SettingsView: View {
                         }
                         .toggleStyle(.switch).tint(T.accent)
                         Text(model.realtimeProtection
-                             ? "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe."
-                             : "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées.")
+                             ? "PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe."
+                             : "Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées.")
                             .font(rounded(14)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                     }
                     VStack(alignment: .leading, spacing: 10) {
