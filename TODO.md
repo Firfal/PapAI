@@ -64,10 +64,8 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 - [ ] Charger les 7 exemples d'automates dans un nouvel espace (aujourd'hui il faut les importer à la main). Touche `backend/space.py`, réservé par Devin (multi-espaces).
 - [x] Réglages Mac : sans taille du texte, sans changement de rôle, sans lien de parenté (`claude/reglages-connexion`).
 - [x] Accueil support Mac : onglets Tickets (tous les utilisateurs), Utilisateurs, Mes automates (`claude/support-tickets`). Reste : même organisation sur l'iPhone et Android.
-- [ ] Réactiver la création d'automate côté support quand ce sera décidé (`SupportAutomates.creationActive`).
+- [x] Plus de création d'automate « à partir de rien » côté support (décision de Corentin, 8 nov.) : enregistrement d'écran avec voix, import de document, création à la main et `POST /automations/draft` retirés. Un automate naît d'un ticket réglé, proposé quand une demande revient (chantier catégories des tickets).
 - [x] Mode support Mac : « Mes automates » (bibliothèque du support, appliquer à des personnes), création à la main, depuis un document ou un enregistrement d'écran avec voix (`claude/support-automates`).
-  - [ ] Essayer l'enregistrement d'écran en vrai (autorisation d'enregistrement et micro sur le poste du support).
-  - [ ] Joindre les captures clés au pas à pas « Montrez-moi » de l'automate créé.
   - [ ] Porter « Mes automates » sur l'iPhone et Android.
 - [x] Plus de surveillance continue : les apps Mac et Windows n'envoient plus les signaux du gardien toutes les 8 s.
 - [x] Protection en temps réel (8 nov., décision de Corentin) : le gardien reprend ses trois signaux textuels toutes les 8 s hors assistance, derrière l'interrupteur « Protection en temps réel » des Réglages Mac et Windows, activé par défaut et gardé ; coupé, rien ne part. L'état s'affiche sur la page du support. Profil Chrome PapAI effacé après chaque assistance, Holo demande à la personne de se connecter elle-même. Reste : Swift non compilé, pas essayé sur un vrai Mac ni un vrai Windows ; Android et iPhone n'affichent pas encore l'état.

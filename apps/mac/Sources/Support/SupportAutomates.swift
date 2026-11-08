@@ -1,4 +1,3 @@
-import PDFKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -97,12 +96,8 @@ final class AutomateLibrary {
 
 /// Onglet « Mes automates » du mode support.
 struct SupportAutomates: View {
-    /// Création d'automate (à la main, document, enregistrement) masquée pour l'instant.
-    /// Le code reste en place : repasser à `true` pour la réactiver.
-    static let creationActive = false
     let model: HelperModel
     @State private var lib = AutomateLibrary.shared
-    @State private var creating = false
     @State private var importing = false
     @State private var applying: AutomateLibrary.Entry?
     @State private var toDelete: AutomateLibrary.Entry?
@@ -117,10 +112,6 @@ struct SupportAutomates: View {
                         .font(rounded(17, .medium)).opacity(0.92)
                 }
                 Spacer(minLength: 0)
-                if Self.creationActive {
-                    Button { creating = true } label: { Label("Créer un automate", systemImage: "plus.circle.fill") }
-                        .buttonStyle(PillStyle(filled: false, height: 50))
-                }
             }
         } corps: {
             ScrollView(showsIndicators: false) {
@@ -137,22 +128,12 @@ struct SupportAutomates: View {
                             .foregroundStyle(T.danger)
                     }
                     if lib.entries.isEmpty {
-                        Text(Self.creationActive ? "Aucun automate. Créez-en un à partir d’un document, d’un enregistrement de votre écran, ou à la main."
-                                                 : "Aucun automate. Importez un fichier .papai.")
+                        Text("Aucun automate. Importez un fichier .papai.")
                             .font(rounded(16)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                     }
                     ForEach(lib.entries) { e in row(e) }
                 }
                 .padding(.bottom, 8)
-            }
-        }
-        .sheet(isPresented: $creating) {
-            SupportCreateAutomate(model: model) { pack in
-                creating = false
-                if let pack, let d = try? JSONSerialization.data(withJSONObject: pack), let e = lib.add(pack: d) {
-                    model.showToast("« \(e.title) » ajouté à vos automates")
-                    applying = e
-                }
             }
         }
         .sheet(item: $applying) { e in
@@ -313,12 +294,6 @@ struct SupportCreateAutomate: View {
     @State private var windows = true
     @State private var sending = false
     @State private var error: String?
-    @State private var importing = false
-    @State private var drafting = false
-    @State private var draftNote: String?
-    @State private var warning: String?
-    @State private var recorder = SupportRecorder()
-    @State private var reviewing = false
 
     private static let kinds: [(String, Kind)] = [("Holo s’en charge", .holo), ("Ouvrir un dossier", .folder),
                                                   ("Page des Réglages", .settings), ("Ouvrir un site", .url)]
@@ -335,7 +310,6 @@ struct SupportCreateAutomate: View {
                 .frame(maxWidth: .infinity, alignment: .leading).background(T.header)
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    sources
                     field("Titre (un verbe, par exemple « Retrouver mes photos »)", $title, "Se connecter au Wi-Fi")
                     field("Description (facultatif)", $detail, "Ce que fait l’automate, en une phrase")
                     VStack(alignment: .leading, spacing: 8) {
@@ -385,108 +359,10 @@ struct SupportCreateAutomate: View {
         }
         .foregroundStyle(T.ink)
         .frame(width: 640, height: 700).background(T.bg)
-        .fileImporter(isPresented: $importing,
-                      allowedContentTypes: [.plainText, .pdf, UTType(filenameExtension: "md") ?? .plainText]) { r in
-            if case .success(let url) = r { Task { await importDocument(url) } }
-        }
         .onAppear {
-            recorder.onStop = { reviewing = true }
             if let p = prefill, title.isEmpty {
                 title = p["title"] ?? ""; detail = p["description"] ?? ""; goal = p["goal"] ?? ""; kind = .holo
             }
-        }
-    }
-
-    // MARK: Sources (document, enregistrement)
-
-    private var sources: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            label("Partir d’une source (Holo prépare un brouillon, vous le relisez)")
-            HStack(spacing: 10) {
-                Button { importing = true } label: { Label("Importer un document", systemImage: "doc.text") }
-                    .buttonStyle(PillStyle(filled: false, height: 46))
-                Button { recorder.start() } label: { Label("Enregistrer mon écran", systemImage: "record.circle") }
-                    .buttonStyle(PillStyle(filled: false, height: 46))
-                Toggle("avec ma voix", isOn: $recorder.withVoice).toggleStyle(.checkbox).font(rounded(15))
-            }
-            Text("Document : .txt, .md ou .pdf. Enregistrement : faites la manipulation sur votre poste en la commentant ; seules quelques captures clés sont gardées.")
-                .font(rounded(13)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-            if drafting {
-                HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Holo prépare le brouillon…").font(rounded(15)) }
-            }
-            if let draftNote {
-                Label(draftNote, systemImage: "sparkles").font(rounded(14, .semibold)).foregroundStyle(T.leaf)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if let warning {
-                Label(warning, systemImage: "exclamationmark.triangle").font(rounded(14, .semibold))
-                    .foregroundStyle(T.danger).fixedSize(horizontal: false, vertical: true)
-            }
-            if let e = recorder.error {
-                Text(e).font(rounded(13)).foregroundStyle(T.danger).fixedSize(horizontal: false, vertical: true)
-            }
-            if reviewing && !recorder.shots.isEmpty {
-                RecorderReview(rec: recorder, analyze: { reviewing = false; Task { await analyzeRecording() } },
-                               cancel: { reviewing = false; recorder.shots = [] })
-            }
-        }
-        .padding(14).background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.mint))
-    }
-
-    private func importDocument(_ url: URL) async {
-        let access = url.startAccessingSecurityScopedResource()
-        defer { if access { url.stopAccessingSecurityScopedResource() } }
-        var text = ""
-        if url.pathExtension.lowercased() == "pdf" {
-            text = PDFDocument(url: url)?.string ?? ""   // le PDF est lu ici, seul le texte part
-        } else {
-            text = (try? String(contentsOf: url, encoding: .utf8)) ?? (try? String(contentsOf: url, encoding: .isoLatin1)) ?? ""
-        }
-        guard text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 20 else {
-            error = "Ce document ne contient pas de texte lisible (un PDF scanné, par exemple)."
-            return
-        }
-        await requestDraft(["kind": "document", "name": url.lastPathComponent, "text": String(text.prefix(20_000))],
-                           note: "Brouillon tiré de « \(url.lastPathComponent) »")
-    }
-
-    private func analyzeRecording() async {
-        let frames = recorder.selected().compactMap { SupportRecorder.jpegB64($0) }.map { ["b64": $0, "mime": "image/jpeg"] }
-        guard !frames.isEmpty else { return }
-        await requestDraft(["kind": "recording", "frames": frames,
-                            "narration": recorder.narration.trimmingCharacters(in: .whitespacesAndNewlines)],
-                           note: "Brouillon tiré de votre enregistrement (\(frames.count) captures)")
-        recorder.shots = []
-    }
-
-    private func requestDraft(_ body: [String: Any], note: String) async {
-        guard let url = URL(string: model.baseHTTP + "/automations/draft"),
-              let data = try? JSONSerialization.data(withJSONObject: body) else { return }
-        var req = URLRequest(url: url, timeoutInterval: 90)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = data
-        drafting = true; error = nil; draftNote = nil; warning = nil
-        defer { drafting = false }
-        do {
-            let (d, r) = try await URLSession.shared.data(for: req)
-            let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
-            guard (r as? HTTPURLResponse)?.statusCode == 200 else {
-                error = obj["error"] as? String ?? "Holo n’a pas pu préparer de brouillon."
-                return
-            }
-            title = obj["title"] as? String ?? title
-            detail = obj["description"] as? String ?? detail
-            kind = .holo
-            goal = obj["goal"] as? String ?? goal
-            stepsText = (obj["steps"] as? [String] ?? []).joined(separator: "\n")
-            let p = obj["platforms"] as? [String] ?? ["mac", "windows"]
-            mac = p.contains("mac"); windows = p.contains("windows")
-            let w = (obj["warning"] as? String ?? "").trimmingCharacters(in: .whitespaces)
-            warning = w.isEmpty ? nil : w
-            draftNote = note + ". Relisez et corrigez avant de créer."
-        } catch {
-            self.error = "Impossible de joindre le serveur."
         }
     }
 
