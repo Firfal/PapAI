@@ -93,10 +93,35 @@ jamais le serveur. Erreurs : 404 mauvaise clé, 503 `{"error":"gladia_absent"}`
 
 ## Gardien anti-arnaque
 
-Les apps n'envoient plus de signaux en continu : PapAI n'est plus un outil de
-surveillance, il exécute des automates fournis par un support. Le serveur
-sait toujours traiter un message `guard` (`backend/guard.py`) si une app en
-envoie un ponctuellement, et répond alors par :
+### Protection en temps réel
+
+Comme la protection en temps réel d'un antivirus, elle s'active ou se coupe
+dans les Réglages de l'ordinateur (Mac et Windows) ; elle est **activée par
+défaut** et l'état est gardé (`realtimeProtection`). Activée, l'app envoie
+toutes les 8 secondes **trois signaux textuels**, et rien d'autre. Jamais de
+capture, jamais d'appel au modèle à ce stade :
+
+```json
+{"type":"guard",
+ "processes":["Safari","AnyDesk"],
+ "window":"Votre ordinateur est infecté",
+ "url":"https://mabanque.exemple.fr"}
+```
+
+`url` ne garde que le site (schéma et hôte, sans chemin ni paramètres) ; le Mac
+ne le lit pas pendant une assistance, Windows l'envoie vide. **Coupée, rien ne
+part** ; le serveur ignore d'ailleurs tout `guard` d'un ordinateur qui a
+annoncé la protection coupée.
+
+L'état voyage dans `hello` et dans `profile` (`"protection": true|false`,
+renvoyé dès qu'il change). Le serveur le relaie aux supports :
+`{"type":"protection","on":false}` (`"on": null` quand l'ordinateur se
+déconnecte), et le `hello` des supports porte
+`"protection": true|false|null` (`null` : ordinateur hors ligne ou app qui ne
+le connaît pas). La page du support l'affiche.
+
+Le serveur évalue (`backend/guard.py`) et ne répond que s'il reconnaît une
+situation. Une même situation ne resonne pas avant 5 minutes. Il répond par :
 
 ```json
 {"type":"alert","level":"danger|attention|info","title":"…","detail":"…"}
@@ -460,8 +485,10 @@ bureau reste le comportement par défaut.
   à `"desktop"` ; il en va de même sans numéro d'étape web valide.
 - Serveur → apps, `status.where` : `"web"`, `"desktop"` ou `null` ; `"mixed"`
   n'est jamais envoyé. Avant validation, un plan mixte garde `where` à
-  `"desktop"` ; après validation, `where` reflète le mode réellement utilisé.
-  Dans une session mixte, il passe de `"desktop"` à `"web"` pendant la sous-tâche
+  `"desktop"` ; sinon `where` reflète le lieu proposé par Holo. Après validation,
+  `where` indique le mode réellement utilisé (`"desktop"` si le Mac n'a pas
+  annoncé cette capacité ou si le démarrage du navigateur échoue). Dans une
+  session mixte, il passe de `"desktop"` à `"web"` pendant la sous-tâche
   navigateur, puis revient à `"desktop"` quand le résumé est rendu à Holo. Les
   apps l'ignorent si absent.
 - `open_browser` n'est proposé que si le plan validé est mixte et que
@@ -490,7 +517,10 @@ bureau reste le comportement par défaut.
 - Le Mac met la fenêtre Chrome PapAI au premier plan une fois, quand
   `where == "web"` et que la session passe `active` ou `awaiting_helper`.
   « Arrêter », une alerte ou la fin de session (`done`, `stopped`) exécutent
-  `holo local stop` et ferment le process Chrome PapAI, même hors ligne.
+  `holo local stop` et ferment le process Chrome PapAI, même hors ligne. Chrome
+  part d'un profil neuf et temporaire à chaque assistance ; quand il est fermé,
+  son profil est effacé. La personne aidée se connecte elle-même à ses sites,
+  sans compte, identifiant ni cookie retenu d'une assistance à l'autre.
 - Limite : `holo local browser` exige une clé H (`HAI_API_KEY`) sur le Mac de
   la personne aidée (`~/.config/hai/.env` ou variable d'environnement). Elle
   n'est jamais dans le dépôt ni dans les journaux.

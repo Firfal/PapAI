@@ -115,6 +115,10 @@ class Model:
     # ------------------------------------------------------------ dérivés
 
     @property
+    def realtime_protection(self) -> bool:
+        return settings.protection_on(self.prefs)
+
+    @property
     def session_open(self) -> bool:
         return self.state in OPEN_STATES
 
@@ -170,6 +174,7 @@ class Model:
                 "textScale": self.text_scale, "textScales": TEXT_SCALES,
                 "server": self.server_url, "httpBase": self.http_base,
                 "orgName": str(self.prefs.get("orgName") or ""),
+                "realtimeProtection": self.realtime_protection,
                 "screen": self.screen, "state": self.state, "sessionOpen": self.session_open,
                 "stoppedBy": self.stopped_by,
                 "task": self.task, "pendingTask": self.pending_task, "screenConsent": self.screen_consent,
@@ -247,6 +252,7 @@ class Model:
             screen_factory = Screen
         self.bridge = factory(self.server_url, self.gate, screen_factory, self._handle,
                               self._connection, self._action, **bridge_kw)
+        self.bridge.protection = lambda: self.realtime_protection
         self.bridge.start()
         if settings.needs_space(self.prefs):
             threading.Thread(target=self._create_space, daemon=True).start()
@@ -322,8 +328,10 @@ class Model:
     def _send_profile(self) -> None:
         """Le prénom réellement saisi, pour que l'aidant lise le bon nom."""
         n = str(self.prefs.get("firstName") or "").strip()
+        msg = {"type": "profile", "protection": self.realtime_protection}
         if n:
-            self._send({"type": "profile", "name": n})
+            msg["name"] = n
+        self._send(msg)
 
     def _connection(self, ok: bool) -> None:
         if ok:
@@ -378,6 +386,11 @@ class Model:
 
     def set_text_scale(self, v: float) -> None:
         self.save_prefs(textScale=float(v))
+        self.push()
+
+    def set_realtime_protection(self, on: bool) -> None:
+        self.save_prefs(realtimeProtection=bool(on))
+        self._send_profile()
         self.push()
 
     def set_onboarding_step(self, step: int) -> None:

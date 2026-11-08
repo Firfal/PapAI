@@ -21,6 +21,13 @@ struct GuardAlert: Equatable {
 enum GuardSignals {
     static let period: UInt64 = 8_000_000_000
 
+    /// Protection en temps réel : activée par défaut, comme un antivirus.
+    /// Coupée, aucun signal ne part de l'ordinateur.
+    static var enabled: Bool {
+        get { UserDefaults.standard.object(forKey: "realtimeProtection") as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: "realtimeProtection") }
+    }
+
     private static let browsers: [String: String] = [
         "com.apple.Safari": #"tell application id "com.apple.Safari" to return URL of front document"#,
         "com.google.Chrome": #"tell application id "com.google.Chrome" to return URL of active tab of front window"#,
