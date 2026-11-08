@@ -45,6 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
+| Devin | `devin/1794099687-liaison-accord` | Revue #59 : unicité des codes inter-espaces et renouvellement après 409 ; deux commits, un push final | backend/family.py, backend/space.py, backend/app.py, tests/test_appairage_code.py, apps/ios/Sources/Pairing.swift, apps/android, backend/static/pair.html, tests/test_pair_link_ios.py, tests/test_pair_page.js | 8 nov. |
 
 ## Journal
 

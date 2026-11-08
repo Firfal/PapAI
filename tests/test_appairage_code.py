@@ -97,6 +97,23 @@ def sans_secret(r: dict) -> bool:
 def politique() -> None:
     sys.path.insert(0, str(RACINE))
     from backend.family import Family, PairingError, clean_label
+    from backend import space
+
+    with tempfile.TemporaryDirectory() as folder, patch.object(space, "DATA_DIR", Path(folder) / "spaces"):
+        registry = space.Spaces("cle-defaut-test")
+        first = registry.default
+        second = registry.create()
+        with patch("backend.family.secrets.randbelow", side_effect=[123456, 123456, 234567]) as random:
+            a = registry.new_code(first)
+            b = registry.new_code(second)
+        check("collision inter-espaces régénérée sans changer les six chiffres",
+              a == "123456" and b == "234567" and random.call_count == 3
+              and first.family.code_valid(a) and second.family.code_valid(b))
+        first.family._expires = 0
+        with patch("backend.family.secrets.randbelow", return_value=123456):
+            check("un code expiré ne réserve plus sa valeur", registry.new_code(second) == a)
+            second.family.consume_code(a)
+            check("un code consommé ne réserve plus sa valeur", registry.new_code(first) == a)
 
     with tempfile.TemporaryDirectory() as folder:
         family = Family(Path(folder) / "family.json")

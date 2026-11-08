@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import secrets
 import time
+from collections.abc import Iterable
 from pathlib import Path
 
 DATA = Path(__file__).parent.parent / "family.json"
@@ -45,8 +46,12 @@ class Family:
 
     # ------------------------------------------------------------ code
 
-    def new_code(self, ttl: int = CODE_TTL) -> str:
-        self._code = f"{secrets.randbelow(1_000_000):06d}"
+    def new_code(self, ttl: int = CODE_TTL, *, others: Iterable[Family] = ()) -> str:
+        families = tuple(others)
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        while any(family.code_valid(code) for family in families):
+            code = f"{secrets.randbelow(1_000_000):06d}"
+        self._code = code
         self._expires = time.time() + ttl
         self._tries = 0
         return self._code

@@ -543,7 +543,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 # Ajout d'un proche : un code à 6 chiffres et son lien (QR).
                 # `long` : invitation à envoyer par SMS ou WhatsApp, valable 24 h.
                 invitation = bool(msg.get("long"))
-                value = S().family.new_invitation() if invitation else S().family.new_code()
+                value = S().family.new_invitation() if invitation else spaces.new_code(S())
                 await ws.send_json({"type": "pair_code", "code": None if invitation else value,
                                     "url": pairing_url(value, invitation=invitation),
                                     "app_url": app_pairing_url(value, invitation=invitation),
