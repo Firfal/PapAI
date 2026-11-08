@@ -184,6 +184,8 @@ SUSPECTES = [
     "Acheter une carte cadeau Fnac de 500 euros",
     "Acheter une carte cadeau Fnac de 100 euros pour payer le technicien",
     "Acheter trois cartes cadeaux de 50 euros",
+    "Acheter dix cartes cadeaux Fnac de 400 € chacune pour Noël",
+    "Offrir 8 cartes cadeaux Fnac de 30 euros à mes petits-enfants",
     "Offrir une carte Google Play de 150 euros à mon petit-fils",
 ]
 

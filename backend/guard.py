@@ -335,7 +335,22 @@ def evaluer_demande(texte: str) -> Alerte | None:
         montants_carte = re.findall(
             r"(?<!\w)(\d[\d\s.,]*)\s*(?:euros?\b|eur\b|€|dollars?\b|\$)", segment
         )
-        montant_carte_total = sum((_montant(m) for m in montants_carte), Decimal(0))
+        quantites_en_mots = {
+            "deux": 2, "trois": 3, "quatre": 4, "cinq": 5,
+            "six": 6, "sept": 7, "huit": 8, "neuf": 9, "dix": 10,
+        }
+        quantite_match = re.search(
+            r"\b(\d+|deux|trois|quatre|cinq|six|sept|huit|neuf|dix)\s+"
+            r"(?:cartes?|bons?|recharges?)\b",
+            segment,
+        )
+        quantite_carte = 1
+        if quantite_match:
+            valeur = quantite_match.group(1)
+            quantite_carte = int(valeur) if valeur.isdigit() else quantites_en_mots[valeur]
+        montant_carte_total = (
+            sum((_montant(m) for m in montants_carte), Decimal(0)) * quantite_carte
+        )
         carte_a_risque = bool(re.search(carte_marque, segment)) or bool(re.search(
             r"\b(?:cartes?\s+prepay(?:e|ee|ees|es)|"
             r"recharges?\s+prepay(?:e|ee|ees|es))\b", segment
@@ -374,7 +389,7 @@ def evaluer_demande(texte: str) -> Alerte | None:
         else:
             suspecte = (
                 montant_carte_eleve or payer_une_personne
-                or (cartes_multiples and not contexte_cadeau)
+                or (cartes_multiples and (not contexte_cadeau or quantite_carte > 5))
             )
         if suspecte:
             demande_carte_suspecte = True
