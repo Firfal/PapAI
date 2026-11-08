@@ -118,6 +118,12 @@ struct TicketStats {
         return w
     }
 
+    /// Suggestions du panneau, sans celle déjà montrée par la carte « Cette semaine ».
+    var panelSuggestions: [Suggestion] {
+        let shown = thisWeek.suggestion?.category
+        return suggestions.filter { $0.category != shown }
+    }
+
     var suggestions: [Suggestion] {
         categories.compactMap { c in
             guard var d = c.draft, c.monthPeople >= Self.suggestMin else { return nil }

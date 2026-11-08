@@ -378,7 +378,7 @@ struct TicketStatsPanel: View {
                 kpi(Self.duration(stats.medianResolution), "temps de résolution (médian)")
                 kpi("\(Int((stats.automateShare * 100).rounded())) %", "réglés par un automate")
             }
-            ForEach(stats.suggestions) { s in
+            ForEach(stats.panelSuggestions) { s in
                 HStack(spacing: 12) {
                     Label(s.text, systemImage: "sparkles").font(rounded(16, .semibold))
                     Spacer(minLength: 0)

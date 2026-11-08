@@ -48,6 +48,8 @@ struct TicketStatsTest {
         precondition(s.count == 1 && s[0].text == "5 demandes Wi-Fi ce mois-ci : créer un automate ?", "suggestion au total")
         precondition(s[0].draft["title"] == "Rétablir le Wi-Fi" && s[0].draft["description"]!.contains("« Plus d'internet »"),
                      "brouillon prérempli")
+        precondition(m.thisWeek.suggestion?.category == "wifi" && m.panelSuggestions.isEmpty,
+                     "panneau sans la suggestion de la carte « Cette semaine »")
         precondition(TicketCategory.label("securite") == "Sécurité" && TicketCategory.label("??") == "Autre", "libellés")
         precondition(TicketStats.median([]) == nil && TicketStats.median([1, 3]) == 2, "médiane")
         let wa = stats("""
