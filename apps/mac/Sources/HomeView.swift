@@ -26,12 +26,19 @@ struct HomeView: View {
                 if deux {
                     // Les deux colonnes partent de la même ligne : titres de section alignés, contenu en haut.
                     HStack(alignment: .top, spacing: Self.ecart) {
-                        ScrollView(showsIndicators: false) {
-                            automates.padding(.bottom, 24)
+                        // Seule la liste défile : le titre de section reste en place.
+                        VStack(alignment: .leading, spacing: 14) {
+                            titreSection("sparkles", "Mes automates")
+                            ScrollView(showsIndicators: false) {
+                                automates(titre: false).padding(.bottom, 24)
+                            }
                         }
                         .frame(width: gauche)
-                        ScrollView(showsIndicators: false) {
-                            applications.padding(.bottom, 24)
+                        VStack(alignment: .leading, spacing: 14) {
+                            titreSection("clock.arrow.circlepath", "Applications récentes")
+                            ScrollView(showsIndicators: false) {
+                                applications(titre: false).padding(.bottom, 24)
+                            }
                         }
                         .frame(width: droite)
                     }
@@ -39,8 +46,8 @@ struct HomeView: View {
                 } else {
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 28) {
-                            automates
-                            applications
+                            automates()
+                            applications()
                         }
                         .padding(.bottom, 24)
                     }
@@ -255,9 +262,9 @@ struct HomeView: View {
     // MARK: Automates
 
     /// Les automates enregistrés (`GET /lessons`), qui deviendront les fichiers `.papi`.
-    private var automates: some View {
+    private func automates(titre: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            titreSection("sparkles", "Mes automates")
+            if titre { titreSection("sparkles", "Mes automates") }
             if let n = model.notice {
                 Label(n, systemImage: "info.circle.fill").font(rounded(17, .medium))
                     .foregroundStyle(T.leaf)
@@ -332,9 +339,9 @@ extension HomeView {
     // MARK: Applications récentes
 
     /// Les 6 applications passées le plus récemment au premier plan, ouvertes d'un clic.
-    fileprivate var applications: some View {
+    fileprivate func applications(titre: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            titreSection("clock.arrow.circlepath", "Applications récentes")
+            if titre { titreSection("clock.arrow.circlepath", "Applications récentes") }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 14) {
                 ForEach(usage.recent) { app in
                     let name = app.name, bundle = app.bundle
@@ -344,7 +351,7 @@ extension HomeView {
                                 .frame(width: 72, height: 72)
                                 .overlay(Image(nsImage: icon(bundle)).resizable().frame(width: 48, height: 48))
                             Text(name).font(rounded(16, .medium))
-                                .lineLimit(2).multilineTextAlignment(.center)
+                                .lineLimit(2, reservesSpace: true).multilineTextAlignment(.center)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .frame(maxWidth: .infinity)

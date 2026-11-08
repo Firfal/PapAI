@@ -21,18 +21,20 @@ struct OnboardingView: View {
                 HStack(alignment: .center, spacing: 22) {
                     VStack(alignment: .leading, spacing: 16) {
                         dots
-                        Text(titre).font(rounded(step == 0 ? 46 : 40, .bold)).tracking(-0.7)
-                            .lineLimit(2).minimumScaleFactor(0.75)
+                        Text(titre).font(rounded(40, .bold)).tracking(-0.7)
+                            .lineLimit(1).minimumScaleFactor(0.6)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    if let humeur = humeurEnTete {
-                        ViewThatFits(in: .horizontal) {
-                            Mascotte(humeur: humeur).frame(width: Mascotte.Taille.prenom, height: Mascotte.Taille.prenom)
-                            Mascotte(humeur: humeur).frame(width: Mascotte.Taille.prenomReduite, height: Mascotte.Taille.prenomReduite)
-                        }
-                        .padding(8).background(Circle().fill(.white.opacity(0.92)))
+                    // La place de la mascotte reste réservée à chaque étape : l'en-tête garde
+                    // la même hauteur et rien ne bouge d'une page à l'autre.
+                    ViewThatFits(in: .horizontal) {
+                        Mascotte(humeur: humeurEnTete ?? .ecoute).frame(width: Mascotte.Taille.prenom, height: Mascotte.Taille.prenom)
+                        Mascotte(humeur: humeurEnTete ?? .ecoute).frame(width: Mascotte.Taille.prenomReduite, height: Mascotte.Taille.prenomReduite)
                     }
+                    .padding(8).background(Circle().fill(.white.opacity(0.92)))
+                    .opacity(humeurEnTete == nil ? 0 : 1)
+                    .accessibilityHidden(humeurEnTete == nil)
                 }
             } corps: {
                 Group {
@@ -135,7 +137,7 @@ struct OnboardingView: View {
 
     private func welcome(cartes: Bool) -> some View {
         VStack(alignment: .leading, spacing: cartes ? 22 : 12) {
-            Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide, avec Holo, un assistant qui sait se servir de l'ordinateur.")
+            Text("Quand quelque chose ne marche pas sur l'ordinateur, vous appuyez sur un bouton et vous expliquez avec vos mots. Votre support est prévenu et vous aide.")
                 .font(rounded(23)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
             VStack(alignment: .leading, spacing: 10) {
                 promise("hand.raised.fill", "Rien ne bouge sur votre écran sans l'accord de votre support.", carte: cartes)
@@ -203,7 +205,9 @@ struct HelpersPanel: View {
                     Text(onboarding ? "Qui va vous aider ?" : "Mon support")
                         .font(rounded(onboarding ? 44 : 34, .bold)).tracking(-0.6)
                 }
-                Text("Votre fille, votre fils, un ami… S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp. Vous pouvez en ajouter plusieurs.")
+                Text(model.helpers.isEmpty
+                     ? "Votre support reçoit vos demandes d'aide et vous répond. S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp."
+                     : "Votre support reçoit vos demandes d'aide et vous répond. Pour en changer, retirez d'abord le support actuel.")
                     .font(rounded(20)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 if let added = model.pairAdded {
                     Label { Text(verbatim: "\(added) est maintenant support.") } icon: { Image(systemName: "checkmark.circle.fill") }
@@ -237,11 +241,12 @@ struct HelpersPanel: View {
                     .padding(14)
                     .champ(T.r)
                 }
-                if model.pairCode == nil && model.pairURL == nil {
-                    Button(model.helpers.isEmpty ? "Ajouter un support" : "Ajouter un autre support") {
+                // Un seul support à la fois.
+                if model.helpers.isEmpty && model.pairCode == nil && model.pairURL == nil {
+                    Button("Ajouter un support") {
                         model.startPairing()
                     }
-                    .buttonStyle(PillStyle(filled: model.helpers.isEmpty, height: 60))
+                    .buttonStyle(PillStyle(filled: true, height: 60))
                     .disabled(!model.connected)
                     if !model.connected {
                         Text("Connexion au serveur en cours…").font(rounded(16)).foregroundStyle(T.muted)
