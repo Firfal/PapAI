@@ -191,6 +191,12 @@ def agregats() -> None:
     check("brouillon d'automate prérempli", sug[0]["draft"]["title"] and sug[0]["draft"]["goal"]
           and "Le Wi-Fi ne marche plus (0)" in sug[0]["draft"]["description"])
     check("pas de suggestion pour « autre »", all(x["category"] != "autre" for x in sug))
+    court = ts.stats(rows, now=now, weeks=1)
+    check("période d'une semaine : la suggestion compte tout le mois",
+          [(x["category"], x["count"]) for x in court["suggestions"]] == [("wifi", 6)]
+          and court["totals"]["count"] == 5)
+    check("durées de résolution par catégorie pour fusionner les médianes",
+          sorted(cats["wifi"]["resolution_s"]) == sorted([360] + [3600 * h for h in range(1, 7)]))
     vide = ts.stats([], now=now)
     check("aucun ticket : agrégats vides", vide["totals"] == {"count": 0, "resolved": 0, "by_automate": 0,
                                                               "automate_share": 0.0, "median_resolution_s": None}

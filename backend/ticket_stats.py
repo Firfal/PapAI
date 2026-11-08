@@ -208,6 +208,13 @@ def stats(tickets: list[dict], now: float | None = None, weeks: int = WEEKS) -> 
                                 "month": 0, "month_people": 0, "_res": [], "examples": []} for c in IDS}
     all_res: list[float] = []
     resolved = by_automate = 0
+    # Le mois glissant ne dépend pas de la période affichée (weeks=1 couvre moins de 30 jours).
+    for t in tickets:
+        if 0 <= now - float(t.get("created") or 0) <= MONTH_S:
+            t = ensure(dict(t))
+            per[t["category"]]["month"] += 1
+            if t.get("source") != "automatisme":
+                per[t["category"]]["month_people"] += 1
     for t in rows:
         c = t["category"]
         p = per[c]
@@ -216,10 +223,6 @@ def stats(tickets: list[dict], now: float | None = None, weeks: int = WEEKS) -> 
             week_rows[i]["total"] += 1
             week_rows[i]["by"][c] += 1
         p["count"] += 1
-        if now - float(t["created"]) <= MONTH_S:
-            p["month"] += 1
-            if t.get("source") != "automatisme":
-                p["month_people"] += 1
         if len(p["examples"]) < EXAMPLES:
             p["examples"].append(_example(t))
         r = _resolution_s(t)
@@ -237,18 +240,21 @@ def stats(tickets: list[dict], now: float | None = None, weeks: int = WEEKS) -> 
         res = p.pop("_res")
         if p["count"]:
             p["median_resolution_s"] = _median(res)
+            p["resolution_s"] = [round(r) for r in res]
             cats.append(p)
     cats.sort(key=lambda p: (-p["count"], IDS.index(p["id"])))
 
-    for p in cats:
+    for p in per.values():
         p["phrase"] = _PHRASE.get(p["id"], "")
         if p["id"] in _DRAFT:
             p["draft"] = _draft(p["id"], [e["task"] for e in p["examples"] if e.get("task")])
+    # Toutes les catégories, même absentes d'une période plus courte que le mois.
     suggestions = [{
         "category": p["id"], "count": p["month_people"],
         "text": f"{p['month_people']} demandes {p['phrase']} ce mois-ci : créer un automate ?",
         "draft": p["draft"],
-    } for p in cats if "draft" in p and p["month_people"] >= SUGGEST_MIN]
+    } for p in sorted(per.values(), key=lambda p: (-p["month_people"], IDS.index(p["id"])))
+        if "draft" in p and p["month_people"] >= SUGGEST_MIN]
 
     return {
         "since": first.date().isoformat(), "weeks": week_rows, "categories": cats,

@@ -524,12 +524,12 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
   `{"action":"category","category":"wifi","by"}` → `{"ticket"}` (`category_by` = `support`), 400 si inconnue.
 - `GET /k/<clé>/tickets/stats?weeks=8` et `GET /o/<support_token>/tickets/stats?weeks=8` (1 à 52 semaines,
   lundi UTC) → `{"since","weeks":[{"start","total","by":{catégorie: n}}],"labels":[{"id","label"}],
-  "categories":[{"id","label","count","resolved","by_automate","month","month_people","median_resolution_s",
+  "categories":[{"id","label","count","resolved","by_automate","month","month_people","median_resolution_s","resolution_s",
   "phrase","draft"?,"examples":[{"id","number","task","status","created","space"?,"poste"?}]}],
   "totals":{"count","resolved","by_automate","automate_share","median_resolution_s"},
   "suggestions":[{"category","count","text","draft":{"title","goal","description","examples"}}]}`
   (+ `"org"` côté organisation). Catégories les plus fréquentes d'abord, 3 exemples les plus récents.
-  Réglé par un automate = ticket résolu de `source` `automatisme`. Suggestion à partir de 5 demandes des
+  Réglé par un automate = ticket résolu de `source` `automatisme`. `resolution_s` : durées de résolution (s) de la catégorie, pour fusionner les médianes de plusieurs utilisateurs ; le mois glissant compte même si `weeks` couvre moins de 30 jours. Suggestion à partir de 5 demandes des
   30 derniers jours hors automates (pas pour « autre ») : « 12 demandes Wi-Fi ce mois-ci : créer un
   automate ? » ; `draft` préremplit la création d'automate, rien n'est créé sans le support.
 - `GET /ticket_stats.js` : graphiques SVG (page du support et organisation), sans bibliothèque.
