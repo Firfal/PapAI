@@ -41,7 +41,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | 8 nov. | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces (`backend/space.py`) : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), Windows et Mac créent leur espace au premier lancement. |
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794098007-securite-actions-sensibles` | PR #55 partie A : UI Automation, Panneau de configuration, terminaux et focus AX | apps/windows/papai/core.py, apps/windows/requirements.txt, apps/windows/tests/test_safety.py, apps/mac/Sources/Safety.swift, apps/mac/tests/safety_test.swift, PROTOCOL.md | 8 nov. |
 
 ## Journal
 

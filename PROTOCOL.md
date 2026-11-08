@@ -58,7 +58,7 @@ Reçoit :
 - `{"type":"remote_request","from":"Claire","task":"…"}` un proche propose une session : rien ne démarre sans l'accord de la personne aidée.
 - `{"type":"status", …}` (voir plus bas), `{"type":"answer","content":"…"}`, `{"type":"alert",…}`, `{"type":"usage",…}`
 
-Sous Windows, les champs natifs portant le style `ES_PASSWORD` sont refusés, y compris avant chaque caractère. UI Automation n'est pas une dépendance : les champs web/WinUI sans ce style ne sont pas couverts par cette détection.
+Sous Windows, avant chaque caractère et avant une touche, PapAI vérifie le style natif `ES_PASSWORD` et la propriété UI Automation `IsPassword` de l'élément focalisé, via `comtypes`. Un champ protégé ou une propriété illisible (UIA/COM indisponible, erreur) entraîne un refus sensible ; l'absence du style natif ne suffit pas à autoriser une saisie web/WinUI.
 Toute alerte affichée, même `info` ou `attention`, lève le verrou local sur Mac et Windows : la frappe en cours s'arrête avant le caractère suivant et fermer l'alerte ne relance pas le geste. Un clic du support bloqué comme sensible renvoie `refused` (« Clic non effectué »), sans accusé de réussite ni réponse automatique à Holo ; l'assistance reste en `awaiting_helper`.
 
 ## App de l'aidant (iPhone) : `ws://SERVEUR/ws/aidant/CLÉ`

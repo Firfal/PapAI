@@ -97,6 +97,23 @@ def keyboard_verdict(pid: int, name: str | None, own_pid: int | None = None) -> 
     return pointer_verdict(pid, name, own_pid)
 
 
+def focused_password_uia() -> bool:
+    import comtypes
+    from comtypes.client import CreateObject, GetModule
+
+    comtypes.CoInitialize()
+    try:
+        uia = GetModule("UIAutomationCore.dll")
+        automation = CreateObject(uia.CUIAutomation, interface=uia.IUIAutomation)
+        element = automation.GetFocusedElement()
+        password = element.CurrentIsPassword
+        if password is None:
+            raise ValueError("IsPassword indisponible")
+        return bool(password)
+    finally:
+        comtypes.CoUninitialize()
+
+
 class Win32Targets:
     def __init__(self):
         from ctypes import wintypes as w
@@ -194,11 +211,12 @@ class Win32Targets:
 
 
 class DesktopSafety:
-    def __init__(self, api=None, own_pid=None, sleep=time.sleep):
+    def __init__(self, api=None, own_pid=None, sleep=time.sleep, uia_password=None):
         self.api = api
         self.own_pid = os.getpid() if own_pid is None else own_pid
         self.sleep = sleep
         self.previous = None
+        self.uia_password = focused_password_uia if uia_password is None else uia_password
 
     def window_reason(self, hwnd):
         pid, name = self.api.identity(hwnd)
@@ -241,6 +259,12 @@ class DesktopSafety:
         if reason:
             raise SensitiveTarget(reason)
         if self.api.password_focused(hwnd):
+            raise SensitiveTarget("un champ protégé attend une saisie confidentielle")
+        try:
+            password = self.uia_password()
+        except Exception as error:
+            raise SensitiveTarget("le champ focalisé ne peut pas être vérifié par UI Automation") from error
+        if password is not False:
             raise SensitiveTarget("un champ protégé attend une saisie confidentielle")
 
     def prepare_keyboard(self):

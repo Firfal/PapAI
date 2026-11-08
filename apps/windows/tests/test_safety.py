@@ -15,6 +15,43 @@ from papai.model import Model
 
 
 class SafetyTests(unittest.TestCase):
+    def setUp(self):
+        password = patch.object(core, 'focused_password_uia', return_value=False)
+        self.uia_password = password.start()
+        self.addCleanup(password.stop)
+
+    def test_uia_password_verdict(self):
+        api = self.api()
+        api.foreground.return_value = 3
+        safety = core.DesktopSafety(api, own_pid=42)
+        safety.check_keyboard()
+        self.uia_password.return_value = True
+        with self.assertRaisesRegex(core.SensitiveTarget, "champ protégé"):
+            safety.check_keyboard()
+        for error in (RuntimeError('UIA indisponible'), ImportError('COM absent')):
+            self.uia_password.side_effect = error
+            with self.assertRaisesRegex(core.SensitiveTarget, "UI Automation"):
+                safety.check_keyboard()
+
+    def test_uia_rechecked_per_character_and_before_key(self):
+        api = self.api()
+        api.foreground.return_value = 3
+        safety = core.DesktopSafety(api, own_pid=42)
+        fake = Mock(KEYBOARD_KEYS=['enter'])
+        for verdict in (True, RuntimeError('UIA indisponible')):
+            self.uia_password.side_effect = [False, False, verdict]
+            fake.reset_mock()
+            with patch.dict(sys.modules, {'pyautogui': fake}), patch.object(core, 'WINDOWS', False):
+                with self.assertRaises(core.SensitiveTarget):
+                    core.run_action('type_text', {'text': 'AB'}, None, core.StopGate(), safety=safety)
+            self.assertEqual(fake.write.call_args_list, [unittest.mock.call('A')])
+        self.uia_password.side_effect = None
+        self.uia_password.return_value = True
+        with patch.dict(sys.modules, {'pyautogui': fake}):
+            with self.assertRaises(core.SensitiveTarget):
+                core.run_action('press_key', {'keys': 'enter'}, None, core.StopGate(), safety=safety)
+        fake.press.assert_not_called()
+
     def test_verdicts(self):
         for verdict in (core.pointer_verdict, core.keyboard_verdict):
             for name in core.SENSITIVE_PROCESSES:
