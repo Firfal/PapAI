@@ -215,11 +215,12 @@ struct HelpersPanel: View {
                 }
                 ForEach(model.helpers) { h in
                     HStack(spacing: 14) {
-                        Text(String(h.name.prefix(1)).uppercased())
-                            .font(rounded(20, .semibold)).foregroundStyle(.white)
+                        // On affiche le rôle, pas le prénom de la personne qui aide.
+                        Image(systemName: "person.fill.checkmark")
+                            .font(.system(size: 19, weight: .semibold)).foregroundStyle(.white)
                             .frame(width: 46, height: 46).background(Circle().fill(T.accent))
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(h.name).font(rounded(21, .semibold))
+                            Text("Support IT").font(rounded(21, .semibold))
                             if h.online {
                                 Pastille(texte: "En ligne", icone: "circle.fill", ton: .vert, taille: 14)
                             }
@@ -235,7 +236,7 @@ struct HelpersPanel: View {
                                     .frame(width: 36, height: 36).background(Circle().fill(T.mint))
                                     .frame(width: 44, height: 44).contentShape(Circle())
                             }
-                            .buttonStyle(.plain).accessibilityLabel("Retirer \(h.name)")
+                            .buttonStyle(.plain).accessibilityLabel("Retirer le support")
                         }
                     }
                     .padding(14)
