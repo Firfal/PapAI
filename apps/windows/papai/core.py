@@ -117,6 +117,7 @@ def explorer_target(hwnd) -> str:
     from comtypes.client import CreateObject
 
     comtypes.CoInitialize()
+    shell = window = None
     try:
         shell = CreateObject("Shell.Application", dynamic=True)
         for window in shell.Windows():
@@ -124,6 +125,7 @@ def explorer_target(hwnd) -> str:
                 return str(window.Document.Folder.Self.Path)
         return ""
     finally:
+        window = shell = None
         comtypes.CoUninitialize()
 
 
@@ -132,6 +134,7 @@ def focused_password_uia() -> bool:
     from comtypes.client import CreateObject, GetModule
 
     comtypes.CoInitialize()
+    automation = element = None
     try:
         uia = GetModule("UIAutomationCore.dll")
         automation = CreateObject(uia.CUIAutomation, interface=uia.IUIAutomation)
@@ -141,6 +144,7 @@ def focused_password_uia() -> bool:
             raise ValueError("IsPassword indisponible")
         return bool(password)
     finally:
+        element = automation = None
         comtypes.CoUninitialize()
 
 

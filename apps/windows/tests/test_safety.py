@@ -6,6 +6,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -222,6 +223,36 @@ class SafetyTests(unittest.TestCase):
             with self.assertRaises(core.SensitiveTarget):
                 core.run_action('click', {}, screen, core.StopGate(), safety=safety)
         fake.click.assert_not_called()
+
+
+class UIAutomationTests(unittest.TestCase):
+    def test_focused_property_and_com_cleanup(self):
+        com = SimpleNamespace(CoInitialize=Mock(), CoUninitialize=Mock())
+        uia = SimpleNamespace(CUIAutomation=object(), IUIAutomation=object())
+        element = SimpleNamespace(CurrentIsPassword=False)
+        automation = Mock()
+        automation.GetFocusedElement.return_value = element
+        client = SimpleNamespace(GetModule=Mock(return_value=uia), CreateObject=Mock(return_value=automation))
+        with patch.dict(sys.modules, {'comtypes': com, 'comtypes.client': client}):
+            self.assertFalse(core.focused_password_uia())
+            element.CurrentIsPassword = True
+            self.assertTrue(core.focused_password_uia())
+            automation.GetFocusedElement.side_effect = RuntimeError('UIA indisponible')
+            with self.assertRaises(RuntimeError):
+                core.focused_password_uia()
+        self.assertEqual(com.CoInitialize.call_count, 3)
+        self.assertEqual(com.CoUninitialize.call_count, 3)
+        client.GetModule.assert_called_with('UIAutomationCore.dll')
+        client.CreateObject.assert_called_with(uia.CUIAutomation, interface=uia.IUIAutomation)
+
+    def test_com_absent_refuses_keyboard(self):
+        api = Mock()
+        api.foreground.return_value = 1
+        api.identity.return_value = (12, 'notepad.exe')
+        api.password_focused.return_value = False
+        with patch.dict(sys.modules, {'comtypes': None}):
+            with self.assertRaisesRegex(core.SensitiveTarget, 'UI Automation'):
+                core.DesktopSafety(api, own_pid=42).check_keyboard()
 
 
 class BridgeSafetyTests(unittest.IsolatedAsyncioTestCase):
