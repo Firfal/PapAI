@@ -121,6 +121,20 @@ class Workflow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ticket["status"], "resolu")
         agent.client.chat.completions.create.assert_not_called()
 
+    async def test_stop_during_ticket_notification_cannot_interrupt_finished_answer(self):
+        await self.search()
+
+        async def notify():
+            self.assertEqual(self.s.state, State.DONE)
+            self.s.stop()
+
+        with patch.object(app, "_tickets_changed", notify):
+            await self.approve(text="Réponse validée")
+        self.assertEqual(self.s.state, State.DONE)
+        ticket = Tickets(self.sp.tickets.path).get(self.s.ticket)
+        self.assertEqual(ticket["linkup_answer"]["content"], "Réponse validée")
+        self.assertTrue(any(c.args[0]["type"] == "linkup_answer" for c in self.sp.bridge.send.call_args_list))
+
     async def test_approve_before_search(self):
         await self.approve()
         self.sp.bridge.send.assert_not_called()

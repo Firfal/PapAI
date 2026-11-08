@@ -1023,6 +1023,7 @@ async def handle_linkup_approve(session, msg: dict, ws: WebSocket) -> None:
     who = S().helper_who.get(ws, {}).get("name", "") or "Support"
     answer = {"type": "linkup_answer", "session": session.id, "content": text,
               "sources": result["sources"]}
+    session.finish(text)
     ticket = S().tickets.get(session.ticket)
     if ticket is not None:
         S().tickets.update(ticket, linkup_answer={"content": text, "sources": result["sources"],
@@ -1030,7 +1031,6 @@ async def handle_linkup_approve(session, msg: dict, ws: WebSocket) -> None:
         await _tickets_changed()
     session.helper_name = who
     session.log("linkup_approved", by=who)
-    session.finish(text)
     if S().bridge is not None:
         await S().bridge.send(answer)
     await broadcast_helper(answer, to_bridge=False)
