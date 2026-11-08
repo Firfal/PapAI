@@ -143,6 +143,9 @@ struct SessionView: View {
             }
         } corps: {
             VStack(alignment: .leading, spacing: 18) {
+                if state == .active, !model.paused, let action = model.currentAction {
+                    Text(action).font(rounded(24, .medium)).fixedSize(horizontal: false, vertical: true)
+                }
                 if let sub = subtitle {
                     Text(sub).font(rounded(24, .medium)).foregroundStyle(state == .active ? T.ink : T.muted)
                         .fixedSize(horizontal: false, vertical: true)

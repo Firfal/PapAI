@@ -285,6 +285,7 @@
     const inner = `${banner}
       <div style="${f(guardStopped(st) ? 34 : 40, 6)};letter-spacing:-0.6px;line-height:1.12">${esc(sessionTitle(st))}</div>
       ${sub ? `<div class="fade" style="${f(24, 5)};color:${st === 'active' ? 'var(--ink)' : 'var(--muted)'}">${esc(sub)}</div>` : ''}
+      ${st === 'active' && !S.paused && S.currentAction ? `<div style="${f(24, 5)}">${esc(S.currentAction)}</div>` : ''}
       <div class="scroll">${sessionContent(st)}</div>
       <div class="spacer"></div>${footer}`;
     const card = guardStopped(st)
@@ -303,7 +304,7 @@
     return `<div class="col mini" style="gap:10px;padding:14px 16px">
       <div class="row" style="gap:10px">
         <span class="dot" style="background:${S.sessionOpen && !S.paused ? 'var(--accent)' : 'var(--muted)'}"></span>
-        <span class="grow" style="${f(17, 6)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</span>
+        <span class="grow" style="${f(17, 6)};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(st === 'active' && !S.paused ? S.currentAction || title : title)}</span>
         <button class="circle press" data-act="expand" aria-label="Ouvrir PapAI en grand"
           style="width:30px;height:30px;background:var(--bg)">${icon('expand', 14)}</button>
       </div>
@@ -484,6 +485,8 @@
       `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
     return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--bg)">
       <div style="${f(30, 6)}">Réglages</div>
+      <label class="row" style="gap:12px;${f(20, 6)}"><input type="checkbox" data-act="readAloud" ${window.PapAINarration?.enabled !== false ? 'checked' : ''}>Lire à voix haute</label>
+      <div class="muted" style="${f(15, 4)}">Voix française locale uniquement. La lecture se coupe pendant la dictée.</div>
       ${S.orgName ? `<div class="muted" style="${f(15, 5)}">Poste géré par ${esc(S.orgName)}</div>` : ''}
       ${field('Prénom', 'setName', ui.settings.name, 'Jeanne')}
       ${field('Serveur', 'setServer', ui.settings.server, 'serveur PapAI officiel')}
@@ -595,11 +598,13 @@
   }
 
   const acts = {
+    readAloud: () => { window.PapAINarration?.setEnabled(!window.PapAINarration.enabled); render(); },
     submit, mic: () => {
       if (!S.microPresent || S.dictation.phase === 'starting' || S.dictation.phase === 'transcribing') return;
       if (S.dictation.phase === 'idle' && ui.dictating) return;
       ui.warning = null; ui.dictating = true; render();
-      Promise.resolve(call('dictation_toggle')).catch(() => { ui.dictating = false; render(); });
+      window.PapAINarration?.setDictating(true);
+      Promise.resolve(call('dictation_toggle')).catch(() => { ui.dictating = false; window.PapAINarration?.setDictating(false); render(); });
     },
     write: () => { ui.writing = true; render(); focus('req'); },
     homeShortcut: (id) => call('open_home_shortcut', id),
@@ -626,8 +631,8 @@
     cancelConsent: () => call('cancel_consent'),
     share: () => call('give_consent'),
     revokeConsent: () => { S.screenConsent = false; render(); call('revoke_consent'); },
-    stop: () => call('stop'),
-    pause: () => call('toggle_pause'),
+    stop: () => { window.PapAINarration?.cancel(); call('stop'); },
+    pause: () => { window.PapAINarration?.cancel(); call('toggle_pause'); },
     expand: () => call('expand_window'),
     seniorOption: (o) => acts.seniorReply(o),
     seniorReply: (o) => {
@@ -724,6 +729,7 @@
     update(snap) {
       const was = S && S.screen;
       S = snap;
+      window.PapAINarration?.update(snap);
       if (!(S.homeShortcuts || []).some(a => a.personal)) ui.editingShortcuts = false;
       const m = S.dictation && S.dictation.message;
       if (m && m !== ui.lastDictMsg) ui.warning = m;

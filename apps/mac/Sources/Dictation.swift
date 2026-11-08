@@ -14,7 +14,9 @@ import SwiftUI
 final class Dictation {
     enum Phase: Equatable { case idle, listening, transcribing }
 
-    private(set) var phase: Phase = .idle
+    private(set) var phase: Phase = .idle {
+        didSet { LocalNarration.shared.setDictating(phase != .idle) }
+    }
     private(set) var level: CGFloat = 0
     /// Ce que la personne est en train de dire, mis à jour en direct.
     private(set) var live = ""
@@ -49,9 +51,11 @@ final class Dictation {
         case .idle:
             guard !starting else { return }
             starting = true
+            LocalNarration.shared.setDictating(true)
             Task {
                 await start(httpBase: httpBase, onLive: onLive, onText: onText)
                 starting = false
+                if phase == .idle { LocalNarration.shared.setDictating(false) }
             }
         case .listening: stop()
         case .transcribing: break

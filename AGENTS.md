@@ -45,7 +45,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| Devin | `devin/1794128381-holo-parle` | Holo parle : narration locale Mac et Windows, coordination signalée au pilotage pour #71/#75 | `apps/mac/Sources/{Narration,Model,Dictation,PermissionsView}.swift`, `apps/mac/tests/narration_test.swift`, `apps/windows/ui/{narration.js,app.js,index.html}`, `apps/windows/tests/test_narration.js`, lignes propres `AGENTS.md`/`TODO.md` | 8 nov. |
+| Devin | `devin/1794128381-holo-parle` | Holo parle : narration locale Mac et Windows, coordination signalée au pilotage pour #71/#75 | `apps/mac/Sources/{Narration,Model,Dictation,PermissionsView,SessionView,MiniPanel}.swift`, `apps/mac/tests/narration_test.swift`, `apps/windows/ui/{narration.js,app.js,index.html}`, `apps/windows/tests/test_narration.js`, lignes propres `AGENTS.md`/`TODO.md` | 8 nov. |
 | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), création d'espace au premier lancement sur Windows et Mac | `backend/space.py` | 8 nov. |
 
 ## Journal

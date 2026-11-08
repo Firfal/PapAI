@@ -61,7 +61,10 @@ final class AppModel {
     var questionForMe = false
     var questionOptions: [String] = []
     var answer: String?
-    var currentAction: String?
+    var currentAction: String? {
+        didSet { if let currentAction { narration.say(currentAction) } }
+    }
+    @ObservationIgnored let narration = LocalNarration.shared
     var lessons: [Lesson] = []
     var notice: String?
     var lesson: Lesson?
@@ -367,6 +370,7 @@ final class AppModel {
             self.connected = ok
             // Plus de connexion : la personne ne doit jamais rester bloquée.
             if !ok {
+                self.narration.context(assistance: self.sessionOpen, speakingAllowed: false)
                 self.pairRequest = nil
                 self.webHost.stopLocal()
                 InputLock.shared.set(false)
@@ -545,6 +549,8 @@ final class AppModel {
     // MARK: Fenêtre
 
     func applyLevel() {
+        narration.context(assistance: sessionOpen,
+                          speakingAllowed: connected && state == .active && !paused && guardAlert == nil)
         // La grande fenêtre ne reste plus au premier plan : elle masquerait Holo.
         window?.level = .normal
         if state != lastState {
@@ -778,6 +784,7 @@ final class AppModel {
             pairLong = m["long"] as? Bool ?? false
             pairExpires = m["expires_in"] as? Int ?? 600
         case "alert":
+            narration.context(assistance: sessionOpen, speakingAllowed: false)
             webHost.stopLocal()
             // Le gardien a reconnu une situation : le proche est prévenu en même temps.
             gate.raise()
