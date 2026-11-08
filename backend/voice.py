@@ -1,4 +1,4 @@
-"""Transcription de la demande, par Gladia (v2, pré-enregistré, français).
+"""Transcription Gladia v2, pré-enregistrée et relais direct, en français.
 
 L'audio part pour être transcrit puis il est oublié : rien n'est écrit sur le
 disque, rien n'est gardé en mémoire au-delà de l'appel. La clé Gladia reste ici.
@@ -98,7 +98,7 @@ async def relay_live(client: WebSocket) -> None:
                                 raise ValueError("transcript")
                             await client.send_json({"type": "transcript", "id": ident,
                                                     "text": text, "final": data["is_final"] is True})
-                        elif kind == "end_transcript":
+                        elif kind == "end_session":
                             await client.send_json({"type": "done"})
                             return
                         elif kind == "error":

@@ -51,9 +51,10 @@ class FauxGladia:
                         while (await ws.receive())["type"] != "websocket.disconnect":
                             pass
                         return
+                    await ws.send_json({"type": "end_recording", "data": {"recording_duration": 1}})
                     await ws.send_json(self.transcript("phrase-1", "Bonjour les photos.", True))
                     await ws.send_json(self.transcript("phrase-2", "Merci.", True))
-                    await ws.send_json({"type": "end_transcript"})
+                    await ws.send_json({"type": "end_session"})
                     return
         except WebSocketDisconnect:
             pass
