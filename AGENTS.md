@@ -49,7 +49,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794132851-mes-demandes` | « Mes demandes » côté utilisateur (Mac, Windows) : liste lecture seule des tickets du poste, « Relancer » un automate | `backend/tickets.py`, route `GET /k/<clé>/requests` dans `backend/app.py`, `tests/test_mes_demandes.py`, `PROTOCOL.md` (section Mes demandes), `apps/windows/papai/{model,app}.py`, `apps/windows/ui/{app.js,style.css}`, `apps/windows/tests/`, `apps/mac/Sources/{Model,HomeView,MesDemandesView}.swift` | 8 nov. |
 
 ## Journal
 
