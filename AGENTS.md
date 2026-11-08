@@ -41,7 +41,7 @@ Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande ex
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
 |---|---|---|---|---|
 | 8 nov. | Devin | `devin/1794092918-multi-espaces` | Serveur multi-espaces (`backend/space.py`) : un espace par ordinateur aidé, `POST /spaces`, code seul confirmé sur l'ordinateur (`pair_confirm`), Windows et Mac créent leur espace au premier lancement. |
-| _(personne pour l'instant)_ | | | | |
+| Devin | `devin/1794099687-liaison-accord` | Compléter l'accord de liaison existant (pair_confirm/pair_decision), étape A serveur | backend/app.py, backend/family.py, backend/static/pair.html, backend/static/helper.html si besoin, PROTOCOL.md, tests/test_appairage_code.py, apps/mac/Sources, apps/windows, apps/ios/Sources, apps/android | 8 nov. |
 
 ## Journal
 
