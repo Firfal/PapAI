@@ -169,6 +169,16 @@ console.log('OK : detail affiché pour billing, checkout et portail');})().catch
         self.assertEqual(self.request(self.path + "/billing/checkout", b"")[0], 200)
         self.assertEqual(self.fake.requests[-1][1]["customer"], ["cus_test"])
 
+    def test_checkout_statuts_non_terminaux(self):
+        for status in ("past_due", "unpaid", "incomplete", "trialing", "active"):
+            billing.write(self.org, {"subscription": "sub_test", "statut": status, "abonne": False})
+            self.assertEqual(self.request(self.path + "/billing/checkout", b""),
+                             (409, {"detail": "Déjà abonné : utilisez Gérer l'abonnement"}))
+        self.assertEqual(self.fake.requests, [])
+        for status in ("canceled", "incomplete_expired"):
+            billing.write(self.org, {"subscription": "sub_test", "statut": status, "abonne": False})
+            self.assertEqual(self.request(self.path + "/billing/checkout", b"")[0], 200)
+
     def test_webhook_registre_en_memoire(self):
         (self.org.folder / "org.json").unlink()
         self.assertEqual(self.event()[0], 200)

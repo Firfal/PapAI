@@ -25,6 +25,7 @@ from fastapi.responses import FileResponse
 
 _live_warned = False
 _live_warning_lock = Lock()
+TERMINAL_STATUSES = {"canceled", "incomplete_expired"}
 
 
 def config():
@@ -118,7 +119,7 @@ def install(app, find_org, members, public_url, org_by_id, all_orgs):
     async def checkout(token: str):
         org = get_org(token)
         state = read(org)
-        if state.get("abonne"):
+        if state.get("abonne") or (state.get("subscription") and state.get("statut") not in TERMINAL_STATUSES):
             raise HTTPException(409, "Déjà abonné : utilisez Gérer l'abonnement")
         _, price = config()
         back = public_url.rstrip("/") + "/o/" + quote(token, safe="") + "/abonnement"
