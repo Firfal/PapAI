@@ -51,12 +51,13 @@ struct RootView: View {
         .sheet(isPresented: $model.showSettings) { SettingsView() }
         .sheet(isPresented: $model.showHelpers) {
             VStack(alignment: .trailing, spacing: 18) {
-                HelpersPanel()
+                ScrollView { HelpersPanel() }
                 Button("Fermer") { model.stopPairing(); model.showHelpers = false }
                     .buttonStyle(PillStyle(height: 54)).keyboardShortcut(.cancelAction)
             }
-            .padding(36).frame(width: 820).frame(minHeight: 460).background(T.mint)
+            .padding(24).frame(width: 820, height: 580).background(T.mint)
             .environment(model)
+            .onDisappear { model.stopPairing() }
         }
     }
 }
@@ -85,12 +86,13 @@ enum Snapshot {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { model.window?.setContentSize(NSSize(width: w, height: h)) }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-            if let v = model.window?.contentView,
+            if let v = (model.window?.attachedSheet ?? model.window)?.contentView,
                let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
                 v.cacheDisplay(in: v.bounds, to: rep)
                 try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
             }
             NSApp.terminate(nil)
+            exit(0)
         }
     }
 }

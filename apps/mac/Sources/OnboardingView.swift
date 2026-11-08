@@ -24,7 +24,8 @@ struct OnboardingView: View {
                     case 0: welcome
                     case 1: firstName
                     case 2: permissions
-                    default: HelpersPanel(onboarding: true)
+                    default:
+                        ScrollView { HelpersPanel(onboarding: true) }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -189,6 +190,7 @@ struct OnboardingView: View {
 struct HelpersPanel: View {
     @Environment(AppModel.self) private var model
     var onboarding = false
+    @State private var copiedLink: String?
 
     var body: some View {
         HStack(alignment: .top, spacing: 28) {
@@ -245,38 +247,54 @@ struct HelpersPanel: View {
     }
 
     private func pairCard(code: String, qr qrText: String, url: String) -> some View {
-        VStack(spacing: 10) {
-            if let qr = QRCode.image(qrText) {
-                Image(nsImage: qr).interpolation(.none).resizable()
-                    .frame(width: 170, height: 170)
-                    .accessibilityLabel("QR code à scanner par votre support")
+        VStack(spacing: 6) {
+            HStack(spacing: 12) {
+                if let qr = QRCode.image(qrText) {
+                    Image(nsImage: qr).interpolation(.none).resizable()
+                        .frame(width: 110, height: 110)
+                        .accessibilityLabel("QR code à scanner par votre support")
+                }
+                VStack(spacing: 8) {
+                    Text("ou le code").font(rounded(16)).foregroundStyle(T.muted)
+                    Text(code.prefix(3) + " " + code.suffix(3))
+                        .font(rounded(28, .semibold))
+                        .monospacedDigit().tracking(2)
+                        .textSelection(.enabled)
+                    Text(model.pairLong ? "Valable 24 heures" : "Valable 10 minutes").font(rounded(15)).foregroundStyle(T.muted)
+                }.frame(maxWidth: .infinity)
             }
-            Text("ou le code").font(rounded(16)).foregroundStyle(T.muted)
-            Text(code.prefix(3) + " " + code.suffix(3))
-                .font(.system(size: 38 * CGFloat(TextScale.current), weight: .semibold, design: .rounded))
-                .monospacedDigit().tracking(4)
-                .textSelection(.enabled)
-            Text(model.pairLong ? "Valable 24 heures" : "Valable 10 minutes").font(rounded(15)).foregroundStyle(T.muted)
             if let link = URL(string: url) {
                 ShareLink(item: link, subject: Text("Rejoignez-moi sur PapAI"),
                           message: Text(model.invitationText)) {
-                    Label("Envoyer par SMS, WhatsApp…", systemImage: "square.and.arrow.up")
+                    Label("Envoyer par SMS, WhatsApp, mail…", systemImage: "square.and.arrow.up")
+                        .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(PillStyle(height: 56))
-                .frame(width: 260)
+                .buttonStyle(PillStyle(height: 64))
             }
             if !url.isEmpty {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    if NSPasteboard.general.setString(url, forType: .string) { copiedLink = url }
+                } label: {
+                    Label(copiedLink == url ? "Lien copié" : "Copier le lien",
+                          systemImage: copiedLink == url ? "checkmark" : "doc.on.doc")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PillStyle(filled: false, height: 50))
                 Text("Sans l'app PapAI : \(url)")
                     .font(rounded(13)).foregroundStyle(T.muted)
                     .multilineTextAlignment(.center).textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button("Annuler") { model.stopPairing() }.buttonStyle(.plain).font(rounded(17, .semibold)).foregroundStyle(T.muted)
+            Button("Annuler") { copiedLink = nil; model.stopPairing() }
+                .buttonStyle(.plain).font(rounded(17, .semibold)).foregroundStyle(T.muted)
+                .frame(minHeight: 50)
         }
         .foregroundStyle(T.ink)
-        .padding(22)
+        .padding(12).frame(width: 350)
         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
+        .onChange(of: url) { copiedLink = nil }
     }
 }
 
