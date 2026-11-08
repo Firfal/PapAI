@@ -1,46 +1,41 @@
 import SwiftUI
 
-/// Palette « Soin » : fond bleu-lavande très clair, cartes blanches, un seul accent bleu vif.
-/// Contrastes vérifiés (AA, 4,5:1) : accent et texte secondaire sur blanc et sur le fond,
-/// texte blanc sur les deux bouts du dégradé bleu, texte des pastilles sur leur fond pâle.
+/// Noms de la palette côté iPhone. Une seule palette pour tout PapAI : chaque
+/// couleur vient de `T` (`apps/shared/Palette.swift`), la même que sur le Mac.
 enum Soin {
-    /// Bas du fond (et des barres posées en bas d'écran), lavande très pâle.
-    static let bg = Color(hex: 0xF2F1FC)
-    /// Haut du fond, bleuté.
-    static let bgTop = Color(hex: 0xE9F0FF)
-    static let card = Color.white
+    static let bg = T.bg
+    static let card = T.card
     /// Champs de saisie : gris très clair.
-    static let field = Color(hex: 0xF2F4F8)
+    static let field = T.field
     /// Filet des cartes et des champs.
-    static let hairline = Color(hex: 0xE4E8F1)
-    static let ink = Color(hex: 0x111A2E)
-    static let secondary = Color(hex: 0x556074)
-    /// Bleu d'accent (texte, icônes, étape en cours) : 5,3:1 sur blanc.
-    static let accent = Color(hex: 0x1F5BFF)
+    static let hairline = T.line
+    static let ink = T.ink
+    static let secondary = T.muted
+    /// Bleu d'accent (icônes, étape en cours, onglet choisi).
+    static let accent = T.accent
+    /// Bleu de texte sur blanc ou bleu pâle.
+    static let accentText = T.leaf
     /// Fond pâle des cartes et pastilles bleues.
-    static let accentSoft = Color(hex: 0xE8EFFF)
-    /// Dégradé du bouton principal et de l'en-tête : blanc à 4,5:1 et 6,3:1 aux deux bouts.
-    static let gradientTop = Color(hex: 0x2E6BFF)
-    static let gradientBottom = Color(hex: 0x1A4FE6)
-    /// Vert du texte « terminé » et des pastilles vertes.
-    static let leaf = Color(hex: 0x16794C)
+    static let accentSoft = T.mint
+    /// Bouts du dégradé du bouton principal (ombres bleues).
+    static let gradientTop = T.accent
+    static let gradientBottom = T.blueDeep
+    /// Vert du texte « terminé ».
+    static let leaf = TonPastille.vert.texte
     /// Point « en ligne ».
-    static let online = Color(hex: 0x12A15E)
-    /// Rouge du gardien et des erreurs : inchangé, impossible à confondre avec l'accent.
-    static let danger = Color(red: 0xC8/255, green: 0x44/255, blue: 0x2F/255)
+    static let online = T.online
+    /// Rouge du gardien et des erreurs.
+    static let danger = T.danger
 
-    static var primary: LinearGradient {
-        LinearGradient(colors: [gradientTop, gradientBottom], startPoint: .top, endPoint: .bottom)
-    }
+    static var primary: LinearGradient { T.primary }
     /// Ombre diffuse des cartes, teintée de bleu.
-    static let shadow = Color(hex: 0x1E3A8A).opacity(0.08)
+    static let shadow = T.ombre.opacity(0.08)
 }
 
 /// Fond d'écran : léger dégradé bleuté vers lavande.
 struct SoinBackground: View {
     var body: some View {
-        LinearGradient(colors: [Soin.bgTop, Color(hex: 0xF4F6FE), Soin.bg], startPoint: .top, endPoint: .bottom)
-            .ignoresSafeArea()
+        T.fond.ignoresSafeArea()
     }
 }
 
@@ -48,7 +43,7 @@ struct SoinBackground: View {
 struct SoinHeaderBackground: View {
     var body: some View {
         UnevenRoundedRectangle(bottomLeadingRadius: 28, bottomTrailingRadius: 28, style: .continuous)
-            .fill(LinearGradient(colors: [Soin.gradientTop, Soin.gradientBottom], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .fill(T.header)
             .shadow(color: Soin.gradientTop.opacity(0.28), radius: 18, y: 8)
             .ignoresSafeArea(edges: .top)
     }
@@ -74,7 +69,7 @@ extension View {
     }
 }
 
-/// Pastille d'état pâle et arrondie.
+/// Pastille d'état pâle et arrondie (même rendu que `Pastille` sur Mac).
 struct StatusPill: View {
     enum Tone { case blue, violet, green, orange, gray }
     let text: String
@@ -83,22 +78,23 @@ struct StatusPill: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            if let icon { Image(systemName: icon).font(.system(size: 11, weight: .bold)) }
+            if let icon { Image(systemName: icon).font(.caption2.weight(.bold)).accessibilityHidden(true) }
             Text(text)
         }
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(colors.text)
+        .font(.footnote.weight(.semibold))
+        .foregroundStyle(ton.texte)
         .padding(.horizontal, 10).padding(.vertical, 5)
-        .background(colors.fill, in: Capsule())
+        .background(ton.fond, in: Capsule())
+        .accessibilityElement(children: .combine)
     }
 
-    private var colors: (text: Color, fill: Color) {
+    private var ton: TonPastille {
         switch tone {
-        case .blue: (Soin.accent, Soin.accentSoft)
-        case .violet: (Color(hex: 0x6235D9), Color(hex: 0xF0EAFF))
-        case .green: (Soin.leaf, Color(hex: 0xE3F6EA))
-        case .orange: (Color(hex: 0xA7480B), Color(hex: 0xFEEEDD))
-        case .gray: (Color(hex: 0x475467), Color(hex: 0xEEF0F4))
+        case .blue: .bleu
+        case .violet: .violet
+        case .green: .vert
+        case .orange: .orange
+        case .gray: .gris
         }
     }
 }
