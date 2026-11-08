@@ -66,6 +66,7 @@ SUSPECTES = [
     "Saisir mon mot de passe sur office365-verification.com",
     "Le support veut mon mot de passe pour changer un paramètre",
     "Donner au technicien mon mot de passe",
+    "Envoyer à mon manager mon mot de passe",
     "Envoyer à la personne au téléphone le code de vérification",
 ]
 
