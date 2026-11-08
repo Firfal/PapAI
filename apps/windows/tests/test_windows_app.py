@@ -131,6 +131,33 @@ def unit() -> None:
     m._handle({"type": "alert_acknowledged", "alert_id": "a1"})
     check(m.snapshot()["guardAcknowledged"], "accusé du proche gardé pour l'écran de fin")
 
+    # Ticket : sans support disponible, la demande attend ; rendez-vous ; reprise.
+    asks = []
+
+    class TicketBridge(FakeBridge):
+        def ask_help(self, task, requested_by=None, ticket=None): asks.append((task, requested_by, ticket))
+
+    t = Model(demo="", on_compact=lambda _c: None)
+    t.bridge = TicketBridge()
+    t.ask_help("Imprimer")
+    t._handle({"type": "ticket_queued", "ticket": "t1", "number": 4, "task": "Imprimer"})
+    snap = t.snapshot()
+    check(snap["queued"]["number"] == 4 and snap["queued"]["show"] and snap["screen"] == "home" and not snap["sessionOpen"],
+          "aucun support disponible : la demande attend, retour à l'accueil")
+    t.schedule_ticket("demain9")
+    check(out[-1]["type"] == "ticket_schedule" and out[-1]["ticket"] == "t1" and out[-1]["at"] > time.time(),
+          "rendez-vous demandé au serveur")
+    t._handle({"type": "ticket_scheduled", "ticket": "t1", "at": 123})
+    t.close_queued()
+    check(t.queued["rdv"] == 123 and not t.snapshot()["queued"]["show"], "rendez-vous gardé, l'accueil revient")
+    t._handle({"type": "remote_request", "from": "Claire", "task": "Imprimer", "ticket": "t1", "rdv": True})
+    check(t.snapshot()["remoteRequest"]["rdv"], "à l'heure du rendez-vous : proposition affichée")
+    t.refuse_remote()
+    check(out[-1] == {"type": "remote_answer", "accepted": False, "ticket": "t1"}, "pas disponible : le ticket est signalé")
+    t._handle({"type": "remote_request", "from": "Claire", "task": "Imprimer", "ticket": "t1"})
+    t.accept_remote()
+    check(asks[-1] == ("Imprimer", "Claire", "t1"), "accepté : la session reprend le ticket")
+
     # Bridge sans serveur : exécutions refusées sans plan validé, puis après arrêt.
     sent = []
 

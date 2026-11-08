@@ -44,6 +44,15 @@ struct HomeView: View {
                  : "Un souci sur l'ordinateur ? Écrivez ce dont vous avez besoin, un message part tout de suite à \(model.helperName).")
                 .font(rounded(18)).foregroundStyle(T.muted)
                 .fixedSize(horizontal: false, vertical: true)
+            if let q = model.queued, !model.queuedShown {
+                Button { model.queuedShown = true } label: {
+                    Label(q.rdv.map { "Demande n° \(q.number) · rendez-vous \(rdvText($0))" } ?? "Demande n° \(q.number) en attente",
+                          systemImage: "person.wave.2.fill")
+                        .font(rounded(17, .semibold))
+                }
+                .buttonStyle(.plain).padding(.horizontal, 18).padding(.vertical, 12)
+                .background(Capsule().fill(T.card))
+            }
             Spacer(minLength: 0)
             if raccourcis.microPresent {
                 VStack(spacing: 12) {

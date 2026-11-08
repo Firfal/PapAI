@@ -20,6 +20,17 @@ struct PairRequest: Equatable {
 struct RemoteRequest: Equatable {
     var from: String
     var task: String
+    /// Ticket en attente que le support reprend (ou rendez-vous arrivé).
+    var ticket: String? = nil
+    var rdv = false
+}
+
+/// Demande partie en ticket sans support disponible.
+struct QueuedTicket: Equatable {
+    var ticket: String
+    var number: Int
+    var task: String
+    var rdv: Date?
 }
 
 enum SessionState: String {
@@ -74,6 +85,8 @@ final class AppModel {
     var pairLong = false
     var pairExpires = 600
     var remoteRequest: RemoteRequest?
+    var queued: QueuedTicket?
+    var queuedShown = false
     var pairRequest: PairRequest?
     var showHelpers = false
     var pendingTask = ""
@@ -233,7 +246,7 @@ final class AppModel {
         guard let r = remoteRequest else { return }
         remoteRequest = nil
         let task = r.task.isEmpty ? "\(r.from) propose de m'aider sur l'ordinateur" : r.task
-        askHelp(task: task, requestedBy: r.from)
+        askHelp(task: task, requestedBy: r.from, ticket: r.ticket)
     }
 
     func answerPair(_ accept: Bool) {
@@ -243,8 +256,27 @@ final class AppModel {
     }
 
     func refuseRemote() {
+        let ticket = remoteRequest?.ticket
         remoteRequest = nil
-        client.send(["type": "remote_answer", "accepted": false])
+        var msg: [String: Any] = ["type": "remote_answer", "accepted": false]
+        if let ticket { msg["ticket"] = ticket }
+        client.send(msg)
+    }
+
+    /// Rendez-vous pour la demande en attente : dans 1 h, demain 9 h ou 14 h.
+    func scheduleTicket(_ slot: String) {
+        guard let q = queued else { return }
+        let cal = Calendar.current
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        let at: Date?
+        switch slot {
+        case "1h": at = Date().addingTimeInterval(3600)
+        case "demain9": at = cal.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)
+        case "demain14": at = cal.date(bySettingHour: 14, minute: 0, second: 0, of: tomorrow)
+        default: at = nil
+        }
+        guard let at else { return }
+        client.send(["type": "ticket_schedule", "ticket": q.ticket, "at": Int(at.timeIntervalSince1970)])
     }
 
     // MARK: Démarrage
@@ -547,7 +579,7 @@ final class AppModel {
         screen = .home
     }
 
-    func askHelp(task: String, requestedBy: String? = nil) {
+    func askHelp(task: String, requestedBy: String? = nil, ticket: String? = nil) {
         guard guardAlert == nil else { return }
         gate.reset()
         stoppedBy = nil
@@ -565,6 +597,7 @@ final class AppModel {
         applyLevel()
         var msg: [String: Any] = ["type": "help_request", "task": task]
         if let requestedBy { msg["requested_by"] = requestedBy }
+        if let ticket { msg["ticket"] = ticket }
         client.send(msg)
     }
 
@@ -661,10 +694,23 @@ final class AppModel {
                                       relation: m["relation"] as? String ?? "")
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
+        case "ticket_queued":
+            // Aucun support disponible : la demande attend, retour à l'accueil.
+            queued = QueuedTicket(ticket: m["ticket"] as? String ?? "", number: m["number"] as? Int ?? 0,
+                                  task: m["task"] as? String ?? task, rdv: nil)
+            queuedShown = true
+            state = nil
+            screen = .home
+            applyLevel()
+        case "ticket_scheduled":
+            if let at = m["at"] as? Double, queued?.ticket == m["ticket"] as? String {
+                queued?.rdv = Date(timeIntervalSince1970: at)
+            }
         case "remote_request":
             guard !sessionOpen else { return }
             remoteRequest = RemoteRequest(from: m["from"] as? String ?? "Votre support",
-                                          task: m["task"] as? String ?? "")
+                                          task: m["task"] as? String ?? "",
+                                          ticket: m["ticket"] as? String, rdv: m["rdv"] as? Bool ?? false)
             NSApp.activate(ignoringOtherApps: true)
             window?.makeKeyAndOrderFront(nil)
         default:

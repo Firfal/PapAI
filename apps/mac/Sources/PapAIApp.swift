@@ -31,6 +31,8 @@ struct RootView: View {
                     OnboardingView()
                 } else if let r = model.remoteRequest {
                     RemoteRequestView(request: r)
+                } else if let q = model.queued, model.queuedShown {
+                    QueuedView(ticket: q)
                 } else if !(model.screenOK && model.axOK) && !model.permissionsDismissed && model.screen == .home {
                     PermissionsView()
                 } else {

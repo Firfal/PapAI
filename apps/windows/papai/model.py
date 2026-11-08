@@ -8,6 +8,7 @@ Windows ni WebView.
 from __future__ import annotations
 
 import base64
+import datetime
 import json
 import os
 import threading
@@ -92,6 +93,8 @@ class Model:
         self.pair_expires = 600
         self.pair_added: str | None = None
         self.remote_request: dict | None = None
+        # Demande partie en ticket sans support disponible : {ticket, number, task, rdv, show}.
+        self.queued: dict | None = None
         self.pair_request: dict | None = None
         self.pending_task = ""
         self.pending_automation: str | None = None
@@ -180,7 +183,7 @@ class Model:
                 "helpers": list(self.helpers), "pairCode": self.pair_code,
                 "pairURL": self.pair_url, "pairQR": qr_data_url(self.pair_app_url or self.pair_url or ""),
                 "pairLong": self.pair_long, "pairExpires": self.pair_expires,
-                "pairAdded": self.pair_added, "remoteRequest": self.remote_request,
+                "pairAdded": self.pair_added, "remoteRequest": self.remote_request, "queued": self.queued,
                 "pairRequest": self.pair_request,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
@@ -457,7 +460,7 @@ class Model:
             return
         self.remote_request = None
         task = r.get("task") or f"{r.get('from')} propose de m'aider sur l'ordinateur"
-        self.ask_help(task, requested_by=r.get("from"))
+        self.ask_help(task, requested_by=r.get("from"), ticket=r.get("ticket"))
 
     def dismiss_alert(self) -> None:
         if self.alert and self.alert.get("blocked"):
@@ -466,8 +469,32 @@ class Model:
         self.push()
 
     def refuse_remote(self) -> None:
+        r = self.remote_request or {}
         self.remote_request = None
-        self._send({"type": "remote_answer", "accepted": False})
+        msg = {"type": "remote_answer", "accepted": False}
+        if r.get("ticket"):
+            msg["ticket"] = r["ticket"]
+        self._send(msg)
+        self.push()
+
+    # ------------------------------------------------------ ticket en attente
+
+    def schedule_ticket(self, slot: str) -> None:
+        """Rendez-vous pour la demande en attente : dans 1 h, demain 9 h ou 14 h."""
+        q = self.queued
+        if not q:
+            return
+        now = datetime.datetime.now()
+        tomorrow = (now + datetime.timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
+        at = {"1h": now + datetime.timedelta(hours=1), "demain9": tomorrow.replace(hour=9),
+              "demain14": tomorrow.replace(hour=14)}.get(slot)
+        if at is None:
+            return
+        self._send({"type": "ticket_schedule", "ticket": q["ticket"], "at": int(at.timestamp())})
+
+    def close_queued(self, show: bool = False) -> None:
+        if self.queued:
+            self.queued["show"] = show
         self.push()
 
     # ------------------------------------------------------ demande d'aide
@@ -506,7 +533,7 @@ class Model:
         self.screen = "home"
         self.push()
 
-    def ask_help(self, task: str, requested_by: str | None = None) -> None:
+    def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None) -> None:
         self.gate.reset()
         self.stopped_by = None
         self._cancel(self._home_timer)
@@ -521,7 +548,10 @@ class Model:
             self.screen = "session"
         self._level()
         if self.bridge is not None:
-            self.bridge.ask_help(self.task, requested_by)
+            if ticket:
+                self.bridge.ask_help(self.task, requested_by, ticket)
+            else:
+                self.bridge.ask_help(self.task, requested_by)
         self.push()
 
     def stop(self) -> None:
@@ -602,10 +632,21 @@ class Model:
             self.pair_request = {"req": m["req"], "name": str(m.get("name") or "Quelqu'un")[:40],
                                  "relation": str(m.get("relation") or "")[:60]}
             self._on_remote()
+        elif kind == "ticket_queued":
+            # Aucun support disponible : la demande attend, on revient à l'accueil.
+            with self._lock:
+                self.queued = {"ticket": str(m.get("ticket") or ""), "number": m.get("number"),
+                               "task": str(m.get("task") or self.task), "rdv": None, "show": True}
+                self.state, self.screen = None, "home"
+            self._level()
+        elif kind == "ticket_scheduled":
+            if self.queued and self.queued["ticket"] == m.get("ticket"):
+                self.queued["rdv"] = m.get("at")
         elif kind == "remote_request":
             if self.session_open:
                 return
-            self.remote_request = {"from": m.get("from") or "Votre support", "task": m.get("task") or ""}
+            self.remote_request = {"from": m.get("from") or "Votre support", "task": m.get("task") or "",
+                                   "ticket": m.get("ticket"), "rdv": bool(m.get("rdv"))}
             self._on_remote()
         else:
             return
