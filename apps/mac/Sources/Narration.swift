@@ -48,7 +48,7 @@ final class LocalNarration: NSObject, AVSpeechSynthesizerDelegate {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        enabled = defaults.object(forKey: "readAloud") as? Bool ?? true
+        enabled = defaults.object(forKey: "readAloud") as? Bool ?? false  // coupée par défaut
         super.init()
         queue.enabled = enabled
         synthesizer.delegate = self

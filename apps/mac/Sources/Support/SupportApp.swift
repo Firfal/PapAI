@@ -499,6 +499,8 @@ struct ProfilUtilisateur: View {
                 if let label = p?.label, !label.isEmpty {
                     Text(label).font(rounded(15)).foregroundStyle(T.muted)
                 }
+                Text(model.connected ? "Rien à signaler pour \(model.senior)" : "Connexion interrompue")
+                    .font(rounded(15, .semibold)).foregroundStyle(model.connected ? Pastille.Ton.vert.texte : T.danger)
             }
             Spacer(minLength: 0)
             if let online = model.seniorOnline {

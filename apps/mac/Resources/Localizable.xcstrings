@@ -1971,6 +1971,126 @@
           }
         }
       }
+    },
+    "Pas de connexion pour le moment": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No connection right now"
+          }
+        }
+      }
+    },
+    "Connecté": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected"
+          }
+        }
+      }
+    },
+    "Hors connexion": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offline"
+          }
+        }
+      }
+    },
+    "Votre demande": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your request"
+          }
+        }
+      }
+    },
+    "Écran partagé": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screen shared"
+          }
+        }
+      }
+    },
+    "%@ étapes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ steps"
+          }
+        }
+      }
+    },
+    "%@ : Holo agit seulement dans le navigateur. Répondez à ses questions ici.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: Holo only acts in the browser. Answer its questions here."
+          }
+        }
+      }
+    },
+    "Aucun automate pour l’instant. Après une assistance, « Garder comme automate » permet à %@ de la relancer d’un clic.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No automations yet. After an assistance, “Keep as automation” lets %@ rerun it in one click."
+          }
+        }
+      }
+    },
+    "Automate « %@ » enregistré. %@ le retrouve dans « Mes automates ».": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automation “%@” saved. %@ will find it in “My automations”."
+          }
+        }
+      }
+    },
+    "Ouverts (%lld)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open (%lld)"
+          }
+        }
+      }
+    },
+    "Tous (%lld)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All (%lld)"
+          }
+        }
+      }
+    },
+    "Demande n° %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request #%lld"
+          }
+        }
+      }
     }
   }
 }
