@@ -88,6 +88,49 @@ def unit() -> None:
     m._apply_status({"state": "active", "plan_approved": True})
     check(m.state == "stopped", "un status tardif ne relance pas une session arrêtée")
 
+    # Parité Mac : Pause, question à la personne, encart pendant que Holo agit.
+    out, compacts = [], []
+
+    class FakeBridge:
+        def send(self, payload): out.append(payload)
+        def ask_help(self, task, requested_by=None): pass
+        def stop(self): pass
+
+    m = Model(demo="", on_compact=compacts.append)
+    m.bridge = FakeBridge()
+    m.helpers = [{"id": "1", "name": "Claire", "relation": ""}]
+    m.ask_help("Mes photos")
+    m._apply_status({"state": "active", "plan_approved": True, "helper_name": "Théo"})
+    check(m.compact and compacts == [True], "Holo agit : la fenêtre devient l'encart")
+    check(m.snapshot()["carer"] == "Théo", "l'encart dit qui s'occupe de l'aide")
+    m.expand_window()
+    check(not m.compact and compacts == [True, False], "agrandir : la grande fenêtre revient")
+    m.toggle_pause()
+    check(out[-1] == {"type": "pause"} and m.snapshot()["paused"], "Pause envoyée au serveur")
+    m.toggle_pause()
+    check(out[-1] == {"type": "resume"} and not m.paused, "Reprendre envoyé au serveur")
+    m._apply_status({"state": "awaiting_helper", "paused": False,
+                     "question": {"question": "Ordinateur ou clé USB ?", "options": ["Ordinateur", "Clé USB"],
+                                  "to": "senior"}})
+    snap = m.snapshot()
+    check(snap["questionForMe"] and snap["questionOptions"] == ["Ordinateur", "Clé USB"] and not m.compact,
+          "question posée à la personne : grande fenêtre et réponses proposées")
+    m.answer_senior("  Clé USB ")
+    check(out[-1] == {"type": "senior_answer", "text": "Clé USB"}, "réponse de la personne envoyée")
+    m.answer_senior("   ")
+    check(out[-1]["text"] == "Clé USB", "réponse vide ignorée")
+    m._apply_status({"state": "awaiting_helper", "question": {"question": "?", "to": "helper"}})
+    check(not m.question_for_me and m.compact, "question pour l'aidant : encart, la personne attend")
+    m.send_dictation("Mes photos de Noël", final=True)
+    check(out[-1] == {"type": "dictation", "text": "Mes photos de Noël", "final": True}, "dictée transmise à l'aidant")
+    m.stop()
+    check(not m.compact and compacts[-1] is False, "Arrêter : la grande fenêtre revient")
+    m.toggle_pause()
+    check(out[-1]["type"] == "dictation", "pas de Pause hors session")
+    m._handle({"type": "alert", "level": "danger", "title": "x", "alert_id": "a1"})
+    m._handle({"type": "alert_acknowledged", "alert_id": "a1"})
+    check(m.snapshot()["guardAcknowledged"], "accusé du proche gardé pour l'écran de fin")
+
     # Bridge sans serveur : exécutions refusées sans plan validé, puis après arrêt.
     sent = []
 
@@ -266,8 +309,31 @@ def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
     asyncio.run(aidant())
 
 
+def pairing() -> None:
+    """Ajout d'un support identique au Mac : QR papai://, invitation 24 h, lien en texte."""
+    sent = []
+    m = Model()
+    m._send = sent.append
+    m.start_pairing()
+    check(sent and sent[-1] == {"type": "pair_start", "long": True}, "pair_start long, comme le Mac")
+    m._handle({"type": "pair_code", "code": "482913", "url": "https://h/k/c/p/482913",
+               "app_url": "papai://pair?u=x&n=Jeanne", "expires_in": 86400, "long": True})
+    snap = m.snapshot()
+    check(m.pair_app_url == "papai://pair?u=x&n=Jeanne" and snap["pairLong"] and snap["pairExpires"] == 86400,
+          "le QR porte app_url, invitation 24 h")
+    m._handle({"type": "pair_code", "code": "111222", "url": "http://h:8000/p/111222"})
+    check(m.pair_app_url == "papai://pair?u=http%3A%2F%2Fh%3A8000%2Fp%2F111222" and not m.pair_long,
+          "ancien serveur sans app_url : lien papai:// construit")
+    check("valable 10 minutes" in m.invitation_text, "code de 10 minutes : l'invitation le dit")
+    m.pair_long = True
+    check("valable 24 heures" in m.invitation_text, "invitation de 24 heures, texte du Mac")
+    m.stop_pairing()
+    check(m.pair_code is None and m.pair_app_url is None and not m.pair_long, "Annuler efface tout")
+
+
 if __name__ == "__main__":
     unit()
+    pairing()
     if "--serveur" in sys.argv:
         with_server()
     print(f"{ok} vérifications passées")

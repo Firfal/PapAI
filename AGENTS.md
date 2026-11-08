@@ -28,6 +28,14 @@ Un seul mot par notion, dans toutes les apps. Les identifiants internes (`senior
 | Le poste aidé, quand le texte vaut pour Mac et Windows | **l'ordinateur** | le Mac, le PC |
 | Les décisions sur le plan | **Valider**, **Préciser**, **Refuser** | Accepter, Approuver |
 
+## Branches gelées
+
+Ne jamais fusionner, rebaser ni rouvrir de PR pour ces branches, sauf demande explicite de Quentin.
+
+| Branche | Pourquoi |
+|---|---|
+| `devin/1794084917-extension-gardien` | Extension navigateur anti-arnaque retirée du produit (PR #32 fermée sans fusion). Code conservé tel quel. |
+
 ## En cours
 
 | Agent | Branche | Chantier | Fichiers réservés | Depuis |
@@ -97,3 +105,5 @@ Un seul mot par notion, dans toutes les apps. Les identifiants internes (`senior
 - 2026-11-07 Devin (`devin/1794086337-ios-dictee-suite`) : iPhone, suite de la dictée. Micro touché puis feuille fermée aussitôt : l'écoute ne démarre pas, rien n'est envoyé (un envoi en cours est interrompu). Clavier bloqué pendant l'écoute (le texte déjà écrit est gardé, la dictée s'y ajoute). Bouton « Annuler » dans Modifier, Préciser et la réponse à Holo. Au premier plan affiché, une seule fois, la 1re étape glisse et montre le crayon, texte d'indice mis en avant. Appairage non touché. Fichiers libérés.
 - 2026-11-07 Devin (`devin/1794082375-android-aidant`) : app Android de l'aidant (`apps/android/`, Kotlin + Compose), portage de l'app iPhone sur le même protocole ; APK de release signé hors dépôt (`keystore.properties` ignoré), installable en « sources inconnues ». Liaison gardée par un service de premier plan, notification forte à chaque plan ou question. Lancée sur un émulateur Android 14 ; parcours complet pas encore essayé sur un vrai téléphone. Fichiers libérés.
 | 7 nov. soir | Devin | `devin/1794090552-vocabulaire-support` | Vocabulaire général (support informatique de niveau 1) : « support » pour celui qui aide (Mon support, Ajouter un support, appelez votre support) sur Mac, Windows et dans les alertes ; côté support (iPhone, Android, web), prénom de la personne aidée ou « la personne aidée ». « Mamie » codé en dur retiré, « personne âgée » retiré des consignes de Holo (fiches, gardien), liens d'appairage avec Collègue et Service informatique, « clé de l'espace ». « J'ai besoin d'aide » → « Demander une assistance » dans les docs (le libellé n'existe plus dans les apps). Tests serveur, Windows, JVM Android au vert (échecs protocole/transcribe/profil déjà présents sur main). Swift non compilé. Fichiers libérés. |
+| 7 nov. | Devin | `devin/1794089487-windows-parite-mac` | App Windows au niveau du Mac pendant l'aide : Pause/Reprendre, question de Holo à la personne (`senior_answer`), avancement en 3 étapes, encart pendant que Holo agit, fin du gardien adaptée à l'aidé, dictée transmise à l'aidant. Tests Windows (Python + node). Pas essayé sur un vrai Windows. |
+| 7 nov. | Devin | `devin/1794089154-branche-extension-gelee` | Extension navigateur retirée du produit (PR #32 fermée sans fusion) : section « Branches gelées » ajoutée, `devin/1794084917-extension-gardien` à ne fusionner que sur demande explicite de Quentin. Aucun fichier réservé. |

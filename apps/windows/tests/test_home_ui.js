@@ -10,7 +10,7 @@ async function home(microPresent = true) {
     firstName: '', storedFirstName: '', helperName: 'Claire', textScale: 1,
     lessons: [], notice: null, homeShortcuts: [], microPresent,
     dictation: { phase: 'idle', message: null } };
-  const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [];
+  const listeners = {}, windowEvents = {}, sent = [], shortcuts = [], removed = [], calls = [];
   const root = { innerHTML: '' }, sheet = { innerHTML: '' };
   const document = { activeElement: null, documentElement: { style: { setProperty() {} } },
     getElementById: id => ({ root, sheet }[id] || null),
@@ -21,6 +21,9 @@ async function home(microPresent = true) {
     dictation_toggle: () => {},
     open_home_shortcut: id => { shortcuts.push(id); },
     remove_home_shortcut: id => { removed.push(id); },
+    toggle_pause: () => { calls.push(['toggle_pause']); },
+    answer_senior: t => { calls.push(['answer_senior', t]); },
+    expand_window: () => { calls.push(['expand_window']); },
   } }, addEventListener: (name, fn) => { windowEvents[name] = fn; } };
   const context = vm.createContext({ window, document, icon: () => '<svg></svg>',
     URLSearchParams, location: { search: '' }, setTimeout });
@@ -32,7 +35,7 @@ async function home(microPresent = true) {
     style: {}, scrollHeight: 30 } });
   context.getComputedStyle = () => ({ lineHeight: '22' });
   const enter = () => listeners.keydown({ key: 'Enter', target: { id: 'req' }, preventDefault() {} });
-  return { state, root, update, click, type, enter, sent, shortcuts, removed, window };
+  return { state, root, update, click, type, enter, sent, shortcuts, removed, calls, window, listeners };
 }
 
 test('textes Mac #30, avertissement vide identique et titres renforcés', async () => {
@@ -157,4 +160,57 @@ test('hors connexion : texte conservé pour un seul nouvel essai', async () => {
   h.update({ connected: true });
   h.click('submit'); h.enter();
   assert.deepEqual(h.sent, ['Mes photos']);
+});
+
+const html = (h) => h.root.innerHTML.replace(/&#39;/g, "'");
+const session = (changes) => ({ screen: 'session', sessionOpen: true, HelperName: 'Claire', carer: 'Claire',
+  helpers: [{ id: '1', name: 'Claire' }], plan: ['a', 'b'], planStep: 1, task: 'Mes photos',
+  question: null, questionForMe: false, questionOptions: [], paused: false, compact: false, ...changes });
+
+test('session comme sur Mac : avancement en 3 étapes, Pause puis Reprendre', async () => {
+  const h = await home();
+  h.update(session({ state: 'active' }));
+  assert.match(html(h), /Claire s'en occupe/);
+  assert.match(html(h), /role="progressbar"/);
+  assert.match(html(h), /En cours : Claire s'en occupe, avec Holo/);
+  assert.match(html(h), /data-act="pause"[\s\S]*Pause/);
+  h.click('pause');
+  assert.deepEqual(h.calls.at(-1), ['toggle_pause']);
+  h.update({ paused: true });
+  assert.match(html(h), /L'aide est en pause/);
+  assert.match(html(h), />Reprendre</);
+  h.update({ state: 'awaiting_approval', paused: false });
+  assert.doesNotMatch(html(h), /data-act="pause"/);
+});
+
+test('question de Holo à la personne : réponse proposée ou écrite, une seule fois', async () => {
+  const h = await home();
+  h.update(session({ state: 'awaiting_helper', question: 'Ordinateur ou clé USB ?', questionForMe: true,
+    questionOptions: ['Ordinateur', 'Clé USB'] }));
+  assert.match(html(h), /Holo vous demande/);
+  assert.match(html(h), /Ne donnez jamais de mot de passe ni de code/);
+  h.click('seniorOption', 'Clé USB');
+  assert.deepEqual(h.calls.at(-1), ['answer_senior', 'Clé USB']);
+  assert.match(html(h), /Merci, c'est noté\./);
+  h.update({ state: 'active', questionForMe: false, question: null });
+  h.update({ state: 'awaiting_helper', questionForMe: true, question: 'Ordinateur ou clé USB ?' });
+  assert.match(html(h), /data-act="seniorOption"/);
+  h.update({ question: 'Et le dossier ?', questionOptions: [] });
+  h.listeners.input({ target: { id: 'seniorReply', value: 'Noël 2025' } });
+  h.listeners.keydown({ key: 'Enter', target: { id: 'seniorReply' }, preventDefault() {} });
+  assert.deepEqual(h.calls.at(-1), ['answer_senior', 'Noël 2025']);
+});
+
+test("encart pendant que Holo agit, et fin du gardien adaptée à l'aidé", async () => {
+  const h = await home();
+  h.update(session({ state: 'active', compact: true }));
+  assert.match(html(h), /class="col mini"/);
+  assert.doesNotMatch(html(h), /Écran partagé/);
+  assert.match(html(h), /data-act="stop"/);
+  h.click('expand');
+  assert.deepEqual(h.calls.at(-1), ['expand_window']);
+  h.update(session({ state: 'stopped', sessionOpen: false, stoppedBy: 'gardien', guardAcknowledged: true }));
+  assert.match(html(h), /cette démarche peut être une arnaque/);
+  assert.match(html(h), /Appelez Claire à son numéro habituel\./);
+  assert.match(html(h), /Votre support a vu l'alerte et s'en occupe/);
 });
