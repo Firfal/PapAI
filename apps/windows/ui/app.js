@@ -108,27 +108,57 @@
   const folderIcon = (folder) => ({ pictures: 'photo', documents: 'doc', downloads: 'download',
     desktop: 'desktop', videos: 'film', music: 'music' }[String(folder || '').toLowerCase()] || 'list');
 
+  const lessonIcon = (l) => !l.shortcut && (l.actions || []).length ? 'wand' : folderIcon((l.shortcut || {}).folder);
+  function runCell(l) {
+    const st = S.runStatus && S.runStatus.id === l.id ? S.runStatus : null;
+    if (!st) {
+      return `<button class="press accent softChip" data-act="run" data-arg="${esc(l.id)}" aria-label="Exécuter ${esc(l.title)}" style="${f(15, 6)}">Exécuter</button>`;
+    }
+    const stopped = st.text === 'Arrêté';
+    const chip = `<span class="pillChip ${st.running ? 'chip-blue' : stopped ? 'chip-gray' : 'chip-green'}" role="status" aria-label="${esc(st.text)}"
+        style="gap:6px;min-height:44px;padding:0 14px;white-space:nowrap;${f(15, 6)}">
+        ${st.running ? '<span class="spinner small"></span>' : icon(stopped ? 'stopCircle' : 'checkCircle', 18)}${esc(st.text)}</span>`;
+    // Sur Windows, Arrêter reste à portée de clic pendant qu'un automate tourne.
+    const stop = st.running ? `<button class="circle press stopBtn" data-act="stop" aria-label="Arrêter l'automate (Échap)" title="Arrêter"
+        style="width:44px;height:44px">${icon('stop', 16, '#fff')}</button>` : '';
+    return chip + stop;
+  }
   function tutorials() {
-    const notice = S.notice ? `<div class="row accent" style="gap:10px;background:var(--mint);border-radius:var(--r);padding:18px;${f(17, 5)}">${icon('exclam', 20)}<span>${esc(S.notice)}</span></div>` : '';
-    const tiles = S.lessons.map((l) => {
-      const steps = (l.steps || []).length;
-      return `<div class="row lessonRow" style="padding:10px 14px;gap:10px">
-        <button class="row press grow" data-act="shortcut" data-arg="${esc(l.id)}" aria-label="${esc(l.title)}" style="gap:12px;text-align:left;min-height:44px">
-          <span class="circle" style="width:40px;height:40px;background:var(--mint);color:var(--accentIcon)">${icon(folderIcon((l.shortcut || {}).folder), 20)}</span>
+    const notice = S.notice ? `<div class="row accent" style="gap:10px;background:var(--mint);border-radius:var(--r);padding:18px;${f(17, 5)}">${icon('info', 20)}<span>${esc(S.notice)}</span></div>` : '';
+    const tiles = S.lessons.map((l) => `<div class="row lessonRow" style="padding:10px 14px;gap:10px">
+        <button class="row press grow" data-act="doc" data-arg="${esc(l.id)}" aria-label="Voir l'automate ${esc(l.title)}" style="gap:12px;text-align:left;min-height:44px">
+          <span class="circle" style="width:40px;height:40px;background:var(--mint);color:var(--accentIcon)">${icon(lessonIcon(l), 20)}</span>
           <span class="col" style="gap:3px"><span style="${f(18, 6)}">${esc(l.title)}</span>${l.publisher ? `<span class="muted" style="${f(14, 4)}">${esc('Fourni par ' + l.publisher)}</span>` : ''}</span>
-        </button>
-        ${steps ? `<button class="press accent softChip" data-act="lesson" data-arg="${esc(l.id)}" style="${f(15, 6)}">Montrez-moi</button>` : ''}
-      </div>`;
-    }).join('');
-    const running = S.automationRunning ? `<div class="card row" style="padding:18px;gap:14px;align-items:center">
-        <span class="grow" style="${f(18, 6)}">En cours : ${esc(S.automationRunning)}</span>
-        <button class="row press stopBtn" data-act="stop" aria-label="Arrêter l'automate (Échap)"
-          style="gap:10px;height:52px;padding:0 20px;border-radius:999px">
-          ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
+        </button>${runCell(l)}
+      </div>`).join('');
     const list = S.lessons.length ? `<div class="card listCard">${tiles}</div>`
       : `<div class="card col" style="padding:20px;gap:6px"><div style="${f(18, 6)}">Aucun automate pour l'instant.</div>
           <div class="muted" style="${f(17, 4)}">Un automate est une tâche toute prête. Quand ${esc(S.helperName)} en enregistre un pour vous, il apparaît ici et se lance d'un clic.</div></div>`;
-    return `${sectionTitle('list', 'Mes automates')}${running}${notice}${list}`;
+    return `${sectionTitle('wand', 'Mes automates')}${notice}${list}`;
+  }
+
+  // L'automate ouvert depuis « Mes automates » (LessonDocView du Mac).
+  function docSheet() {
+    const l = (S.lessons || []).find((x) => x.id === ui.docId);
+    if (!l) return '';
+    const steps = (l.steps || []).map((x) => x.instruction || x).filter(Boolean);
+    const list = steps.map((t, i) => `<div class="row" style="gap:12px;align-items:flex-start">
+        <span class="docNum" style="${f(16, 6)}">${i + 1}</span><span style="padding-top:4px;${f(18, 5)}">${esc(t)}</span></div>`).join('');
+    return `<div class="sheet col" role="dialog" aria-modal="true" aria-label="Automate ${esc(l.title)}" style="width:620px;padding:32px;gap:18px;background:var(--card)">
+      <div class="sheetHead row" style="gap:14px;align-items:flex-start">
+        <div class="col grow" style="gap:6px"><div style="${f(15, 6)};opacity:.85">Automate</div>
+          <div style="${f(30, 7)};letter-spacing:-0.4px">${esc(l.title)}</div>
+          ${l.publisher ? `<div style="${f(15, 4)};opacity:.85">${esc('Fourni par ' + l.publisher)}</div>` : ''}</div>
+        <button class="circle press" data-act="closeSheet" aria-label="Fermer" style="width:44px;height:44px;background:rgba(255,255,255,.18);color:#fff">${icon('xmark', 18)}</button>
+      </div>
+      <div class="col scroll" style="gap:18px">
+        ${l.description ? `<div style="${f(19, 5)}">${esc(l.description)}</div>` : ''}
+        ${steps.length ? `<div class="muted" style="${f(17, 6)}">Les étapes</div><div class="col" style="gap:12px">${list}</div>` : ''}
+      </div>
+      <div class="row" style="gap:12px">
+        ${steps.length ? pill('Montrez-moi', 'docLesson', { filled: false, height: 58, grow: true }) : ''}
+        <button class="pill filled press grow row" data-act="docRun" style="height:58px;gap:10px;${f(20, 6)}">${icon('play', 20, '#fff')}<span>Exécuter</span></button>
+      </div></div>`;
   }
 
   const APP_STYLE = {
@@ -176,7 +206,7 @@
       ${promise('eye', 'Holo voit votre écran pour comprendre le problème.', 21)}
       ${promise('hand', `Rien ne bouge avant l'accord de ${S.helperName}.`, 21)}
       ${promise('stopCircle', 'Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.', 21)}
-      ${promise('check', 'On ne vous le redemandera pas. Vous pouvez retirer cet accord dans Réglages.', 21)}`, 40, 24) +
+      ${promise('check', 'On ne vous le redemandera pas.', 21)}`, 40, 24) +
       `<div class="row" style="gap:14px;margin-top:18px">
         ${pill('Annuler', 'cancelConsent', { filled: false, height: 78, grow: true })}
         ${pill("D'accord, je partage mon écran", 'share', { height: 78, grow: true, disabled: !S.connected })}
@@ -192,6 +222,7 @@
       active: `${S.carer} s'en occupe`, awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !",
       stopped: "L'assistance est arrêtée." }[st];
   }
+  const onWeb = (st) => S.sessionWhere === 'web' && (st === 'active' || st === 'awaiting_helper');
   function sessionSubtitle(st) {
     if (S.paused && S.sessionOpen) return 'Vous pouvez utiliser votre ordinateur. Appuyez sur Reprendre quand vous voulez.';
     if (guardStopped(st)) return null;
@@ -249,16 +280,24 @@
   const endNote = (sym, text) => `<div class="row" style="gap:14px"><span class="accent" style="width:28px;display:flex;justify-content:center">${icon(sym, 22)}</span>
     <span class="muted" style="${f(19, 4)}">${esc(text)}</span></div>`;
 
+  // Holo travaille dans Chrome PapAI (WebAgentHost) : on le dit, comme sur le Mac.
+  const webNote = (st) => onWeb(st) && !(S.paused && S.sessionOpen)
+    ? `<div class="muted" style="${f(22, 5)}">Holo travaille dans une fenêtre Chrome à part, sans vos comptes ni vos onglets. Vous pouvez tout arrêter ici à tout moment.</div>` : '';
+  const webClosed = () => S.sessionWhere === 'web' ? endNote('globe', 'Holo a fermé sa fenêtre Chrome.') : '';
   function sessionContent(st) {
     if (st === 'planning' || st === 'awaiting_approval' || st === 'active') {
-      return progress(st, st === 'planning' ? 0 : st === 'awaiting_approval' ? 1 : 2);
+      const p = progress(st, st === 'planning' ? 0 : st === 'awaiting_approval' ? 1 : 2);
+      return st === 'active' && webNote(st) ? `<div class="col" style="gap:18px">${p}${webNote(st)}</div>` : p;
     }
-    if (st === 'awaiting_helper') return S.questionForMe && S.question ? seniorQuestion() : progress(st, 2);
+    if (st === 'awaiting_helper') {
+      if (S.questionForMe && S.question) return seniorQuestion();
+      return webNote(st) ? `<div class="col" style="gap:18px">${progress(st, 2)}${webNote(st)}</div>` : progress(st, 2);
+    }
     if (st === 'done') {
       return `<div class="col" style="gap:16px">
-        <div class="card" style="padding:28px;${f(26, 5)}">${esc(S.answer || 'Voilà, c\'est fait.')}</div>
+        <div class="answerCard" style="padding:28px;${f(26, 5)}">${esc(S.answer || 'Voilà, c\'est fait.')}</div>
         ${(S.answerSources || []).map(s => `<p style="${f(14)}">${esc(s.name || s.url)} · ${esc(s.url)}</p>`).join('')}
-        ${endNote('lock', "Votre écran n'est plus partagé.")}
+        ${endNote('lock', "Votre écran n'est plus partagé.")}${webClosed()}
         ${endNote('book', `${S.HelperName} peut en faire un automate. Vous le retrouverez dans « Mes automates » pour le refaire sans aide.`)}
       </div>`;
     }
@@ -267,8 +306,9 @@
       return `<div class="col" style="gap:20px;${f(23, 5)}">
         <div>Ne payez rien et ne donnez aucun code.</div>
         <div>Appelez ${esc(who)} à son numéro habituel.</div>
-        ${S.guardAcknowledged ? "<div>Votre support a vu l'alerte et s'en occupe</div>" : ''}</div>`;
+        ${S.guardAcknowledged ? "<div>Votre support a vu l'alerte et s'en occupe</div>" : ''}${webClosed()}</div>`;
     }
+    if (st === 'stopped' && S.sessionWhere === 'web') return `<div class="col" style="gap:16px">${webClosed()}</div>`;
     return '';
   }
 
@@ -287,8 +327,8 @@
   function session() {
     const st = S.state || 'planning';
     const sub = sessionSubtitle(st);
-    const banner = S.sessionOpen ? `<div class="pillChip chip-green" style="align-self:flex-start;gap:10px;padding:10px 18px;${f(16, 6)}">
-      <span class="dot" style="background:#1F8A4C"></span>Écran partagé</div>` : '';
+    const banner = S.sessionOpen ? `<div class="pillChip chip-blue" style="align-self:flex-start;gap:10px;padding:10px 18px;${f(16, 6)}">
+      <span class="dot" style="background:currentColor"></span>Écran partagé</div>` : '';
     const footer = (S.task && st !== 'stopped' && st !== 'awaiting_approval' && !(st === 'awaiting_helper' && S.questionForMe))
       ? `<div class="muted" style="${f(16, 4)};display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">Votre demande : ${esc(S.task)}</div>` : '';
     const bottom = S.sessionOpen
@@ -313,7 +353,8 @@
   // en bas à droite pour qu'on voie ce qu'il fait ; Pause et Arrêter restent là.
   function mini() {
     const st = S.state || 'planning';
-    const title = S.paused && S.sessionOpen ? "L'aide est en pause" : ({ planning: 'Holo prépare la suite…',
+    const title = S.paused && S.sessionOpen ? "L'aide est en pause"
+      : onWeb(st) && S.sessionOpen ? 'Holo travaille dans Chrome PapAI' : ({ planning: 'Holo prépare la suite…',
       awaiting_approval: `${S.HelperName} vérifie`, active: `${S.carer} s'en occupe`,
       awaiting_helper: `${S.HelperName} vous aide`, done: "C'est fait !" }[st] || 'PapAI');
     return `<div class="col mini" style="gap:10px;padding:14px 16px">
@@ -400,38 +441,42 @@
   // ------------------------------------------------------------------ Feuilles
   // « Mon support » : l'organisation rattachée par les stratégies de groupe, en lecture seule.
   function supportInfo() {
-    if (!S.orgConfigured && !S.orgName) {
-      return `<div class="card row" style="gap:14px;padding:16px">
-        <span class="muted">${icon('exclam', 22)}</span>
-        <span style="${f(17, 5)}">Aucune organisation configurée : contactez votre service informatique.</span></div>`;
-    }
-    const online = S.connected && !!S.orgName;
-    const status = !S.orgName ? 'Rattachement en cours…' : online ? 'En ligne' : 'Hors ligne pour le moment';
-    return `<div class="card row" style="gap:14px;padding:16px">
-      <span class="circle" style="width:42px;height:42px;background:var(--mint);color:var(--accent)">${icon('personWave', 22)}</span>
-      <div class="col grow" style="gap:4px">
-        <div style="${f(18, 6)}">Support IT${S.orgName ? ' · ' + esc(S.orgName) : ''}</div>
-        <div class="row muted" style="gap:8px;${f(15, 5)}"><span class="dot" style="background:${online ? 'var(--accent)' : 'rgba(122,128,124,.5)'}"></span>${esc(status)}</div>
-      </div></div>
-      <div class="muted" style="${f(15, 4)}">Réglé par votre service informatique : rien à faire sur cet ordinateur.</div>`;
+    const none = !S.orgConfigured && !S.orgName;
+    const online = S.connected && (S.helpers || []).some((h) => h.online);
+    const title = none ? 'Aucune organisation configurée' : S.orgName ? 'Support IT · ' + S.orgName : 'Support IT';
+    const detail = none ? 'Contactez votre service informatique.'
+      : !S.connected ? 'Hors connexion pour le moment.'
+      : !S.orgName ? 'Rattachement à votre organisation en cours…'
+      : online ? 'En ligne' : 'Aucun agent en ligne : votre demande sera mise en attente.';
+    const sym = none ? 'exclam' : S.orgName ? 'personCheck' : 'clock';
+    return `<div class="col" style="gap:12px"><div style="${f(22, 6)}">Mon support</div>
+      <div class="row supportCard" style="gap:14px;padding:14px">
+        <span class="circle" style="width:46px;height:46px;color:#fff;background:${S.orgName && !none ? 'var(--accentIcon)' : 'var(--muted)'}">${icon(sym, 20)}</span>
+        <div class="col grow" style="gap:4px">
+          <div style="${f(20, 6)}">${esc(title)}</div>
+          <div class="${online && S.orgName ? 'accent' : 'muted'}" style="${f(15, 5)}">${esc(detail)}</div>
+        </div></div>
+      ${none ? '' : `<div class="muted" style="${f(14, 4)}">Configuré par votre service informatique.</div>`}</div>`;
   }
 
   function settingsSheet() {
-    const seg = S.textScales.map(([label, v]) =>
-      `<button class="${Math.abs(S.textScale - v) < 0.01 ? 'on' : ''}" data-act="scale" data-arg="${v}">${label}</button>`).join('');
-    return `<div class="sheet col" style="width:520px;padding:32px;gap:18px;background:var(--card)">
-      <div class="sheetHead" style="${f(30, 6)}">Réglages</div>
-      <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Mon support</div>${supportInfo()}</div>
-      <label class="row" style="gap:12px;${f(20, 6)}"><input type="checkbox" data-act="readAloud" ${window.PapAINarration?.enabled !== false ? 'checked' : ''}>Lire à voix haute</label>
-      <div class="muted" style="${f(15, 4)}">Voix française locale uniquement. La lecture se coupe pendant la dictée.</div>
-      <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Taille du texte</div><div class="seg">${seg}</div></div>
-      <div class="col" style="gap:8px"><div class="muted" style="${f(15, 6)}">Protection en temps réel</div>
-        <div class="seg"><button class="${S.realtimeProtection ? 'on' : ''}" data-act="protection" data-arg="1">Activée</button><button class="${S.realtimeProtection ? '' : 'on'}" data-act="protection" data-arg="0">Coupée</button></div>
-        <div class="muted" style="${f(15, 4)}">${S.realtimeProtection
-          ? "PapAI repère les arnaques à partir des applications ouvertes et du titre de la fenêtre. Jamais l'écran, jamais vos mots de passe."
-          : "Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées."}</div></div>
-      <div class="row" style="gap:8px">
-        ${S.screenConsent ? pill("Retirer l'accord de partage", 'revokeConsent', { filled: false, height: 50 }) : ''}
+    const on = S.realtimeProtection;
+    const voix = window.PapAINarration?.enabled !== false;
+    return `<div class="sheet col" role="dialog" aria-modal="true" aria-label="Réglages" style="width:560px;padding:32px;gap:18px;background:var(--card)">
+      <div class="sheetHead col" style="gap:4px"><div style="${f(30, 7)}">Réglages</div>
+        ${S.orgName ? `<div style="${f(15, 5)};opacity:.92">Poste géré par ${esc(S.orgName)}</div>` : ''}</div>
+      <div class="col" style="gap:8px">
+        <div class="row" style="gap:14px"><span class="grow" id="protLabel" style="${f(22, 6)}">Protection en temps réel</span>
+          <button class="switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-labelledby="protLabel" data-act="protection" data-arg="${on ? '0' : '1'}"><span></span></button></div>
+        <div class="muted" style="${f(17, 4)}">${on
+          ? "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe."
+          : "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées."}</div></div>
+      <div class="col" style="gap:8px">
+        <div class="row" style="gap:14px"><span class="grow" id="voixLabel" style="${f(22, 6)}">Lire à voix haute</span>
+          <button class="switch${voix ? ' on' : ''}" role="switch" aria-checked="${voix}" aria-labelledby="voixLabel" data-act="readAloud"><span></span></button></div>
+        <div class="muted" style="${f(17, 4)}">Voix française locale uniquement. La lecture se coupe pendant la dictée.</div></div>
+      ${supportInfo()}
+      <div class="row" style="gap:8px;padding-top:14px;box-shadow:inset 0 1px 0 var(--line)">
         <div class="spacer"></div>
         ${pill('Fermer', 'closeSheet', { height: 50 })}
       </div></div>`;
@@ -479,7 +524,8 @@
     document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${main}</div>`;
     document.getElementById('sheet').innerHTML =
       S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
-        : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
+        : ui.sheet === 'addShortcut' ? addShortcutSheet()
+        : ui.sheet === 'doc' ? docSheet() : '';
     const req = document.getElementById('req');
     if (req) autosize(req);
     if (focusId) {
@@ -530,13 +576,15 @@
     openSettings: () => { ui.sheet = 'settings'; render(); },
     closeSheet: () => { ui.sheet = null; render(); },
     dismissAlert: () => { if (!S.alert?.blocked) { S.alert = null; render(); call('dismiss_alert'); } },
-    scale: (v) => { S.textScale = parseFloat(v); render(); call('set_text_scale', parseFloat(v)); },
     protection: (v) => { S.realtimeProtection = v === '1'; render(); call('set_realtime_protection', S.realtimeProtection); },
     shortcut: (id) => call('run_shortcut', id),
+    run: (id) => call('run_shortcut', id),
+    doc: (id) => { ui.docId = id; ui.sheet = 'doc'; render(); },
+    docRun: () => { const id = ui.docId; ui.sheet = null; render(); call('run_shortcut', id); },
+    docLesson: () => { const id = ui.docId; ui.sheet = null; ui.lessonIndex = 0; render(); call('open_lesson', id); },
     lesson: (id) => call('open_lesson', id),
     cancelConsent: () => call('cancel_consent'),
     share: () => call('give_consent'),
-    revokeConsent: () => { S.screenConsent = false; render(); call('revoke_consent'); },
     stop: () => { window.PapAINarration?.cancel(); call('stop'); },
     pause: () => { window.PapAINarration?.cancel(); call('toggle_pause'); },
     expand: () => call('expand_window'),
@@ -641,6 +689,7 @@
     set_realtime_protection: () => {},
     expand_window: () => { S.compact = false; render(); },
     answer_senior: () => {},
+    run_shortcut: (id) => { S.runStatus = { id, text: "C'est ouvert", running: false }; render(); },
     add_home_folder: () => ({ ok: false, message: "Le choix d'un dossier se fait dans l'app Windows." }),
   };
 
@@ -654,6 +703,7 @@
     if (q.has('demo')) {
       fetch('state.json?' + q.toString()).then((r) => r.json()).then((snap) => {
         if (q.get('sheet')) ui.sheet = q.get('sheet');
+        if (q.get('demo') === 'doc') { ui.sheet = 'doc'; ui.docId = (snap.lessons[0] || {}).id; }
         if (q.get('dictation')) snap.dictation = { phase: q.get('dictation'), message: null };
         if (q.get('request')) ui.request = q.get('request');
         if (q.get('connected') === '0') snap.connected = false;

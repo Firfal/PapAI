@@ -723,6 +723,13 @@ bureau reste le comportement par défaut.
   `WebAgentHost.isInstalled` et `browserExecutable()` sont vrais. Le Mac
   n'annonce plus de session navigateur dans `hello`; l'absence du champ signifie
   que le serveur doit rester en mode bureau.
+- Windows → serveur, `hello` : même champ, vrai quand `holo.exe` est installé
+  dans `%LOCALAPPDATA%\PapAI\agent-navigateur\venv` et que Chrome, Brave ou
+  Edge est trouvé (`apps/windows/papai/web_agent.py`). Windows suit ensuite les
+  mêmes messages que le Mac (`web_agent_start`, `web_agent_stop`, `web_agent`),
+  avec le profil dédié `%LOCALAPPDATA%\PapAI\Chrome` effacé avant et après
+  l'assistance. Si le port 9222 est déjà pris, Windows ne démarre rien et le
+  serveur passe en mode bureau au bout de 20 secondes.
 - Après la validation du plan, serveur → Mac :
   `{"type":"web_agent_start","sites":["ameli.fr"],"hosts":[]}` si le plan demande le web et que le Mac a annoncé
   cette capacité. Le Mac ne démarre le navigateur que pour une session en cours

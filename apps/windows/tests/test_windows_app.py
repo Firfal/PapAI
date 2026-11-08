@@ -331,17 +331,13 @@ def unit() -> None:
     asyncio.run(blocked_attention())
 
     m = Model(demo="home")
+    m.prefs = {}
     m.request_consent("Mes photos")
-    check(m.screen == "consent", "première demande : écran d'accord du partage")
-    m.give_consent()
-    check(m.screen == "session" and m.snapshot()["screenConsent"], "accord donné et gardé")
+    check(m.screen == "session" and m.task == "Mes photos" and m.snapshot()["screenConsent"],
+          "comme le Mac (#71) : la demande part directement, l'accord est gardé")
     m.back_home()
     m.request_consent("Mes courriels")
     check(m.screen == "session" and m.task == "Mes courriels", "demande suivante : l'accord n'est pas redemandé")
-    m.revoke_consent()
-    m.back_home()
-    m.request_consent("Mes photos")
-    check(m.screen == "consent", "accord retiré dans Réglages : redemandé")
 
     # Automatismes importés : actions de premier niveau, jamais de commande.
     g = core.StopGate()
@@ -434,8 +430,7 @@ def with_server(base: str = "http://127.0.0.1:8000", key: str = "demo") -> None:
                 return None
 
             m.request_consent("Je ne retrouve plus mes photos")
-            check(m.screen == "consent" and not played, "écran de consentement, rien ne bouge")
-            m.give_consent()
+            check(m.screen == "session" and not played, "demande partie, rien ne bouge")
             check(settings.load().get("screenConsent") is True, "accord de partage enregistré sur le disque")
             st = await until(lambda x: x.get("type") == "status" and x.get("state") == "awaiting_approval", 60)
             check(st is not None and bool(st.get("plan")), "plan proposé à l'aidant")
