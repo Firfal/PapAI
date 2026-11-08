@@ -47,6 +47,9 @@ object Soin {
 
     /** En-têtes et bouton principal. */
     val accentBrush: Brush get() = Brush.horizontalGradient(listOf(accent, accentEnd))
+
+    /** En-tête : plus clair en haut, plus soutenu en bas, comme la maquette (texte blanc AA sur les deux). */
+    val headerBrush: Brush get() = Brush.verticalGradient(listOf(accentEnd, accent))
 }
 
 /** Fond d'écran en léger dégradé. */

@@ -115,7 +115,7 @@ fun Header(name: String, onAvatar: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp)
             .shadow(10.dp, RoundedCornerShape(24.dp), ambientColor = Soin.accent, spotColor = Soin.accent)
-            .clip(RoundedCornerShape(24.dp)).background(Soin.accentBrush)
+            .clip(RoundedCornerShape(24.dp)).background(Soin.headerBrush)
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
