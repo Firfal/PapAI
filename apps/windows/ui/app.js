@@ -590,15 +590,9 @@
     document.getElementById('root').innerHTML = compact ? mini() : header() + `<div class="main">${main}</div>`;
     document.getElementById('sheet').innerHTML =
       S.alert ? alertSheet() : ui.sheet === 'settings' ? settingsSheet()
-<<<<<<< HEAD
+        : ui.sheet === 'requests' ? requestsSheet()
         : ui.sheet === 'addShortcut' ? addShortcutSheet()
         : ui.sheet === 'doc' ? docSheet() : '';
-||||||| b905883
-        : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
-=======
-        : ui.sheet === 'requests' ? requestsSheet()
-        : ui.sheet === 'addShortcut' ? addShortcutSheet() : '';
->>>>>>> origin/main
     const req = document.getElementById('req');
     if (req) autosize(req);
     if (focusId) {
@@ -785,12 +779,8 @@
     if (q.has('demo')) {
       fetch('state.json?' + q.toString()).then((r) => r.json()).then((snap) => {
         if (q.get('sheet')) ui.sheet = q.get('sheet');
-<<<<<<< HEAD
         if (q.get('demo') === 'doc') { ui.sheet = 'doc'; ui.docId = (snap.lessons[0] || {}).id; }
-||||||| b905883
-=======
         else if (q.get('demo') === 'requests') ui.sheet = 'requests';
->>>>>>> origin/main
         if (q.get('dictation')) snap.dictation = { phase: q.get('dictation'), message: null };
         if (q.get('request')) ui.request = q.get('request');
         if (q.get('connected') === '0') snap.connected = false;

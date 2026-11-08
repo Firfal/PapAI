@@ -182,20 +182,12 @@ class Model:
                 "paused": self.paused, "guardAcknowledged": self.guard_acknowledged,
                 "carer": self.carer, "compact": self.compact,
                 "currentAction": self.current_action, "actions": list(self.actions),
-<<<<<<< HEAD
                 "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "runStatus": self.run_status, "notice": self.notice, "alert": self.alert,
-                "helpers": list(self.helpers), "sessionWhere": self.session_where, "remoteRequest": self.remote_request, "queued": self.queued,
-||||||| b905883
-                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "notice": self.notice, "alert": self.alert,
-                "helpers": list(self.helpers), "remoteRequest": self.remote_request, "queued": self.queued,
-=======
-                "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "notice": self.notice, "alert": self.alert,
                 "requests": [{**r, "relaunch": r.get("relaunch") if self._find_lesson(r.get("relaunch")) else None}
                              for r in self.requests],
                 "requestsLoading": self.requests_loading, "requestsError": self.requests_error,
-                "helpers": list(self.helpers), "remoteRequest": self.remote_request, "queued": self.queued,
+                "helpers": list(self.helpers), "sessionWhere": self.session_where, "remoteRequest": self.remote_request, "queued": self.queued,
                 "existing": self.existing,
->>>>>>> origin/main
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
 
