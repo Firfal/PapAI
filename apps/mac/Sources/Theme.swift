@@ -168,6 +168,13 @@ struct Header: View {
     var body: some View {
         HStack(spacing: 14) {
             LogotypePapai().frame(height: 36 * CGFloat(model.textScale))
+            // Onglets de l'accueil, au-dessus de l'encadré bleu, à distance du logo.
+            if model.screen == .home {
+                @Bindable var m = model
+                Onglets(options: [("Accueil", 0), ("Automates", 1)], selection: $m.homeTab)
+                    .frame(width: 300)
+                    .padding(.leading, 48)
+            }
             Spacer()
             // Rien quand tout va bien : l’utilisateur n'a pas à se soucier de la connexion.
             if !model.connected {

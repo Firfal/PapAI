@@ -63,6 +63,8 @@ final class AppModel {
     var answer: String?
     var currentAction: String?
     var lessons: [Lesson] = []
+    /// Onglet de l'accueil : 0 Accueil, 1 Automates (affiché dans l'en-tête).
+    var homeTab = 0
     var notice: String?
     var lesson: Lesson?
     /// La fiche d'automate ouverte par-dessus l'accueil.

@@ -10,8 +10,6 @@ struct HomeView: View {
     @State private var dictation = Dictation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pulse = false
-    /// 0 : Accueil, 1 : tous les automates.
-    @State private var onglet = 0
     private var micro: MicPresence { .shared }
     private var usage: AppUsage { .shared }
 
@@ -25,8 +23,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 24) {
                 // En-tête bleu sur toute la largeur ; la barre de demande garde la largeur de la colonne gauche.
                 enTete(barre: deux ? gauche - Self.marge : nil)
-                Onglets(options: [("Accueil", 0), ("Automates", 1)], selection: $onglet).frame(maxWidth: 420)
-                if onglet == 1 {
+                if model.homeTab == 1 {
                     automates(titre: false, tous: true).padding(.bottom, 24)
                         .frame(maxHeight: .infinity, alignment: .top)
                 } else if deux {
@@ -303,7 +300,7 @@ struct HomeView: View {
             }
             .carte(T.rBig)
             if !tous && model.lessons.count > Self.derniers {
-                Button("Voir les \(model.lessons.count) automates") { onglet = 1 }
+                Button("Voir les \(model.lessons.count) automates") { model.homeTab = 1 }
                     .buttonStyle(.plain).font(rounded(16, .semibold)).foregroundStyle(T.leaf)
             }
         }
