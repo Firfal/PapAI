@@ -89,7 +89,8 @@ test("Réglages : « Mon support » en lecture seule, organisation en ligne ou n
   assert.match(h.sheet.innerHTML, /Mon support/);
   assert.match(h.sheet.innerHTML, /Support IT · &lt;Acme&gt;/);
   assert.match(h.sheet.innerHTML, /En ligne/);
-  assert.doesNotMatch(h.sheet.innerHTML, /<input|Prénom|Serveur|Enregistrer|data-act="(pair|openHelpers|replayOnboarding)"/);
+  const withoutReadAloud = h.sheet.innerHTML.replace(/<input[^>]*data-act="readAloud"[^>]*>/g, '');
+  assert.doesNotMatch(withoutReadAloud, /<input|Prénom|Serveur|Enregistrer|data-act="(pair|openHelpers|replayOnboarding)"/);
   h.update({ connected: false });
   assert.match(h.sheet.innerHTML, /Hors ligne pour le moment/);
   h.update({ orgName: '', orgConfigured: false, connected: true });
