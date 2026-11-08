@@ -831,7 +831,8 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     # est rouvert, Holo repart de ce qui avait été fait.
                     reprise = _reprise(again)
                     S().tickets.note(again, S().family.senior or "L’utilisateur", "Le problème est revenu.")
-                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="", reprise=reprise)
+                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="", reprise=reprise,
+                                       linkup_answer=None, suggestion_lancee=None)
                     ticket, reopened = again, True
                 if ticket is None and not by and not msg.get("new") and "tidy" not in msg:
                     same = S().tickets.same(task)
@@ -2525,14 +2526,26 @@ def _sessions_journal():
 
 # --- Tickets : vus et traités par le support (page web, apps, organisation) ---
 
-@app.get("/k/{fam}/requests")
-async def user_requests(fam: str):
-    if not _key_ok(fam, support=False):
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+def _user_requests() -> dict:
     o = orgs.get(S().org) if getattr(S(), "org", "") else None
     lessons = (o.automations() if o else []) + list_lessons()
     items = sorted(S().tickets.all(), key=lambda t: t.get("created", 0), reverse=True)[:100]
     return {"requests": [tickets_mod.for_user(t, lessons) for t in items]}
+
+
+@app.get("/requests")
+async def user_requests_local(request: Request):
+    """Sans clé, seulement pour l'app de la machine du serveur ; sinon /k/{clé}/requests."""
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return _user_requests()
+
+
+@app.get("/k/{fam}/requests")
+async def user_requests(fam: str):
+    if not _key_ok(fam, support=False):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return _user_requests()
 
 async def _ticket_action(tid: str, body: dict):
     t = S().tickets.get(tid)
