@@ -207,7 +207,7 @@ struct HelpersPanel: View {
                 }
                 Text(model.helpers.isEmpty
                      ? "Votre support reçoit vos demandes d'aide et vous répond. S'il est à côté de vous, il scanne le code avec son téléphone. Sinon, envoyez-lui le lien par SMS ou WhatsApp."
-                     : "Votre support reçoit vos demandes d'aide et vous répond. Pour en changer, retirez d'abord le support actuel.")
+                     : "Votre support reçoit vos demandes d'aide et vous répond. Il gère cette liaison depuis son téléphone.")
                     .font(rounded(20)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 if let added = model.pairAdded {
                     Label("\(added) fait maintenant partie de votre support.", systemImage: "checkmark.circle.fill")
@@ -230,14 +230,6 @@ struct HelpersPanel: View {
                             }
                         }
                         Spacer(minLength: 0)
-                        if !onboarding {
-                            Button { model.removeHelper(h) } label: {
-                                Image(systemName: "xmark").font(.system(size: 14, weight: .semibold))
-                                    .frame(width: 36, height: 36).background(Circle().fill(T.mint))
-                                    .frame(width: 44, height: 44).contentShape(Circle())
-                            }
-                            .buttonStyle(.plain).accessibilityLabel("Retirer le support")
-                        }
                     }
                     .padding(14)
                     .champ(T.r)

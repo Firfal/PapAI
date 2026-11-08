@@ -99,12 +99,24 @@ struct SettingsView: View {
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.openSupportPairing() }
                             }.buttonStyle(PillStyle(height: 54, icone: "plus.circle"))
                         } else {
-                            Text("Votre support est relié à cet ordinateur.")
-                                .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                            Button("Voir mon support") {
-                                dismiss()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { model.showHelpers = true }
-                            }.buttonStyle(PillStyle(filled: false, height: 50))
+                            // Le support se gère depuis son téléphone : ici on l'affiche seulement.
+                            ForEach(model.helpers) { h in
+                                HStack(spacing: 14) {
+                                    Image(systemName: "person.fill.checkmark")
+                                        .font(.system(size: 19, weight: .semibold)).foregroundStyle(.white)
+                                        .frame(width: 46, height: 46).background(Circle().fill(T.accent))
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Support IT").font(rounded(20, .semibold))
+                                        Text(h.online ? "En ligne, relié à cet ordinateur" : "Relié à cet ordinateur")
+                                            .font(rounded(15)).foregroundStyle(h.online ? T.leaf : T.muted)
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(14)
+                                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(T.card)
+                                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(T.line)))
+                                .accessibilityElement(children: .combine)
+                            }
                         }
                     }
                 }
