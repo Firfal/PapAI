@@ -5,7 +5,7 @@ import SwiftUI
 /// et l'extension qui la dessine.
 ///
 /// Elle vit tant que l'iPhone est lié à un proche : discrète quand tout va bien
-/// (« Vous veillez sur Sophie »), elle devient une grande carte sombre qui
+/// (« Vous aidez Sophie »), elle devient une grande carte sombre qui
 /// allume l'écran quand le proche demande de l'aide, puis suit l'avancement.
 struct HelpActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
@@ -42,7 +42,7 @@ enum PapColors {
 extension HelpActivityAttributes.ContentState {
     var headline: String {
         switch phase {
-        case .watching: return "Vous veillez sur \(senior)"
+        case .watching: return "Vous aidez \(senior)"
         case .planning: return "\(senior) demande de l'aide"
         case .request: return "\(senior) demande de l'aide"
         case .needsYou: return "\(senior) a besoin de vous"

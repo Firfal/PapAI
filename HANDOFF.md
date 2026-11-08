@@ -38,7 +38,7 @@ Le problème : Mamie veut retrouver ses photos de Noël et ne sait pas dans quel
 
 ### La boucle, cœur du pitch
 
-1. **Demander :** la personne aidée appuie sur le gros bouton « J'ai besoin d'aide », puis tape ou dicte sa demande avec ses mots.
+1. **Demander :** la personne aidée appuie sur le gros bouton « Demander une assistance », puis tape ou dicte sa demande avec ses mots.
 2. **Proposer :** Holo (le modèle de H Company) regarde l'écran et propose un plan de 2 à 5 étapes, en langage simple.
 3. **Valider :** l'aidant reçoit la demande sur son iPhone et choisit **Valider**, **Préciser** (Holo refait alors un plan) ou **Refuser**. **Rien ne bouge sur l'ordinateur avant.**
 4. **Exécuter :** Holo agit pendant que la personne regarde. Elle peut tout **Arrêter** à tout moment, même si la connexion est coupée.

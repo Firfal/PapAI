@@ -9,7 +9,7 @@ Hackathon H Company × 42 AI, 7-8 novembre 2026. Agent : **Holo** (H Company).
 
 ## La boucle
 
-1. **Demander** : la personne aidée appuie sur « J'ai besoin d'aide » et explique avec ses mots.
+1. **Demander** : la personne aidée appuie sur « Demander une assistance » et explique avec ses mots.
 2. **Proposer** : Holo regarde l'écran et propose un plan de 2 à 5 étapes.
 3. **Valider** : l'aidant reçoit une notification sur son iPhone, puis valide, précise ou refuse. Rien ne bouge avant.
 4. **Exécuter** : Holo agit, la personne regarde, et peut tout arrêter à tout moment.

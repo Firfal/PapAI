@@ -17,19 +17,19 @@ PapAI
 ## Accroche (une ligne)
 
 ```
-Un agent qui aide votre grand-parent sur son ordinateur, uniquement avec votre accord.
+Le support informatique de premier niveau, automatisé : votre support valide, PapAI exécute.
 ```
 
 Variante courte :
 
 ```
-L'aide à distance pour nos aînés : Holo agit, le proche valide d'abord.
+Support informatique de niveau 1 : Holo agit, le support valide d'abord.
 ```
 
 ## Description courte (environ 300 caractères)
 
 ```
-La personne âgée dicte sa demande sur son Mac. Holo, le modèle d'H Company, regarde l'écran et propose un plan. Son proche le valide, le précise ou le refuse depuis son iPhone : rien ne bouge avant. Holo exécute sous ses yeux, et une réussite devient un bouton qu'elle relance seule.
+La personne dicte sa demande sur son ordinateur. Holo, le modèle d'H Company, regarde l'écran et propose un plan. Son support (un proche, le service informatique) le valide, le précise ou le refuse depuis son iPhone : rien ne bouge avant. Holo exécute sous ses yeux, et une réussite devient un bouton qu'elle relance seule.
 ```
 
 Seule la dernière proposition dépend d'un essai (R1, R4) : si R4 manque, finir sur « Holo exécute sous ses yeux. »
@@ -41,9 +41,9 @@ Le problème
 Jeanne veut revoir ses photos de Noël et ne sait plus dans quel dossier elles sont. Son proche est dans le métro, sans ordinateur. Lui faire installer un logiciel de prise en main n'est pas une option : c'est précisément ce que réclament les arnaqueurs au téléphone.
 
 La solution
-PapAI est un agent de computer use pour les personnes âgées, avec une règle non négociable : rien ne bouge sur l'ordinateur sans un plan validé par un proche.
+PapAI est un agent de computer use pour le support informatique de premier niveau, avec une règle non négociable : rien ne bouge sur l'ordinateur sans un plan validé par un support (un proche, ou le service informatique d'une entreprise). Les grands-parents aidés par leurs enfants sont notre premier cas d'usage ; les employés d'une entreprise en sont un autre.
 
-1. Demander : la personne appuie sur un gros bouton « J'ai besoin d'aide » et explique avec ses mots, au clavier ou à la voix. La dictée est transcrite par Gladia côté serveur, avec la reconnaissance vocale d'Apple en secours sur le Mac. Elle accepte ensuite que PapAI regarde son écran.
+1. Demander : la personne appuie sur un gros bouton « Demander une assistance » et explique avec ses mots, au clavier ou à la voix. La dictée est transcrite par Gladia côté serveur, avec la reconnaissance vocale d'Apple en secours sur le Mac. Elle accepte ensuite que PapAI regarde son écran.
 2. Proposer : Holo, le modèle d'H Company, regarde l'écran et propose un plan de 2 à 5 étapes en langage simple.
 3. Valider : le proche reçoit le plan sur son iPhone (ou sur une page web) et choisit Valider, Préciser ou Refuser. S'il précise, Holo refait le plan.
 4. Exécuter : Holo clique et tape pendant que la personne regarde [R1] ; chaque action est expliquée en une phrase, avec l'étape du plan en cours. Le bouton Arrêter lève un verrou local sur le Mac qui bloque toute action suivante [R3].
@@ -76,7 +76,7 @@ Les automatismes sont gardés sur une seule instance du serveur et disparaissent
 - Développement avec des agents IA : Devin (Cognition) en sessions parallèles, Claude Code, [À COMPLÉTER : agents de cyp-cor et snarbe].
 ```
 
-Tags éventuels : `computer use`, `accessibilité`, `seniors`, `aidants`, `sécurité`, `H Company`, `Holo`, `Gladia`, `Devin`.
+Tags éventuels : `computer use`, `accessibilité`, `support informatique`, `seniors`, `aidants`, `sécurité`, `H Company`, `Holo`, `Gladia`, `Devin`.
 
 ## Prix sponsors visés
 

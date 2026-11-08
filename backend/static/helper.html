@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#EEF0EE">
-<title>PapAI · aider un proche</title>
+<title>PapAI · Support</title>
 <style>
   /* Direction « Soin », identique aux apps Swift (apps/ios/Sources/Theme.swift,
      apps/mac/Sources/Theme.swift) : mêmes couleurs, mêmes rayons, mêmes écrans. */
@@ -226,7 +226,7 @@
 
 <header>
   <div class="avatar" id="me">A</div>
-  <div class="hello"><small>Bonjour</small><strong id="meName">Aidant</strong></div>
+  <div class="hello"><small>Bonjour</small><strong id="meName">Support</strong></div>
   <div class="spacer"></div>
   <div class="round" aria-hidden="true"><svg class="i"><use href="#i-bell"/></svg></div>
 </header>
@@ -246,11 +246,11 @@
   <section id="v-idle" class="stack">
     <div class="mint idle-hero" id="allWell">
       <h1>Tout va bien</h1>
-      <p id="idleSub">Vous serez prévenu dès que votre proche demande de l'aide.</p>
+      <p id="idleSub">Vous serez prévenu dès que la personne aidée demande de l'aide.</p>
     </div>
     <div class="card remote" id="remote">
       <h3 class="section-title">Proposer une session</h3>
-      <p>Votre proche devra l'accepter sur son ordinateur.</p>
+      <p>La personne aidée devra l'accepter sur son ordinateur.</p>
       <input type="text" id="remoteText" placeholder="Par exemple : mettre à jour l'ordinateur" autocomplete="off" aria-label="Pourquoi cette session">
       <button class="capsule" id="remoteSend" type="button">Proposer</button>
     </div>
@@ -263,7 +263,7 @@
     <div class="mint request">
       <div class="who">
         <div class="avatar" id="procheInitial">P</div>
-        <div><small id="since">Demande · à l'instant</small><strong>Votre proche</strong></div>
+        <div><small id="since">Demande · à l'instant</small><strong>La personne aidée</strong></div>
       </div>
       <p class="quote" id="task"></p>
       <button class="thumb" id="thumb" type="button" hidden aria-label="Agrandir la dernière capture">
@@ -280,7 +280,7 @@
   <!-- Holo agit, ou l'aidant a la main -->
   <section id="v-live" class="stack" hidden>
     <div class="mint question" id="question" hidden>
-      <small id="questionTitle">Votre proche a besoin de vous</small>
+      <small id="questionTitle">La personne aidée a besoin de vous</small>
       <h2 id="qtext"></h2>
       <div class="options" id="options"></div>
       <div class="reply">
@@ -295,20 +295,20 @@
     </div>
     <div class="shot" id="shot">
       <div id="empty">En attente de la première capture d'écran…</div>
-      <img id="frame" alt="Écran de votre proche" style="display:none">
+      <img id="frame" alt="Écran de la personne aidée" style="display:none">
       <div id="pin"></div>
     </div>
     <div class="card working" id="working">
       <div class="spinner"></div>
-      <div><strong id="workingTitle">Holo travaille sur l'ordinateur de votre proche</strong><small id="workingTask"></small></div>
+      <div><strong id="workingTitle">Holo travaille sur l'ordinateur de la personne aidée</strong><small id="workingTask"></small></div>
     </div>
     <div class="hand" id="hand" hidden>
       <button class="capsule" id="arm" type="button">Prendre la main</button>
-      <p>Vous pouvez cliquer vous-même sur l'écran de votre proche.</p>
+      <p>Vous pouvez cliquer vous-même sur l'écran de la personne aidée.</p>
     </div>
     <div id="aimbar" hidden aria-live="polite">
       <div class="card aim">
-        <strong id="aimText">Touchez l'écran de votre proche à l'endroit où il faut cliquer.</strong>
+        <strong id="aimText">Touchez l'écran de la personne aidée à l'endroit où il faut cliquer.</strong>
         <small id="freshText"></small>
         <button class="link" id="refresh" type="button" hidden>Rafraîchir</button>
       </div>
@@ -328,7 +328,7 @@
     </div>
     <div id="makeWrap">
       <button class="capsule" id="makeLesson" type="button">Garder comme automatisme</button>
-      <p class="hint">Holo transforme cette session en pas à pas que votre proche pourra relancer seul.</p>
+      <p class="hint">Holo transforme cette session en pas à pas que la personne aidée pourra relancer seul.</p>
     </div>
     <div class="draft" id="draft" hidden>
       <h3>Brouillon de l'automatisme</h3>
@@ -345,8 +345,8 @@
   <!-- Arrêté ou refusé -->
   <section id="v-stopped" class="stopped" hidden>
     <div class="round" style="width:64px;height:64px"><svg class="i" style="width:24px;height:24px"><use id="stoppedIcon" href="#i-pause"/></svg></div>
-    <h2 id="stoppedTitle">Votre proche a arrêté l'assistance</h2>
-    <p id="stoppedDetail">L'assistance est arrêtée. Vérifiez avec votre proche ce qui a été fait.</p>
+    <h2 id="stoppedTitle">La personne aidée a arrêté l'assistance</h2>
+    <p id="stoppedDetail">L'assistance est arrêtée. Vérifiez avec la personne aidée ce qui a été fait.</p>
     <button class="back" data-home type="button">Retour à l'accueil</button>
   </section>
 
@@ -382,14 +382,14 @@
 <div class="scrim" id="refuseSheet" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="refuseTitle">
     <h2 id="refuseTitle">Refuser ce plan ?</h2>
-    <p>Votre proche sera prévenu que rien ne sera fait.</p>
+    <p>La personne aidée sera prévenu que rien ne sera fait.</p>
     <button class="capsule" id="refuseYes" type="button">Refuser le plan</button>
     <button class="capsule light" id="refuseNo" type="button">Annuler</button>
   </div>
 </div>
 
 <div id="zoom" hidden>
-  <img id="zoomImg" alt="Dernière capture de l'écran de votre proche">
+  <img id="zoomImg" alt="Dernière capture de l'écran de la personne aidée">
   <button class="roundbtn" id="zoomClose" type="button" aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button>
 </div>
 
@@ -485,7 +485,7 @@ function render() {
   $('browserLabel').hidden = !isWebLive;
   $('browserTitle').textContent = browserTitle();
   $('thumbTitle').textContent = isWebLive ? browserTitle() : 'Son écran';
-  $('frame').alt = isWebLive ? browserTitle() : 'Écran de votre proche';
+  $('frame').alt = isWebLive ? browserTitle() : 'Écran de la personne aidée';
   $('empty').textContent = isWebLive
     ? 'En attente de la première image de Chrome PapAI…'
     : "En attente de la première capture d'écran…";
@@ -496,7 +496,7 @@ function render() {
 
   $('task').textContent = task ? `« ${task} »` : '';
   $('waiting').hidden = s === 'approval';
-  $('waitingText').textContent = s === 'waiting' ? "En attente de l'autorisation de votre proche" : "Holo regarde l'écran…";
+  $('waitingText').textContent = s === 'waiting' ? "En attente de l'autorisation de la personne aidée" : "Holo regarde l'écran…";
   $('plan').hidden = s !== 'approval';
   $('thumb').hidden = !(s === 'approval' && frameSrc);
   tickSince();
@@ -508,9 +508,9 @@ function render() {
   $('working').hidden = s !== 'active';
   $('workingTitle').textContent = isWebLive
     ? `Holo travaille dans ${browserTitle()}`
-    : "Holo travaille sur l'ordinateur de votre proche";
+    : "Holo travaille sur l'ordinateur de la personne aidée";
   $('workingTask').textContent = task ? `« ${task} »` : '';
-  $('questionTitle').textContent = isWebLive ? 'Holo a une question' : 'Votre proche a besoin de vous';
+  $('questionTitle').textContent = isWebLive ? 'Holo a une question' : 'La personne aidée a besoin de vous';
   $('question').hidden = s !== 'helper' || armed || !$('qtext').textContent;
   $('hand').hidden = s !== 'helper' || armed || isWebLive;
   $('aimbar').hidden = !armed || isWebLive;
@@ -524,9 +524,9 @@ function render() {
   $('makeLesson').innerHTML = lessonBusy ? '<div class="spinner"></div>Rédaction en cours…' : 'Garder comme automatisme';
 
   $('stoppedTitle').textContent = stoppedBy === 'gardien' ? "PapAI a arrêté l'assistance : démarche suspecte"
-    : refusedByMe ? 'Vous avez refusé le plan' : "Votre proche a arrêté l'assistance";
+    : refusedByMe ? 'Vous avez refusé le plan' : "La personne aidée a arrêté l'assistance";
   $('stoppedDetail').textContent = executionStarted === false ? "Rien n'a été fait sur son ordinateur."
-    : `L'assistance est arrêtée. Vérifiez avec ${seniorName || 'votre proche'} ce qui a été fait.`;
+    : `L'assistance est arrêtée. Vérifiez avec ${seniorName || 'la personne aidée'} ce qui a été fait.`;
   $('stoppedIcon').setAttribute('href', refusedByMe ? '#i-x' : '#i-pause');
   $('remote').hidden = !!state && !['done', 'stopped'].includes(state);
   tickFreshness();
@@ -596,7 +596,7 @@ function clearAim() {
   target = null;
   $('pin').style.display = 'none';
   $('loupe').style.display = 'none';
-  $('aimText').textContent = "Touchez l'écran de votre proche à l'endroit où il faut cliquer.";
+  $('aimText').textContent = "Touchez l'écran de la personne aidée à l'endroit où il faut cliquer.";
 }
 
 function requestRefresh() {
@@ -721,8 +721,8 @@ function onMessage(ev) {
 
   else if (m.type === 'hello') {
     seniorName = m.senior || '';
-    if (!m.bridge) $('idleSub').textContent = "L'ordinateur de votre proche n'est pas connecté pour le moment.";
-    else $('idleSub').textContent = "Vous serez prévenu dès que votre proche demande de l'aide.";
+    if (!m.bridge) $('idleSub').textContent = "L'ordinateur de la personne aidée n'est pas connecté pour le moment.";
+    else $('idleSub').textContent = "Vous serez prévenu dès que la personne aidée demande de l'aide.";
     loadLessons();
     // Le serveur envoie l'état juste après « hello » s'il a une demande en cours.
     // Sans état (serveur redémarré), on ne garde pas un plan fantôme à l'écran.
@@ -748,7 +748,7 @@ function onMessage(ev) {
     $('alertTitle').textContent = m.title || 'Attention';
     $('alertDetail').textContent = m.detail || '';
     $('alertCall').hidden = !guardAlertId;
-    $('alertCall').textContent = m.acknowledged || m.acknowledged_by ? "Un proche s'en occupe" : "Je m'en occupe";
+    $('alertCall').textContent = m.acknowledged || m.acknowledged_by ? "Un support s'en occupe" : "Je m'en occupe";
     $('alertCall').disabled = !!(m.acknowledged || m.acknowledged_by);
     $('alertOk').textContent = guardAlertId ? "C'est normal" : "J'ai compris";
     $('alert').hidden = false;
@@ -758,7 +758,7 @@ function onMessage(ev) {
   }
 
   else if (m.type === 'alert_acknowledged' && m.alert_id === guardAlertId) {
-    $('alertCall').textContent = "Un proche s'en occupe";
+    $('alertCall').textContent = "Un support s'en occupe";
     $('alertCall').disabled = true;
   }
 
@@ -771,9 +771,9 @@ function onMessage(ev) {
 
   else if (m.type === 'senior') { seniorName = m.name || ''; render(); }
 
-  else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. Votre proche doit l’accepter sur son ordinateur.');
-  else if (m.type === 'remote_refused') toast('Votre proche a refusé la session pour le moment.');
-  else if (m.type === 'remote_accepted') toast('Votre proche a accepté. Holo prépare un plan.');
+  else if (m.type === 'ack' && m.what === 'remote_request') toast('Proposition envoyée. La personne aidée doit l’accepter sur son ordinateur.');
+  else if (m.type === 'remote_refused') toast('La personne aidée a refusé la session pour le moment.');
+  else if (m.type === 'remote_accepted') toast('La personne aidée a accepté. Holo prépare un plan.');
 
   else if (m.type === 'answer') { $('doneAnswer').textContent = m.content || 'Holo a terminé.'; }
 
@@ -786,7 +786,7 @@ function onMessage(ev) {
 
   else if (m.type === 'ack' && m.what === 'click') {
     sending = false;
-    toast('Clic transmis à l’ordinateur de votre proche.');
+    toast('Clic transmis à l’ordinateur de la personne aidée.');
     setArmed(false);
   }
 
@@ -810,7 +810,7 @@ function onMessage(ev) {
       if (s.checkpoint) {
         const c = document.createElement('div');
         c.className = 'cp';
-        c.textContent = 'Votre proche doit voir : ' + s.checkpoint;
+        c.textContent = 'La personne aidée doit voir : ' + s.checkpoint;
         d.appendChild(c);
       }
       const b64 = m.preview && m.preview[s.frame];
