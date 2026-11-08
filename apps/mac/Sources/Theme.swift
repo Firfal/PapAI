@@ -169,7 +169,7 @@ struct Header: View {
         HStack(spacing: 14) {
             LogotypePapai().frame(height: 36 * CGFloat(model.textScale))
             // Onglets de l'accueil, au-dessus de l'encadré bleu, à distance du logo.
-            if model.screen == .home {
+            if accueilAffiche {
                 @Bindable var m = model
                 Onglets(options: [("Accueil", 0), ("Automates", 1), ("Tickets", 2)], selection: $m.homeTab)
                     .frame(width: 420)
@@ -191,6 +191,14 @@ struct Header: View {
             .accessibilityLabel("Réglages")
         }
         .padding(.top, 24)
+    }
+
+    /// Vrai seulement quand `RootView` montre l'accueil lui-même (pas l'accueil de départ,
+    /// les autorisations ni une demande par-dessus).
+    private var accueilAffiche: Bool {
+        model.screen == .home && model.onboarded && model.remoteRequest == nil
+            && !(model.queued != nil && model.queuedShown)
+            && (model.screenOK && model.axOK || model.permissionsDismissed)
     }
 }
 
