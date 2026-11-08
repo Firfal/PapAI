@@ -72,7 +72,9 @@ final class AppModel {
     var screenConsent = UserDefaults.standard.bool(forKey: "screenConsent")
     var showSettings = false
     var captureError: String?
-    var onboarded = UserDefaults.standard.bool(forKey: "onboarded")
+    /// Plus de pages d'introduction : l'app s'ouvre directement sur l'accueil.
+    /// (L'accueil en 4 étapes reste dans le code, sans être montré.)
+    var onboarded = true
     /// Dans le modèle et non dans la vue : changer la taille du texte recrée
     /// toute la fenêtre (`.id(textScale)`), l'accueil doit garder son étape.
     var onboardingStep = 0
@@ -153,7 +155,14 @@ final class AppModel {
     }
     /// Propriété observée (et non lue dans UserDefaults à chaque fois) : l'accueil
     /// « Bonsoir <prénom> » se met à jour dès qu'on change le prénom dans les Réglages.
-    var firstName = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
+    var firstName = AppModel.storedFirstName
+
+    /// Prénom par défaut tant que la personne n'en a pas choisi un dans les Réglages.
+    static let defaultFirstName = "Christine"
+    static var storedFirstName: String {
+        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
+        return n.isEmpty ? defaultFirstName : n
+    }
 
     /// Qui aide : toujours au singulier pour accorder le verbe qui suit.
     var helperName: String {
@@ -188,7 +197,7 @@ final class AppModel {
     /// Le prénom réellement saisi (sans la valeur d'exemple), transmis au serveur
     /// pour que l'aidant lise « Vous allez aider Sophie » et non un nom figé.
     func sendProfile() {
-        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
+        let n = Self.storedFirstName
         // Les proches connus voyagent avec le profil : le serveur les retrouve après un redémarrage.
         let known = helpers.isEmpty ? Self.cachedHelpers() : helpers.map { ["id": $0.id, "name": $0.name, "relation": $0.relation] }
         var msg: [String: Any] = ["type": "profile", "known_helpers": known, "protection": realtimeProtection]
@@ -234,7 +243,7 @@ final class AppModel {
 
     /// Le texte de l'invitation envoyée au proche, avec le lien d'appairage.
     var invitationText: String {
-        let n = UserDefaults.standard.string(forKey: "firstName")?.trimmingCharacters(in: .whitespaces) ?? ""
+        let n = Self.storedFirstName
         let who = n.isEmpty ? "Une personne de votre entourage" : n
         return "\(who) aimerait que vous l'aidiez sur son ordinateur avec PapAI. Ouvrez ce lien sur votre téléphone pour vous relier (valable 24 heures) :"
     }
