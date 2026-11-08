@@ -172,6 +172,7 @@ class BridgeLink:
         self._web_agent_waiter: asyncio.Future[str] | None = None
         self.active_web_session: Session | None = None
         self.active_web_browser_session: str | None = None
+        self.active_web_runner: WebAgentRunner | None = None
 
     async def close(self, code: int = 1000) -> None:
         try:
@@ -252,12 +253,19 @@ class BridgeLink:
             waiter.cancel()
         await self.send({"type": "web_agent_stop"})
 
-    async def start_web_agent(self) -> str | None:
+    def receive_web_off_site(self, url) -> None:
+        runner = self.active_web_runner
+        if runner is not None and runner.s is self.active_web_session:
+            runner.report_off_site(url)
+
+    async def start_web_agent(self, session=None) -> str | None:
         self.web_agent = None
         waiter = asyncio.get_running_loop().create_future()
         self._web_agent_waiter = waiter
         try:
-            await self.send({"type": "web_agent_start"})
+            await self.send({"type": "web_agent_start",
+                             "sites": list(session.plan_sites) if session else [],
+                             "hosts": list(session.web_hosts) if session else []})
             return await asyncio.wait_for(waiter, WEB_AGENT_START_TIMEOUT_S)
         except asyncio.TimeoutError:
             await self.stop_web_agent()
@@ -568,6 +576,10 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 link.resolve(str(msg.get("req", "")), msg)
                 continue
 
+            if kind == "web_off_site":
+                link.receive_web_off_site(msg.get("url"))
+                continue
+
             if kind in ("hello", "profile"):
                 if kind == "hello":
                     link.os = str(msg.get("os", "windows")).lower()[:20]
@@ -871,7 +883,7 @@ async def browser_handoff(session, link: BridgeLink, notes: list[str],
         return None
 
     try:
-        browser = await link.start_web_agent()
+        browser = await link.start_web_agent(session)
     except asyncio.CancelledError:
         session.log("browser_handoff", goal=_safe_handoff_log_text(goal),
                     result="annulée pendant le démarrage")
@@ -898,16 +910,19 @@ async def browser_handoff(session, link: BridgeLink, notes: list[str],
     result_log = "session arrêtée pendant la sous-tâche"
     try:
         await broadcast_helper(session.status())
-        summary = await WebAgentRunner(
+        runner = WebAgentRunner(
             session, browser, broadcast_helper, notes,
-            goal=goal, url=url, finish_session=False,
-        ).run()
+            goal=goal, url=url, finish_session=False, send_sites=link.send,
+        )
+        link.active_web_runner = runner
+        summary = await runner.run()
         if not session.is_open or summary is None:
             return None
         result = f"Partie navigateur terminée : {summary}"
         result_log = _safe_handoff_log_text(result)
         return result
     finally:
+        link.active_web_runner = None
         await asyncio.shield(link.stop_web_agent())
         if link.active_web_session is session:
             link.active_web_session = None
@@ -1008,7 +1023,7 @@ async def run_session(session, link: "BridgeLink") -> None:
         # Mode web seulement si Holo l'a proposé ET si l'ordinateur sert un navigateur.
         browser = None
         if session.where == "web" and link.web_agent_available:
-            browser = await link.start_web_agent()
+            browser = await link.start_web_agent(session)
             if not session.is_open:
                 if browser is not None:
                     await link.stop_web_agent()
@@ -1021,8 +1036,11 @@ async def run_session(session, link: "BridgeLink") -> None:
             link.active_web_session = session
             link.active_web_browser_session = browser
             try:
-                await WebAgentRunner(session, browser, broadcast_helper, notes).run()
+                runner = WebAgentRunner(session, browser, broadcast_helper, notes, send_sites=link.send)
+                link.active_web_runner = runner
+                await runner.run()
             finally:
+                link.active_web_runner = None
                 if link.active_web_session is session:
                     link.active_web_session = None
                     link.active_web_browser_session = None

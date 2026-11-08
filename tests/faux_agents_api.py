@@ -33,10 +33,11 @@ def _agent(data: dict) -> dict:
 
 
 class FauxSession:
-    def __init__(self, sid: str, corps: dict, scenario: str) -> None:
+    def __init__(self, sid: str, corps: dict, scenario: str, navigation_url: str) -> None:
         self.id = sid
         self.corps = corps
         self.scenario = scenario
+        self.navigation_url = navigation_url
         self.status = "running"
         self.events: list[dict] = []
         self.pending: list[dict] = []
@@ -74,7 +75,7 @@ class FauxSession:
             return
         if not self._attendre():
             return
-        self._action(1, "navigate", {"url": "https://meteofrance.com/previsions-meteo-france/paris/75000"})
+        self._action(1, "navigate", {"url": self.navigation_url})
         self.push(_agent({"kind": "observation_event", "type": "screenshot",
                           "image": {"type": "base64", "source": FRAME, "media_type": "image/png"}}))
         if self.scenario == "long":
@@ -114,6 +115,7 @@ class FauxSession:
 class FauxAgentsAPI:
     def __init__(self, scenario: str = "simple") -> None:
         self.scenario = scenario
+        self.navigation_url = "https://meteofrance.com/previsions-meteo-france/paris/75000"
         self.sessions: dict[str, FauxSession] = {}
         self.appels: list[tuple[str, str]] = []
         self.start_delay = 0.0
@@ -151,7 +153,7 @@ class FauxAgentsAPI:
                     if api.start_delay:
                         time.sleep(api.start_delay)
                     sid = f"h{len(api.sessions) + 1}"
-                    api.sessions[sid] = FauxSession(sid, corps, api.scenario)
+                    api.sessions[sid] = FauxSession(sid, corps, api.scenario, api.navigation_url)
                     return self._json(200, {"id": sid, "status": {"status": "running"}, "created_at": _now(), "request": corps})
                 s = api.sessions.get(parts[3]) if len(parts) > 3 else None
                 if s is None:

@@ -90,6 +90,8 @@ class Session:
     plan: list[str] | None = None
     plan_mode: str | None = None
     plan_sites: list[str] = field(default_factory=list)
+    web_hosts: list[str] = field(default_factory=list)
+    off_site: dict | None = None
     web_steps: list[int] = field(default_factory=list)
     plan_approved: bool = False
     linkup_query: str = ""
@@ -357,6 +359,7 @@ class Session:
             "helper_name": self.helper_name or None,
             "doing": self.doing or None,
             "where": self.where,
+            "off_site": self.off_site,
             "plan_step": self.plan_step
             if self.plan_approved and self.state in (State.ACTIVE, State.AWAITING_HELPER)
             else None,

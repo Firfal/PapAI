@@ -246,6 +246,9 @@ final class AppModel {
         webHost.onChange = { [weak self] id in
             self?.client.send(["type": "web_agent", "session_id": id ?? NSNull()])
         }
+        webHost.onOffSite = { [weak self] url in
+            self?.client.send(["type": "web_off_site", "url": url])
+        }
         InputLock.shared.allowedRect = { [weak self] in self?.protectedRect() }
         InputLock.shared.onEscape = { [weak self] in self?.stop() }
         Task { [weak self] in
@@ -635,7 +638,10 @@ final class AppModel {
         case "status":
             applyStatus(m)
         case "web_agent_start":
+            webHost.updateSites(m["sites"] as? [String] ?? [], hosts: m["hosts"] as? [String] ?? [])
             if sessionOpen && !gate.isStopped { webHost.start() }
+        case "web_sites":
+            webHost.updateSites(m["sites"] as? [String] ?? [], hosts: m["hosts"] as? [String] ?? [])
         case "web_agent_stop":
             webHost.stopLocal(notifyServer: false)
         case "linkup_answer":
