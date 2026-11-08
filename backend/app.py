@@ -424,6 +424,33 @@ async def _holo_category(sp, t: dict) -> None:
         await _tickets_changed()
 
 
+def _reprise(t: dict) -> str:
+    sol = tickets_mod.solution(t)
+    parts = [f"Ce que son support avait noté : {sol['note']}"] if sol["note"] else []
+    if sol["steps"]:
+        parts.append("Étapes qui l'avaient réglée : " + " ; ".join(sol["steps"]))
+    return " ".join(parts)[:1500]
+
+
+async def _same_ticket(ws, t: dict) -> None:
+    """La demande a déjà son ticket : pas de nouveau ticket. Ouvert, on le dit ;
+    réglé, on montre ce qui l'avait réglé."""
+    head = {"ticket": t["id"], "number": t["number"], "task": t["task"]}
+    live = S().registry.get(str(t.get("session") or ""))
+    if t["status"] == "en_cours" and (live is None or not live.is_open):
+        S().tickets.update(t, status="a_reprendre")
+    if t["status"] == "resolu":
+        await ws.send_json({"type": "ticket_solved", **head, "solution": tickets_mod.solution(t)})
+        return
+    S().tickets.note(t, S().family.senior or "L’utilisateur", tickets_mod.REDEMANDE)
+    if t["status"] == "en_attente":
+        S().tickets.update(t, offered=0)
+    await ws.send_json({"type": "ticket_exists", **head, "status": t["status"], "rdv": t.get("rdv")})
+    await _tickets_changed()
+    if t["status"] == "en_attente" and _support_available():
+        _later(_offer_next(space.current()))
+
+
 async def _tickets_changed() -> None:
     await broadcast_helper({"type": "tickets_changed"}, to_bridge=False)
 
@@ -728,14 +755,32 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 ticket = S().tickets.get(str(msg.get("ticket") or ""))
                 if ticket is not None and ticket["status"] == "resolu":
                     ticket = None
-                if ticket is None and not by and _support_expected() and not _support_available():
+                reprise, reopened = "", False
+                again = S().tickets.get(str(msg.get("reopen") or ""))
+                if ticket is None and again is not None and again["status"] == "resolu":
+                    # Réglée une fois, le problème est revenu : le même ticket
+                    # est rouvert, Holo repart de ce qui avait été fait.
+                    reprise = _reprise(again)
+                    S().tickets.note(again, S().family.senior or "L’utilisateur", "Le problème est revenu.")
+                    S().tickets.update(again, status="nouveau", closed_by="", end="", solution="")
+                    ticket, reopened = again, True
+                if ticket is None and not by and not msg.get("new"):
+                    same = S().tickets.same(task)
+                    if same is not None:
+                        await _same_ticket(ws, same)
+                        continue
+                if (ticket is None or reopened) and not by and _support_expected() and not _support_available():
                     # Aucun support disponible : la demande attend, la personne
                     # sera reprévenue dès qu'un support est là (ou au rendez-vous).
-                    suggestions = _ticket_suggestions(task)
-                    ticket = _open_ticket(
-                        task, "personne", status="en_attente", by=S().family.senior,
-                        suggestions=suggestions,
-                    )
+                    if ticket is None:
+                        suggestions = _ticket_suggestions(task)
+                        ticket = _open_ticket(
+                            task, "personne", status="en_attente", by=S().family.senior,
+                            suggestions=suggestions,
+                        )
+                    else:
+                        suggestions = list(ticket.get("suggestions") or [])
+                        S().tickets.update(ticket, status="en_attente", offered=0)
                     await ws.send_json({"type": "ticket_queued", "ticket": ticket["id"],
                                         "number": ticket["number"], "task": task,
                                         "suggestions": suggestions})
@@ -744,6 +789,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                     continue
                 session = S().registry.create(task)
                 session.grant_consent()  # le consentement est donné dans la même fenêtre
+                session.reprise = reprise
                 if msg.get("requested_by"):
                     # Lancée par un proche, acceptée à l'instant sur le Mac.
                     session.log("remote_accepted", by=str(msg["requested_by"])[:40])
@@ -2350,13 +2396,14 @@ async def _ticket_action(tid: str, body: dict):
     elif act == "close":
         if t["status"] == "en_cours":
             return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
-        S().tickets.update(t, status="resolu", closed_by=by or "Support", rdv=None)
+        S().tickets.update(t, status="resolu", closed_by=by or "Support", rdv=None,
+                           **({"solution": text[:1000]} if text else {}))
         if text:
             S().tickets.note(t, by, text)
     elif act == "reopen":
         if t["status"] == "en_cours":
             return JSONResponse({"error": "Une assistance est en cours sur ce ticket."}, status_code=409)
-        S().tickets.update(t, status="en_attente", offered=0, rdv=None, closed_by="")
+        S().tickets.update(t, status="en_attente", offered=0, rdv=None, closed_by="", solution="")
     elif act == "schedule":
         at = _rdv_at(body.get("at"))
         if at is None or t["status"] in ("en_cours", "resolu"):

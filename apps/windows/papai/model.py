@@ -76,6 +76,8 @@ class Model:
         self.remote_request: dict | None = None
         # Demande partie en ticket sans support disponible : {ticket, number, task, rdv, show}.
         self.queued: dict | None = None
+        # Demande qui a déjà son ticket : {kind: open|solved, ticket, number, task, status, rdv, solution}.
+        self.existing: dict | None = None
         self.pending_task = ""
         self.pending_automation: str | None = None
         self.pending_automation_ticket: str | None = None
@@ -166,6 +168,7 @@ class Model:
                 "currentAction": self.current_action, "actions": list(self.actions),
                 "lessons": list(self.lessons), "lesson": self.lesson, "automationRunning": self.automation_running, "notice": self.notice, "alert": self.alert,
                 "helpers": list(self.helpers), "remoteRequest": self.remote_request, "queued": self.queued,
+                "existing": self.existing,
                 "apps": list(self.apps), "dictation": dict(self.dictation),
             }
 
@@ -423,6 +426,24 @@ class Model:
             self.queued["show"] = show
         self.push()
 
+    # ------------------------------------------------------ demande déjà connue
+
+    def close_existing(self) -> None:
+        self.existing = None
+        self.push()
+
+    def retry_existing(self) -> None:
+        """Déjà réglée mais le problème est revenu : le même ticket est rouvert."""
+        e, self.existing = self.existing, None
+        if e and e["kind"] == "solved":
+            self.ask_help(e["asked"] or e["task"], reopen=e["ticket"])
+
+    def new_request(self) -> None:
+        """Ce n'est pas la même demande : elle part avec son propre ticket."""
+        e, self.existing = self.existing, None
+        if e:
+            self.ask_help(e["asked"] or e["task"], new=True)
+
     # ------------------------------------------------------ demande d'aide
 
     @property
@@ -461,7 +482,9 @@ class Model:
         self.screen = "home"
         self.push()
 
-    def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None) -> None:
+    def ask_help(self, task: str, requested_by: str | None = None, ticket: str | None = None,
+                 reopen: str | None = None, new: bool = False) -> None:
+        self.existing = None
         if self.queued:
             self.queued["show"] = False
             if ticket and self.queued["ticket"] == ticket:
@@ -481,7 +504,9 @@ class Model:
             self.screen = "session"
         self._level()
         if self.bridge is not None:
-            if ticket:
+            if reopen or new:
+                self.bridge.ask_help(self.task, requested_by, ticket, reopen=reopen, new=new)
+            elif ticket:
                 self.bridge.ask_help(self.task, requested_by, ticket)
             else:
                 self.bridge.ask_help(self.task, requested_by)
@@ -569,6 +594,19 @@ class Model:
                 self.queued = {"ticket": str(m.get("ticket") or ""), "number": m.get("number"),
                                "task": str(m.get("task") or self.task), "rdv": None, "show": True,
                                "suggestions": suggestions, "suggestion_lancee": None}
+                self.state, self.screen = None, "home"
+            self._level()
+        elif kind in ("ticket_exists", "ticket_solved"):
+            # La demande a déjà son ticket : rien de nouveau n'est ouvert.
+            sol = m.get("solution") if isinstance(m.get("solution"), dict) else {}
+            with self._lock:
+                self.existing = {
+                    "kind": "open" if kind == "ticket_exists" else "solved",
+                    "ticket": str(m.get("ticket") or ""), "number": m.get("number"),
+                    "task": str(m.get("task") or self.task), "asked": self.task,
+                    "status": str(m.get("status") or ""), "rdv": m.get("rdv"),
+                    "note": str(sol.get("note") or ""), "by": str(sol.get("by") or ""),
+                    "at": sol.get("at"), "steps": [str(x) for x in sol.get("steps") or []]}
                 self.state, self.screen = None, "home"
             self._level()
         elif kind == "ticket_scheduled":

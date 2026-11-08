@@ -627,6 +627,20 @@ Un ticket en attente peut aussi contenir `suggestions` (`[{id,title}]`, au plus 
   `{"type":"ticket_automate_launched","ticket","lesson"}`. Seul un ID suggéré pour ce ticket est accepté ;
   le serveur mémorise `suggestion_lancee`, ajoute la note « Automate proposé lancé : <titre> » et garde
   le statut du ticket.
+- **Pas de ticket en double.** Avant d'ouvrir un ticket pour une demande de l'utilisateur (ni
+  `ticket`, ni `requested_by`, ni `new`), le serveur cherche un ticket de l'espace qui porte déjà
+  cette demande (mêmes mots, sans accents ni mots vides, radical de 5 lettres ; tickets
+  d'automates exclus) : ouvert d'abord, sinon réglé depuis moins de 90 jours. Pas de session.
+  - Ouvert → `{"type":"ticket_exists","ticket","number","task","status","rdv"}` ; le ticket reçoit
+    la note « Demandé à nouveau par l’utilisateur. » (un `en_cours` sans session vivante passe
+    `a_reprendre` ; un `en_attente` est reproposé si un support est là).
+  - Réglé → `{"type":"ticket_solved","ticket","number","task","solution":{"note","steps","by","at"}}` :
+    `note` = mot du support à la clôture (`close` avec `text`, gardé dans `solution`), `steps` = plan
+    si Holo est allé au bout (`end` = `done`).
+  - L'app affiche l'état ou la solution. « C’est une autre demande » = `help_request` avec
+    `"new": true` (nouveau ticket). « Refaire avec Holo » = `help_request` avec `"reopen": "<id>"` :
+    le même ticket est rouvert (note « Le problème est revenu. »), puis attente ou session comme
+    d'habitude ; Holo reçoit ce qui l'avait réglé (`session.reprise`).
 - `session` porte en plus `"ticket"` et `"number"`.
 - App → `{"type":"ticket_schedule","ticket","at"}` (entre 1 min et 30 jours) →
   `{"type":"ticket_scheduled","ticket","number","at"}` ou `{"type":"ticket_refused","ticket","reason"}`.

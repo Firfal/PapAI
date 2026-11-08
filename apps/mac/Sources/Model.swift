@@ -35,6 +35,22 @@ struct QueuedTicket: Equatable {
     var suggestionLancee: String?
 }
 
+/// Demande qui a déjà son ticket : encore ouvert, ou réglé avec sa solution.
+struct ExistingTicket: Equatable {
+    var solved: Bool
+    var ticket: String
+    var number: Int
+    var task: String
+    /// Ce que la personne vient de demander, renvoyé tel quel si elle insiste.
+    var asked: String
+    var status = ""
+    var rdv: Date?
+    var note = ""
+    var by = ""
+    var at: Date?
+    var steps: [String] = []
+}
+
 enum SessionState: String {
     case planning, awaiting_approval, active, awaiting_helper, done, stopped
     var isOpen: Bool { self != .done && self != .stopped }
@@ -91,6 +107,7 @@ final class AppModel {
     var queuedShown = false
     /// Nom de l'organisation qui gère ce poste, connu après l'inscription par jeton.
     var orgName = UserDefaults.standard.string(forKey: "orgName") ?? ""
+    var existing: ExistingTicket?
     var pendingTask = ""
     var pendingAutomation: Lesson?
     var pendingAutomationTicket: String?
@@ -581,8 +598,24 @@ final class AppModel {
         screen = .home
     }
 
-    func askHelp(task: String, requestedBy: String? = nil, ticket: String? = nil) {
+    /// Déjà réglée mais le problème est revenu : le même ticket est rouvert.
+    func retryExisting() {
+        guard let e = existing, e.solved else { return }
+        existing = nil
+        askHelp(task: e.asked.isEmpty ? e.task : e.asked, reopen: e.ticket)
+    }
+
+    /// Ce n'est pas la même demande : elle part avec son propre ticket.
+    func newRequest() {
+        guard let e = existing else { return }
+        existing = nil
+        askHelp(task: e.asked.isEmpty ? e.task : e.asked, new: true)
+    }
+
+    func askHelp(task: String, requestedBy: String? = nil, ticket: String? = nil,
+                 reopen: String? = nil, new: Bool = false) {
         guard guardAlert == nil else { return }
+        existing = nil
         // « Range mes documents » : seuls les noms des fichiers partent, avec la demande.
         tidyScan = nil
         if Tidy.isRequest(task) {
@@ -616,6 +649,8 @@ final class AppModel {
         if let requestedBy { msg["requested_by"] = requestedBy }
         if let ticket { msg["ticket"] = ticket }
         if let tidyScan { msg["tidy"] = tidyScan.payload }
+        if let reopen { msg["reopen"] = reopen }
+        if new { msg["new"] = true }
         client.send(msg)
     }
 
@@ -749,6 +784,21 @@ final class AppModel {
                                   task: m["task"] as? String ?? task, rdv: nil, suggestions: suggestions,
                                   suggestionLancee: m["suggestion_lancee"] as? String)
             queuedShown = true
+            state = nil
+            screen = .home
+            applyLevel()
+        case "ticket_exists", "ticket_solved":
+            // La demande a déjà son ticket : rien de nouveau n'est ouvert.
+            let sol = m["solution"] as? [String: Any] ?? [:]
+            existing = ExistingTicket(
+                solved: m["type"] as? String == "ticket_solved",
+                ticket: m["ticket"] as? String ?? "", number: m["number"] as? Int ?? 0,
+                task: m["task"] as? String ?? task, asked: task,
+                status: m["status"] as? String ?? "",
+                rdv: (m["rdv"] as? Double).map { Date(timeIntervalSince1970: $0) },
+                note: sol["note"] as? String ?? "", by: sol["by"] as? String ?? "",
+                at: (sol["at"] as? Double).map { Date(timeIntervalSince1970: $0) },
+                steps: sol["steps"] as? [String] ?? [])
             state = nil
             screen = .home
             applyLevel()

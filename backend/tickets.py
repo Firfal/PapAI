@@ -8,15 +8,30 @@ rendez-vous. Rien que du texte : aucune capture d'écran n'est gardée.
 
 from __future__ import annotations
 
+import re
 import secrets
 import time
+import unicodedata
 from pathlib import Path
 
 from . import storage, ticket_stats
+
 OPEN = ("nouveau", "en_attente", "rdv", "en_cours", "a_reprendre")
 STATUSES = (*OPEN, "resolu")
 MAX = 500
 RDV_MAX_S = 30 * 86400
+
+SAME_MAX_AGE_S = 90 * 86400
+SAME_MIN_SCORE = 0.6
+REDEMANDE = "Demandé à nouveau par l’utilisateur."
+_MOTS_VIDES = set("""
+le la les un une des du de au aux et ou en dans sur sous pour par avec sans ce cet cette ces
+mon ma mes ton ta tes son sa ses notre nos votre vos leur leurs je tu il elle on nous vous ils
+elles me te se ne pas plus que qui quoi est sont suis ai as avons avez ont etre avoir moi toi lui
+ca cela ceci tout tous toute toutes tres bien encore deja aussi comment pourquoi quand faire fait
+veux voudrais voudrait peux peut pouvez arrive arriver marche marcher fonctionne fonctionner
+probleme problemes souci soucis aide aider besoin svp merci bonjour depuis toujours jamais rien
+""".split())
 
 _LIVE = {"waiting_consent", "planning", "awaiting_approval", "awaiting_helper", "active"}
 
@@ -94,6 +109,23 @@ class Tickets:
         self.update(t, category=category, category_by=by, category_who=who[:40] if by == "support" else "")
         return True
 
+    def same(self, task: str, now: float | None = None) -> dict | None:
+        """Un ticket qui porte déjà cette demande : ouvert d'abord, sinon réglé il y a moins de 90 jours.
+        Les tickets d'automates (titre de l'automate) ne comptent pas."""
+        now = time.time() if now is None else now
+        best, best_key = None, None
+        for t in self._load():
+            if t.get("source") == "automatisme":
+                continue
+            ouvert = t.get("status") in OPEN
+            if not ouvert and now - int(t.get("resolved") or t.get("updated") or 0) > SAME_MAX_AGE_S:
+                continue
+            score = similarity(task, t.get("task", ""))
+            key = (ouvert, score, int(t.get("updated") or 0))
+            if score >= SAME_MIN_SCORE and (best_key is None or key > best_key):
+                best, best_key = t, key
+        return best
+
     def waiting(self) -> list[dict]:
         return [t for t in self._load() if t.get("status") == "en_attente"]
 
@@ -117,6 +149,35 @@ class Tickets:
             return False
         self.update(t, **new)
         return True
+
+
+def _mots(text: str) -> set[str]:
+    s = unicodedata.normalize("NFKD", str(text or "").lower())
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = re.sub(r"(?<=[a-z0-9])-(?=[a-z0-9])", "", s)
+    return {m[:5] for m in re.findall(r"[a-z0-9]+", s) if len(m) > 2 and m not in _MOTS_VIDES}
+
+
+def similarity(a: str, b: str) -> float:
+    """Même demande dite autrement : mots en commun (sans accents ni mots vides, radical de 5 lettres)."""
+    x, y = _mots(a), _mots(b)
+    if not x or not y:
+        return 0.0
+    common = len(x & y)
+    small, big = sorted((len(x), len(y)))
+    if common == small and big <= small + 2:
+        return 1.0
+    return 2 * common / (len(x) + len(y))
+
+
+def solution(t: dict) -> dict:
+    """Ce qui a réglé le ticket : le mot du support à la clôture, et les étapes si Holo est allé au bout."""
+    note = str(t.get("solution") or "")
+    by = t.get("closed_by") or ""
+    if not note and by:
+        note = next((n.get("text", "") for n in reversed(t.get("notes") or []) if n.get("by") == by), "")
+    steps = list(t.get("plan") or []) if t.get("end") == "done" else []
+    return {"note": note, "steps": steps, "by": by or t.get("helper") or "", "at": int(t.get("resolved") or t.get("updated") or 0)}
 
 
 def public(t: dict) -> dict:

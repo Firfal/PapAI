@@ -384,6 +384,40 @@
       `<div class="row" style="gap:14px;margin-top:18px">${pill("D'accord", 'closeQueued', { height: 78, grow: true })}</div>`;
   }
 
+  // ------------------------------------- Demande qui a déjà son ticket
+  function existing() {
+    const e = S.existing, solved = e.kind === 'solved';
+    const task = e.task ? `<div class="card" style="padding:24px;${f(24, 5)}">« ${esc(e.task)} »</div>` : '';
+    if (!solved) {
+      const live = e.status === 'en_cours';
+      const text = live ? `Une assistance est déjà en cours sur cette demande.`
+        : e.status === 'rdv' && e.rdv ? `Rendez-vous ${rdvText(e.rdv)}. PapAI vous préviendra à l’heure dite.`
+        : e.status === 'a_reprendre' ? `L’assistance s’est arrêtée avant la fin. ${S.helperName} a votre demande et va la reprendre.`
+        : `Elle attend un support. PapAI vous préviendra dès que ${S.helperName} sera là.`;
+      return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Demande n° ${esc(e.number)}</span></div>
+        <div style="${f(44, 6)};letter-spacing:-0.7px;line-height:1.1">${live ? 'Cette demande est déjà en cours' : 'Vous avez déjà fait cette demande'}</div>
+        ${task}${lead(text + ' Inutile de la refaire.')}`, 40, 22) +
+        `<div class="row" style="gap:14px;margin-top:18px">
+          ${pill('C’est une autre demande', 'newRequest', { filled: false, height: 78, grow: true, disabled: !S.connected })}
+          ${pill('D’accord', 'closeExisting', { height: 78, grow: true })}
+        </div>`;
+    }
+    const who = e.by || 'Votre support';
+    const note = e.note ? `<div class="card" style="padding:24px;${f(22, 5)}"><div class="muted" style="${f(16, 6)}">${esc(who)} a noté</div>« ${esc(e.note)} »</div>` : '';
+    const steps = e.steps.length ? `<div class="col" style="gap:8px"><div class="muted" style="${f(16, 6)}">Ce qui l’avait réglée</div>
+      ${e.steps.map((st, i) => `<div style="${f(21, 5)}">${i + 1}. ${esc(st)}</div>`).join('')}</div>` : '';
+    const when = e.at ? ` le ${esc(new Date(e.at * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' }))}` : '';
+    return mint(`<div class="row accent" style="gap:12px">${icon('personWave', 28)}<span style="${f(20, 6)}">Demande n° ${esc(e.number)} · réglée${when}</span></div>
+      <div style="${f(44, 6)};letter-spacing:-0.7px;line-height:1.1">Cette demande a déjà été réglée</div>
+      ${task}${note}${steps}
+      ${lead('Si le problème est revenu, Holo peut refaire la même chose avec vous.')}`, 40, 22) +
+      `<div class="row" style="gap:14px;margin-top:18px">
+        ${pill('Ce n’est pas la même demande', 'newRequest', { filled: false, height: 78, grow: true, disabled: !S.connected })}
+        ${pill('Refaire avec Holo', 'retryExisting', { filled: false, height: 78, grow: true, disabled: !S.connected })}
+        ${pill('C’est réglé, merci', 'closeExisting', { height: 78, grow: true })}
+      </div>`;
+  }
+
   // ----------------------------------------------------------- RemoteRequest
   function remote() {
     const r = S.remoteRequest;
@@ -453,6 +487,7 @@
   // ------------------------------------------------------------------- rendu
   function body() {
     if (S.remoteRequest) return remote();
+    if (S.existing) return existing();
     if (S.queued && S.queued.show) return queued();
     if (S.screen === 'consent') return consent();
     if (S.screen === 'session') return session();
@@ -556,6 +591,9 @@
     scheduleTicket: (slot) => call('schedule_ticket', slot),
     runSuggested: (id, ticket) => call('run_suggested_automation', id, ticket),
     closeQueued: () => call('close_queued'),
+    closeExisting: () => call('close_existing'),
+    retryExisting: () => call('retry_existing'),
+    newRequest: () => call('new_request'),
     openQueued: () => { S.queued.show = true; render(); call('open_queued'); },
     refuseRemote: () => call('refuse_remote'),
   };

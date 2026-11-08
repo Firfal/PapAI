@@ -37,6 +37,8 @@ struct RootView: View {
             Group {
                 if let r = model.remoteRequest {
                     RemoteRequestView(request: r)
+                } else if let e = model.existing {
+                    ExistingTicketView(ticket: e)
                 } else if let q = model.queued, model.queuedShown {
                     QueuedView(ticket: q)
                 } else if !(model.screenOK && model.axOK) && !model.permissionsDismissed && model.screen == .home {
