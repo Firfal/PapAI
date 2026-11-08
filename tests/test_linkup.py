@@ -46,12 +46,16 @@ class Filtre(unittest.TestCase):
     def test_questions_generales_acceptees(self):
         self.assertEqual(linkup.question_ok("  Comment   réinitialiser Chrome ? "), "Comment réinitialiser Chrome ?")
         self.assertIsNotNone(linkup.question_ok("Erreur 0x80070005 Windows Update"))
+        for q in ["Quels sont les 3 cours gratuits pour apprendre Python ?", "Réserver 2 places de cinéma en ligne",
+                  "Les 5 routes les plus belles de France", "Imprimante HP 2710 hors ligne"]:
+            with self.subTest(q=q):
+                self.assertIsNotNone(linkup.question_ok(q))
 
     def test_donnees_personnelles_refusees(self):
         for q in ["", "ok", "écrire à jeanne.dupont@gmail.com", "rappeler le 06 12 34 56 78",
                   "carte 4970 1012 3456 7890", "virement FR76 3000 6000",
                   "rappeler le 06/12/34/56/78", "livraison au 12 rue de la Paix", "3 bis, avenue Foch",
-                  "8 av Foch", "8 passage des Lilas", "4 résidence les Pins"]:
+                  "8 av Foch", "8 passage des Lilas", "4 résidence les Pins", "4 place de la Mairie"]:
             with self.subTest(q=q):
                 self.assertIsNone(linkup.question_ok(q))
 

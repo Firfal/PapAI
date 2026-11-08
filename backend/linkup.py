@@ -20,12 +20,16 @@ MAX_SOURCES = 3
 # Ce qui ne doit jamais partir vers un moteur de recherche : adresse mail,
 # longue suite de chiffres (carte, téléphone, IBAN, numéro de dossier), adresse postale.
 # Les noms ne sont pas détectables : le prompt et la page du support les interdisent.
+_NUM = r"\b\d{1,4}\s*(?i:bis|ter)?\s*,?\s*"
+# Types de voie sans autre sens courant : le numéro suffit.
+_VOIE = (r"(?i:rue|avenue|av|boulevard|bd|blvd|chemin|allée|allee|impasse|quai|résidence|residence"
+         r"|hameau|lieu-dit|faubourg|fbg|sentier|esplanade|parvis|rond-point|lotissement)\b")
+# Mots qui ont aussi un autre sens (« 3 cours gratuits ») : il faut un nom propre après.
+_VOIE_AMBIGUE = (r"(?i:place|route|rte|passage|cours|square|villa|cité|cite|voie|traverse|montée)"
+                 r"\s+(?:(?i:de|du|des|la|le|les)\s+){0,2}(?:(?i:d|l)['’])?[A-ZÀ-Ý]")
 _PERSONAL = re.compile(
-    r"\S+@\S+\.\S+|(?<!\w)\d(?:[\s./-]?\d){5,}|\bFR\d{2}"
-    r"|\b\d{1,4}\s*(?:bis|ter)?\s*,?\s*(?:rue|avenue|av|boulevard|bd|blvd|chemin|ch|allée|allee|impasse|imp|place|pl|quai|route|rte"
-    r"|passage|cours|square|sq|villa|cité|cite|résidence|residence|hameau|lieu-dit|faubourg|fbg|sentier"
-    r"|esplanade|parvis|rond-point|voie|traverse|montée|lotissement)\b",
-    re.I)
+    r"(?i:\S+@\S+\.\S+|\bFR\d{2})|(?<!\w)\d(?:[\s./-]?\d){5,}"
+    rf"|{_NUM}{_VOIE}|{_NUM}{_VOIE_AMBIGUE}")
 
 
 def configured() -> bool:
