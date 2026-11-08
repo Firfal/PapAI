@@ -14,7 +14,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // Captures d'écran interdites, sauf build de debug lancé avec `--ez captures true` (essais sur émulateur).
+        if (!(BuildConfig.DEBUG && intent.getBooleanExtra("captures", false))) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
         enableEdgeToEdge()
         if (Build.VERSION.SDK_INT >= 33) askNotif.launch(Manifest.permission.POST_NOTIFICATIONS)
         setContent { Root() }
