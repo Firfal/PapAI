@@ -102,14 +102,19 @@
       return `<div class="card row" style="padding:12px;gap:10px">
         <button class="row press grow" data-act="shortcut" data-arg="${esc(l.id)}" aria-label="${esc(l.title)}" style="gap:10px;text-align:left;min-height:36px">
           <span class="circle" style="width:36px;height:36px;background:var(--mint);color:var(--accent)">${icon(folderIcon((l.shortcut || {}).folder), 19)}</span>
-          <span style="${f(18, 6)}">${esc(l.title)}</span>
+          <span class="col" style="gap:2px"><span style="${f(18, 6)}">${esc(l.title)}</span>${l.publisher ? `<span class="muted" style="${f(14, 4)}">${esc('Fourni par ' + l.publisher)}</span>` : ''}</span>
         </button>
         ${steps ? `<button class="press accent" data-act="lesson" data-arg="${esc(l.id)}"
           style="white-space:nowrap;min-height:44px;padding:5px 10px;border-radius:999px;background:var(--mint);${f(15, 6)}">Montrez-moi</button>` : ''}
       </div>`;
     }).join('');
-    if (!S.lessons.length && !notice) return '';
-    return `<div class="col" style="gap:14px">${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes automates</div>` : ''}${tiles}</div>`;
+    const running = S.automationRunning ? `<div class="card row" style="padding:18px;gap:14px;align-items:center">
+        <span class="grow" style="${f(18, 6)}">En cours : ${esc(S.automationRunning)}</span>
+        <button class="row press" data-act="stop" aria-label="Arrêter l'automate (Échap)"
+          style="gap:10px;height:52px;padding:0 20px;border-radius:999px;background:var(--ink);color:#fff">
+          ${icon('stop', 18, '#fff')}<span style="${f(18, 6)}">Arrêter</span></button></div>` : '';
+    if (!S.lessons.length && !notice && !running) return '';
+    return `<div class="col" style="gap:14px">${running}${notice}${S.lessons.length ? `<div style="${f(21, 7)}">Mes automates</div>` : ''}${tiles}</div>`;
   }
 
   const APP_STYLE = {

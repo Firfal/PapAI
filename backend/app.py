@@ -24,7 +24,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import guard, voice
+from . import automations, guard, voice
 from .agent import AgentRunner, propose_plan
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, Family, PairingError
@@ -420,6 +420,30 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 agent_task = asyncio.create_task(run_session(session, link))
                 continue
 
+            if kind == "run_automation":
+                # Un automate importé, lancé en un clic : son plan a été
+                # validé par le support à l'import, pas besoin d'un aidant en ligne.
+                lesson = automations.load(str(msg.get("id", "")))
+                task = automations.holo_task(lesson) if lesson else None
+                if task is None or _os_family(link.os) not in lesson.get("platforms", []):
+                    await ws.send_json({"type": "automation_refused", "id": str(msg.get("id", ""))[:40],
+                                        "reason": "Cet automate n'est pas disponible sur cet ordinateur."})
+                    continue
+                goal, steps = task
+                session = registry.create(goal[:MAX_TASK])
+                session.grant_consent()
+                session.preapprove_plan(steps, by=lesson.get("approved_by", ""))
+                session.log("automation", id=lesson["id"], title=lesson.get("title", ""))
+                url = f"{PUBLIC_URL}/h/{session.helper_token}"
+                await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
+                                    "automation": lesson["id"]})
+                print(f"[session {session.id}] automate importé {lesson['id']}")
+                await broadcast_helper(session.status())
+                if agent_task and not agent_task.done():
+                    agent_task.cancel()
+                agent_task = asyncio.create_task(run_automation(session, link))
+                continue
+
             if kind == "automation_failed":
                 # Un automate n'a pas pu se rejouer : l'écran ou le dossier a
                 # changé. On ne tente rien à l'aveugle, on prévient l'aidant.
@@ -493,6 +517,21 @@ async def _ws_bridge(ws: WebSocket) -> None:
         if bridge is link:
             bridge = None
             await _stop_open_sessions("pont déconnecté")
+
+
+def _os_family(name: str) -> str:
+    n = (name or "").lower()
+    return "mac" if n.startswith(("mac", "darwin", "osx")) else "windows"
+
+
+async def run_automation(session, link: "BridgeLink") -> None:
+    """Plan déjà validé par le support : l'agent agit directement."""
+    try:
+        await broadcast_helper(session.status())
+        await AgentRunner(session, link, broadcast_helper).run()
+    except asyncio.CancelledError:
+        session.stop(by="annulation")
+        raise
 
 
 async def run_session(session, link: "BridgeLink") -> None:
@@ -1141,6 +1180,72 @@ async def lesson_file_keyed(fam: str, lesson_id: str, filename: str):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
     return _serve_lesson_file(lesson_id, filename)
+
+
+MAX_IMPORT = 15_000_000
+
+
+async def _import_automation(request: Request):
+    """Le support (service IT, proche) importe un automate : c'est sa validation."""
+    trop = JSONResponse({"error": "Fichier trop gros."}, status_code=413)
+    try:
+        if int(request.headers.get("content-length") or 0) > MAX_IMPORT:
+            return trop
+    except ValueError:
+        return trop
+    body = bytearray()
+    async for part in request.stream():
+        body += part
+        if len(body) > MAX_IMPORT:
+            return trop
+    try:
+        pack = json.loads(body)
+    except ValueError:
+        return JSONResponse({"error": "Ce n'est pas un fichier .papai (JSON attendu)."}, status_code=400)
+    try:
+        lesson = automations.save(pack, by=request.query_params.get("by", ""))
+    except automations.Invalid as e:
+        return JSONResponse({"error": str(e)}, status_code=422)
+    print(f"[automate] importé {lesson['id']}")
+    if bridge is not None:
+        await bridge.send({"type": "lessons_changed", "title": lesson["title"]})
+    return lesson
+
+
+async def _remove_automation(lesson_id: str):
+    if not automations.remove(lesson_id):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    if bridge is not None:
+        await bridge.send({"type": "lessons_changed", "title": ""})
+    return {"removed": lesson_id}
+
+
+@app.post("/k/{fam}/automations")
+async def import_automation_keyed(fam: str, request: Request):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _import_automation(request)
+
+
+@app.delete("/k/{fam}/automations/{lesson_id}")
+async def remove_automation_keyed(fam: str, lesson_id: str):
+    if not _key_ok(fam):
+        return JSONResponse({"error": "Lien invalide."}, status_code=404)
+    return await _remove_automation(lesson_id)
+
+
+@app.post("/automations")
+async def import_automation(request: Request):
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _import_automation(request)
+
+
+@app.delete("/automations/{lesson_id}")
+async def remove_automation(lesson_id: str, request: Request):
+    if not _same_machine(request):
+        return JSONResponse({"error": "introuvable"}, status_code=404)
+    return await _remove_automation(lesson_id)
 
 
 @app.post("/k/{fam}/transcribe")
