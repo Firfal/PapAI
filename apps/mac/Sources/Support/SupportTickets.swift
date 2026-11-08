@@ -196,10 +196,10 @@ struct SupportTickets: View {
             VStack(alignment: .trailing, spacing: 8) {
                 if t.isOpen && t.plan != nil {
                     // Trois boutons de même taille, empilés et alignés.
-                    Button(busy == t.id ? "…" : "Valider") { Task { await act(t, "validate") } }
-                        .buttonStyle(PillStyle(height: 40, icone: "checkmark.circle", plein: true)).frame(width: 190)
+                    Button(busy == t.id ? "…" : "Exécuter") { Task { await act(t, "run") } }
+                        .buttonStyle(PillStyle(height: 40, icone: "play.circle", plein: true)).frame(width: 190)
                         .disabled(busy != nil)
-                        .help("Crée l’automate chez l’utilisateur")
+                        .help("Lance la solution sur l’ordinateur de l’utilisateur, sans créer d’automate")
                     Button("Modifier") { editing = t }
                         .buttonStyle(PillStyle(filled: false, height: 40, icone: "pencil", plein: true)).frame(width: 190)
                         .disabled(busy != nil)
@@ -215,6 +215,9 @@ struct SupportTickets: View {
                 // Le reste dans un seul menu, pour garder la carte lisible.
                 Menu {
                     Button("Voir l’utilisateur") { openUser(t.person) }
+                    if t.isOpen && t.plan != nil {
+                        Button("Créer un automate avec ce plan") { Task { await act(t, "validate") } }
+                    }
                     Menu("Catégorie") {
                         ForEach(TicketCategory.all, id: \.id) { c in
                             Button(c.label + (c.id == t.category ? " ✓" : "")) {
@@ -309,12 +312,12 @@ struct SupportTickets: View {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: [
-            "action": "validate", "by": model.helperName ?? "Support",
+            "action": "run", "by": model.helperName ?? "Support",
             "automate": ["title": titre, "steps": etapes],
         ])
         if let (d, r) = try? await URLSession.shared.data(for: req) {
             if (r as? HTTPURLResponse)?.statusCode == 200 {
-                model.showToast("Automate créé chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
+                model.showToast("Solution lancée chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
             } else {
                 let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any]
                 model.showToast(obj?["error"] as? String ?? "Action refusée")
@@ -340,6 +343,8 @@ struct SupportTickets: View {
                 model.showToast("Catégorie : \(TicketCategory.label(extra["category"] ?? ""))")
             } else if action == "validate" {
                 model.showToast("Automate créé chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
+            } else if action == "run" {
+                model.showToast("Solution lancée chez \(t.person.name.isEmpty ? "l’utilisateur" : t.person.name)")
             } else if action == "linkup" {
                 model.showToast("Plan mis à jour avec Linkup")
             } else if action == "close" {
@@ -580,7 +585,7 @@ struct EditPlanSheet: View {
                 Spacer()
                 Button("Annuler") { done(nil, []) }.buttonStyle(PillStyle(filled: false, height: 44))
                     .keyboardShortcut(.cancelAction)
-                Button("Valider le plan") {
+                Button("Exécuter ce plan") {
                     done(titre.trimmingCharacters(in: .whitespacesAndNewlines),
                          etapes.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })
                 }

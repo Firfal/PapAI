@@ -42,7 +42,7 @@ struct Pastille: View {
 /// Taille du texte choisie à l'accueil. Grande par défaut, l'interface est
 /// déjà dessinée en gros caractères ; « Très grande » agrandit tout.
 enum TextScale {
-    static let options: [(label: String, value: Double)] = [("Grande", 1.0), ("Très grande", 1.18)]
+    static let options: [(label: String, value: Double)] = [("Grande", 1.0), (String(localized: "Très grande"), 1.18)]
     static var current: Double {
         get { let v = UserDefaults.standard.double(forKey: "textScale"); return v > 0 ? v : 1.0 }
         set { UserDefaults.standard.set(newValue, forKey: "textScale") }
@@ -104,7 +104,7 @@ struct Header: View {
             // Onglets de l'accueil, au-dessus de l'encadré bleu, à distance du logo.
             if accueilAffiche {
                 @Bindable var m = model
-                Onglets(options: [("Accueil", 0), ("Mes demandes", 2), ("Automates", 1)], selection: $m.homeTab)
+                Onglets(options: [("Accueil", 0), (String(localized: "Mes demandes"), 2), ("Automates", 1)], selection: $m.homeTab)
                     .frame(width: 420)
                     .padding(.leading, 48)
             }

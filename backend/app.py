@@ -2612,6 +2612,38 @@ async def _ticket_action(tid: str, body: dict):
             return JSONResponse({"error": "Linkup n'a rien trouvé d'utile pour cette demande."}, status_code=422)
         S().tickets.update(t, automate=new, linkup=note)
         S().tickets.note(t, by, "Plan mis à jour avec une recherche Linkup.")
+    elif act == "run":
+        # Le support lance la solution du ticket sur l'ordinateur : plan déjà validé par lui,
+        # aucun automate n'est créé (il le fera s'il voit la demande revenir).
+        if not t.get("automate") or t["status"] == "resolu":
+            return JSONResponse({"error": "Ce ticket n'a pas de plan à exécuter."}, status_code=409)
+        link = S().bridge
+        if link is None:
+            return JSONResponse({"error": "L'ordinateur n'est pas connecté."}, status_code=409)
+        cur = current_session()
+        if cur is not None and cur.is_open:
+            return JSONResponse({"error": "Une assistance est déjà en cours."}, status_code=409)
+        edit = body.get("automate")
+        if isinstance(edit, dict):
+            try:
+                S().tickets.update(t, automate=automate_draft.clean(
+                    {**t["automate"], **{k: v for k, v in edit.items() if k in ("title", "steps")}}))
+            except automate_draft.DraftError as e:
+                return JSONResponse({"error": str(e)}, status_code=422)
+        plan = t["automate"]
+        session = S().registry.create((plan.get("goal") or t["task"])[:MAX_TASK])
+        session.grant_consent()
+        session.preapprove_plan(list(plan.get("steps") or []), by=by or "Support IT")
+        session.ticket = t["id"]
+        session.log("ticket_run", ticket=t["id"])
+        S().tickets.update(t, status="en_cours", session=session.id, assignee=by or t.get("assignee", ""))
+        await link.send({"type": "session", "id": session.id, "helper_url": f"{PUBLIC_URL}/h/{session.helper_token}",
+                         "ticket": t["id"], "number": t["number"]})
+        await broadcast_helper(session.status())
+        if S().agent_task and not S().agent_task.done():
+            S().agent_task.cancel()
+        S().agent_task = asyncio.create_task(run_automation(session, link))
+        S().tickets.note(t, by, "Solution lancée sur l'ordinateur.")
     elif act == "validate":
         # Demande d'automate : valider le plan, c'est créer l'automate chez l'utilisateur.
         if not t.get("automate") or t["status"] == "resolu":

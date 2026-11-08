@@ -76,7 +76,7 @@ final class LocalNarration: NSObject, AVSpeechSynthesizerDelegate {
             return
         }
         guard current == nil,
-              let voice = AVSpeechSynthesisVoice(language: "fr-FR"),
+              let voice = AVSpeechSynthesisVoice(language: AppLangue.anglais ? "en-US" : "fr-FR"),
               let text = queue.next() else { return }
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = voice

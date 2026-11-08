@@ -19,9 +19,9 @@ struct UserTickets: View {
             Defilant(actif: true) {
             VStack(spacing: 0) {
                 if failed {
-                    note("Impossible de récupérer vos demandes pour le moment.")
+                    note(String(localized: "Impossible de récupérer vos demandes pour le moment."))
                 } else if loaded && items.isEmpty {
-                    note("Aucune demande en cours. Quand vous demandez de l’aide, elle apparaît ici jusqu’à ce que votre support la règle.")
+                    note(String(localized: "Aucune demande en cours. Quand vous demandez de l’aide, elle apparaît ici jusqu’à ce que votre support la règle."))
                 } else {
                     ForEach(items) { t in
                         row(t)
@@ -49,12 +49,12 @@ struct UserTickets: View {
     private func row(_ t: Item) -> some View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(t.task.isEmpty ? "Demande d’aide" : "« \(t.task) »").font(rounded(19, .semibold))
+                Text(t.task.isEmpty ? String(localized: "Demande d’aide") : "« \(t.task) »").font(rounded(19, .semibold))
                     .fixedSize(horizontal: false, vertical: true)
                 Text(String(format: "T-%04d", t.number) + " · " + when(t)).font(rounded(14)).foregroundStyle(T.muted)
             }
             Spacer(minLength: 0)
-            let (txt, ton): (String, Pastille.Ton) = t.automate && t.status == "nouveau" ? ("En attente de validation", .bleu) : label(t.status)
+            let (txt, ton): (String, Pastille.Ton) = t.automate && t.status == "nouveau" ? (String(localized: "En attente de validation"), .bleu) : label(t.status)
             Pastille(texte: txt, icone: "circle.fill", ton: ton, taille: 14)
         }
         .padding(.horizontal, 20).padding(.vertical, 14)
@@ -63,10 +63,10 @@ struct UserTickets: View {
     private func label(_ s: String) -> (String, Pastille.Ton) {
         switch s {
         case "nouveau": ("Envoyée", .bleu)
-        case "en_attente": ("En attente du support", .orange)
-        case "rdv": ("Rendez-vous prévu", .violet)
-        case "en_cours": ("En cours", .vert)
-        case "a_reprendre": ("En cours", .vert)
+        case "en_attente": (String(localized: "En attente du support"), .orange)
+        case "rdv": (String(localized: "Rendez-vous prévu"), .violet)
+        case "en_cours": (String(localized: "En cours"), .vert)
+        case "a_reprendre": (String(localized: "En cours"), .vert)
         default: (s, .gris)
         }
     }
@@ -74,13 +74,13 @@ struct UserTickets: View {
     private func when(_ t: Item) -> String {
         let f = DateFormatter(); f.locale = Locale(identifier: "fr_FR"); f.dateFormat = "d MMMM 'à' HH:mm"
         if t.status == "rdv", let r = t.rdv { return "rendez-vous le " + f.string(from: Date(timeIntervalSince1970: r)) }
-        return "mise à jour le " + f.string(from: Date(timeIntervalSince1970: t.updated))
+        return String(localized: "mise à jour le ") + f.string(from: Date(timeIntervalSince1970: t.updated))
     }
 
     private func load() async {
         if let demo = ProcessInfo.processInfo.environment["PAPAI_DEMO"], !demo.isEmpty {
-            items = [Item(id: "a", number: 12, task: "Je n'arrive plus à imprimer", status: "en_attente", updated: Date().timeIntervalSince1970 - 3600, rdv: nil),
-                     Item(id: "b", number: 11, task: "Mes photos de Noël ont disparu", status: "nouveau", updated: Date().timeIntervalSince1970 - 7200, rdv: nil)]
+            items = [Item(id: "a", number: 12, task: String(localized: "Je n'arrive plus à imprimer"), status: "en_attente", updated: Date().timeIntervalSince1970 - 3600, rdv: nil),
+                     Item(id: "b", number: 11, task: String(localized: "Mes photos de Noël ont disparu"), status: "nouveau", updated: Date().timeIntervalSince1970 - 7200, rdv: nil)]
             loaded = true; return
         }
         guard let url = URL(string: model.httpBase + "/tickets") else { return }

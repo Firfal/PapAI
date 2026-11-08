@@ -109,7 +109,7 @@ struct HomeView: View {
                 }
                 if let q = model.queued, !model.queuedShown {
                     Button { model.queuedShown = true } label: {
-                        Label(q.rdv.map { "Demande n° \(q.number) · rendez-vous \(rdvText($0))" } ?? "Demande n° \(q.number) en attente",
+                        Label(q.rdv.map { String(localized: "Demande n° \(q.number) · rendez-vous \(rdvText($0))") } ?? String(localized: "Demande n° \(q.number) en attente"),
                               systemImage: "person.wave.2.fill")
                             .font(rounded(17, .semibold)).foregroundStyle(Pastille.Ton.orange.texte)
                             .padding(.horizontal, 18).frame(minHeight: 44)
@@ -173,7 +173,7 @@ struct HomeView: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass").font(rounded(16, .semibold)).foregroundStyle(T.muted)
                 .accessibilityHidden(true)
-            TextField(LocalizedStringKey(micro.microPresent ? "Écrivez ou dites ce que vous voulez faire" : "Écrivez ce que vous voulez faire"),
+            TextField(LocalizedStringKey(micro.microPresent ? String(localized: "Écrivez ou dites ce que vous voulez faire") : String(localized: "Écrivez ce que vous voulez faire")),
                       text: $request)
                 .textFieldStyle(.plain).font(rounded(18)).focused($focused)
                 .focusEffectDisabled()
@@ -226,8 +226,8 @@ struct HomeView: View {
         }
         .buttonStyle(PressStyle())
         .disabled(dictation.phase == .transcribing)
-        .help(listening ? "Arrêter la dictée" : "Dicter ma demande")
-        .accessibilityLabel(listening ? "Arrêter la dictée" : "Dicter ma demande")
+        .help(listening ? String(localized: "Arrêter la dictée") : String(localized: "Dicter ma demande"))
+        .accessibilityLabel(listening ? String(localized: "Arrêter la dictée") : String(localized: "Dicter ma demande"))
         .onChange(of: listening) { _, on in
             if on, !reduceMotion {
                 withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { pulse = true }
@@ -237,8 +237,8 @@ struct HomeView: View {
 
     private var etatDictee: String? {
         switch dictation.phase {
-        case .listening: "Je vous écoute… Touchez le carré quand vous avez fini."
-        case .transcribing: "Je note…"
+        case .listening: String(localized: "Je vous écoute… Touchez le carré quand vous avez fini.")
+        case .transcribing: String(localized: "Je note…")
         case .idle: nil
         }
     }
@@ -277,7 +277,7 @@ struct HomeView: View {
     private func submit() {
         guard dictation.phase == .idle else { return }
         let text = request.trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.isEmpty { warning = "Dites en quelques mots ce que vous voulez faire."; focused = true; return }
+        if text.isEmpty { warning = String(localized: "Dites en quelques mots ce que vous voulez faire."); focused = true; return }
         warning = nil
         proposition = nil
         // D'abord les automates de l'utilisateur : ils se lancent sans autorisation ni support en direct.
@@ -455,7 +455,7 @@ extension HomeView {
 
     private func openApp(_ bundle: String) {
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else {
-            model.showNotice("Cette application n'est pas disponible sur cet ordinateur.")
+            model.showNotice(String(localized: "Cette application n'est pas disponible sur cet ordinateur."))
             return
         }
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())

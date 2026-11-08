@@ -2091,6 +2091,1226 @@
           }
         }
       }
+    },
+    "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On. PapAI spots scams from open apps, the window title and the website visited. Never your screen, never your passwords."
+          }
+        }
+      }
+    },
+    "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off. Nothing leaves this computer outside an assistance, and scams are no longer detected."
+          }
+        }
+      }
+    },
+    "Aide PapAI": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PapAI help"
+          }
+        }
+      }
+    },
+    "Arrêter la dictée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop dictation"
+          }
+        }
+      }
+    },
+    "Aucun agent en ligne : votre demande sera mise en attente.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No agent online: your request will be queued."
+          }
+        }
+      }
+    },
+    "Aucun automate ne correspond": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No automation matches"
+          }
+        }
+      }
+    },
+    "Aucune demande en cours. Quand vous demandez de l’aide, elle apparaît ici jusqu’à ce que votre support la règle.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No open requests. When you ask for help, it appears here until your support resolves it."
+          }
+        }
+      }
+    },
+    "Autorisation Accessibilité manquante sur cet ordinateur.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Accessibility permission missing on this computer."
+          }
+        }
+      }
+    },
+    "C'est envoyé à %@, avec l'étape où l'automate s'est arrêté.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent to %@, with the step where the automation stopped."
+          }
+        }
+      }
+    },
+    "C'est fait": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "C'est l'heure de votre rendez-vous": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It's time for your appointment"
+          }
+        }
+      }
+    },
+    "C'est ouvert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It's open"
+          }
+        }
+      }
+    },
+    "Capture impossible : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screenshot failed: %@"
+          }
+        }
+      }
+    },
+    "Ce n’est pas la même demande": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It's not the same request"
+          }
+        }
+      }
+    },
+    "Ce rendez-vous n'est pas possible.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This appointment isn't possible."
+          }
+        }
+      }
+    },
+    "Ces automates correspondent à votre demande": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These automations match your request"
+          }
+        }
+      }
+    },
+    "Cet automate correspond à votre demande": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This automation matches your request"
+          }
+        }
+      }
+    },
+    "Cet automate est prévu pour un autre ordinateur.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This automation is meant for another computer."
+          }
+        }
+      }
+    },
+    "Cet automate n'a pas pu être lancé.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This automation couldn't start."
+          }
+        }
+      }
+    },
+    "Cette application n'est pas disponible sur cet ordinateur.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This app isn't available on this computer."
+          }
+        }
+      }
+    },
+    "Cette demande a déjà été réglée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This request was already resolved"
+          }
+        }
+      }
+    },
+    "Cette demande est déjà en cours": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This request is already in progress"
+          }
+        }
+      }
+    },
+    "Contactez votre service informatique.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contact your IT department."
+          }
+        }
+      }
+    },
+    "C’est réglé, merci": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It's fixed, thanks"
+          }
+        }
+      }
+    },
+    "C’est une autre demande": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It's a different request"
+          }
+        }
+      }
+    },
+    "Demain à 14 h": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tomorrow at 2 pm"
+          }
+        }
+      }
+    },
+    "Demain à 9 h": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tomorrow at 9 am"
+          }
+        }
+      }
+    },
+    "Demande d’aide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help request"
+          }
+        }
+      }
+    },
+    "Demande n° %lld en attente": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request #%lld pending"
+          }
+        }
+      }
+    },
+    "Demande n° %lld · réglée": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Request #%lld · resolved"
+          }
+        }
+      }
+    },
+    "Dicter ma demande": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dictate my request"
+          }
+        }
+      }
+    },
+    "Dites en quelques mots ce que vous voulez faire.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Say in a few words what you want to do."
+          }
+        }
+      }
+    },
+    "EEEE d MMMM 'à' HH:mm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EEEE, MMMM d 'at' h:mm a"
+          }
+        }
+      }
+    },
+    "Elle attend un support. PapAI vous préviendra dès que %@ sera là.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It's waiting for support. PapAI will let you know as soon as %@ is there."
+          }
+        }
+      }
+    },
+    "En attente": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pending"
+          }
+        }
+      }
+    },
+    "En attente de validation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Awaiting approval"
+          }
+        }
+      }
+    },
+    "En attente du support": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for support"
+          }
+        }
+      }
+    },
+    "En cours": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In progress"
+          }
+        }
+      }
+    },
+    "En cours : %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In progress: %@"
+          }
+        }
+      }
+    },
+    "En cours…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In progress…"
+          }
+        }
+      }
+    },
+    "En ligne": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Online"
+          }
+        }
+      }
+    },
+    "Fichier audio illisible.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unreadable audio file."
+          }
+        }
+      }
+    },
+    "Holo a une question": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo has a question"
+          }
+        }
+      }
+    },
+    "Holo ne lit que les noms des fichiers, jamais leur contenu. %@ validera le rangement, et vous pourrez l'annuler.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo only reads file names, never their content. %@ will approve the tidy-up, and you can undo it."
+          }
+        }
+      }
+    },
+    "Holo prépare la suite…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is preparing the next step…"
+          }
+        }
+      }
+    },
+    "Holo prépare « %@ »…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is preparing “%@”…"
+          }
+        }
+      }
+    },
+    "Holo range vos fichiers dans %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is tidying your files in %@"
+          }
+        }
+      }
+    },
+    "Holo regarde votre écran": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is looking at your screen"
+          }
+        }
+      }
+    },
+    "Holo regarde votre écran et prépare la suite": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is looking at your screen and preparing the next step"
+          }
+        }
+      }
+    },
+    "Holo regarde votre écran…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is looking at your screen…"
+          }
+        }
+      }
+    },
+    "Holo s'en occupe, seul": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is handling it on its own"
+          }
+        }
+      }
+    },
+    "Holo s'occupe de l'automate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is running the automation"
+          }
+        }
+      }
+    },
+    "Holo s'occupe de « %@ »": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is handling “%@”"
+          }
+        }
+      }
+    },
+    "Holo travaille dans Chrome PapAI": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo is working in PapAI Chrome"
+          }
+        }
+      }
+    },
+    "Holo voit votre écran pour comprendre le problème.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Holo sees your screen to understand the problem."
+          }
+        }
+      }
+    },
+    "Hors connexion pour le moment.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offline right now."
+          }
+        }
+      }
+    },
+    "Impossible de récupérer vos demandes pour le moment.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Can't load your requests right now."
+          }
+        }
+      }
+    },
+    "J'ai besoin d'une information que vous seul connaissez.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I need information only you know."
+          }
+        }
+      }
+    },
+    "Je n'ai pas accès au micro. Autorisez-le dans Réglages Système, Confidentialité.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I can't access the microphone. Allow it in System Settings, Privacy."
+          }
+        }
+      }
+    },
+    "Je n'ai rien entendu. Appuyez sur le micro et parlez.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I didn't hear anything. Tap the microphone and speak."
+          }
+        }
+      }
+    },
+    "Je n'arrive pas à utiliser le micro pour le moment.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I can't use the microphone right now."
+          }
+        }
+      }
+    },
+    "Je ne joins pas le serveur pour le moment. Réessayez dans un instant.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I can't reach the server right now. Try again in a moment."
+          }
+        }
+      }
+    },
+    "Je note…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Writing it down…"
+          }
+        }
+      }
+    },
+    "Je vous écoute… Touchez le carré quand vous avez fini.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'm listening… Tap the square when you're done."
+          }
+        }
+      }
+    },
+    "L'aide est en pause": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help is paused"
+          }
+        }
+      }
+    },
+    "L'assistance est arrêtée.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assistance stopped."
+          }
+        }
+      }
+    },
+    "L'automate est arrêté.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The automation stopped."
+          }
+        }
+      }
+    },
+    "L'automate est déjà validé": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The automation is already approved"
+          }
+        }
+      }
+    },
+    "L'automate s'est arrêté": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The automation stopped"
+          }
+        }
+      }
+    },
+    "Le bouton Arrêter reste visible : vous pouvez tout arrêter à tout moment.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Stop button stays visible: you can stop everything at any time."
+          }
+        }
+      }
+    },
+    "L’assistance s’est arrêtée avant la fin. %@ a votre demande et va la reprendre.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assistance stopped before the end. %@ has your request and will pick it up."
+          }
+        }
+      }
+    },
+    "Mettre l'aide en pause": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause help"
+          }
+        }
+      }
+    },
+    "Nouvel automate": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New automation"
+          }
+        }
+      }
+    },
+    "Nouvel automate : « %@ »": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New automation: “%@”"
+          }
+        }
+      }
+    },
+    "On ne vous le redemandera pas. Vous pouvez retirer cet accord dans Réglages.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You won't be asked again. You can withdraw this consent in Settings."
+          }
+        }
+      }
+    },
+    "PapAI a arrêté : cette démarche peut être une arnaque": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PapAI stopped: this may be a scam"
+          }
+        }
+      }
+    },
+    "Parler à PapAI": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talk to PapAI"
+          }
+        }
+      }
+    },
+    "Pendant l'assistance, laissez la souris et le clavier à Holo. Pause ou Arrêter, quand vous voulez.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "During assistance, leave the mouse and keyboard to Holo. Pause or Stop whenever you want."
+          }
+        }
+      }
+    },
+    "Plus tard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Later"
+          }
+        }
+      }
+    },
+    "Pour cliquer à votre place, uniquement après l'accord de %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To click for you, only after %@ approves."
+          }
+        }
+      }
+    },
+    "Pour que Holo voie ce que vous voyez. Jamais sans votre demande.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "So Holo sees what you see. Never without your request."
+          }
+        }
+      }
+    },
+    "Proposition d'aide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help offer"
+          }
+        }
+      }
+    },
+    "Prévient votre support, avec l'étape où l'automate s'est arrêté": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifies your support, with the step where the automation stopped"
+          }
+        }
+      }
+    },
+    "Quel dossier ranger ?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Which folder should be tidied?"
+          }
+        }
+      }
+    },
+    "Quelqu'un est en train de prendre la main sur votre ordinateur": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Someone is taking control of your computer"
+          }
+        }
+      }
+    },
+    "Rattachement à votre organisation en cours…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Joining your organization…"
+          }
+        }
+      }
+    },
+    "Rendez-vous %@. PapAI vous préviendra à l’heure dite.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appointment %@. PapAI will remind you at that time."
+          }
+        }
+      }
+    },
+    "Rendez-vous prévu": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appointment scheduled"
+          }
+        }
+      }
+    },
+    "Reprendre l'aide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume help"
+          }
+        }
+      }
+    },
+    "Rien ne bouge avant l'accord de %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing moves before %@ approves."
+          }
+        }
+      }
+    },
+    "Rien ne se passera sur votre écran avant son accord.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing will happen on your screen before their approval."
+          }
+        }
+      }
+    },
+    "Serveur introuvable.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server not found."
+          }
+        }
+      }
+    },
+    "Service informatique": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "IT department"
+          }
+        }
+      }
+    },
+    "Très grande": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Very large"
+          }
+        }
+      }
+    },
+    "Un instant, je prépare ce qu'il faut faire.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One moment, I'm preparing what to do."
+          }
+        }
+      }
+    },
+    "Un rendez-vous est prévu. PapAI vous préviendra à l’heure dite.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An appointment is scheduled. PapAI will remind you at that time."
+          }
+        }
+      }
+    },
+    "Une assistance est déjà en cours sur cette demande.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An assistance is already in progress for this request."
+          }
+        }
+      }
+    },
+    "Utiliser la souris et le clavier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use the mouse and keyboard"
+          }
+        }
+      }
+    },
+    "Voilà, c'est fait.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There, it's done."
+          }
+        }
+      }
+    },
+    "Voir mon écran": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See my screen"
+          }
+        }
+      }
+    },
+    "Votre demande en attente": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your pending request"
+          }
+        }
+      }
+    },
+    "Votre support": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your support"
+          }
+        }
+      }
+    },
+    "Votre écran n'est plus partagé.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your screen is no longer shared."
+          }
+        }
+      }
+    },
+    "Vous avez déjà fait cette demande": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You already made this request"
+          }
+        }
+      }
+    },
+    "Vous pouvez utiliser votre ordinateur. Appuyez sur Reprendre quand vous voulez.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can use your computer. Press Resume whenever you want."
+          }
+        }
+      }
+    },
+    "%@ s'en occupe, avec Holo": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is handling it, with Holo"
+          }
+        }
+      }
+    },
+    "%@ vérifie et donne son accord": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ checks and approves"
+          }
+        }
+      }
+    },
+    "%@ peut en faire un automate. Vous le retrouverez dans « Mes automates » pour le refaire sans aide.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ can turn it into an automation. You'll find it in “My automations” to redo it without help."
+          }
+        }
+      }
+    },
+    "%@ répond à une question de Holo. Restez là, ne touchez à rien.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is answering a question from Holo. Stay there, don't touch anything."
+          }
+        }
+      }
+    },
+    "%@ vous aide": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is helping you"
+          }
+        }
+      }
+    },
+    "%@ vérifie votre demande": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ is checking your request"
+          }
+        }
+      }
+    },
+    "Ça n'a pas marché. Réessayez dans un instant.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That didn't work. Try again in a moment."
+          }
+        }
+      }
+    },
+    "Écrire à PapAI": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write to PapAI"
+          }
+        }
+      }
+    },
+    "Mon entreprise": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My company"
+          }
+        }
+      }
+    },
+    "Comment changer la taille du texte ?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How do I change the text size?"
+          }
+        }
+      }
+    },
+    "Configurer mon imprimante": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up my printer"
+          }
+        }
+      }
+    },
+    "Je n'arrive plus à imprimer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I can't print anymore"
+          }
+        }
+      }
+    },
+    "Je voudrais imprimer un document": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I'd like to print a document"
+          }
+        }
+      }
+    },
+    "Mes photos de Noël ont disparu": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My Christmas photos are gone"
+          }
+        }
+      }
+    },
+    "Mettre à jour votre ordinateur": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update your computer"
+          }
+        }
+      }
+    },
+    "Mon casque ne fonctionne plus": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My headset stopped working"
+          }
+        }
+      }
+    },
+    "Retrouver mes documents": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find my documents"
+          }
+        }
+      }
     }
   }
 }

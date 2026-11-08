@@ -13,17 +13,17 @@ struct PermissionsView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     Text("Pour que \(model.helperName) puisse vous aider, macOS doit vous demander votre accord. Cliquez sur chaque bouton, puis cochez PapAI dans la liste qui s'ouvre.")
                         .font(rounded(21)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
-                    row(ok: model.screenOK, title: "Voir mon écran",
-                        detail: "Pour que Holo voie ce que vous voyez. Jamais sans votre demande.",
+                    row(ok: model.screenOK, title: String(localized: "Voir mon écran"),
+                        detail: String(localized: "Pour que Holo voie ce que vous voyez. Jamais sans votre demande."),
                         action: Permissions.requestScreen)
-                    row(ok: model.axOK, title: "Utiliser la souris et le clavier",
-                        detail: "Pour cliquer à votre place, uniquement après l'accord de \(model.helperName).",
+                    row(ok: model.axOK, title: String(localized: "Utiliser la souris et le clavier"),
+                        detail: String(localized: "Pour cliquer à votre place, uniquement après l'accord de \(model.helperName)."),
                         action: Permissions.requestAccessibility)
                     Spacer(minLength: 0)
                 }
             }
             Button { model.permissionsDismissed = true } label: {
-                Text(model.screenOK && model.axOK ? "Continuer" : "Plus tard").frame(maxWidth: .infinity)
+                Text(model.screenOK && model.axOK ? "Continuer" : String(localized: "Plus tard")).frame(maxWidth: .infinity)
             }
             .buttonStyle(PillStyle(height: 78, icone: "arrow.right.circle", plein: true))
         }

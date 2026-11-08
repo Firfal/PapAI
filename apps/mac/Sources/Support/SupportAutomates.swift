@@ -58,10 +58,10 @@ struct SupportAutomates: View {
         }
         .confirmationDialog("Supprimer cet automate de votre bibliothèque ?",
                             isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } })) {
-            Button("Supprimer « \(toDelete?.title ?? "") »", role: .destructive) { if let e = toDelete { lib.remove(e) } }
+            Button("Supprimer « \(toDelete?.title ?? "") »", role: .destructive) { if let e = toDelete { Task { await lib.removeEverywhere(e, people: model.people) } } }
             Button("Annuler", role: .cancel) {}
         } message: {
-            Text("Les personnes chez qui il est déjà appliqué le gardent.")
+            Text("Il est aussi retiré chez les utilisateurs qui l’ont.")
         }
         .task(id: model.people.map(\.key)) { await lib.syncFromUsers(model.people) }
     }

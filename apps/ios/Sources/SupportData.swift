@@ -251,6 +251,23 @@ final class AutomateLibrary {
 
     func remove(_ e: Entry) { entries.removeAll { $0.id == e.id }; save() }
 
+    /// Supprimer un automate de la bibliothèque le retire aussi chez les utilisateurs
+    /// qui l'ont (même titre), pour qu'il ne reste rien côté utilisateur sans le support.
+    func removeEverywhere(_ e: Entry, people: [Person]) async {
+        let title = e.title.lowercased()
+        for p in people {
+            guard let url = URL(string: Self.base(p) + "/lessons"),
+                  let (d, _) = try? await URLSession.shared.data(from: url),
+                  let list = (try? JSONSerialization.jsonObject(with: d)) as? [[String: Any]] else { continue }
+            for l in list where (l["title"] as? String)?.lowercased() == title {
+                guard let id = l["id"] as? String, let del = URL(string: Self.base(p) + "/automations/" + id) else { continue }
+                var req = URLRequest(url: del, timeoutInterval: 10); req.httpMethod = "DELETE"
+                _ = try? await URLSession.shared.data(for: req)
+            }
+        }
+        await MainActor.run { remove(e) }
+    }
+
     func markApplied(_ e: Entry, keys: [String], org: String? = nil) {
         guard let i = entries.firstIndex(where: { $0.id == e.id }) else { return }
         entries[i].applied = Array(Set(entries[i].applied).union(keys))

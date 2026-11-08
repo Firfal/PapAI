@@ -33,8 +33,8 @@ struct SettingsView: View {
                         }
                         .toggleStyle(.switch).tint(T.accent)
                         Text(model.realtimeProtection
-                             ? "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe."
-                             : "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées.")
+                             ? String(localized: "Activée. PapAI repère les arnaques à partir des applications ouvertes, du titre de la fenêtre et du site visité. Jamais l'écran, jamais vos mots de passe.")
+                             : String(localized: "Coupée. Rien ne part de cet ordinateur en dehors d'une assistance, et les arnaques ne sont plus repérées."))
                             .font(rounded(17)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                     }
                     MonSupport()
@@ -115,21 +115,21 @@ struct MonSupport: View {
 
     private var titre: String {
         switch etat {
-        case .rattache: "Support IT"
-        case .enCours: "Support IT"
-        case .aucun: "Aucune organisation configurée"
+        case .rattache: String(localized: "Support IT")
+        case .enCours: String(localized: "Support IT")
+        case .aucun: String(localized: "Aucune organisation configurée")
         }
     }
 
     private var detail: String {
         switch etat {
         case .aucun:
-            return "Contactez votre service informatique."
+            return String(localized: "Contactez votre service informatique.")
         case .enCours:
-            return model.connected ? "Rattachement à votre organisation en cours…" : "Hors connexion pour le moment."
+            return model.connected ? String(localized: "Rattachement à votre organisation en cours…") : String(localized: "Hors connexion pour le moment.")
         case .rattache:
-            if !model.connected { return "Hors connexion pour le moment." }
-            return enLigne ? "En ligne" : "Aucun agent en ligne : votre demande sera mise en attente."
+            if !model.connected { return String(localized: "Hors connexion pour le moment.") }
+            return enLigne ? String(localized: "En ligne") : String(localized: "Aucun agent en ligne : votre demande sera mise en attente.")
         }
     }
 }
@@ -158,5 +158,13 @@ struct LangueReglage: View {
                 }
             }
         }
+    }
+}
+
+
+/// Langue choisie dans les Réglages (au lancement) : sert à la dictée, à la voix et aux dates.
+enum AppLangue {
+    static var anglais: Bool {
+        (Bundle.main.preferredLocalizations.first ?? "fr").hasPrefix("en")
     }
 }

@@ -109,7 +109,7 @@ private struct MiniView: View {
                     model.backHome()
                     model.expandWindow()
                 } label: {
-                    Label(MicPresence.shared.microPresent ? "Parler à PapAI" : "Écrire à PapAI",
+                    Label(MicPresence.shared.microPresent ? String(localized: "Parler à PapAI") : String(localized: "Écrire à PapAI"),
                           systemImage: MicPresence.shared.microPresent ? "mic.fill" : "pencil")
                         .font(rounded(16, .semibold)).foregroundStyle(.white)
                         .frame(maxWidth: .infinity).frame(height: 40)
@@ -128,18 +128,18 @@ private struct MiniView: View {
     private var title: String {
         if model.sessionWhere == "web" && model.sessionOpen
             && (model.state == .active || model.state == .awaiting_helper) {
-            return "Holo travaille dans Chrome PapAI"
+            return String(localized: "Holo travaille dans Chrome PapAI")
         }
-        if model.paused && model.sessionOpen { return "L'aide est en pause" }
+        if model.paused && model.sessionOpen { return String(localized: "L'aide est en pause") }
         if let a = model.automationRun, !a.local, !a.asked, model.state == .active || model.state == .awaiting_helper {
-            return model.state == .active ? "Holo s'occupe de l'automate" : "Holo a une question"
+            return model.state == .active ? String(localized: "Holo s'occupe de l'automate") : String(localized: "Holo a une question")
         }
         switch model.state {
-        case .planning: return "Holo prépare la suite…"
+        case .planning: return String(localized: "Holo prépare la suite…")
         case .awaiting_approval: return "\(model.HelperName) vérifie"
         case .active: return "\(model.carer) s'en occupe"
-        case .awaiting_helper: return "\(model.HelperName) vous aide"
-        case .done: return "C'est fait !"
+        case .awaiting_helper: return String(localized: "\(model.HelperName) vous aide")
+        case .done: return String(localized: "C'est fait !")
         default: return "PapAI"
         }
     }

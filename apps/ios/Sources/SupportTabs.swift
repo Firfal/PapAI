@@ -249,7 +249,7 @@ struct AutomatesTab: View {
         .confirmationDialog("Supprimer cet automate de votre bibliothèque ?",
                             isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } }),
                             titleVisibility: .visible) {
-            Button("Supprimer « \(toDelete?.title ?? "") »", role: .destructive) { if let e = toDelete { lib.remove(e) } }
+            Button("Supprimer « \(toDelete?.title ?? "") »", role: .destructive) { if let e = toDelete { Task { await lib.removeEverywhere(e, people: model.people) } } }
             Button("Annuler", role: .cancel) {}
         } message: {
             Text("Les utilisateurs chez qui il est déjà appliqué le gardent.")

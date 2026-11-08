@@ -46,14 +46,14 @@ enum RechercheAutomates {
 struct PropositionAutomate: Equatable {
     var demande: String
     var brouillon: [String: Any]
-    var titre: String { brouillon["title"] as? String ?? "Nouvel automate" }
+    var titre: String { brouillon["title"] as? String ?? String(localized: "Nouvel automate") }
     var etapes: [String] { brouillon["steps"] as? [String] ?? [] }
 
     static func == (a: Self, b: Self) -> Bool { a.demande == b.demande && a.titre == b.titre && a.etapes == b.etapes }
 
     /// Demande le plan à Holo. Rien n'est enregistré à ce stade.
     static func preparer(_ demande: String, base: String) async -> Result<Self, Erreur> {
-        guard let url = URL(string: base + "/automations/draft") else { return .failure(Erreur(texte: "Serveur introuvable.")) }
+        guard let url = URL(string: base + "/automations/draft") else { return .failure(Erreur(texte: String(localized: "Serveur introuvable."))) }
         switch await post(url, ["kind": "request", "text": demande, "os": "mac"], attente: 60) {
         case .success(let d): return .success(Self(demande: demande, brouillon: d))
         case .failure(let e): return .failure(e)
@@ -62,7 +62,7 @@ struct PropositionAutomate: Equatable {
 
     /// Envoie le ticket au support IT, avec le plan.
     func envoyer(base: String) async -> Result<Int, Erreur> {
-        guard let url = URL(string: base + "/tickets") else { return .failure(Erreur(texte: "Serveur introuvable.")) }
+        guard let url = URL(string: base + "/tickets") else { return .failure(Erreur(texte: String(localized: "Serveur introuvable."))) }
         switch await Self.post(url, ["task": demande, "automate": brouillon], attente: 20) {
         case .success(let d): return .success(((d["ticket"] as? [String: Any])?["number"] as? NSNumber)?.intValue ?? 0)
         case .failure(let e): return .failure(e)
@@ -77,11 +77,11 @@ struct PropositionAutomate: Equatable {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         guard let (d, r) = try? await URLSession.shared.data(for: req) else {
-            return .failure(Erreur(texte: "Je ne joins pas le serveur pour le moment. Réessayez dans un instant."))
+            return .failure(Erreur(texte: String(localized: "Je ne joins pas le serveur pour le moment. Réessayez dans un instant.")))
         }
         let obj = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] ?? [:]
         guard (r as? HTTPURLResponse)?.statusCode == 200 else {
-            return .failure(Erreur(texte: obj["error"] as? String ?? "Ça n'a pas marché. Réessayez dans un instant."))
+            return .failure(Erreur(texte: obj["error"] as? String ?? String(localized: "Ça n'a pas marché. Réessayez dans un instant.")))
         }
         return .success(obj)
     }
@@ -100,7 +100,7 @@ struct ResultatsRecherche: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if !trouves.isEmpty {
-                entete(trouves.count > 1 ? "Ces automates correspondent à votre demande" : "Cet automate correspond à votre demande")
+                entete(trouves.count > 1 ? String(localized: "Ces automates correspondent à votre demande") : String(localized: "Cet automate correspond à votre demande"))
                 ForEach(trouves) { l in
                     HStack(spacing: 12) {
                         Image(systemName: "wand.and.stars").font(rounded(17)).foregroundStyle(T.accent)
@@ -123,7 +123,7 @@ struct ResultatsRecherche: View {
                         .font(rounded(17, .medium)).fixedSize(horizontal: false, vertical: true)
                 }
             } else if let p = proposition {
-                entete("Aucun automate ne correspond")
+                entete(String(localized: "Aucun automate ne correspond"))
                 Text("Votre question sera envoyée à votre support IT, qui s’en occupe.")
                     .font(rounded(16)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
                 // Seule la question de l'utilisateur est montrée : le plan préparé par Holo part
