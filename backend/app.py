@@ -27,7 +27,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
 from . import (
-    automate_draft, automations, guard, linkup, orgs as orgs_mod, space, suggest, ticket_stats,
+    automate_draft, automations, billing, guard, linkup, orgs as orgs_mod, space, suggest, ticket_stats,
     tickets as tickets_mod, voice,
 )
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
@@ -70,6 +70,7 @@ app = FastAPI(title="PapAI")
 AIDANT_KEY = os.environ.get("PAPAI_AIDANT_KEY") or secrets.token_urlsafe(9)
 spaces = space.setup(AIDANT_KEY)
 orgs = orgs_mod.Orgs()
+billing.install(app, orgs.by_support, lambda o: spaces.members(o.id), PUBLIC_URL, orgs.get, lambda: orgs._by_id.values())
 
 
 def S() -> space.Space:

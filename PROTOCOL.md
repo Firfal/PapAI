@@ -508,6 +508,19 @@ Un service IT suit tous les postes de ses employés sans les appairer un par un.
   (`name` = prénom donné sur le poste, sinon `label` ; `label` = nom envoyé par le poste à
   l'inscription, affiché « prénom · service »). Le support se connecte à chaque poste par sa `key`
   (`<server>/k/<key>/ws/aidant/<key>`). Jeton inconnu → 404.
+- Abonnement entreprise, mode test uniquement : `GET /o/<support_token>/abonnement` sert la page ;
+  `GET /o/<support_token>/billing` renvoie `disponible`, `gerable` (portail accessible même sans prix,
+  sauf après un statut terminal : proposer alors Checkout),
+  `postes`, `abonne`, `statut` et, si disponible,
+  `prix` (`unit_amount` en centimes, `currency`, `interval=month`). `POST …/billing/checkout`
+  et `POST …/billing/portal` renvoient `{"url"}` (503 si non configuré ; portail 409 sans client ;
+  Checkout 409 si déjà abonné ou abonnement connu non terminal, utiliser alors le portail).
+  Jeton inconnu : 404. Aucun blocage des fonctions sans abonnement. `POST /stripe/webhook`
+  vérifie le corps brut (256 Kio max) signé Stripe (tolérance ±300 s), puis conserve l'état
+  dans `billing.json` par organisation, avec le dernier `created` appliqué : événement plus ancien
+  pour le même abonnement ignoré (à date égale, un statut terminal prime sur un non terminal),
+  autre abonnement ignoré tant que celui en cours n'est pas
+  `canceled` ou `incomplete_expired`. Signature invalide : 400 ; secret absent : 503.
 - `GET|POST /o/<support_token>/automations`, `DELETE /o/<support_token>/automations/<id>` : catalogue
   de l'organisation (même format `.papai` que `POST /k/<clé>/automations`). Un import est copié sur
   chaque poste et sur ceux qui s'inscrivent plus tard ; un retrait l'enlève partout. Les postes
