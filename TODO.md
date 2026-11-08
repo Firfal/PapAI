@@ -57,6 +57,7 @@ Mis à jour le 7 novembre à 18 h 30. Cochez au fur et à mesure et poussez.
 
 - [x] Automates importés par un support (`.papai`) : import et retrait (page aidant, `POST /k/CLÉ/automations`), actions de premier niveau, lancement en un clic sans validation à chaque fois, 7 exemples dans `automations/` (dont démos Wi-Fi, bloqueur de publicités, navigateur remis à zéro). Tests : `tests/test_automatismes.py` (40 contrôles) et `apps/windows/tests/test_windows_app.py`.
 - [x] Plus de surveillance continue : les apps Mac et Windows n'envoient plus les signaux du gardien toutes les 8 s.
+- [x] Protection en temps réel (8 nov., décision de Corentin) : le gardien reprend ses trois signaux textuels toutes les 8 s hors assistance, derrière l'interrupteur « Protection en temps réel » des Réglages Mac et Windows, activé par défaut et gardé ; coupé, rien ne part. L'état s'affiche sur la page du support. Profil Chrome PapAI effacé après chaque assistance, Holo demande à la personne de se connecter elle-même. Reste : Swift non compilé, pas essayé sur un vrai Mac ni un vrai Windows ; Android et iPhone n'affichent pas encore l'état.
 - [ ] Compiler et essayer sur un Mac (`Automations` dans `Core.swift`) : modèles Word, page Imprimantes, Google via Holo.
 - [ ] Essayer sur un vrai Windows : scan Defender (`MpCmdRun.exe`), modèles Word dans `%APPDATA%\Microsoft\Templates`, `ms-settings:printers`.
 - [ ] Pitch et soumission : passer au support niveau 1, garder les grands-parents comme exemple.

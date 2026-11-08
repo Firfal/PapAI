@@ -38,6 +38,7 @@ final class BridgeClient {
             let hello: [String: Any] = [
                 "type": "hello",
                 "os": "macos",
+                "protection": GuardSignals.enabled,
                 "web_agent_available": WebAgentHost.isInstalled && WebAgentHost.browserExecutable() != nil
             ]
             try await t.send(.string(Self.json(hello)))

@@ -26,6 +26,20 @@ final class WebAgentHost {
     }
     static var profile: URL { support.appendingPathComponent("Chrome", isDirectory: true) }
     static var holoBinary: URL { support.appendingPathComponent("agent-navigateur/venv/bin/holo") }
+    /// La personne se connecte elle-même à ses sites : rien n'est retenu d'une assistance à l'autre.
+    static func wipeProfile() {
+        try? FileManager.default.removeItem(at: profile)
+    }
+
+    /// Attend (jusqu'à 5 s) que plus aucun Chrome n'utilise notre profil.
+    static func waitChromeGone() async -> Bool {
+        for _ in 0..<20 {
+            if ourChromePID() == nil { return true }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+        return ourChromePID() == nil
+    }
+
     static var isInstalled: Bool { FileManager.default.isExecutableFile(atPath: holoBinary.path) }
 
     static func browserExecutable() -> URL? {
@@ -54,11 +68,16 @@ final class WebAgentHost {
         var startedHolo: Process?
         if await Self.debuggerListening() {
             if abortIfStopped(launchGeneration, chrome: startedChrome, holo: startedHolo) { return }
-            // Un navigateur écoute déjà sur 9222 : seulement s'il utilise notre profil.
+            // Un navigateur écoute déjà sur 9222 : seulement s'il utilise notre profil,
+            // et on le referme pour repartir d'un profil neuf, sans les cookies d'avant.
             guard let pid = Self.ourChromePID() else { return }
-            chromePID = pid
-            chromeProcess = nil
-        } else {
+            kill(pid, SIGKILL)
+            guard await Self.waitChromeGone() else { return }
+            if abortIfStopped(launchGeneration, chrome: startedChrome, holo: startedHolo) { return }
+        }
+        do {
+            // Profil neuf à chaque assistance : aucun compte, identifiant ni cookie n'est gardé.
+            Self.wipeProfile()
             try? FileManager.default.createDirectory(at: Self.profile, withIntermediateDirectories: true)
             let p = Process()
             p.executableURL = exe
@@ -145,6 +164,7 @@ final class WebAgentHost {
                 } else if Self.ourChromePID() == chrome {
                     kill(chrome, SIGKILL)
                 }
+                if await Self.waitChromeGone() { Self.wipeProfile() }
             }
         }
         if Self.isInstalled {
