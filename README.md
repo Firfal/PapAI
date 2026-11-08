@@ -20,6 +20,7 @@ entreprise ci-dessous sont dans main ; code intégré ne signifie ni service
 configuré en production, ni déploiement ou essai sur un parc réel.
 Les textes prêts à copier et le relevé détaillé des contributions Devin sont dans
 [`docs/soumission.md`](docs/soumission.md). Priorités et limites : [`TODO.md`](TODO.md).
+Pitch : deck final [`docs/pitch/deck.html`](docs/pitch/deck.html) (version téléprompteur : [`docs/pitch/deck-prompteur.html`](docs/pitch/deck-prompteur.html)), vidéo de démo : [release `demo`](https://github.com/Firfal/PapAI/releases/tag/demo).
 
 ## Une assistance pour Christine
 
