@@ -68,6 +68,9 @@
       head.append(el('span', 'tk-num', num(t)), el('span', 'tk-st ' + t.status, STATUS[t.status] || t.status),
                   el('span', 'tk-task', t.task || '(sans texte)'));
       c.append(head, el('div', 'tk-meta', meta(t)));
+      // Demande reformulée par Holo : les mots de l'utilisateur et ses précisions.
+      if (t.demande) c.append(el('div', 'tk-meta', `Demande d'origine : « ${t.demande} »`));
+      for (const p of t.precisions || []) c.append(el('div', 'tk-meta', `${p.q} → ${p.a}`));
       if (t.automate) {
         // Plan proposé par Holo : Valider crée l'automate chez l'utilisateur.
         const p = el('div', 'tk-plan');
@@ -106,7 +109,7 @@
 
   function csv(list) {
     const cols = [['Ticket', num], ['Poste', t => t.poste || ''], ['Statut', t => STATUS[t.status] || t.status],
-      ['Demande', t => t.task], ['Source', t => SOURCE[t.source] || t.source], ['Créé', t => new Date(t.created * 1000).toISOString()],
+      ['Demande', t => t.task], ['Demande d\'origine', t => t.demande || ''], ['Précisions', t => (t.precisions || []).map(p => `${p.q} → ${p.a}`).join(' ; ')], ['Source', t => SOURCE[t.source] || t.source], ['Créé', t => new Date(t.created * 1000).toISOString()],
       ['Mis à jour', t => new Date(t.updated * 1000).toISOString()], ['Rendez-vous', t => t.rdv ? new Date(t.rdv * 1000).toISOString() : ''],
       ['Pris par', t => t.assignee || ''], ['Utilisateur par', t => t.helper || ''],
       ['Étapes', t => (t.plan || []).length ? `${t.steps_done || 0}/${t.plan.length}` : ''],

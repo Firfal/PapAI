@@ -25,7 +25,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import automate_draft, automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
+from . import automate_draft, automations, clarify, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
@@ -161,6 +161,10 @@ class BridgeLink:
         self.connected = True
         self.os = "windows"  # annoncé par le pont dans son message hello
         self.web_agent_available = False
+        # L'app sait afficher les questions de Holo sur une demande floue (`clarify`).
+        self.clarify = False
+        # Demande en cours de précision : {"demande", "precisions", "question", "options"}.
+        self.intake: dict | None = None
         # Protection en temps réel, annoncée par l'app (None : app qui ne la connaît pas).
         self.protection: bool | None = None
         # Identifiant du navigateur servi par `holo local browser` sur la machine
@@ -520,6 +524,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 if kind == "hello":
                     link.os = str(msg.get("os", "windows")).lower()[:20]
                     link.web_agent_available = msg.get("web_agent_available") is True
+                    link.clarify = msg.get("clarify") is True
                     link.web_agent = None
                     print(f"[pont] système : {link.os}, navigateur : {'disponible' if link.web_agent_available else 'non'}")
                 if isinstance(msg.get("protection"), bool) and msg["protection"] != link.protection:
@@ -589,36 +594,32 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 ticket = S().tickets.get(str(msg.get("ticket") or ""))
                 if ticket is not None and ticket["status"] == "resolu":
                     ticket = None
-                if ticket is None and not by and _support_expected() and not _support_available():
-                    # Aucun support disponible : la demande attend, la personne
-                    # sera reprévenue dès qu'un support est là (ou au rendez-vous).
-                    ticket = _open_ticket(task, "personne", status="en_attente", by=S().family.senior)
-                    await ws.send_json({"type": "ticket_queued", "ticket": ticket["id"],
-                                        "number": ticket["number"], "task": task})
-                    await _tickets_changed()
-                    print(f"[tickets] demande n° {ticket['number']} en attente d'un support")
+                if link.clarify and task and not by and ticket is None:
+                    # Demande de l'utilisateur lui-même : Holo la fait préciser si besoin.
+                    link.intake = {"demande": task, "precisions": [], "question": "", "options": []}
+                    _later(_qualifier(ws, link))
                     continue
-                session = S().registry.create(task)
-                session.grant_consent()  # le consentement est donné dans la même fenêtre
-                if msg.get("requested_by"):
-                    # Lancée par un proche, acceptée à l'instant sur le Mac.
-                    session.log("remote_accepted", by=str(msg["requested_by"])[:40])
-                    await broadcast_helper({"type": "remote_accepted"})
-                if ticket is None:
-                    ticket = _open_ticket(task, "support" if by else "personne", by=by or S().family.senior)
-                session.ticket = ticket["id"]
-                S().tickets.update(ticket, session=session.id, status="en_cours", rdv=None)
-                await _tickets_changed()
-                url = f"{PUBLIC_URL}/h/{session.helper_token}"
-                await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
-                                    "ticket": ticket["id"], "number": ticket["number"]})
-                # Ni la demande ni le lien du proche (son jeton) dans le journal.
-                print(f"[session {session.id}] nouvelle demande")
-                await broadcast_helper(session.status())
+                link.intake = None
+                await _start_request(ws, link, task, by, ticket)
+                continue
 
-                if S().agent_task and not S().agent_task.done():
-                    S().agent_task.cancel()
-                S().agent_task = asyncio.create_task(run_session(session, link))
+            if kind == "clarify_answer":
+                # Réponse à une question de Holo sur la demande, ou « Envoyer quand même » (`skip`).
+                it = link.intake
+                if it is None or not it["question"]:
+                    continue
+                text = str(msg.get("text") or "").strip()[:clarify.MAX_ANSWER]
+                skip = msg.get("skip") is True
+                if not text and not skip:
+                    continue
+                if text:
+                    it["precisions"].append({"q": it["question"], "a": text})
+                it["question"], it["options"] = "", []
+                _later(_qualifier(ws, link, force=skip))
+                continue
+
+            if kind == "clarify_cancel":
+                link.intake = None
                 continue
 
             if kind == "run_automation":
@@ -709,6 +710,7 @@ async def _ws_bridge(ws: WebSocket) -> None:
                 continue
 
             if kind == "stop":
+                link.intake = None
                 for s in list(S().registry._by_id.values()):
                     if s.is_open:
                         s.stop(by="senior")
@@ -872,6 +874,69 @@ async def run_automation(session, link: "BridgeLink") -> None:
         raise
 
 
+async def _qualifier(ws: WebSocket, link: "BridgeLink", force: bool = False) -> None:
+    """Holo juge la demande : une question de plus, ou l'objet formel du ticket."""
+    it = link.intake
+    if it is None:
+        return
+    r = await clarify.evaluer(it["demande"], it["precisions"], force=force)
+    if link.intake is not it or not link.connected:
+        return  # annulée, remplacée ou ordinateur parti entre-temps
+    if not r["clair"]:
+        it["question"], it["options"] = r["question"], r["options"]
+        print(f"[demande] précision demandée ({len(it['precisions']) + 1}/{clarify.MAX_QUESTIONS})")
+        await ws.send_json({"type": "clarify", "question": r["question"], "options": r["options"],
+                            "round": len(it["precisions"]) + 1, "max": clarify.MAX_QUESTIONS})
+        return
+    link.intake = None
+    await _start_request(ws, link, r["objet"][:MAX_TASK], "", None,
+                         demande=it["demande"], precisions=it["precisions"])
+
+
+async def _start_request(ws: WebSocket, link: "BridgeLink", task: str, by: str, ticket: dict | None,
+                         demande: str = "", precisions: list[dict] | None = None) -> None:
+    """Demande prête : en file d'attente si aucun support n'est là, sinon assistance."""
+    precisions = precisions or []
+    if ticket is None and not by and _support_expected() and not _support_available():
+        # Aucun support disponible : la demande attend, la personne
+        # sera reprévenue dès qu'un support est là (ou au rendez-vous).
+        ticket = _open_ticket(task, "personne", status="en_attente", by=S().family.senior)
+        if clarify.contexte(task, demande, precisions):
+            S().tickets.update(ticket, demande=demande, precisions=precisions)
+        await ws.send_json({"type": "ticket_queued", "ticket": ticket["id"],
+                            "number": ticket["number"], "task": task})
+        await _tickets_changed()
+        print(f"[tickets] demande n° {ticket['number']} en attente d'un support")
+        return
+    session = S().registry.create(task)
+    if ticket is not None and not demande:
+        # Demande reprise depuis la file d'attente : Holo garde les précisions.
+        demande, precisions = ticket.get("demande", ""), ticket.get("precisions") or []
+    session.context = clarify.contexte(task, demande, precisions)
+    session.grant_consent()  # le consentement est donné dans la même fenêtre
+    if by:
+        # Lancée par un proche, acceptée à l'instant sur le Mac.
+        session.log("remote_accepted", by=by)
+        await broadcast_helper({"type": "remote_accepted"})
+    if ticket is None:
+        ticket = _open_ticket(task, "support" if by else "personne", by=by or S().family.senior)
+        if clarify.contexte(task, demande, precisions):
+            S().tickets.update(ticket, demande=demande, precisions=precisions)
+    session.ticket = ticket["id"]
+    S().tickets.update(ticket, session=session.id, status="en_cours", rdv=None)
+    await _tickets_changed()
+    url = f"{PUBLIC_URL}/h/{session.helper_token}"
+    await ws.send_json({"type": "session", "id": session.id, "helper_url": url,
+                        "ticket": ticket["id"], "number": ticket["number"]})
+    # Ni la demande ni le lien du proche (son jeton) dans le journal.
+    print(f"[session {session.id}] nouvelle demande")
+    await broadcast_helper(session.status())
+
+    if S().agent_task and not S().agent_task.done():
+        S().agent_task.cancel()
+    S().agent_task = asyncio.create_task(run_session(session, link))
+
+
 async def run_session(session, link: "BridgeLink") -> None:
     """Plan d'abord, validé par l'aidant ; l'agent n'agit qu'ensuite."""
     notes: list[str] = []
@@ -882,7 +947,7 @@ async def run_session(session, link: "BridgeLink") -> None:
             await link.send(S().pending_alert["senior"])
             await broadcast_helper(S().pending_alert["helper"], to_bridge=False)
             return
-        if await check_request(session, session.task, "request"):
+        if await check_request(session, "\n".join(filter(None, [session.task, session.context])), "request"):
             return
         while True:
             await broadcast_helper(session.status())
@@ -895,7 +960,7 @@ async def run_session(session, link: "BridgeLink") -> None:
                     await publish_guard(alerte, "plan", session)
                     return
             plan_text = "\n".join([
-                session.task, *notes, *steps,
+                session.task, session.context, *notes, *steps,
                 *(f"https://{site}" for site in session.plan_sites),
             ])
             if await check_request(session, plan_text, "plan"):
@@ -1858,6 +1923,20 @@ async def remove_automation_keyed(fam: str, lesson_id: str):
     return await _remove_automation(lesson_id)
 
 
+async def _draft_request(body: dict) -> dict:
+    """Demande tapée sur l'accueil : Holo la fait préciser avant de proposer le plan."""
+    demande = str(body.get("text") or "").strip()[:MAX_TASK]
+    precisions = clarify.nettoyer(body.get("precisions"))
+    if len(demande) < 3:
+        raise automate_draft.DraftError("Dites en quelques mots ce que vous voulez faire.")
+    r = await clarify.evaluer(demande, precisions, force=body.get("skip") is True)
+    if not r["clair"]:
+        return {"clarify": {"question": r["question"], "options": r["options"],
+                            "round": len(precisions) + 1, "max": clarify.MAX_QUESTIONS}}
+    d = await automate_draft.draft({**body, "text": clarify.pour_holo(r["objet"], demande, precisions)})
+    return {**d, "objet": r["objet"], "demande": demande, "precisions": precisions}
+
+
 async def _draft_automation(request: Request):
     """Brouillon d'automate (document ou enregistrement) : appelle Holo, n'écrit rien."""
     try:
@@ -1867,6 +1946,8 @@ async def _draft_automation(request: Request):
     if not isinstance(body, dict):
         return JSONResponse({"error": "Requête illisible (JSON attendu)."}, status_code=400)
     try:
+        if body.get("kind") == "request":
+            return await _draft_request(body)
         return await automate_draft.draft(body)
     except automate_draft.DraftError as e:
         return JSONResponse({"error": str(e)}, status_code=422)
@@ -2048,6 +2129,12 @@ async def _ticket_automate(body: dict):
     except automate_draft.DraftError as e:
         return JSONResponse({"error": str(e)}, status_code=422)
     t = _open_ticket(task, "automate", by=S().family.senior)
+    demande = str(body.get("demande") or "").strip()[:MAX_TASK]
+    if demande and demande != task:
+        S().tickets.update(t, demande=demande)
+    precisions = clarify.nettoyer(body.get("precisions"))
+    if precisions:
+        S().tickets.update(t, demande=demande or task, precisions=precisions)
     S().tickets.update(t, automate=plan)
     await _tickets_changed()
     return {"ticket": tickets_mod.public(t)}

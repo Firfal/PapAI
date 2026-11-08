@@ -42,6 +42,19 @@ enum RechercheAutomates {
     }
 }
 
+/// Demande floue : Holo pose une question avant de proposer le plan (PROTOCOL.md, pré-traitement).
+struct QuestionHolo: Equatable {
+    var demande: String
+    var question: String
+    var options: [String]
+    var precisions: [[String: String]]
+}
+
+enum ReponseHolo {
+    case question(QuestionHolo)
+    case plan(PropositionAutomate)
+}
+
 /// Le plan proposé par Holo (`POST …/automations/draft`, `kind: request`).
 struct PropositionAutomate: Equatable {
     var demande: String
@@ -51,11 +64,19 @@ struct PropositionAutomate: Equatable {
 
     static func == (a: Self, b: Self) -> Bool { a.demande == b.demande && a.titre == b.titre && a.etapes == b.etapes }
 
-    /// Demande le plan à Holo. Rien n'est enregistré à ce stade.
-    static func preparer(_ demande: String, base: String) async -> Result<Self, Erreur> {
+    /// Demande le plan à Holo, ou une question si la demande est floue. Rien n'est enregistré à ce stade.
+    static func preparer(_ demande: String, precisions: [[String: String]] = [], envoyerQuandMeme: Bool = false,
+                         base: String) async -> Result<ReponseHolo, Erreur> {
         guard let url = URL(string: base + "/automations/draft") else { return .failure(Erreur(texte: "Serveur introuvable.")) }
-        switch await post(url, ["kind": "request", "text": demande, "os": "mac"], attente: 60) {
-        case .success(let d): return .success(Self(demande: demande, brouillon: d))
+        var body: [String: Any] = ["kind": "request", "text": demande, "os": "mac", "precisions": precisions]
+        if envoyerQuandMeme { body["skip"] = true }
+        switch await post(url, body, attente: 60) {
+        case .success(let d):
+            if let c = d["clarify"] as? [String: Any], let q = c["question"] as? String, !q.isEmpty {
+                return .success(.question(QuestionHolo(demande: demande, question: q,
+                                                       options: c["options"] as? [String] ?? [], precisions: precisions)))
+            }
+            return .success(.plan(Self(demande: demande, brouillon: d)))
         case .failure(let e): return .failure(e)
         }
     }
@@ -63,7 +84,10 @@ struct PropositionAutomate: Equatable {
     /// Envoie le ticket au support IT, avec le plan.
     func envoyer(base: String) async -> Result<Int, Erreur> {
         guard let url = URL(string: base + "/tickets") else { return .failure(Erreur(texte: "Serveur introuvable.")) }
-        switch await Self.post(url, ["task": demande, "automate": brouillon], attente: 20) {
+        // L'objet formel rédigé par Holo devient le titre du ticket ; les mots d'origine restent.
+        let body: [String: Any] = ["task": brouillon["objet"] as? String ?? demande, "demande": demande,
+                                   "precisions": brouillon["precisions"] ?? [], "automate": brouillon]
+        switch await Self.post(url, body, attente: 20) {
         case .success(let d): return .success(((d["ticket"] as? [String: Any])?["number"] as? NSNumber)?.intValue ?? 0)
         case .failure(let e): return .failure(e)
         }
@@ -94,6 +118,10 @@ struct ResultatsRecherche: View {
     var prepare: Bool
     var proposition: PropositionAutomate?
     var fermer: () -> Void
+    var question: QuestionHolo? = nil
+    /// Réponse à la question de Holo ; nil : « Envoyer quand même ».
+    var repondre: (String?) -> Void = { _ in }
+    @State private var reponse = ""
     @State private var envoi = false
     @State private var erreur: String?
 
@@ -115,6 +143,42 @@ struct ResultatsRecherche: View {
                         .buttonStyle(PressStyle())
                         .accessibilityLabel("Exécuter \(l.title)")
                     }
+                }
+            } else if let q = question {
+                entete("Holo a besoin d’une précision")
+                Text(q.question).font(rounded(19, .semibold)).fixedSize(horizontal: false, vertical: true)
+                Text("Votre demande : « \(q.demande) »").font(rounded(15)).foregroundStyle(T.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(q.options, id: \.self) { o in
+                        Button { repondre(o) } label: {
+                            Text(o).font(rounded(16, .semibold)).foregroundStyle(T.ink)
+                                .padding(.horizontal, 16).frame(minHeight: 44)
+                                .background(Capsule().fill(T.field)).contentShape(Capsule())
+                        }
+                        .buttonStyle(PressStyle())
+                    }
+                }
+                HStack(spacing: 10) {
+                    TextField("Ou dites-le avec vos mots", text: $reponse)
+                        .textFieldStyle(.plain).font(rounded(16)).padding(.horizontal, 14).frame(minHeight: 44)
+                        .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.field))
+                        .onSubmit(envoyerReponse)
+                    Button(action: envoyerReponse) {
+                        Text("Répondre").font(rounded(16, .semibold)).foregroundStyle(.white)
+                            .padding(.horizontal, 18).frame(minHeight: 44)
+                            .background(Capsule().fill(T.primary)).contentShape(Capsule())
+                    }
+                    .buttonStyle(PressStyle())
+                    .disabled(reponse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                Text("Ne donnez jamais de mot de passe ni de code : on ne vous les demandera pas.")
+                    .font(rounded(13)).foregroundStyle(T.muted).fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 12) {
+                    Button("Envoyer quand même") { repondre(nil) }
+                        .buttonStyle(.plain).font(rounded(16, .semibold)).foregroundStyle(T.accent).frame(minHeight: 44)
+                    Button("Annuler", action: fermer)
+                        .buttonStyle(.plain).font(rounded(16, .semibold)).foregroundStyle(T.muted).frame(minHeight: 44)
                 }
             } else if prepare {
                 HStack(spacing: 10) {
@@ -162,6 +226,13 @@ struct ResultatsRecherche: View {
         .padding(18).frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
         .foregroundStyle(T.ink)
+    }
+
+    private func envoyerReponse() {
+        let t = reponse.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        reponse = ""
+        repondre(String(t.prefix(300)))
     }
 
     private func entete(_ s: String) -> some View {

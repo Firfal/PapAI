@@ -513,6 +513,24 @@ Serveur → `{"type":"tickets_changed"}` (relire la liste) et `{"type":"ticket_d
   l'envoie : `POST /k/<clé>/tickets` (ou `POST /tickets` depuis la machine du serveur)
   `{"task","automate":{…plan}}` → `{"ticket"}`, `source` `automate`, statut `nouveau`, champ
   `automate`. Le support valide par l'action `validate`.
+
+**Pré-traitement de la demande** (`backend/clarify.py`). Avant le plan ou la file d'attente, Holo
+vérifie en texte seul (aucune capture, aucune action) que la demande dit sur quoi porte le besoin
+et quel problème. Une règle fixe repère aussi les demandes vides (« j'ai besoin d'aide », « ça marche
+pas »), pour le cas où Holo ne répond pas.
+- L'app l'annonce dans `hello` : `"clarify": true` (Windows). Sans ce champ, rien ne change.
+- App → `help_request` sans `requested_by` ni `ticket`. Demande floue : Serveur →
+  `{"type":"clarify","question","options":["…"],"round":1,"max":2}`. Aucun ticket n'est encore ouvert.
+- App → `{"type":"clarify_answer","text"}` (300 caractères) ou `{"type":"clarify_answer","skip":true}`
+  (« Envoyer quand même ») ; `{"type":"clarify_cancel"}` (ou `stop`) abandonne la demande.
+- Deux questions au plus. Ensuite, ou si la demande est claire, Holo rédige l'objet formel du ticket
+  et la suite est celle d'avant (`ticket_queued` ou `session`), avec `task` = l'objet.
+- Le ticket garde `demande` (mots d'origine) et `precisions` [{q, a}] quand ils diffèrent de l'objet.
+  Holo les reçoit avec l'objet pour le plan et l'exécution ; le gardien les vérifie avec la demande.
+- Holo injoignable : la demande part telle quelle ; seule une demande vide reçoit une question générale.
+- Barre de recherche du Mac : `POST …/automations/draft` `{"kind":"request","text","precisions"?,"skip"?}`
+  renvoie `{"clarify":{"question","options","round","max"}}` tant que la demande est floue, sinon le plan
+  avec `objet`, `demande`, `precisions`. `POST …/tickets` accepte `demande` et `precisions`.
 - `GET /o/<support_token>/tickets` → `{"org","tickets":[… + "space","poste","online"]}` ;
   `POST /o/<support_token>/tickets/<clé du poste>/<id>` : mêmes actions (404 hors organisation).
 - `GET /tickets.js` : liste commune à la page du support et à celle de l'organisation (filtres, export CSV).

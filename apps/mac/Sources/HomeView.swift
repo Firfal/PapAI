@@ -9,6 +9,7 @@ struct HomeView: View {
     @State private var trouves: [Lesson] = []
     @State private var prepare = false
     @State private var proposition: PropositionAutomate?
+    @State private var question: QuestionHolo?
     @FocusState private var focused: Bool
     @State private var dictation = Dictation()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -92,8 +93,9 @@ struct HomeView: View {
                         .padding(.horizontal, 18).padding(.vertical, 12)
                         .background(RoundedRectangle(cornerRadius: T.r, style: .continuous).fill(T.card))
                 }
-                if !trouves.isEmpty || prepare || proposition != nil {
-                    ResultatsRecherche(trouves: trouves, prepare: prepare, proposition: proposition, fermer: fermerRecherche)
+                if !trouves.isEmpty || prepare || proposition != nil || question != nil {
+                    ResultatsRecherche(trouves: trouves, prepare: prepare, proposition: proposition, fermer: fermerRecherche,
+                                       question: question, repondre: preciser)
                         .frame(maxWidth: largeur ?? .infinity)
                 }
                 if let q = model.queued, !model.queuedShown {
@@ -263,23 +265,41 @@ struct HomeView: View {
         if text.isEmpty { warning = "Dites en quelques mots ce que vous voulez faire."; focused = true; return }
         warning = nil
         proposition = nil
+        question = nil
         // D'abord les automates de l'utilisateur : ils se lancent sans autorisation ni support en direct.
         trouves = RechercheAutomates.chercher(text, dans: model.lessons)
         if !trouves.isEmpty { return }
         // Rien ne correspond : Holo propose un plan, à envoyer au support IT dans un ticket.
         prepare = true
         Task {
-            let r = await PropositionAutomate.preparer(text, base: model.httpBase)
-            prepare = false
-            switch r {
-            case .success(let p): proposition = p; request = ""
-            case .failure(let e): warning = e.texte
-            }
+            afficher(await PropositionAutomate.preparer(text, base: model.httpBase))
+        }
+    }
+
+    /// Réponse de Holo : une question sur une demande floue, ou le plan à envoyer au support IT.
+    private func afficher(_ r: Result<ReponseHolo, PropositionAutomate.Erreur>) {
+        prepare = false
+        switch r {
+        case .success(.question(let q)): question = q; request = ""
+        case .success(.plan(let p)): proposition = p; request = ""
+        case .failure(let e): warning = e.texte
+        }
+    }
+
+    /// Réponse de l'utilisateur à la question de Holo (nil : « Envoyer quand même »).
+    private func preciser(_ reponse: String?) {
+        guard let q = question else { return }
+        question = nil
+        prepare = true
+        let precisions = reponse.map { q.precisions + [["q": q.question, "a": $0]] } ?? q.precisions
+        Task {
+            afficher(await PropositionAutomate.preparer(q.demande, precisions: precisions,
+                                                        envoyerQuandMeme: reponse == nil, base: model.httpBase))
         }
     }
 
     private func fermerRecherche() {
-        trouves = []; proposition = nil; prepare = false
+        trouves = []; proposition = nil; prepare = false; question = nil
         request = ""
     }
 
