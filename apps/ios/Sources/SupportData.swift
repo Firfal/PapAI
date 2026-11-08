@@ -23,6 +23,8 @@ struct SupportTicket: Identifiable {
     var created: Double
     var rdv: Double?
     var assignee: String
+    /// Où un automate s'est arrêté : « Étape 2 (Ouvrir Photos) : bouton introuvable ».
+    var blocked: String?
     var suggestions: [SupportTicketSuggestion] = []
     var suggestionLancee: String?
     var category: String
@@ -47,6 +49,11 @@ struct SupportTicket: Identifiable {
         created = (d["created"] as? NSNumber)?.doubleValue ?? updated
         rdv = (d["rdv"] as? NSNumber)?.doubleValue
         assignee = d["assignee"] as? String ?? ""
+        if let b = d["blocked"] as? [String: Any], let n = (b["step"] as? NSNumber)?.intValue {
+            let label = (b["label"] as? String).flatMap { $0.isEmpty ? nil : " (\($0))" } ?? ""
+            let reason = (b["reason"] as? String).flatMap { $0.isEmpty ? nil : " : \($0)" } ?? ""
+            blocked = "Bloqué à l’étape \(n)\(label)\(reason)"
+        }
         suggestions = (d["suggestions"] as? [[String: Any]] ?? []).compactMap { item in
             guard let id = item["id"] as? String, let title = item["title"] as? String else { return nil }
             return SupportTicketSuggestion(id: id, title: title)

@@ -62,7 +62,8 @@
     if (t.assignee) m.push(`pris par ${t.assignee}`);
     if (t.helper) m.push(`aidé par ${t.helper}`);
     if (t.plan && t.plan.length) m.push(`${Math.min(t.steps_done || 0, t.plan.length)}/${t.plan.length} étapes`);
-    if (t.stopped_by && t.status !== 'resolu') m.push(`arrêté (${t.stopped_by === 'senior' ? 'la personne' : t.stopped_by})`);
+    if (t.blocked && t.blocked.step) m.push(`bloqué à l’étape ${t.blocked.step}${t.blocked.label ? ` (${t.blocked.label})` : ''}${t.blocked.reason ? ` : ${t.blocked.reason}` : ''}`);
+    else if (t.stopped_by && t.status !== 'resolu') m.push(`arrêté (${t.stopped_by === 'senior' ? 'la personne' : t.stopped_by})`);
     if (t.closed_by) m.push(`clos par ${t.closed_by}`);
     return m.join(' · ');
   }
@@ -136,7 +137,8 @@
       ['Mis à jour', t => new Date(t.updated * 1000).toISOString()], ['Rendez-vous', t => t.rdv ? new Date(t.rdv * 1000).toISOString() : ''],
       ['Pris par', t => t.assignee || ''], ['Utilisateur par', t => t.helper || ''],
       ['Étapes', t => (t.plan || []).length ? `${t.steps_done || 0}/${t.plan.length}` : ''],
-      ['Arrêté par', t => t.stopped_by || ''], ['Clos par', t => t.closed_by || ''],
+      ['Arrêté par', t => t.stopped_by || ''],
+      ['Bloqué à', t => t.blocked && t.blocked.step ? `${t.blocked.step}. ${t.blocked.label || ''} ${t.blocked.reason || ''}`.trim() : ''], ['Clos par', t => t.closed_by || ''],
       ['Notes', t => (t.notes || []).map(n => `${n.by}: ${n.text}`).join(' | ')]];
     // Une case qui commence par = + - @ serait lue comme une formule par le tableur.
     const q = v => `"${String(v ?? '').replace(/^[=+\-@\t\r]/, "'$&").replace(/"/g, '""')}"`;
