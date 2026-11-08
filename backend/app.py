@@ -425,6 +425,23 @@ def helper_can_access_alert(ws: WebSocket, alert: dict) -> bool:
     return scope is None or scope == alert.get("session")
 
 
+def _session_socket_live(ws: WebSocket, payload: dict) -> bool:
+    if ws not in S().helper_alert_scopes:
+        return False
+    scope = S().helper_alert_scopes[ws]
+    if scope is None:
+        return True
+    if payload.get("type") == "status" and payload.get("session") == scope:
+        return True
+    if payload.get("type") == "guard_advice" or (
+        payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged")
+        and payload.get("alert_id")
+    ):
+        return helper_can_access_alert(ws, payload)
+    session = current_session()
+    return session is not None and session.id == scope and session.is_open
+
+
 async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
     if payload.get("type") == "status":
         await _sync_ticket(payload)
@@ -432,6 +449,8 @@ async def broadcast_helper(payload: dict, *, to_bridge: bool = True) -> None:
         await S().bridge.send(payload)
     dead = []
     for ws in S().helper_sockets:
+        if not _session_socket_live(ws, payload):
+            continue
         scoped = payload.get("type") == "guard_advice" or (payload.get("type") in ("alert", "alert_cleared", "alert_acknowledged") and payload.get("alert_id"))
         if scoped and not helper_can_access_alert(ws, payload):
             continue
@@ -992,7 +1011,7 @@ async def ws_helper(ws: WebSocket, token: str) -> None:
     await ws.send_json({"type": "senior", "name": S().family.senior or None})
     if S().pending_alert and helper_can_access_alert(ws, S().pending_alert["helper"]):
         await ws.send_json(S().pending_alert["helper"])
-    if session.last_frame:
+    if session.is_open and session is current_session() and session.last_frame:
         await ws.send_json(
             {
                 "type": "frame",
@@ -1113,6 +1132,9 @@ async def handle_helper_refresh(session, ws: WebSocket) -> None:
     Ne touche à rien sur le PC : c'est une lecture d'écran, soumise aux mêmes
     conditions que le reste (session ouverte, partage autorisé).
     """
+    session.require_open()
+    if session is not current_session():
+        raise Refused("Cette assistance n'est plus en cours.")
     if not session.consented:
         raise Refused("Le partage d'écran n'a pas été autorisé.")
     if session.where == "web":
@@ -1125,6 +1147,9 @@ async def handle_helper_refresh(session, ws: WebSocket) -> None:
         raise Refused("Le PC n'est pas connecté.")
 
     frame = await S().bridge.capture()
+    session.require_open()
+    if session is not current_session():
+        raise Refused("Cette assistance n'est plus en cours.")
     if frame is None:
         raise Refused("Le PC n'a pas répondu.")
 

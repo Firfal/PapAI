@@ -17,6 +17,8 @@ aîné : stop (à tout moment) ────────────────�
 États (`status.state`) : `planning`, `awaiting_approval`, `active`,
 `awaiting_helper`, `done`, `stopped`.
 
+Un lien de session ne reçoit plus rien d'une assistance terminée ou d'une autre assistance.
+
 ## Étape du plan en cours (`status.plan_step`)
 
 `plan_step` est le numéro (à partir de 1) de l'étape du plan validé que Holo
