@@ -491,7 +491,7 @@ final class AppModel {
            let list = try? JSONDecoder().decode([Lesson].self, from: data) {
             lessons = list
             OfflineLessons.save(data, base: httpBase)
-            if list.isEmpty { await seedExampleAutomates() }
+            // Aucun automate fourni d'avance : ils naissent tous de tickets résolus.
         } else if lessons.isEmpty {
             lessons = OfflineLessons.load(base: httpBase)  // pas de réseau : ceux qui n'ont pas besoin de Holo
         }

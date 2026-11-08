@@ -197,9 +197,9 @@ final class AutomateLibrary {
     init() {
         if let d = try? Data(contentsOf: file), let l = try? JSONDecoder().decode([Entry].self, from: d) {
             entries = l
-        } else {
-            seedExamples()
         }
+        // Pas d'exemples au premier lancement : la bibliothèque se remplit avec les automates
+        // nés des tickets, et avec ceux déjà présents chez les utilisateurs.
     }
 
     /// Premier lancement : les exemples livrés avec l'app (dossier `automations/` du dépôt).
