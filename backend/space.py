@@ -30,9 +30,8 @@ KEY_RE = re.compile(r"^[A-Za-z0-9_-]{12,64}$")
 
 
 class Space:
-    def __init__(self, key: str, folder: Path, sid: str = "", org: str = "", label: str = "") -> None:
+    def __init__(self, key: str, folder: Path, sid: str = "", label: str = "") -> None:
         self.key = key
-        self.org = org  # organisation (service IT) du poste, vide pour un ordinateur seul
         self.label = label  # nom du poste donné à l'inscription (avant que la personne dise son prénom)
         self.id = sid or "defaut"
         self.folder = folder
@@ -57,12 +56,12 @@ class Spaces:
             for f in sorted(DATA_DIR.glob("*/space.json")):
                 try:
                     d = json.loads(f.read_text("utf-8"))
-                    self._add(str(d["key"]), f.parent.name, str(d.get("org", "")), str(d.get("label", "")))
+                    self._add(str(d["key"]), f.parent.name, str(d.get("label", "")))
                 except (OSError, ValueError, KeyError):
                     continue
 
-    def _add(self, key: str, sid: str, org: str = "", label: str = "") -> Space:
-        sp = Space(key, DATA_DIR / sid, sid, org, label)
+    def _add(self, key: str, sid: str, label: str = "") -> Space:
+        sp = Space(key, DATA_DIR / sid, sid, label)
         self._by_key[key] = sp
         return sp
 
@@ -78,7 +77,7 @@ class Spaces:
     def new_code(self, sp: Space) -> str:
         return sp.family.new_code(others=(other.family for other in self.all()))
 
-    def create(self, key: str | None = None, org: str = "", label: str = "") -> Space:
+    def create(self, key: str | None = None, label: str = "") -> Space:
         """Nouvel espace. `key` : un ordinateur qui revient avec sa clé après
         un redéploiement (disque effacé) retrouve un espace à son nom."""
         key = key or secrets.token_urlsafe(18)
@@ -86,27 +85,15 @@ class Spaces:
             raise ValueError("clé invalide")
         sid = secrets.token_hex(6)
         (DATA_DIR / sid).mkdir(parents=True, exist_ok=True)
-        sp = self._add(key, sid, org, label)
+        sp = self._add(key, sid, label)
         self._write(sp)
         return sp
 
     def _write(self, sp: Space) -> None:
         (sp.folder / "space.json").write_text(json.dumps(
-            {"key": sp.key, "created": int(time.time()), "org": sp.org, "label": sp.label},
+            {"key": sp.key, "created": int(time.time()), "label": sp.label},
             ensure_ascii=False), encoding="utf-8")
 
-    def join(self, sp: Space, org: str, label: str = "") -> bool:
-        """Rattache un poste existant à une organisation. L'espace historique
-        (racine du dépôt) reste seul : il n'a pas de `space.json`."""
-        if sp is self.default:
-            return False
-        sp.org = org
-        sp.label = label or sp.label
-        self._write(sp)
-        return True
-
-    def members(self, org: str) -> list[Space]:
-        return [sp for sp in self._by_key.values() if org and sp.org == org]
 
 
 _current: contextvars.ContextVar[Space | None] = contextvars.ContextVar("papai_space", default=None)

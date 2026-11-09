@@ -1,4 +1,4 @@
-// Tickets PapAI : liste commune à la page du support et à celle de l'organisation.
+// Tickets PapAI : la liste des demandes, sur la page du support.
 (function () {
   const STATUS = {
     nouveau: 'Nouveau', en_attente: "En attente d'un support", rdv: 'Rendez-vous',

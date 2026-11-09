@@ -25,7 +25,7 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.requests import HTTPConnection
 
-from . import automations, guard, orgs as orgs_mod, space, tickets as tickets_mod, voice
+from . import automations, guard, space, tickets as tickets_mod, voice
 from .agent import AgentRunner, SensitiveBlocked, propose_plan, protected_window_support_text
 from .web_agent import WebAgentRunner, valid_browser_session
 from .family import CODE_TTL, INVITE_TTL, INVALID_CODE, Family, PairingError, clean_label
@@ -65,7 +65,6 @@ app = FastAPI(title="PapAI")
 # lancement à l'autre si on la fixe dans .env, sinon tirée au démarrage.
 AIDANT_KEY = os.environ.get("PAPAI_AIDANT_KEY") or secrets.token_urlsafe(9)
 spaces = space.setup(AIDANT_KEY)
-orgs = orgs_mod.Orgs()
 
 
 def S() -> space.Space:
@@ -300,8 +299,8 @@ _bg_tasks: set = set()
 
 
 def _support_expected() -> bool:
-    """Quelqu'un peut répondre à cette personne : un support connu ou une organisation."""
-    return bool(S().family.helpers) or bool(getattr(S(), "org", None))
+    """Quelqu'un peut répondre à cette personne : un support connu."""
+    return bool(S().family.helpers)
 
 
 def _is_support(ws) -> bool:
@@ -327,8 +326,7 @@ def _rdv_at(v) -> int | None:
 
 
 def _open_ticket(task: str, source: str, status: str = "nouveau", by: str = "") -> dict:
-    o = orgs.get(S().org) if getattr(S(), "org", "") else None
-    return S().tickets.open(task, source, status=status, by=by, number=o.next_ticket() if o else None)
+    return S().tickets.open(task, source, status=status, by=by)
 
 
 async def _tickets_changed() -> None:
@@ -1281,9 +1279,6 @@ SPACES_PER_HOUR = 5
 _wrong_codes: dict[str, list[float]] = {}
 _global_wrong_codes: dict[str, list[float]] = {}
 _space_creations: dict[str, list[float]] = {}
-# Postes d'une même organisation (souvent derrière la même adresse IP) : plafond par organisation.
-ORG_ENROLLS_PER_HOUR = int(os.environ.get("PAPAI_ORG_ENROLLS_PER_HOUR", "200"))
-_org_enrolls: dict[str, list[float]] = {}
 
 
 def _client_ip(request: HTTPConnection) -> str:
@@ -1344,29 +1339,12 @@ async def invitation_submit(token: str, request: Request):
 @app.post("/spaces")
 async def create_space(request: Request):
     body = await _small_json(request)
-    org = None
-    if body.get("org"):
-        # Poste d'entreprise : le jeton d'inscription le rattache à son organisation.
-        org = orgs.by_enroll(str(body["org"]))
-        if org is None:
-            return JSONResponse({"error": "Jeton d'organisation inconnu."}, status_code=403)
-        if not _rate_ok(_org_enrolls, org.id, ORG_ENROLLS_PER_HOUR, 3600):
-            return JSONResponse({"error": "Trop d'inscriptions. Réessayez plus tard."}, status_code=429)
-    elif not _rate_ok(_space_creations, _client_ip(request), SPACES_PER_HOUR, 3600):
+    if not _rate_ok(_space_creations, _client_ip(request), SPACES_PER_HOUR, 3600):
         return JSONResponse({"error": "Trop de créations. Réessayez plus tard."}, status_code=429)
-    sp = spaces.create(org=org.id if org else "", label=_label(body))
-    if org is not None:
-        org.copy_automations(sp.lessons_dir)
-    print(f"[espaces] nouvel espace {sp.id}" + (f" (organisation {org.id})" if org else ""))
+    sp = spaces.create(label=_label(body))
+    print(f"[espaces] nouvel espace {sp.id}")
     ws_base = PUBLIC_URL.replace("https://", "wss://").replace("http://", "ws://")
-    return {"key": sp.key, "server": PUBLIC_URL, "bridge_url": f"{ws_base}/k/{sp.key}/ws/bridge",
-            **({"org": org.name} if org else {})}
-
-
-# ------------------------------------------------------------------ organisations (service IT)
-
-ORGS_PER_HOUR = 3
-_org_creations: dict[str, list[float]] = {}
+    return {"key": sp.key, "server": PUBLIC_URL, "bridge_url": f"{ws_base}/k/{sp.key}/ws/bridge"}
 
 
 async def _small_json(request: Request, limit: int = 4096) -> dict:
@@ -1382,108 +1360,6 @@ async def _small_json(request: Request, limit: int = 4096) -> dict:
 
 def _label(body: dict) -> str:
     return re.sub(r"\s+", " ", str(body.get("name") or "")).strip()[:60]
-
-
-def _org_links(o: orgs_mod.Org) -> dict:
-    return {"support_url": f"{PUBLIC_URL}/o/{o.support}",
-            "app_url": f"papai://org?u={quote(PUBLIC_URL, safe='')}&t={o.support}"}
-
-
-@app.post("/orgs")
-async def create_org(request: Request):
-    """Le service IT crée son organisation : un jeton pour les postes, un pour les supports."""
-    body = await _small_json(request)
-    name = _label(body)
-    if not name:
-        return JSONResponse({"error": "Donnez le nom de l'organisation."}, status_code=400)
-    if not _rate_ok(_org_creations, _client_ip(request), ORGS_PER_HOUR, 3600):
-        return JSONResponse({"error": "Trop de créations. Réessayez plus tard."}, status_code=429)
-    o = orgs.create(name)
-    print(f"[organisations] nouvelle organisation {o.id}")
-    return {"id": o.id, "name": o.name, "enroll_token": o.enroll, "support_token": o.support,
-            "server": PUBLIC_URL, **_org_links(o)}
-
-
-@app.post("/k/{fam}/org")
-async def join_org(fam: str, request: Request):
-    """Un poste déjà installé rejoint l'organisation (jeton déposé après coup par l'IT)."""
-    if not _key_ok(fam):
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    body = await _small_json(request)
-    o = orgs.by_enroll(str(body.get("org") or ""))
-    if o is None:
-        return JSONResponse({"error": "Jeton d'organisation inconnu."}, status_code=403)
-    if S().org and S().org != o.id:
-        return JSONResponse({"error": "Ce poste appartient déjà à une autre organisation."}, status_code=409)
-    first = S().org != o.id
-    if not spaces.join(S(), o.id, _label(body)):
-        return JSONResponse({"error": "Cet espace ne peut pas rejoindre une organisation."}, status_code=409)
-    o.copy_automations(S().lessons_dir)
-    if first:
-        S().tickets.renumber(o.next_ticket)
-    if S().bridge is not None:
-        await S().bridge.send({"type": "lessons_changed", "title": ""})
-    return {"org": o.name}
-
-
-@app.get("/o/{token}")
-async def org_page(token: str):
-    if orgs.by_support(token) is None:
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    return FileResponse(STATIC / "org.html")
-
-
-@app.get("/o/{token}/spaces")
-async def org_spaces(token: str):
-    """Tous les postes de l'organisation, avec leur clé : le support les suit sans appairage."""
-    o = orgs.by_support(token)
-    if o is None:
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    return {"org": o.name, "server": PUBLIC_URL, "spaces": [
-        {"key": sp.key, "name": sp.family.senior or sp.label, "label": sp.label,
-         "online": sp.bridge is not None} for sp in spaces.members(o.id)]}
-
-
-@app.get("/o/{token}/automations")
-async def org_automations(token: str):
-    o = orgs.by_support(token)
-    if o is None:
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    return o.automations()
-
-
-@app.post("/o/{token}/automations")
-async def org_import_automation(token: str, request: Request):
-    """Importé une fois par l'IT, proposé sur tous les postes, présents et à venir."""
-    o = orgs.by_support(token)
-    if o is None:
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    pack = await _read_pack(request)
-    if isinstance(pack, JSONResponse):
-        return pack
-    try:
-        lesson = automations.save(pack, by=request.query_params.get("by", "") or o.name, folder=o.lessons_dir)
-    except automations.Invalid as e:
-        return JSONResponse({"error": str(e)}, status_code=422)
-    print(f"[organisations] automate {lesson['id']} pour {o.id}")
-    for sp in spaces.members(o.id):
-        o.copy_automations(sp.lessons_dir, only=lesson["id"])
-        if sp.bridge is not None:
-            await sp.bridge.send({"type": "lessons_changed", "title": lesson["title"]})
-    return lesson
-
-
-@app.delete("/o/{token}/automations/{lesson_id}")
-async def org_remove_automation(token: str, lesson_id: str):
-    o = orgs.by_support(token)
-    if o is None:
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    if not automations.remove(lesson_id, o.lessons_dir):
-        return JSONResponse({"error": "introuvable"}, status_code=404)
-    for sp in spaces.members(o.id):
-        if automations.remove(lesson_id, sp.lessons_dir) and sp.bridge is not None:
-            await sp.bridge.send({"type": "lessons_changed", "title": ""})
-    return {"removed": lesson_id}
 
 
 @app.get("/k/{fam}/p/{code}")
@@ -1924,7 +1800,7 @@ def _sessions_journal():
     ]
 
 
-# --- Tickets : vus et traités par le support (page web, apps, organisation) ---
+# --- Tickets : vus et traités par le support (page web, apps) ---
 
 async def _ticket_action(tid: str, body: dict):
     t = S().tickets.get(tid)
@@ -1996,31 +1872,6 @@ async def tickets_keyed(fam: str):
 async def ticket_action_keyed(fam: str, tid: str, request: Request):
     if not _key_ok(fam):
         return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    return await _ticket_action(tid, await _json_body(request))
-
-
-@app.get("/o/{token}/tickets")
-async def org_tickets(token: str):
-    """Les tickets de tous les postes de l'organisation, les plus récents d'abord."""
-    o = orgs.by_support(token)
-    if o is None:
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    out = []
-    for sp in spaces.members(o.id):
-        poste = sp.family.senior or getattr(sp, "label", "") or "Poste"
-        out += [{**tickets_mod.public(t), "space": sp.key, "poste": poste,
-                 "online": sp.bridge is not None} for t in sp.tickets.all()[:200]]
-    out.sort(key=lambda t: t.get("updated", 0), reverse=True)
-    return {"org": o.name, "tickets": out[:1000]}
-
-
-@app.post("/o/{token}/tickets/{key}/{tid}")
-async def org_ticket_action(token: str, key: str, tid: str, request: Request):
-    o = orgs.by_support(token)
-    sp = spaces.get(key)
-    if o is None or sp is None or getattr(sp, "org", None) != o.id:
-        return JSONResponse({"error": "Lien invalide."}, status_code=404)
-    space.use(sp)
     return await _ticket_action(tid, await _json_body(request))
 
 

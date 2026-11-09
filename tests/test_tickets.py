@@ -3,8 +3,7 @@
 Serveur temporaire en mode en ligne. Sans support connecté, la demande attend
 (ticket « en attente ») ; dès qu'un support se connecte, elle est reproposée à
 la personne aidée ; elle peut fixer un rendez-vous et elle est rappelée à
-l'heure dite ; le support prend le ticket, la session s'y rattache ; le service
-IT voit les tickets de tous ses postes.
+l'heure dite ; le support prend le ticket, et la session s'y rattache.
 
     python tests/test_tickets.py
 """
@@ -60,20 +59,26 @@ def stockage() -> None:
     relu = Tickets(p).get(t["id"])
     check("un ticket survit au redémarrage du serveur", relu is not None and relu["number"] == 1)
     check("numéros qui se suivent", Tickets(p).open("Wi-Fi", "personne")["number"] == 2)
-    seq = iter(range(41, 50))
-    Tickets(p).renumber(lambda: next(seq))
-    check("le poste rejoint une organisation : ses tickets sont renumérotés",
-          sorted(t["number"] for t in Tickets(p).all()) == [41, 42])
 
 
 async def parcours(base: str) -> None:
     wsb = base.replace("http://", "ws://")
-    st, o = http(f"{base}/orgs", {"name": "Acme"})
-    st, a = http(f"{base}/spaces", {"org": o["enroll_token"], "name": "Poste compta"})
+    st, a = http(f"{base}/spaces", {"name": "L'ordinateur de Christine"})
     key = a["key"]
     async with websockets.connect(a["bridge_url"]) as wa:
         await wa.send(json.dumps({"type": "hello", "os": "windows"}))
         await drain(wa, 0.5)
+
+        # Sa fille est liée à cet ordinateur, mais pas connectée. C'est ce qui
+        # fait qu'une demande attend au lieu de démarrer toute seule : quelqu'un
+        # est attendu.
+        c = await base_test.code(wa)
+        liaison = asyncio.create_task(
+            base_test.post(f"{base}/p/{c}", {"name": "Claire", "relation": "Sa fille"}))
+        d = await attendre(wa, "pair_confirm")
+        await wa.send(json.dumps({"type": "pair_decision", "req": d["req"], "accept": True}))
+        await liaison
+        await drain(wa, 0.3)
 
         await wa.send(json.dumps({"type": "help_request", "task": "Imprimer un document"}))
         q = await attendre(wa, "ticket_queued")
@@ -140,26 +145,7 @@ async def parcours(base: str) -> None:
             await wa.send(json.dumps({"type": "stop"}))
             await asyncio.sleep(0.3)
 
-        st, r = http(f"{base}/o/{o['support_token']}/tickets")
-        st2, b = http(f"{base}/spaces", {"org": o["enroll_token"], "name": "Poste accueil"})
-        async with websockets.connect(b["bridge_url"]) as wb2:
-            await wb2.send(json.dumps({"type": "hello", "os": "windows"}))
-            await drain(wb2, 0.3)
-            await wb2.send(json.dumps({"type": "help_request", "task": "Écran noir"}))
-            q2 = await attendre(wb2, "ticket_queued")
-        check("numéro unique dans toute l'organisation", q2 is not None and q2["number"] == 3)
-        st, r = http(f"{base}/o/{o['support_token']}/tickets")
-        r["tickets"] = [x for x in r.get("tickets", []) if x["space"] == key]
-        check("le service IT voit les tickets de ses postes",
-              st == 200 and len(r["tickets"]) == 2 and all(x["poste"] == "Poste compta" for x in r["tickets"]))
-        st, r = http(f"{base}/o/{o['support_token']}/tickets/{key}/{tid}", {"action": "reopen", "by": "IT"})
-        check("le service IT rouvre un ticket", st == 200 and r["ticket"]["status"] == "en_attente")
-        st, _ = http(f"{base}/o/{o['enroll_token']}/tickets")
-        check("le jeton d'inscription ne voit pas les tickets", st == 404)
-
     st, seul = http(f"{base}/spaces", {})
-    st, _ = http(f"{base}/o/{o['support_token']}/tickets/{seul['key']}/{tid}", {"action": "close"})
-    check("pas de ticket d'un poste hors organisation", st == 404)
     async with websockets.connect(seul["bridge_url"]) as wb:
         await wb.send(json.dumps({"type": "hello", "os": "windows"}))
         await drain(wb, 0.5)
